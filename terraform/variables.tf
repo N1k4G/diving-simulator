@@ -23,4 +23,5 @@ variable "project_name" {
 variable "custom_domain" {
   description = "Custom domain to attach to the Pages project"
   type        = string
+  default     = "scuba.gorman.monster"
 }
