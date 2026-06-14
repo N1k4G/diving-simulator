@@ -1,0 +1,24 @@
+{
+  "name": "diving-simulator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A 2D HTML5 Canvas diving simulator implementing the Buhlmann ZHL-16C decompression algorithm with multi-gas, CCR, and a technical wrist dive computer-style HUD.",
+  "license": "MIT",
+  "scripts": {
+    "lint": "eslint src/*.js",
+    "test": "playwright test",
+    "screenshots": "node scripts/screenshots.mjs",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0",
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0",
+    "http-server": "^14.1.0",
+    "husky": "^9.0.0",
+    "lint-staged": "^15.0.0"
+  },
+  "lint-staged": {
+    "src/*.js": "eslint --max-warnings=0"
+  }
+}

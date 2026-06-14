@@ -1,0 +1,25 @@
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/*.tfvars
+terraform/.terraform.lock.hcl
+
+# Claude Code local settings
+.claude/settings.local.json
+.claude/agents/
+
+# Node
+node_modules/
+
+# Playwright
+test-results/
+playwright-report/
+.playwright/
+
+# Generated review screenshots
+screenshots/
+
+# OS
+.DS_Store
+Thumbs.db

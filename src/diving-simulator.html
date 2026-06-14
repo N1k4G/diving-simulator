@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>2D Diving Simulator — Bühlmann ZHL-16C</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="c"></canvas>
+<!-- WP-014: Touch control overlays -->
+<div id="touch-ui">
+  <!-- Navigation D-pad: ascend/descend/left/right in a WASD cross.
+       Lives outside .t-group so it can also show on desktop (with W/A/S/D
+       labels); on touch devices it shows arrow glyphs. Managed by
+       updateNavPadVisibility() in touch.js. -->
+  <div id="touch-dpad" style="display:none;">
+    <button class="t-btn t-nav" id="touch-dive-ascend"></button>
+    <button class="t-btn t-nav" id="touch-dive-left"></button>
+    <button class="t-btn t-nav" id="touch-dive-descend"></button>
+    <button class="t-btn t-nav" id="touch-dive-right"></button>
+  </div>
+  <!-- Diving controls -->
+  <div id="touch-dive" class="t-group">
+    <button class="t-btn" id="touch-dive-help"><span>H</span><span style="font-size:10px;font-weight:normal;margin-top:2px">Help</span></button>
+    <button class="t-btn" id="touch-gas-info" style="display:none;"><span>I</span><span style="font-size:10px;font-weight:normal;margin-top:2px">Info</span></button>
+    <button class="t-btn" id="touch-fast-forward" style="display:none;"><span>F</span><span class="t-btn-sub">x10</span></button>
+    <!-- D6: Torch toggle — visible in overhead sites (cave / wreck) -->
+    <button class="t-btn" id="touch-torch" style="display:none;"><span>T</span><span class="t-btn-sub">TORCH</span></button>
+    <!-- BUG-CCR-1 / BUG-CCR-2 / BUG-CCR-7: CCR-only in-dive controls -->
+    <button class="t-btn t-warn" id="touch-dive-bailout" style="display:none;"><span>B</span><span style="font-size:10px;font-weight:normal;margin-top:2px">Bailout</span></button>
+    <button class="t-btn" id="touch-ccr-sp-up" style="display:none;"><span>SP+</span></button>
+    <button class="t-btn" id="touch-ccr-sp-down" style="display:none;"><span>SP−</span></button>
+    <div class="t-tank-btns" id="touch-dive-tanks"></div>
+  </div>
+  <!-- Gas setup controls -->
+  <div id="touch-setup" class="t-group">
+    <div class="t-setup-adj" id="touch-adj-o2">
+      <button class="t-btn" data-key="arrowleft">O₂ −</button>
+      <button class="t-btn" data-key="arrowright">O₂ +</button>
+    </div>
+    <div class="t-setup-adj" id="touch-adj-he" style="display:none">
+      <button class="t-btn" data-key="arrowup">He +</button>
+      <button class="t-btn" data-key="arrowdown">He −</button>
+    </div>
+    <div class="t-setup-adj" id="touch-adj-pres">
+      <button class="t-btn" data-key="pageup">P +</button>
+      <button class="t-btn" data-key="pagedown">P −</button>
+    </div>
+    <div class="t-setup-adj" id="touch-adj-tank" style="display:none">
+      <button class="t-btn" data-key=",">&minus;L</button>
+      <button class="t-btn" data-key=".">+L</button>
+    </div>
+    <div id="touch-setup-presets"></div>
+    <div id="touch-setup-extras">
+      <button class="t-btn" id="touch-setup-lang" style="font-size:13px">Sprache</button>
+    </div>
+    <button class="t-btn t-large t-accent" id="touch-setup-start"></button>
+  </div>
+  <!-- Surface -->
+  <div id="touch-surface" class="t-group">
+    <button class="t-btn t-large t-accent" id="touch-surface-btn"></button>
+  </div>
+  <!-- Game over -->
+  <div id="touch-gameover" class="t-group">
+    <button class="t-btn t-large" id="touch-gameover-btn"></button>
+  </div>
+  <!-- Post-dive -->
+  <div id="touch-postdive" class="t-group">
+    <button class="t-btn t-large t-accent" id="touch-postdive-btn"></button>
+  </div>
+</div>
+<!-- WP-016: HTML gas-setup overlay for touch devices -->
+<div id="html-gas-setup"><div class="gs-content"></div></div>
+<!-- WP-017: HTML help overlay -->
+<div id="html-help-overlay"><div class="help-content"></div></div>
+<!-- TASK-031D: HTML gas info overlay -->
+<div id="html-gas-info-overlay" style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,10,20,0.92);z-index:200;overflow-y:auto;padding:20px;box-sizing:border-box;"></div>
+<!-- CLAUDE-DESIGN-PLACEHOLDER: horizontal-speed-indicator — fin-kick direction & speed -->
+<div id="hud-horizontal-speed" data-claude-design="horizontal-speed-indicator"
+     data-dir="0" data-speed="0" style="display:none;">
+  <span data-bind="arrow">→</span><span data-bind="speed">0.0 m/s</span>
+</div>
+<!-- CLAUDE-DESIGN-PLACEHOLDER: site-selector — Shore/Reef/Wreck/Cave choice (setup screen) -->
+<div id="site-selector" data-claude-design="site-selector" style="display:none;">
+  <button data-site="shore">Shore</button>
+  <button data-site="reef">Reef</button>
+  <button data-site="wreck">Wreck</button>
+  <button data-site="cave">Cave</button>
+</div>
+<!-- CLAUDE-DESIGN-PLACEHOLDER: current-indicator — current direction & strength (shown while active) -->
+<div id="hud-current" data-claude-design="current-indicator"
+     data-dir="0" data-strength="0" style="display:none;">
+  <span class="hud-chip-label">CURRENT</span><span data-bind="arrow">⇒</span><span data-bind="strength">0.00 m/s</span>
+</div>
+<script src="version.js"></script>
+<script src="constants.js"></script>
+<script src="state.js"></script>
+<script src="sites.js"></script>
+<script src="physics.js"></script>
+<script src="world.js"></script>
+<script src="renderer.js"></script>
+<script src="ui.js"></script>
+<script src="game-loop.js"></script>
+<script src="touch.js"></script>
+</body>
+</html>

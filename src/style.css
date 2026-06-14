@@ -1,0 +1,508 @@
+﻿* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+canvas { display: block; }
+/* WP-014: Touch control styles */
+#touch-ui { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+#touch-ui .t-group { display: none; }
+.t-btn {
+  pointer-events: auto; position: absolute; background: rgba(255,255,255,0.12);
+  color: #fff; border: 1px solid rgba(255,255,255,0.25); border-radius: 14px;
+  font-family: monospace; font-weight: bold; font-size: 18px;
+  min-width: 56px; min-height: 56px; padding: 8px 12px;
+  touch-action: manipulation; user-select: none; -webkit-user-select: none;
+  display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.t-btn:active, .t-btn.active { background: rgba(255,255,255,0.3); }
+.t-btn.t-large { min-width: 200px; min-height: 56px; font-size: 20px; }
+.t-btn.t-accent { background: rgba(51,255,153,0.2); border-color: rgba(51,255,153,0.4); color: #33ff99; }
+.t-btn.t-warn { background: rgba(255,51,51,0.15); border-color: rgba(255,51,51,0.3); color: #ff6666; }
+/* Result-screen buttons (surface / post-dive / game-over) — match the revamped screens */
+#touch-surface-btn, #touch-postdive-btn, #touch-gameover-btn {
+  white-space: nowrap; min-width: 240px; min-height: 50px; font-size: 15px;
+  border-radius: 12px; letter-spacing: 0.03em;
+}
+#touch-surface-btn, #touch-postdive-btn {
+  background: linear-gradient(180deg, #5bf0a3, #33d988); border-color: rgba(40,200,120,0.8); color: #06140d;
+  box-shadow: 0 8px 22px -8px rgba(51,217,136,0.6), inset 0 1px 0 rgba(255,255,255,0.35);
+}
+#touch-gameover-btn {
+  background: rgba(255,75,75,0.14); border-color: rgba(255,75,75,0.45); color: #ff9a9a;
+}
+/* Dive controls */
+/* WASD / arrow navigation cross — ascend on top, descend below it, left and
+   right flanking descend. Uniform size + style so the four read as one cluster.
+   Anchored bottom-left so it never overlaps the right-hand action column. */
+#touch-dpad { display: none; }
+.t-nav {
+  width: 64px; height: 64px; font-size: 27px; padding: 0;
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.28);
+  color: #eaf6ff;
+}
+.t-nav:active, .t-nav.active {
+  background: rgba(52,230,255,0.22);
+  border-color: rgba(52,230,255,0.6);
+  color: #34e6ff;
+}
+#touch-dive-ascend  { left: 88px;  bottom: 108px; }
+#touch-dive-left    { left: 16px;  bottom: 36px; }
+#touch-dive-descend { left: 88px;  bottom: 36px; }
+#touch-dive-right   { left: 160px; bottom: 36px; }
+#touch-dive-help { bottom: 40px; right: 20px; width: 48px; height: 48px; font-size: 16px; flex-direction: column; }
+#touch-gas-info { bottom: 108px; right: 20px; width: 48px; height: 48px; font-size: 16px; flex-direction: column; }
+#touch-fast-forward { bottom: 176px; right: 20px; width: 48px; height: 48px; font-size: 16px; flex-direction: column; }
+/* BUG-CCR-1 / BUG-CCR-2 / BUG-CCR-7: CCR-only in-dive buttons.
+   Bailout sits on the right column above fast-forward.
+   SP+ / SP- stack above the ascend button on the left column. */
+#touch-dive-bailout { bottom: 244px; right: 20px; width: 56px; height: 56px; font-size: 14px; flex-direction: column; }
+#touch-ccr-sp-up { bottom: 290px; left: 20px; width: 56px; height: 56px; font-size: 14px; }
+#touch-ccr-sp-down { bottom: 220px; left: 20px; width: 56px; height: 56px; font-size: 14px; }
+/* Raised above the bottom-left navigation cross so the two never overlap. */
+.t-tank-btns { position: absolute; bottom: 188px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 200px; }
+.t-tank-btns .t-btn { width: 52px; height: 52px; font-size: 14px; position: relative; }
+/* Setup controls */
+#touch-setup { display: flex; flex-direction: column; align-items: center; }
+.t-setup-row { display: flex; gap: 10px; margin: 4px 0; pointer-events: auto; }
+.t-setup-row .t-btn { min-width: 48px; min-height: 48px; font-size: 16px; position: relative; }
+#touch-setup-start { bottom: 30px; left: 50%; transform: translateX(-50%); }
+#touch-setup-presets { position: absolute; bottom: 140px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; max-width: 360px; }
+#touch-setup-presets .t-btn { min-width: 60px; min-height: 44px; font-size: 13px; position: relative; }
+.t-setup-adj { position: absolute; display: flex; gap: 10px; }
+#touch-adj-o2 { top: 18%; left: 50%; transform: translateX(-50%); }
+#touch-adj-he { top: 30%; left: 50%; transform: translateX(-50%); }
+#touch-adj-pres { top: 42%; left: 50%; transform: translateX(-50%); }
+#touch-adj-tank { top: 52%; left: 50%; transform: translateX(-50%); }
+#touch-setup-extras { position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; }
+/* Surface / gameover / postdive */
+#touch-surface-btn { bottom: 25%; left: 50%; transform: translateX(-50%); }
+#touch-gameover-btn { bottom: 12%; left: 50%; transform: translateX(-50%); }
+#touch-postdive-btn { bottom: 6%; left: 50%; transform: translateX(-50%); }
+/* WP-016: HTML gas-setup overlay for touch devices */
+#html-gas-setup {
+  display: none;
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background:
+    radial-gradient(120% 60% at 50% -10%, rgba(40,120,140,0.22), transparent 55%),
+    linear-gradient(180deg, #0b1418, #06090c 70%);
+  z-index: 5;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+#html-gas-setup .gs-content {
+  display: flex; flex-direction: column; align-items: stretch;
+  width: 100%; max-width: 432px; margin: 0 auto;
+  padding: 28px 22px 40px;
+  min-height: 100%;
+  font-family: monospace;
+  color: #eaf2f6;
+}
+#html-gas-setup .gs-kicker {
+  text-align: center; font-size: 11px; font-weight: bold;
+  letter-spacing: 0.34em; color: #34e6ff; margin-bottom: 7px;
+}
+#html-gas-setup .gs-title {
+  font-size: 30px; font-weight: bold; margin-bottom: 18px; text-align: center;
+  letter-spacing: 0.1em; color: #eef6f8;
+}
+#html-gas-setup .gs-value {
+  font-size: 32px; font-weight: bold; margin: 8px 0 4px;
+}
+#html-gas-setup .gs-hint {
+  font-size: 11px; color: #666; margin-bottom: 12px;
+}
+#html-gas-setup .gs-row {
+  display: flex; gap: 10px; align-items: center; justify-content: center; margin: 6px 0; flex-wrap: wrap; max-width: 300px;
+}
+#html-gas-setup .gs-switch-depth-row {
+  display: flex; align-items: center; gap: 8px; margin: 6px 0;
+}
+/* Segmented mode control */
+#html-gas-setup .gs-modes {
+  display: grid !important; grid-template-columns: repeat(3, 1fr);
+  gap: 8px; max-width: none !important; margin: 0 0 16px !important;
+}
+#html-gas-setup .gs-modes .gs-btn {
+  width: 100%; min-width: 0 !important; padding: 11px 0; border-radius: 11px;
+  letter-spacing: 0.06em;
+}
+/* Cards */
+#html-gas-setup .gs-card {
+  background: #0d161b; border: 1px solid #18242a; border-radius: 16px;
+  padding: 14px 16px; margin: 0 0 12px; width: 100%;
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 11px 12px; text-align: left;
+}
+#html-gas-setup .gs-card .gs-value {
+  margin: 0; font-size: 42px; line-height: 0.85; text-align: left; justify-self: start;
+}
+#html-gas-setup .gs-card .gs-row { margin: 0; flex: 0 0 auto; max-width: none; justify-self: end; }
+#html-gas-setup .gs-card .gs-btn {
+  min-width: 46px; min-height: 46px; border-radius: 12px; font-size: 20px;
+}
+#html-gas-setup .gs-card .gs-label { margin: 0; justify-self: start; }
+/* O2 / N2 mix bar */
+#html-gas-setup .gs-mixbar {
+  justify-self: stretch; min-width: 80px; height: 7px; border-radius: 4px; overflow: hidden;
+  display: flex; background: #0a1115;
+}
+#html-gas-setup .gs-mixbar .o2 { background: #46f08f; height: 100%; }
+#html-gas-setup .gs-mixbar .n2 { background: #243640; height: 100%; }
+/* CCR stacked cards */
+#html-gas-setup .gs-card-stack {
+  display: flex; flex-direction: column; align-items: stretch; gap: 10px;
+  grid-template-columns: none;
+}
+#html-gas-setup .gs-card-stack .gs-card-head {
+  font-size: 18px; margin: 0; text-align: left; line-height: 1.1;
+}
+#html-gas-setup .gs-card-btns { display: flex; gap: 8px; }
+#html-gas-setup .gs-card-btns .gs-row { margin: 0; flex: 1 1 auto; max-width: none; }
+#html-gas-setup .gs-card-stack .gs-row { margin: 0; max-width: none; justify-content: flex-start; }
+#html-gas-setup .gs-card-stack .gs-btn { min-width: 0; flex: 1 1 auto; }
+#html-gas-setup .gs-chiprow {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; flex-wrap: nowrap;
+}
+#html-gas-setup .gs-chiprow .gs-btn {
+  flex: none; min-width: 0; width: 100%; padding: 11px 2px; font-size: 12px;
+  white-space: nowrap; overflow: hidden;
+}
+#html-gas-setup .gs-card-sub {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+#html-gas-setup .gs-card-sub .gs-label { flex: 1 1 auto; }
+#html-gas-setup .gs-card-sub .gs-row { flex: 0 0 auto; }
+#html-gas-setup .gs-ccr-start { width: 100%; margin: 0; max-width: none; }
+#html-gas-setup .gs-ccr-start .gs-btn.gs-accent { flex: 1 1 auto; margin-top: 0; min-width: 0; width: 100%; }
+/* MOD readout pill */
+#html-gas-setup .gs-mod {
+  display: block; text-align: center; font-size: 13px; color: #8aa0ad;
+  padding: 11px 16px; margin: 0 0 16px;
+  border: 1px dashed #1e2c33; border-radius: 13px; letter-spacing: 0.02em;
+}
+#html-gas-setup .gs-btn {
+  background: rgba(120,150,170,0.10);
+  color: #cdd9de; border: 1px solid rgba(140,170,190,0.18); border-radius: 12px;
+  font-family: monospace; font-weight: bold; font-size: 16px;
+  min-width: 48px; min-height: 44px; padding: 6px 14px;
+  touch-action: manipulation; user-select: none; -webkit-user-select: none;
+  display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent; cursor: pointer;
+  transition: background .13s, border-color .13s, color .13s, transform .1s;
+}
+#html-gas-setup .gs-btn:hover { background: rgba(120,150,170,0.18); border-color: rgba(140,170,190,0.32); color: #eef6f8; }
+#html-gas-setup .gs-btn:active { transform: translateY(1px); }
+#html-gas-setup .gs-btn.gs-accent {
+  background: linear-gradient(180deg, #5bf0a3, #33d988); border: 1px solid rgba(40,200,120,0.8);
+  color: #06140d;
+  box-shadow: 0 8px 22px -8px rgba(51,217,136,0.6), inset 0 1px 0 rgba(255,255,255,0.35);
+  min-width: 200px; min-height: 50px; font-size: 18px; font-weight: bold;
+  margin-top: 16px; letter-spacing: 0.05em;
+}
+#html-gas-setup .gs-btn.gs-accent::after { content: ' \2193'; font-weight: bold; margin-left: 6px; }
+#html-gas-setup .gs-btn.gs-accent:hover { filter: brightness(1.06); }
+#html-gas-setup .gs-presets {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+  max-width: none; margin: 0 0 18px; width: 100%;
+}
+#html-gas-setup .gs-presets .gs-btn { min-width: 0; width: 100%; padding: 11px 0; font-size: 13px; }
+#html-gas-setup .gs-label { font-size: 14px; color: #aaa; }
+#html-gas-setup .gs-section { margin: 8px 0; text-align: center; }
+/* Footer: Sprache + Start dive */
+#html-gas-setup .gs-extras {
+  display: flex; gap: 10px; margin: 10px 0;
+}
+#html-gas-setup .gs-footer { width: 100%; margin: 0; align-items: stretch; }
+#html-gas-setup .gs-footer .gs-btn.gs-accent {
+  flex: 1 1 auto; margin-top: 0; min-width: 0;
+}
+/* WP-017: HTML help overlay */
+#html-help-overlay {
+  display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.92); z-index: 20;
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+}
+#html-help-overlay .help-content {
+  padding: 20px 20px 60px; font-family: monospace; color: #fff; max-width: 800px; margin: 0 auto;
+}
+#html-help-overlay .help-title { font-size: 20px; font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #33ff99; padding-bottom: 8px; }
+#html-help-overlay .help-section { margin-bottom: 14px; }
+#html-help-overlay .help-section-title { font-size: 12px; font-weight: bold; margin-bottom: 4px; }
+#html-help-overlay .help-section-text { font-size: 11px; color: #bbb; line-height: 1.5; }
+#html-help-overlay .help-close-btn {
+  display: block; margin: 20px auto; padding: 12px 40px;
+  background: rgba(255,255,255,0.12); color: #888; border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 10px; font-family: monospace; font-weight: bold; font-size: 14px; cursor: pointer;
+  touch-action: manipulation;
+}
+#html-help-overlay .help-close-btn:active { background: rgba(255,255,255,0.3); }
+/* TASK-031D: Gas info overlay card styles */
+.gas-info-card { background: rgba(0,40,60,0.8); border: 1px solid #336; border-radius: 6px; padding: 10px 14px; margin: 8px 0; }
+.gas-info-card.active { border-color: #33ff99; background: rgba(0,60,40,0.6); }
+.gas-info-card .best-tag { color: #33ff99; font-weight: bold; font-size: 12px; }
+/* ── HUD chip base — shared geometry ─────────────────────────── */
+#hud-horizontal-speed,
+#hud-current {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: monospace;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  border-radius: 12px;
+  padding: 5px 14px 5px 12px;
+}
+
+/* ── Task 1: Fin-kick speed chip ─────────────────────────────── */
+/*   Diver's own effort — calm, white/green, data-readout tone.  */
+#hud-horizontal-speed {
+  bottom: 76px;
+  background: rgba(0, 20, 30, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #eaf2f6;
+}
+
+#hud-horizontal-speed [data-bind="arrow"] {
+  font-size: 18px;
+  color: #33ff99;
+  line-height: 1;
+}
+
+#hud-horizontal-speed [data-bind="speed"] {
+  font-weight: bold;
+  color: #eaf2f6;
+}
+
+/* ── Task 2: Water current chip ──────────────────────────────── */
+/*   Environment hazard — amber, pulsing glow, "acting on you."  */
+#hud-current {
+  bottom: 114px;
+  background: rgba(32, 14, 0, 0.72);
+  border: 1px solid rgba(255, 140, 0, 0.32);
+  color: #ffcc88;
+  animation: hud-current-glow 2.6s ease-in-out infinite;
+}
+
+.hud-chip-label {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: rgba(255, 170, 80, 0.58);
+  font-weight: bold;
+}
+
+#hud-current [data-bind="arrow"] {
+  font-size: 18px;
+  color: #ffaa44;
+  line-height: 1;
+}
+
+#hud-current [data-bind="strength"] {
+  font-weight: bold;
+  color: #ffcc88;
+}
+
+/* ── Task 3: Rule-of-thirds gas gauge (cave / wreck overhead) ─── */
+/*   Phase C — game sets data-phase + data-pct each frame;        */
+/*   all display is CSS-only via attribute selectors.             */
+#hud-thirds {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: monospace;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  border-radius: 12px;
+  padding: 5px 14px 5px 12px;
+}
+
+#hud-thirds[data-phase="outbound"] {
+  background: rgba(0, 22, 32, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.20);
+  color: #eaf2f6;
+}
+
+#hud-thirds[data-phase="turn"] {
+  background: rgba(30, 18, 0, 0.72);
+  border: 1px solid rgba(255, 160, 0, 0.38);
+  color: #ffcc88;
+  animation: hud-current-glow 2s ease-in-out infinite;
+}
+
+#hud-thirds[data-phase="reserve"] {
+  background: rgba(40, 0, 0, 0.78);
+  border: 1px solid rgba(255, 80, 80, 0.50);
+  color: #ffaaaa;
+  animation: hud-thirds-danger 0.85s ease-in-out infinite;
+}
+
+/* Phase label — dot (::before) + text (::after) via CSS content  */
+.hud-thirds-phase-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+}
+
+.hud-thirds-phase-label::before {
+  content: '';
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+#hud-thirds[data-phase="outbound"] .hud-thirds-phase-label::before { background: #33ff99; }
+#hud-thirds[data-phase="turn"]     .hud-thirds-phase-label::before { background: #ffaa44; }
+#hud-thirds[data-phase="reserve"]  .hud-thirds-phase-label::before { background: #ff6666; }
+
+#hud-thirds[data-phase="outbound"] .hud-thirds-phase-label::after { content: 'OUTBOUND'; }
+#hud-thirds[data-phase="turn"]     .hud-thirds-phase-label::after { content: 'TURN'; }
+#hud-thirds[data-phase="reserve"]  .hud-thirds-phase-label::after { content: 'RESERVE'; }
+
+/* Gas % — read straight from data-pct attribute on the container */
+#hud-thirds::after {
+  content: attr(data-pct) '%';
+  font-weight: 600;
+  color: inherit;
+}
+
+@keyframes hud-thirds-danger {
+  0%, 100% { border-color: rgba(255, 80, 80, 0.45); box-shadow: none; }
+  50%       { border-color: rgba(255, 80, 80, 0.80); box-shadow: 0 0 16px -2px rgba(255, 80, 80, 0.38); }
+}
+
+/* ── Site selector grid — 4-column support ────────────────────── */
+/*   Mode row (rec/tec/ccr) = 3 items; site row (Shore/Reef/Wreck/ */
+/*   Cave) = 4 items. auto-fit handles both without !important on  */
+/*   grid-template-columns needing to know the count.             */
+#html-gas-setup .gs-modes {
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr)) !important;
+}
+
+/*   Subtle visual separator marks the site row as an orthogonal  */
+/*   axis from the mode row (per plan-implementation.md D2).      */
+#html-gas-setup .gs-modes:has([data-site]) {
+  margin-top: 4px;
+  margin-bottom: 8px !important;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+#html-gas-setup .gs-modes [data-site] {
+  font-size: 13px !important;
+  letter-spacing: 0.03em;
+}
+
+@keyframes hud-current-glow {
+  0%, 100% {
+    border-color: rgba(255, 140, 0, 0.28);
+    box-shadow: none;
+  }
+  50% {
+    border-color: rgba(255, 160, 0, 0.55);
+    box-shadow: 0 0 14px -2px rgba(255, 140, 0, 0.28);
+  }
+}
+
+/* ── Task 5: Torch toggle ───────────────────────────────────────
+   .torch-on / .torch-off toggled by game-loop.js each frame.
+   Positioned above bailout — only shown in cave/wreck (mutual
+   exclusion with CCR bailout makes column conflict impossible). */
+#touch-torch {
+  bottom: 244px; right: 20px;
+  width: 48px; height: 48px;
+  font-size: 20px;
+  flex-direction: column; gap: 2px;
+  transition: background 0.25s, border-color 0.25s, box-shadow 0.25s, color 0.25s, filter 0.25s;
+}
+#touch-torch:not(.torch-on) {
+  background: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.38);
+  filter: saturate(0.15);
+}
+#touch-torch.torch-on {
+  background: rgba(255,200,60,0.18);
+  border-color: rgba(255,210,80,0.55);
+  color: #ffe577;
+  box-shadow: 0 0 22px -4px rgba(255,200,60,0.45);
+  filter: none;
+}
+#touch-torch:active, #touch-torch.active { background: rgba(255,200,60,0.30); }
+
+.t-btn-sub {
+  font-size: 9px; letter-spacing: 0.14em; font-weight: 600;
+  margin-top: 1px; opacity: 0.72; line-height: 1;
+}
+
+/* ── Gas Setup: He bar segment (blue) ─────────────────────────── */
+#html-gas-setup .gs-mixbar .he {
+  background: linear-gradient(90deg, #1d62b0, #3888d0);
+  height: 100%;
+}
+#html-gas-setup .gs-mixbar {
+  height: 9px; border-radius: 5px;
+}
+
+/* ── Gas Setup: streamlined mode selector — pill container ─────── */
+/*   Rec/Tec/CCR row gets a subtle pill-tray background;           */
+/*   inactive buttons become transparent so active pops cleanly.  */
+#html-gas-setup .gs-modes:has([data-mode]) {
+  background: rgba(255,255,255,0.038);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 14px;
+  padding: 3px;
+  gap: 3px;
+  margin: 0 0 14px !important;
+}
+#html-gas-setup .gs-modes:has([data-mode]) .gs-btn {
+  border-radius: 11px;
+  padding: 10px 0;
+  min-height: 40px;
+  border-color: transparent;
+  background: transparent;
+  letter-spacing: 0.08em;
+  font-size: 15px;
+}
+
+/* ── Gas Setup: layout density ─────────────────────────────────── */
+#html-gas-setup .gs-card { padding: 11px 14px; margin-bottom: 10px; }
+#html-gas-setup .gs-presets { gap: 6px; margin-bottom: 14px; }
+#html-gas-setup .gs-presets .gs-btn {
+  padding: 9px 0; font-size: 12px; border-radius: 10px; letter-spacing: 0.02em;
+}
+#html-gas-setup .gs-mod { padding: 8px 14px; margin: 0 0 12px; font-size: 12px; }
+#html-gas-setup .gs-title { margin-bottom: 14px; }
+
+@media (max-width: 480px) {
+  .t-tank-btns .t-btn { width: 44px; height: 44px; font-size: 12px; }
+  #html-gas-setup .gs-btn { min-width: 40px; min-height: 38px; padding: 4px 10px; font-size: 14px; }
+  #html-gas-setup .gs-btn.gs-accent { min-width: 160px; min-height: 44px; font-size: 16px; }
+  #html-gas-setup .gs-value { font-size: 26px; }
+  #html-gas-setup .gs-title { font-size: 20px; }
+  /* Compact navigation cross for small phones */
+  .t-nav { width: 56px; height: 56px; font-size: 24px; }
+  #touch-dive-ascend  { left: 72px;  bottom: 90px; }
+  #touch-dive-left    { left: 10px;  bottom: 28px; }
+  #touch-dive-descend { left: 72px;  bottom: 28px; }
+  #touch-dive-right   { left: 134px; bottom: 28px; }
+  .t-tank-btns { bottom: 158px; }
+  #touch-dive-help { bottom: 30px; right: 10px; }
+  #touch-gas-info { bottom: 96px; right: 10px; }
+  #touch-fast-forward { bottom: 162px; right: 10px; }
+  /* BUG-CCR-1/2/7: tighter mobile layout for CCR buttons */
+  #touch-dive-bailout { bottom: 228px; right: 10px; width: 52px; height: 52px; }
+  #touch-ccr-sp-up { bottom: 250px; left: 10px; width: 52px; height: 52px; }
+  #touch-ccr-sp-down { bottom: 190px; left: 10px; width: 52px; height: 52px; }
+  #touch-torch { bottom: 228px; right: 10px; width: 44px; height: 44px; }
+}

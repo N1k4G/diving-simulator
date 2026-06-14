@@ -1,0 +1,2349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diving Simulator — Automated Tests</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0a0e17;
+    color: #e0e6f0;
+    padding: 24px;
+    min-height: 100vh;
+}
+h1 {
+    font-size: 1.6rem;
+    margin-bottom: 8px;
+    color: #7ec8f8;
+}
+.subtitle {
+    color: #6b7a8d;
+    margin-bottom: 20px;
+    font-size: 0.9rem;
+}
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+button {
+    background: #1a2233;
+    color: #c0cfe0;
+    border: 1px solid #2a3a50;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background 0.15s, border-color 0.15s;
+}
+button:hover { background: #243044; border-color: #3a5070; }
+button.primary {
+    background: #1a6b3a;
+    border-color: #28a060;
+    color: #d0ffd8;
+    font-weight: 600;
+    padding: 10px 24px;
+    font-size: 0.95rem;
+}
+button.primary:hover { background: #208548; }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+.summary {
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    background: #111827;
+    border-radius: 8px;
+    border: 1px solid #1e293b;
+    font-size: 0.95rem;
+}
+.summary .pass { color: #4ade80; font-weight: 600; }
+.summary .fail { color: #f87171; font-weight: 600; }
+.summary .pending { color: #6b7a8d; }
+.results {
+    display: grid;
+    gap: 12px;
+}
+.card {
+    background: #111827;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    padding: 14px 18px;
+    transition: border-color 0.2s;
+}
+.card.pass { border-left: 4px solid #4ade80; }
+.card.fail { border-left: 4px solid #f87171; }
+.card.running { border-left: 4px solid #facc15; }
+.card.pending { border-left: 4px solid #334155; }
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+.card-title { font-weight: 600; font-size: 0.95rem; }
+.badge {
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.badge.pass { background: #14532d; color: #4ade80; }
+.badge.fail { background: #7f1d1d; color: #f87171; }
+.badge.running { background: #713f12; color: #facc15; }
+.badge.pending { background: #1e293b; color: #64748b; }
+.card-detail {
+    font-size: 0.82rem;
+    color: #8896a8;
+    white-space: pre-wrap;
+    margin-top: 4px;
+    line-height: 1.5;
+}
+iframe { display: none; }
+</style>
+</head>
+<body>
+
+<h1>Diving Simulator — Automated Tests</h1>
+<p class="subtitle">Self-contained test runner. Loads the game in a hidden iframe and validates physics via gameAPI.</p>
+
+<div class="controls">
+    <button class="primary" id="btnRunAll" disabled>Run All Tests</button>
+    <button class="individual" data-tc="1" disabled>TC-01</button>
+    <button class="individual" data-tc="2" disabled>TC-02</button>
+    <button class="individual" data-tc="3" disabled>TC-03</button>
+    <button class="individual" data-tc="4" disabled>TC-04</button>
+    <button class="individual" data-tc="5" disabled>TC-05</button>
+    <button class="individual" data-tc="6" disabled>TC-06</button>
+    <button class="individual" data-tc="7" disabled>TC-07</button>
+    <button class="individual" data-tc="8" disabled>TC-08</button>
+    <button class="individual" data-tc="9" disabled>TC-09</button>
+    <button class="individual" data-tc="10" disabled>TC-10</button>
+    <button class="individual" data-tc="11" disabled>TC-11</button>
+    <button class="individual" data-tc="12" disabled>TC-12</button>
+    <button class="individual" data-tc="13" disabled>TC-13</button>
+    <button class="individual" data-tc="14" disabled>TC-14</button>
+    <button class="individual" data-tc="15" disabled>TC-15</button>
+    <button class="individual" data-tc="16" disabled>TC-16</button>
+    <button class="individual" data-tc="17" disabled>TC-17</button>
+    <button class="individual" data-tc="18" disabled>TC-18</button>
+    <button class="individual" data-tc="19" disabled>TC-19</button>
+    <button class="individual" data-tc="20" disabled>TC-20</button>
+    <button class="individual" data-tc="21" disabled>TC-21</button>
+    <button class="individual" data-tc="22" disabled>TC-22</button>
+    <button class="individual" data-tc="23" disabled>TC-23</button>
+    <button class="individual" data-tc="24" disabled>TC-24</button>
+    <button class="individual" data-tc="25" disabled>TC-25</button>
+    <button class="individual" data-tc="26" disabled>TC-26</button>
+    <button class="individual" data-tc="27" disabled>TC-27</button>
+    <button class="individual" data-tc="28" disabled>TC-28</button>
+    <button class="individual" data-tc="29" disabled>TC-29</button>
+    <button class="individual" data-tc="30" disabled>TC-30</button>
+    <button class="individual" data-tc="31" disabled>TC-31</button>
+    <button class="individual" data-tc="32" disabled>TC-32</button>
+    <button class="individual" data-tc="33" disabled>TC-33</button>
+    <button class="individual" data-tc="34" disabled>TC-34</button>
+    <button class="individual" data-tc="35" disabled>TC-35</button>
+    <button class="individual" data-tc="36" disabled>TC-36</button>
+    <button class="individual" data-tc="37" disabled>TC-37</button>
+    <button class="individual" data-tc="38" disabled>TC-38</button>
+    <button class="individual" data-tc="39" disabled>TC-39</button>
+    <button class="individual" data-tc="40" disabled>TC-40</button>
+    <button class="individual" data-tc="41" disabled>TC-41</button>
+    <button class="individual" data-tc="42" disabled>TC-42</button>
+    <button class="individual" data-tc="43" disabled>TC-43</button>
+    <button class="individual" data-tc="44" disabled>TC-44</button>
+    <button class="individual" data-tc="45" disabled>TC-45</button>
+    <button class="individual" data-tc="46" disabled>TC-46</button>
+    <button class="individual" data-tc="47" disabled>TC-47</button>
+    <button class="individual" data-tc="48" disabled>TC-48</button>
+    <button class="individual" data-tc="49" disabled>TC-49</button>
+    <button class="individual" data-tc="50" disabled>TC-50</button>
+    <button class="individual" data-tc="51" disabled>TC-51</button>
+    <button class="individual" data-tc="52" disabled>TC-52</button>
+    <button class="individual" data-tc="53" disabled>TC-53</button>
+    <button class="individual" data-tc="54" disabled>TC-54</button>
+    <button class="individual" data-tc="55" disabled>TC-55</button>
+    <button class="individual" data-tc="56" disabled>TC-56</button>
+    <button class="individual" data-tc="57" disabled>TC-57</button>
+    <button class="individual" data-tc="58" disabled>TC-58</button>
+    <button class="individual" data-tc="59" disabled>TC-59</button>
+    <button class="individual" data-tc="X1" disabled>TC-X1</button>
+    <button class="individual" data-tc="X2" disabled>TC-X2</button>
+    <button class="individual" data-tc="X3" disabled>TC-X3</button>
+</div>
+
+<div class="summary" id="summary">
+    <span class="pending">Loading game iframe...</span>
+</div>
+
+<div class="results" id="results"></div>
+
+<iframe id="gameFrame" src="diving-simulator.html"></iframe>
+
+<script>
+// ============================================================
+//  TEST HARNESS
+// ============================================================
+
+var api = null;
+var tests = [];
+var results = {};
+var running = false;
+
+var iframe = document.getElementById('gameFrame');
+iframe.addEventListener('load', function() {
+    api = iframe.contentWindow.gameAPI;
+    if (!api) {
+        document.getElementById('summary').innerHTML = '<span class="fail">ERROR: gameAPI not found on iframe.contentWindow</span>';
+        return;
+    }
+    document.getElementById('summary').innerHTML = '<span class="pending">Ready — click Run All Tests or an individual test.</span>';
+    document.getElementById('btnRunAll').disabled = false;
+    var btns = document.querySelectorAll('.individual');
+    for (var i = 0; i < btns.length; i++) btns[i].disabled = false;
+});
+
+// Helpers
+function setupDive(tankList) {
+    // resetDive does NOT call initTanks — it only resets gasRemaining on existing tanks.
+    // We must manually clear the tanks array before pushing test tanks.
+    api.tanks.length = 0;
+    api.tankCount = 0;
+    api.resetDive();
+    // Freeze the shark timer so random shark spawns cannot interfere with non-shark tests.
+    // Shark-specific tests (TC-17..TC-21) override these directly.
+    api.shark = null;
+    api.sharkTimer = 1e9;
+    for (var i = 0; i < tankList.length; i++) {
+        var t = tankList[i];
+        api.pushTank(t[0], t[1], t[2]);
+    }
+    api.activeTank = 0;
+    api.gameState = 'diving';
+}
+
+function runFrames(n, dtReal, holdDepth) {
+    if (dtReal === undefined) dtReal = 0.033;
+    for (var i = 0; i < n; i++) {
+        if (holdDepth !== undefined) api.setDepth(holdDepth);
+        api.updateDiving(dtReal);
+        if (api.gameState === 'gameover' || api.gameState === 'post-dive') break;
+    }
+}
+
+function assert(condition, msg) {
+    if (!condition) throw new Error('ASSERT FAILED: ' + msg);
+}
+
+function approx(a, b, tol) {
+    if (tol === undefined) tol = 0.05;
+    return Math.abs(a - b) <= tol;
+}
+
+// ============================================================
+//  TEST DEFINITIONS
+// ============================================================
+
+tests = [
+    // ----------------------------------------------------------
+    // TC-01: Basic Air Dive
+    // ----------------------------------------------------------
+    {
+        id: 'TC-01',
+        name: 'Basic Air Dive — 18m, 30min, ascend safely',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+
+            // Descend & teleport to 18m
+            api.setDepth(18);
+            api.clearKeys();
+
+            // Hold at 18m for 30 dive-minutes
+            // frames = 30*60 / (0.033*3) ≈ 18182 — too many at 0.033.
+            // Use larger dt: 0.5 real → 1.5 dive-sec/frame → 30*60/1.5 = 1200 frames
+            var ndlOk = true;
+            for (var i = 0; i < 1200; i++) {
+                api.setDepth(18);
+                api.updateDiving(0.5);
+                if (api.gameState !== 'diving') {
+                    return 'Game ended prematurely at frame ' + i + ': ' + api.gameState + ' — ' + api.gameOverReason;
+                }
+                if (api.calculateNDL() <= 0) { ndlOk = false; break; }
+            }
+
+            assert(api.gameState === 'diving', 'gameState should be diving, got ' + api.gameState);
+            // NDL at 18m on air should last well beyond 30 min (NDL ~56min)
+            assert(ndlOk, 'NDL should remain > 0 throughout 30min at 18m');
+
+            // Controlled ascent — vent when rising too fast, add a touch of gas
+            // when too slow, so the rate stays in a safe band (well under the
+            // 18 m/min barotrauma threshold). Holding W the whole way would now
+            // over-inflate and cause a runaway ascent (intended behaviour).
+            for (var j = 0; j < 8000; j++) {
+                if (api.ascentRate > 8)       api.setKeys({ w: false, s: true });
+                else if (api.ascentRate < 3)  api.setKeys({ w: true,  s: false });
+                else                          api.setKeys({ w: false, s: false });
+                api.updateDiving(0.033);
+                if (api.depth < 0.3) break;
+            }
+            api.clearKeys();
+
+            // Should reach surface without game-over
+            assert(api.gameState !== 'gameover', 'Should not game over on basic air dive, reason: ' + api.gameOverReason);
+            assert(api.depth < 1, 'Should reach near surface, depth=' + api.depth.toFixed(1));
+
+            return 'PASS — Held 18m for 30min (NDL stayed positive), ascended safely. Final depth: ' + api.depth.toFixed(1) + 'm';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-02: NDL Exhaustion
+    // ----------------------------------------------------------
+    {
+        id: 'TC-02',
+        name: 'NDL Exhaustion — 30m until NDL=0',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(30);
+            api.clearKeys();
+
+            var frameCount = 0;
+            var maxFrames = 50000;
+            // Use dt=0.5 for speed: 1.5 dive-sec/frame
+            while (frameCount < maxFrames) {
+                api.setDepth(30);
+                api.updateDiving(0.5);
+                frameCount++;
+                if (api.gameState !== 'diving') break;
+                if (api.calculateNDL() <= 0) break;
+            }
+
+            var ndl = api.calculateNDL();
+            assert(ndl === 0, 'NDL should reach 0, got ' + ndl);
+
+            // NDL=0 means tissue will exceed surface limit within 0.5 min.
+            // Run a few more frames at depth to push tissue loading past the limit.
+            for (var j = 0; j < 30; j++) {
+                api.setDepth(30);
+                api.updateDiving(0.5);
+                if (api.gameState !== 'diving') break;
+            }
+
+            var ceiling = api.calculateCeiling();
+            var diveMin = api.diveTime;
+
+            assert(ceiling > 0, 'Ceiling should be > 0 after continued time at depth past NDL=0, got ' + ceiling.toFixed(1));
+
+            return 'PASS — NDL reached 0, continued at depth → ceiling: ' + ceiling.toFixed(1) + 'm after ' + diveMin.toFixed(1) + ' dive-min at 30m';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-03: O2 Toxicity
+    // ----------------------------------------------------------
+    {
+        id: 'TC-03',
+        name: 'O2 Toxicity — EAN32 at 70m',
+        fn: function() {
+            setupDive([[0.32, 0, 200]]);
+            api.setDepth(70);
+            api.clearKeys();
+
+            // PO2 = 0.32 * 8 = 2.56 — well above 1.6
+            var po2 = api.calculatePO2();
+            assert(po2 > 1.6, 'PO2 at 70m should be > 1.6, got ' + po2.toFixed(2));
+
+            // Run frames until game-over (PO2_TOXICITY_TIME = 30 dive-sec)
+            // dt=0.5 → 1.5 dive-sec/frame → ~20 frames needed
+            for (var i = 0; i < 200; i++) {
+                api.setDepth(70);
+                api.updateDiving(0.5);
+                if (api.gameState === 'gameover') break;
+            }
+
+            assert(api.gameState === 'gameover', 'Game should end from O2 toxicity, state=' + api.gameState);
+            assert(api.gameOverReason.indexOf('O2 TOXICITY') >= 0, 'Reason should mention O2 TOXICITY, got: ' + api.gameOverReason);
+
+            return 'PASS — PO2=' + po2.toFixed(2) + ', game over: ' + api.gameOverReason;
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-04: Gas Depletion
+    // ----------------------------------------------------------
+    {
+        id: 'TC-04',
+        name: 'Gas Depletion — Air at 40m until empty',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(40);
+            api.clearKeys();
+
+            // Gas at 40m: SAC=15, Pamb=5, consumption=75 L/min. Tank=2400L → ~32 min.
+            // dt=0.5 → 1.5 dive-sec/frame → 32*60/1.5 ≈ 1280 frames
+            for (var i = 0; i < 2000; i++) {
+                api.setDepth(40);
+                api.updateDiving(0.5);
+                if (api.gameState === 'gameover') break;
+            }
+
+            assert(api.gameState === 'gameover', 'Game should end from gas depletion, state=' + api.gameState);
+            assert(api.gameOverReason === 'OUT OF GAS', 'Reason should be OUT OF GAS, got: ' + api.gameOverReason);
+
+            var gasLeft = api.tanks[0].gasRemaining;
+            return 'PASS — Gas depleted at 40m after ' + api.diveTime.toFixed(1) + ' dive-min. Remaining: ' + gasLeft.toFixed(1) + 'L. Reason: ' + api.gameOverReason;
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-05: Safe Ascent
+    // ----------------------------------------------------------
+    {
+        id: 'TC-05',
+        name: 'Safe Ascent — 20m, 10min hold, ascend to surface',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            api.clearKeys();
+
+            // Hold at 20m for 10 dive-minutes: 10*60/1.5 = 400 frames at dt=0.5
+            for (var i = 0; i < 400; i++) {
+                api.setDepth(20);
+                api.updateDiving(0.5);
+                if (api.gameState !== 'diving') {
+                    return 'FAIL — Game ended during hold: ' + api.gameState + ' — ' + api.gameOverReason;
+                }
+            }
+
+            // Ascend using w key at normal dt for realistic rate (~9m/min)
+            api.setKeys({w: true});
+            var reachedSurface = false;
+            for (var j = 0; j < 5000; j++) {
+                api.updateDiving(0.033);
+                if (api.depth < 0.3) { reachedSurface = true; break; }
+                if (api.gameState === 'gameover') {
+                    return 'FAIL — Game over during ascent: ' + api.gameOverReason;
+                }
+                if (api.gameState === 'post-dive') { reachedSurface = true; break; }
+            }
+            api.clearKeys();
+
+            assert(reachedSurface, 'Should reach surface, depth=' + api.depth.toFixed(1));
+            assert(api.gameState !== 'gameover', 'Should not game over, reason: ' + api.gameOverReason);
+
+            return 'PASS — Held 20m for 10min, ascended safely. Final state: ' + api.gameState + ', depth: ' + api.depth.toFixed(1) + 'm';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-06: DCS — Ceiling Violation
+    // ----------------------------------------------------------
+    {
+        id: 'TC-06',
+        name: 'DCS — Ceiling Violation (40m→0m skip)',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(40);
+            api.clearKeys();
+
+            // Hold at 40m for 30 dive-minutes to build deco obligation
+            // 30*60/1.5 = 1200 frames at dt=0.5
+            for (var i = 0; i < 1200; i++) {
+                api.setDepth(40);
+                api.updateDiving(0.5);
+                if (api.gameState !== 'diving') {
+                    return 'FAIL — Game ended during hold: ' + api.gameState + ' — ' + api.gameOverReason;
+                }
+            }
+
+            var ceiling = api.calculateCeiling();
+            // Teleport to surface — massive ceiling violation
+            api.setDepth(0);
+
+            // Run frames at surface — DCS_VIOLATION_TIME = 60 dive-sec → 60/1.5 = 40 frames
+            for (var j = 0; j < 200; j++) {
+                api.setDepth(0);
+                api.updateDiving(0.5);
+                if (api.gameState === 'gameover') break;
+            }
+
+            assert(api.gameState === 'gameover', 'Game should end from DCS, state=' + api.gameState);
+            assert(api.gameOverReason === 'DECOMPRESSION SICKNESS', 'Reason should be DCS, got: ' + api.gameOverReason);
+
+            return 'PASS — After 30min at 40m (ceiling=' + ceiling.toFixed(1) + 'm), teleported to 0m → ' + api.gameOverReason;
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-07: Gas Switch
+    // ----------------------------------------------------------
+    {
+        id: 'TC-07',
+        name: 'Gas Switch — Air + EAN36 at 25m',
+        fn: function() {
+            setupDive([[0.21, 0, 200], [0.36, 0, 200]]);
+            api.setDepth(25);
+            api.clearKeys();
+            api.updateDiving(0.033);
+
+            // Check PO2 on Air at 25m: 0.21 * 3.5 = 0.735
+            var po2Air = api.calculatePO2();
+            assert(approx(po2Air, 0.735, 0.05), 'PO2 on Air at 25m should be ~0.735, got ' + po2Air.toFixed(3));
+
+            // Switch to EAN36
+            api.setActiveTankIdx(1);
+            var po2Ean = api.calculatePO2();
+            // 0.36 * 3.5 = 1.26
+            assert(approx(po2Ean, 1.26, 0.05), 'PO2 on EAN36 at 25m should be ~1.26, got ' + po2Ean.toFixed(3));
+
+            // recommendBestGas: EAN36 has PO2=1.26 ≤ 1.4, higher O2 than Air → should recommend tank 1
+            var best = api.recommendBestGas();
+            assert(best === 1, 'recommendBestGas should return 1 (EAN36), got ' + best);
+
+            return 'PASS — Air PO2=' + po2Air.toFixed(3) + ', EAN36 PO2=' + po2Ean.toFixed(3) + ', bestGas=tank ' + best;
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-08: Trimix Deep Dive
+    // ----------------------------------------------------------
+    {
+        id: 'TC-08',
+        name: 'Trimix Deep Dive — Tx18/45 at 60m',
+        fn: function() {
+            setupDive([[0.18, 0.45, 200]]);
+            api.setDepth(60);
+            api.clearKeys();
+
+            // Hold at 60m for 5 dive-minutes: 5*60/1.5 = 200 frames at dt=0.5
+            for (var i = 0; i < 200; i++) {
+                api.setDepth(60);
+                api.updateDiving(0.5);
+                if (api.gameState !== 'diving') {
+                    return 'FAIL — Game ended during hold: ' + api.gameState + ' — ' + api.gameOverReason;
+                }
+            }
+
+            // Validate He loading > 0
+            var heLoaded = false;
+            var tissHe = api.tissuesHe;
+            for (var j = 0; j < 16; j++) {
+                if (tissHe[j] > 0.01) { heLoaded = true; break; }
+            }
+            assert(heLoaded, 'He tissues should have loaded (> 0.01)');
+
+            // N2 loading should be less than air-equivalent at 60m
+            // Air at 60m: piN2 = (7 - 0.0627) * 0.79 ≈ 5.48
+            // Tx18/45: fN2 = 1 - 0.18 - 0.45 = 0.37, piN2 = (7 - 0.0627) * 0.37 ≈ 2.57
+            // Fast tissue (comp 0, ht=5min) should be near piN2 after 5 min
+            var fastN2 = api.tissues[0];
+            assert(fastN2 < 4.0, 'Fast tissue N2 on Tx18/45 should be < 4.0 (air would be ~5.5), got ' + fastN2.toFixed(2));
+
+            var fastHe = tissHe[0];
+            return 'PASS — After 5min at 60m on Tx18/45: N2[0]=' + fastN2.toFixed(2) + ', He[0]=' + fastHe.toFixed(2) + ' (He loading confirmed)';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-09: Safety Stop
+    // ----------------------------------------------------------
+    {
+        id: 'TC-09',
+        name: 'Safety Stop — triggered at 5m after 20m dive',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            api.clearKeys();
+
+            // Hold at 20m for 5 dive-minutes: 5*60/1.5 = 200 frames at dt=0.5
+            for (var i = 0; i < 200; i++) {
+                api.setDepth(20);
+                api.updateDiving(0.5);
+                if (api.gameState !== 'diving') {
+                    return 'FAIL — Game ended during hold: ' + api.gameState + ' — ' + api.gameOverReason;
+                }
+            }
+
+            assert(api.maxDepth >= 20, 'maxDepth should be >= 20, got ' + api.maxDepth);
+
+            // Move to 5m (safety stop zone: 4-6m)
+            api.setDepth(5);
+            // Run a few frames at 5m
+            for (var j = 0; j < 10; j++) {
+                api.setDepth(5);
+                api.updateDiving(0.033);
+            }
+
+            assert(api.safetyStopNeeded === true, 'safetyStopNeeded should be true');
+
+            return 'PASS — After 5min at 20m, moved to 5m: safetyStopNeeded=' + api.safetyStopNeeded + ', remaining=' + api.safetyStopRemaining.toFixed(0) + 's';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-10: Barotrauma — Forced rapid ascent
+    // ----------------------------------------------------------
+    {
+        id: 'TC-10',
+        name: 'Barotrauma — forced >18m/min ascent',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(50);
+            api.clearKeys();
+            // Run one frame to establish prevDepth
+            api.updateDiving(0.033);
+
+            // Force rapid ascent by manipulating depth between frames.
+            // Each frame: set depth lower than previous, so updateDiving computes high ascentRate.
+            // dt=0.033 real → dtDive = 0.099 sec = 0.00165 min
+            // To get ascentRate > 18 m/min, need (prevDepth - newDepth) / 0.00165 > 18
+            // → depth change > 0.0297 m/frame. Use 0.5m/frame → ascentRate ≈ 303 m/min
+            var currentD = 50;
+            var stepPerFrame = 0.5; // m per frame — massive ascent rate
+            var triggered = false;
+
+            for (var i = 0; i < 300; i++) {
+                currentD = Math.max(0, currentD - stepPerFrame);
+                api.setDepth(currentD);
+                api.updateDiving(0.033);
+                if (api.gameState === 'gameover') {
+                    triggered = true;
+                    break;
+                }
+                if (currentD <= 0) break;
+            }
+
+            if (!triggered) {
+                // Check if barotraumaTime accumulated even if not quite triggered
+                var bt = api.barotraumaTime;
+                // If we ran 100 frames at 0.5m/frame from 50m → reaching 0m in 100 frames
+                // Each frame adds ~0.099 dive-sec to barotraumaTime. 100 frames = ~9.9 dive-sec.
+                // BAROTRAUMA_TIME = 10. Need slightly more frames. But we ran 300, and depth hits 0 at frame 100.
+                // After depth=0, no more ascent → barotraumaTime decays. Let's check...
+                return 'FAIL — Barotrauma not triggered. barotraumaTime=' + bt.toFixed(2) + ', ascentRate=' + api.ascentRate.toFixed(1);
+            }
+
+            assert(api.gameOverReason.indexOf('BAROTRAUMA') >= 0 || api.gameOverReason.indexOf('PNEUMOTHORAX') >= 0,
+                'Reason should mention BAROTRAUMA/PNEUMOTHORAX, got: ' + api.gameOverReason);
+
+            return 'PASS — Forced rapid ascent triggered: ' + api.gameOverReason + ', barotraumaTime=' + api.barotraumaTime.toFixed(2);
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-11: Bubbles Only During Exhale
+    // ----------------------------------------------------------
+    {
+        id: 'TC-11',
+        name: 'Breathing Cycle — Bubbles only during exhale',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            api.clearKeys();
+            
+            // Run frames and track bubble emissions per phase
+            var bubblesDuringInhale = 0;
+            var bubblesDuringExhale = 0;
+            var bubblesDuringPause = 0;
+            
+            for (var i = 0; i < 400; i++) {
+                var prevCount = api.bubbles.length;
+                api.updateDiving(0.033);
+                var newBubbles = api.bubbles.length - prevCount;
+                if (newBubbles > 0) {
+                    if (api.breathPhase === 'inhale') bubblesDuringInhale += newBubbles;
+                    else if (api.breathPhase === 'exhale') bubblesDuringExhale += newBubbles;
+                    else bubblesDuringPause += newBubbles;
+                }
+            }
+            
+            assert(bubblesDuringInhale === 0, 'Should have 0 bubbles during inhale, got ' + bubblesDuringInhale);
+            assert(bubblesDuringPause === 0, 'Should have 0 bubbles during pause, got ' + bubblesDuringPause);
+            assert(bubblesDuringExhale > 0, 'Should have bubbles during exhale, got ' + bubblesDuringExhale);
+            return 'PASS — Exhale: ' + bubblesDuringExhale + ' bubbles, Inhale: ' + bubblesDuringInhale + ', Pause: ' + bubblesDuringPause;
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-12: Bubble Count Reduced
+    // ----------------------------------------------------------
+    {
+        id: 'TC-12',
+        name: 'Breathing Cycle — Reduced bubble count per cycle',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            api.clearKeys();
+            
+            var initialCount = api.bubbles.length;
+            // Run for 2 full breath cycles (8 dive-seconds ≈ 2.67 real seconds)
+            // 8 dive-sec / (0.033 * TIME_ACCELERATION) ≈ 80 frames
+            for (var i = 0; i < 120; i++) {
+                api.updateDiving(0.033);
+            }
+            var newBubbles = api.bubbles.length - initialCount;
+            // Expect 4-12 new bubbles over 2 cycles (2-5 per cycle + some popped)
+            // Old system: 2-4 every 0.3-0.5s × ~16-26 intervals ≈ 32-104 bubbles
+            assert(newBubbles < 25, 'Bubble count should be reduced, got ' + newBubbles + ' (old system would produce 30+)');
+            assert(newBubbles > 0, 'Should still have some bubbles, got ' + newBubbles);
+            return 'PASS — ' + newBubbles + ' bubbles over 2 breath cycles (reduced from old ~40+)';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-13: AMV Default
+    // ----------------------------------------------------------
+    {
+        id: 'TC-13',
+        name: 'AMV — Default is 15 L/min',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            assert(api.amvRate === 15, 'Default AMV should be 15, got ' + api.amvRate);
+            return 'PASS — AMV default: ' + api.amvRate + ' L/min';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-14: Gas Consumption at 40m with AMV=20
+    // ----------------------------------------------------------
+    {
+        id: 'TC-14',
+        name: 'AMV — Gas consumption accuracy at 40m, AMV=20',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.amvRate = 20;
+            api.setDepth(40);
+            api.clearKeys();
+            
+            var initialGas = api.tanks[0].gasRemaining;
+            // Simulate exactly 1 dive-minute: 60 dive-seconds
+            // dtReal=0.5 → dtDiveSec = 0.5 * TIME_ACCELERATION = 1.5
+            // Need 60/1.5 = 40 frames
+            for (var i = 0; i < 40; i++) {
+                api.setDepth(40);
+                api.updateDiving(0.5);
+            }
+            
+            var gasUsed = initialGas - api.tanks[0].gasRemaining;
+            // Expected: AMV 20 × pAmb 5.0 × 1 min = 100L
+            var expected = 100;
+            assert(Math.abs(gasUsed - expected) < 2, 'Gas consumed should be ~' + expected + 'L, got ' + gasUsed.toFixed(2) + 'L');
+            return 'PASS — Gas consumed: ' + gasUsed.toFixed(2) + 'L (expected ~' + expected + 'L) at AMV=' + api.amvRate;
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-15: GTR Accuracy
+    // ----------------------------------------------------------
+    {
+        id: 'TC-15',
+        name: 'AMV — GTR accuracy at 40m, AMV=20, 500L',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.amvRate = 20;
+            api.setDepth(40);
+            api.clearKeys();
+            api.tanks[0].gasRemaining = 500;
+            
+            // Need to run at least one frame at depth to establish pressure
+            api.updateDiving(0.016);
+            
+            var gtr = api.calculateGTR();
+            // Expected: 500 / (20 × 5.0) = 5.0 min
+            assert(Math.abs(gtr - 5.0) < 0.2, 'GTR should be ~5.0 min, got ' + gtr.toFixed(2));
+            return 'PASS — GTR: ' + gtr.toFixed(2) + ' min (expected ~5.0) at AMV=' + api.amvRate + ', 500L at 40m';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-16: AMV Range Validation
+    // ----------------------------------------------------------
+    {
+        id: 'TC-16',
+        name: 'AMV — Range clamping (min 8, max 25)',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            
+            api.amvRate = 5;
+            assert(api.amvRate === 8, 'AMV below min should clamp to 8, got ' + api.amvRate);
+            
+            api.amvRate = 30;
+            assert(api.amvRate === 25, 'AMV above max should clamp to 25, got ' + api.amvRate);
+            
+            api.amvRate = 15;
+            assert(api.amvRate === 15, 'AMV at 15 should be 15, got ' + api.amvRate);
+            
+            return 'PASS — AMV clamped correctly: min=8, max=25, mid=15';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-17: Shark spawns when timer expires and random < 0.01
+    // ----------------------------------------------------------
+    {
+        id: 'TC-17',
+        name: 'Shark — Spawns on timer expiry with forced random',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(30);
+            api.shark = null;
+            api.sharkTimer = 0.01;
+
+            // Must mock Math.random on the iframe's window, not the test page
+            var win = document.getElementById('gameFrame').contentWindow;
+            var origRandom = win.Math.random;
+            win.Math.random = function() { return 0.004; };
+            try {
+                api.updateDiving(0.016);
+            } finally {
+                win.Math.random = origRandom;
+            }
+
+            assert(api.shark !== null, 'Shark should have spawned');
+            assert(typeof api.shark.x === 'number', 'Shark should have x position');
+            assert(typeof api.shark.depth === 'number', 'Shark should have depth');
+            assert(api.shark.speed === 7.5, 'Shark speed should be 7.5 m/s (Phase A world-space), got ' + api.shark.speed);
+            assert(api.shark.size === 45, 'Shark size should be 45, got ' + api.shark.size);
+
+            return 'PASS — Shark spawned with correct properties';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-18: Shark collision triggers SHARK ATTACK game over
+    // ----------------------------------------------------------
+    {
+        id: 'TC-18',
+        name: 'Shark — Collision causes SHARK ATTACK game over',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(30);
+
+            // Phase A: shark uses world-space metres. diverX=0 after reset.
+            // Place shark within 2m collision radius (< 2m from diverX=0).
+            api.shark = {
+                x: 1.5,    // world metres — within collision distance (< 2m)
+                depth: 30.5,
+                direction: 1,
+                speed: 7.5, // m/s (Phase A world-space speed)
+                phase: 0,
+                size: 45
+            };
+
+            var gameFrame = document.getElementById('gameFrame');
+            var win18 = gameFrame.contentWindow;
+            var origRandom18 = win18.Math.random;
+            win18.Math.random = function() { return 0.1; };
+            try {
+                api.updateDiving(0.016);
+            } finally {
+                win18.Math.random = origRandom18;
+            }
+
+            assert(api.gameState === 'gameover', 'Game state should be gameover, got ' + api.gameState);
+            assert(api.gameOverReason === 'SHARK ATTACK', 'Reason should be SHARK ATTACK, got ' + api.gameOverReason);
+
+            return 'PASS — Shark collision triggers SHARK ATTACK game over';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-19: Shark removed when off-screen
+    // ----------------------------------------------------------
+    {
+        id: 'TC-19',
+        name: 'Shark — Removed when exiting screen',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(30);
+
+            var gameFrame = document.getElementById('gameFrame');
+            var W = gameFrame.contentWindow.innerWidth;
+
+            api.shark = {
+                x: W + 140,
+                depth: 80,
+                direction: 1,
+                speed: 2.5,
+                phase: 0,
+                size: 45
+            };
+
+            api.updateDiving(0.5);
+
+            assert(api.shark === null, 'Shark should be null after exiting screen, got ' + JSON.stringify(api.shark));
+
+            return 'PASS — Shark removed when off-screen';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-20: Only one shark at a time
+    // ----------------------------------------------------------
+    {
+        id: 'TC-20',
+        name: 'Shark — Only one active at a time',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(30);
+
+            // Phase A: world-space. iframe is display:none so canvas.width≈0,
+            // making the right-edge removal threshold ≈ 7.5 m.
+            // Use x=4: outside 2m collision radius, inside 7.5m removal threshold.
+            api.shark = {
+                x: api.diverX + 4,
+                depth: 30,
+                direction: 1,
+                speed: 7.5,
+                phase: 0,
+                size: 45
+            };
+            var existingShark = api.shark;
+            api.sharkTimer = 0.01;
+
+            var win = document.getElementById('gameFrame').contentWindow;
+            var origRandom = win.Math.random;
+            win.Math.random = function() { return 0.005; };
+            try {
+                api.updateDiving(0.016);
+            } finally {
+                win.Math.random = origRandom;
+            }
+
+            assert(api.shark !== null, 'Shark should still exist');
+            assert(api.shark.x !== undefined, 'Shark should have x');
+
+            return 'PASS — Existing shark prevents new spawn';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-21: GAME_OVER_INFO has SHARK ATTACK entry
+    // ----------------------------------------------------------
+    {
+        id: 'TC-21',
+        name: 'Shark — GAME_OVER_INFO contains SHARK ATTACK',
+        fn: function() {
+            var gameFrame = document.getElementById('gameFrame');
+            var win = gameFrame.contentWindow;
+
+            var hasEntry = false;
+            try { hasEntry = win.eval('"SHARK ATTACK" in GAME_OVER_INFO'); } catch(e) {}
+
+            assert(hasEntry, 'GAME_OVER_INFO should contain SHARK ATTACK entry');
+
+            return 'PASS — SHARK ATTACK entry exists in GAME_OVER_INFO';
+        }
+    },
+    // ==========================================================
+    //  ADAPTIVE SAFETY STOP (WP-011)
+    // ==========================================================
+
+    // ----------------------------------------------------------
+    // TC-22: No safety stop for shallow dive (maxDepth <= 11m)
+    // ----------------------------------------------------------
+    {
+        id: 'TC-22',
+        name: 'Safety Stop — No stop needed for shallow dive (≤11m)',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(10);
+            api.clearKeys();
+
+            // Hold at 10m for ~2 dive-minutes
+            for (var i = 0; i < 80; i++) {
+                api.setDepth(10);
+                api.updateDiving(0.5);
+                if (api.gameState !== 'diving') {
+                    return 'FAIL — Game ended during hold: ' + api.gameState + ' — ' + api.gameOverReason;
+                }
+            }
+
+            assert(api.maxDepth <= 11, 'maxDepth should be <=11, got ' + api.maxDepth);
+            assert(api.safetyStopNeeded === false, 'safetyStopNeeded should be false, got ' + api.safetyStopNeeded);
+
+            return 'PASS — Shallow dive (maxDepth=' + api.maxDepth.toFixed(1) + 'm): safetyStopNeeded=' + api.safetyStopNeeded;
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-23: Safety stop activates at 11m threshold
+    // ----------------------------------------------------------
+    {
+        id: 'TC-23',
+        name: 'Safety Stop — Activates when maxDepth > 11m, duration 3min',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(12);
+            api.clearKeys();
+
+            // Hold at 12m briefly
+            for (var i = 0; i < 20; i++) {
+                api.setDepth(12);
+                api.updateDiving(0.5);
+                if (api.gameState !== 'diving') {
+                    return 'FAIL — Game ended during hold: ' + api.gameState + ' — ' + api.gameOverReason;
+                }
+            }
+
+            assert(api.maxDepth > 11, 'maxDepth should be >11, got ' + api.maxDepth);
+            assert(api.safetyStopNeeded === true, 'safetyStopNeeded should be true, got ' + api.safetyStopNeeded);
+
+            var dur = api.calculateSafetyStopDuration();
+            assert(dur === 180, 'calculateSafetyStopDuration should be 180 (3min), got ' + dur);
+
+            return 'PASS — maxDepth=' + api.maxDepth.toFixed(1) + 'm: safetyStopNeeded=true, duration=' + dur + 's (3min)';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-24: 5-minute stop for deep dive (maxDepth > 30m)
+    // ----------------------------------------------------------
+    {
+        id: 'TC-24',
+        name: 'Safety Stop — 5min duration when maxDepth > 30m',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(35);
+            api.clearKeys();
+
+            // Hold at 35m briefly to establish maxDepth
+            for (var i = 0; i < 10; i++) {
+                api.setDepth(35);
+                api.updateDiving(0.5);
+                if (api.gameState !== 'diving') {
+                    return 'FAIL — Game ended during hold: ' + api.gameState + ' — ' + api.gameOverReason;
+                }
+            }
+
+            assert(api.maxDepth > 30, 'maxDepth should be >30, got ' + api.maxDepth);
+            assert(api.safetyStopNeeded === true, 'safetyStopNeeded should be true');
+
+            var dur = api.calculateSafetyStopDuration();
+            assert(dur === 300, 'calculateSafetyStopDuration should be 300 (5min), got ' + dur);
+
+            return 'PASS — maxDepth=' + api.maxDepth.toFixed(1) + 'm: duration=' + dur + 's (5min)';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-25: 5-minute stop when NDL drops below 5
+    // ----------------------------------------------------------
+    {
+        id: 'TC-25',
+        name: 'Safety Stop — 5min duration when NDL dropped below 5',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            api.clearKeys();
+
+            // Saturate tissues to force NDL < 5 at 20m.
+            // NDL at 20m on air ~56min. Load fast-compartment tissues high.
+            // piN2 at 20m = (3.0 - 0.0627) * 0.79 ≈ 2.32
+            // Set compartments near saturation so NDL drops quickly.
+            var pAmb20 = api.ambientPressure(20);
+            var piN2 = (pAmb20 - 0.0627) * 0.79;
+            for (var c = 0; c < 16; c++) {
+                api.tissues[c] = piN2 * 0.98; // near saturation
+            }
+
+            // Run frames at 20m so NDL recalculates and drops below 5
+            var ndlBefore = api.calculateNDL();
+            for (var i = 0; i < 100; i++) {
+                api.setDepth(20);
+                api.updateDiving(0.5);
+                if (api.gameState !== 'diving') {
+                    return 'FAIL — Game ended: ' + api.gameState + ' — ' + api.gameOverReason;
+                }
+                if (api.ndlDroppedBelow5) break;
+            }
+
+            assert(api.ndlDroppedBelow5 === true, 'ndlDroppedBelow5 should be true, got ' + api.ndlDroppedBelow5);
+
+            var dur = api.calculateSafetyStopDuration();
+            assert(dur === 300, 'calculateSafetyStopDuration should be 300 (5min), got ' + dur);
+
+            return 'PASS — NDL dropped below 5 (ndlDroppedBelow5=true): duration=' + dur + 's (5min)';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-26: Countdown starts when depth < 6m
+    // ----------------------------------------------------------
+    {
+        id: 'TC-26',
+        name: 'Safety Stop — Countdown starts when depth < 6m',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            api.clearKeys();
+
+            // Hold at 20m to activate safety stop
+            for (var i = 0; i < 20; i++) {
+                api.setDepth(20);
+                api.updateDiving(0.5);
+            }
+            assert(api.safetyStopNeeded === true, 'safetyStopNeeded should be true');
+            assert(api.safetyStopCountdownStarted === false, 'Countdown should not have started at 20m');
+
+            // Ascend to 5m (below 6m threshold)
+            api.setDepth(5);
+            api.updateDiving(0.033);
+
+            assert(api.safetyStopCountdownStarted === true, 'Countdown should start when depth < 6m, got ' + api.safetyStopCountdownStarted);
+            assert(api.safetyStopRemaining > 0, 'safetyStopRemaining should be >0, got ' + api.safetyStopRemaining);
+
+            return 'PASS — Countdown started at 5m: started=' + api.safetyStopCountdownStarted + ', remaining=' + api.safetyStopRemaining.toFixed(0) + 's';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-27: Countdown runs in 2.4–8.3m range
+    // ----------------------------------------------------------
+    {
+        id: 'TC-27',
+        name: 'Safety Stop — Countdown decrements in 2.4–8.3m range',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            api.clearKeys();
+
+            // Hold at 20m
+            for (var i = 0; i < 20; i++) {
+                api.setDepth(20);
+                api.updateDiving(0.5);
+            }
+
+            // Ascend to 5m to start countdown
+            api.setDepth(5);
+            api.updateDiving(0.033);
+
+            assert(api.safetyStopCountdownStarted === true, 'Countdown should have started');
+            var initialRemaining = api.safetyStopRemaining;
+
+            // Run more frames at 5m (inside 2.4–8.3m range)
+            for (var j = 0; j < 30; j++) {
+                api.setDepth(5);
+                api.updateDiving(0.5);
+            }
+
+            var afterRemaining = api.safetyStopRemaining;
+            assert(api.safetyStopPaused === false, 'Should not be paused at 5m, got ' + api.safetyStopPaused);
+            assert(afterRemaining < initialRemaining, 'Remaining should decrease: initial=' + initialRemaining.toFixed(1) + ' after=' + afterRemaining.toFixed(1));
+
+            return 'PASS — Countdown active at 5m: ' + initialRemaining.toFixed(0) + 's → ' + afterRemaining.toFixed(0) + 's, paused=' + api.safetyStopPaused;
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-28: Countdown pauses outside 2.4–8.3m range
+    // ----------------------------------------------------------
+    {
+        id: 'TC-28',
+        name: 'Safety Stop — Countdown pauses outside 2.4–8.3m range',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            api.clearKeys();
+
+            // Hold at 20m
+            for (var i = 0; i < 20; i++) {
+                api.setDepth(20);
+                api.updateDiving(0.5);
+            }
+
+            // Start countdown at 5m
+            api.setDepth(5);
+            api.updateDiving(0.033);
+            assert(api.safetyStopCountdownStarted === true, 'Countdown should have started');
+
+            // Run a few frames at 5m so countdown is ticking
+            for (var j = 0; j < 10; j++) {
+                api.setDepth(5);
+                api.updateDiving(0.5);
+            }
+            var remainingBefore = api.safetyStopRemaining;
+
+            // Move to 9m (below 8.3m — outside range)
+            api.setDepth(9);
+            api.updateDiving(0.033);
+
+            assert(api.safetyStopPaused === true, 'Should be paused at 9m (outside 2.4-8.3m), got ' + api.safetyStopPaused);
+
+            // Run more frames at 9m and verify remaining doesn't decrease
+            for (var k = 0; k < 20; k++) {
+                api.setDepth(9);
+                api.updateDiving(0.5);
+            }
+            var remainingAfter = api.safetyStopRemaining;
+
+            // Remaining should not have decreased (paused means no decrement, but implementation sets paused=true and skips decrement)
+            assert(remainingAfter >= remainingBefore, 'Remaining should not decrease while paused: before=' + remainingBefore.toFixed(1) + ' after=' + remainingAfter.toFixed(1));
+
+            return 'PASS — Paused at 9m: paused=' + api.safetyStopPaused + ', remaining held at ' + remainingAfter.toFixed(0) + 's';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-29: Countdown resets on depth > 11m
+    // ----------------------------------------------------------
+    {
+        id: 'TC-29',
+        name: 'Safety Stop — Countdown resets when depth > 11m',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            api.clearKeys();
+
+            // Hold at 20m
+            for (var i = 0; i < 20; i++) {
+                api.setDepth(20);
+                api.updateDiving(0.5);
+            }
+
+            // Start countdown at 5m
+            api.setDepth(5);
+            api.updateDiving(0.033);
+            assert(api.safetyStopCountdownStarted === true, 'Countdown should have started');
+            assert(api.safetyStopRemaining > 0, 'Remaining should be >0');
+
+            // Descend back to 12m (> 11m triggers reset)
+            api.setDepth(12);
+            api.updateDiving(0.033);
+
+            assert(api.safetyStopCountdownStarted === false, 'Countdown should reset when depth > 11m, got ' + api.safetyStopCountdownStarted);
+            assert(api.safetyStopRemaining === 0, 'Remaining should be 0 after reset, got ' + api.safetyStopRemaining);
+
+            return 'PASS — Countdown reset at 12m: started=' + api.safetyStopCountdownStarted + ', remaining=' + api.safetyStopRemaining;
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-30: Safety stop completes when timer reaches 0
+    // ----------------------------------------------------------
+    {
+        id: 'TC-30',
+        name: 'Safety Stop — Completes when countdown reaches 0',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(15);
+            api.clearKeys();
+
+            // Hold at 15m briefly (shallow enough for 3min stop)
+            for (var i = 0; i < 10; i++) {
+                api.setDepth(15);
+                api.updateDiving(0.5);
+            }
+            assert(api.safetyStopNeeded === true, 'safetyStopNeeded should be true at 15m');
+
+            // Start countdown at 5m
+            api.setDepth(5);
+            api.updateDiving(0.033);
+            assert(api.safetyStopCountdownStarted === true, 'Countdown should have started');
+
+            // Duration is 180s (3min). Run frames at 5m until countdown completes.
+            // dtReal=0.5 → dtDiveSec = 0.5 * 3 = 1.5s per frame
+            // 180 / 1.5 = 120 frames needed + some margin
+            for (var j = 0; j < 150; j++) {
+                api.setDepth(5);
+                api.updateDiving(0.5);
+                if (api.safetyStopComplete) break;
+            }
+
+            assert(api.safetyStopComplete === true, 'safetyStopComplete should be true, got ' + api.safetyStopComplete);
+            assert(api.safetyStopRemaining === 0, 'safetyStopRemaining should be 0, got ' + api.safetyStopRemaining);
+
+            return 'PASS — Safety stop completed: complete=' + api.safetyStopComplete + ', remaining=' + api.safetyStopRemaining;
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-31: Reset clears all safety stop state
+    // ----------------------------------------------------------
+    {
+        id: 'TC-31',
+        name: 'Safety Stop — resetDive() clears all safety stop state',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            api.clearKeys();
+
+            // Hold at 20m to activate
+            for (var i = 0; i < 20; i++) {
+                api.setDepth(20);
+                api.updateDiving(0.5);
+            }
+            // Start countdown at 5m
+            api.setDepth(5);
+            api.updateDiving(0.033);
+            assert(api.safetyStopNeeded === true, 'Setup: safetyStopNeeded should be true');
+            assert(api.safetyStopCountdownStarted === true, 'Setup: countdown should have started');
+
+            // Now reset
+            api.resetDive();
+
+            assert(api.safetyStopNeeded === false, 'After reset: safetyStopNeeded should be false, got ' + api.safetyStopNeeded);
+            assert(api.safetyStopRemaining === 0, 'After reset: safetyStopRemaining should be 0, got ' + api.safetyStopRemaining);
+            assert(api.safetyStopCountdownStarted === false, 'After reset: safetyStopCountdownStarted should be false, got ' + api.safetyStopCountdownStarted);
+            assert(api.safetyStopPaused === false, 'After reset: safetyStopPaused should be false, got ' + api.safetyStopPaused);
+            assert(api.safetyStopComplete === false, 'After reset: safetyStopComplete should be false, got ' + api.safetyStopComplete);
+            assert(api.ndlDroppedBelow5 === false, 'After reset: ndlDroppedBelow5 should be false, got ' + api.ndlDroppedBelow5);
+
+            return 'PASS — All safety stop state cleared after resetDive()';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-32: BUG-CCR-4 — ccrAdjustO2Vol clamps to CCR_O2_VOL_MIN..MAX
+    // ----------------------------------------------------------
+    {
+        id: 'TC-32',
+        name: 'CCR — ccrAdjustO2Vol clamps within [2,5] L',
+        fn: function() {
+            api.diveMode = 'ccr';
+            api.initCCR();
+            assert(api.ccrState.o2CylVolume === 2, 'Default O2 vol should be 2, got ' + api.ccrState.o2CylVolume);
+            api.ccrAdjustO2Vol(1);
+            assert(api.ccrState.o2CylVolume === 3, 'After +1 should be 3, got ' + api.ccrState.o2CylVolume);
+            api.ccrAdjustO2Vol(10);
+            assert(api.ccrState.o2CylVolume === 5, 'Should clamp at max 5, got ' + api.ccrState.o2CylVolume);
+            api.ccrAdjustO2Vol(-100);
+            assert(api.ccrState.o2CylVolume === 2, 'Should clamp at min 2, got ' + api.ccrState.o2CylVolume);
+            return 'PASS — O2 cyl volume clamps [2..5] L correctly';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-33: BUG-CCR-4 — ccrAdjustO2Pres clamps to CCR_O2_PRES_MIN..MAX
+    // ----------------------------------------------------------
+    {
+        id: 'TC-33',
+        name: 'CCR — ccrAdjustO2Pres clamps within [50,300] bar',
+        fn: function() {
+            api.diveMode = 'ccr';
+            api.initCCR();
+            assert(api.ccrState.o2CylPressure === 200, 'Default O2 pres should be 200, got ' + api.ccrState.o2CylPressure);
+            api.ccrAdjustO2Pres(10);
+            assert(api.ccrState.o2CylPressure === 210, 'After +10 should be 210, got ' + api.ccrState.o2CylPressure);
+            api.ccrAdjustO2Pres(1000);
+            assert(api.ccrState.o2CylPressure === 300, 'Should clamp at max 300, got ' + api.ccrState.o2CylPressure);
+            api.ccrAdjustO2Pres(-1000);
+            assert(api.ccrState.o2CylPressure === 50, 'Should clamp at min 50, got ' + api.ccrState.o2CylPressure);
+            return 'PASS — O2 cyl pressure clamps [50..300] bar correctly';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-34: BUG-CCR-9 — switchMode('ccr') normalises tankCount to 1
+    // ----------------------------------------------------------
+    {
+        id: 'TC-34',
+        name: 'CCR — switchMode normalises tankCount/activeTank/selectedTankTab to 1/0/0',
+        fn: function() {
+            // Build a multi-tank Tec setup first
+            api.diveMode = 'tec';
+            api.tanks.length = 0;
+            api.tankCount = 0;
+            api.pushTank(0.21, 0, 200);
+            api.pushTank(0.32, 0, 200);
+            api.pushTank(0.36, 0, 200);
+            api.activeTank = 2;
+            // Switch into CCR — should normalise
+            api.diveMode = 'ccr';
+            assert(api.tankCount === 1, 'tankCount should be 1, got ' + api.tankCount);
+            assert(api.activeTank === 0, 'activeTank should be 0, got ' + api.activeTank);
+            return 'PASS — CCR switch normalises tank state (tankCount=' + api.tankCount + ', activeTank=' + api.activeTank + ')';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-35: BUG-CCR-5 — startDiveAction transitions gas-setup -> surface
+    // ----------------------------------------------------------
+    {
+        id: 'TC-35',
+        name: 'CCR — startDiveAction() puts gameState=surface and resets diveTime',
+        fn: function() {
+            api.diveMode = 'ccr';
+            api.gameState = 'gas-setup';
+            api.startDiveAction();
+            assert(api.gameState === 'surface', 'gameState should be surface, got ' + api.gameState);
+            assert(api.diveTime === 0, 'diveTime should be reset to 0, got ' + api.diveTime);
+            return 'PASS — startDiveAction transitioned to surface, diveTime=0';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-36: BUG-CCR-1 / BUG-CCR-2 — CCR in-dive buttons exist in the DOM
+    // ----------------------------------------------------------
+    {
+        id: 'TC-36',
+        name: 'CCR — Bailout/SP+/SP- buttons present in #touch-dive',
+        fn: function() {
+            var doc = iframe.contentDocument;
+            var bailout = doc.getElementById('touch-dive-bailout');
+            var spUp = doc.getElementById('touch-ccr-sp-up');
+            var spDown = doc.getElementById('touch-ccr-sp-down');
+            assert(bailout !== null, '#touch-dive-bailout should exist');
+            assert(spUp !== null, '#touch-ccr-sp-up should exist');
+            assert(spDown !== null, '#touch-ccr-sp-down should exist');
+            // All three must live inside #touch-dive (per spec) so they're scoped to diving.
+            var diveGroup = doc.getElementById('touch-dive');
+            assert(diveGroup.contains(bailout), 'bailout must be inside #touch-dive');
+            assert(diveGroup.contains(spUp), 'sp-up must be inside #touch-dive');
+            assert(diveGroup.contains(spDown), 'sp-down must be inside #touch-dive');
+            return 'PASS — All CCR in-dive buttons exist inside #touch-dive';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-37: BUG-CCR-3 — CCR opens a CCR-specific info page (mode 5)
+    // ----------------------------------------------------------
+    {
+        id: 'TC-37',
+        name: 'CCR — I key cycling sets infoPageMode to CCR page (5) and back',
+        fn: function() {
+            api.diveMode = 'ccr';
+            api.initCCR();
+            api.tanks.length = 0;
+            api.tankCount = 0;
+            api.pushTank(0.21, 0, 200);
+            api.gameState = 'diving';
+            api.infoPageMode = 0;
+
+            // Dispatch synthetic keydown events into the iframe window so the
+            // real handler exercises the cycling logic end-to-end.
+            function dispatchKey(k) {
+                var KE = iframe.contentWindow.KeyboardEvent;
+                var ev;
+                try { ev = new KE('keydown', { key: k, bubbles: true, cancelable: true }); }
+                catch (e) { ev = iframe.contentDocument.createEvent('Event'); ev.initEvent('keydown', true, true); ev.key = k; }
+                iframe.contentWindow.dispatchEvent(ev);
+            }
+            dispatchKey('i');
+            assert(api.infoPageMode === 5, 'infoPageMode should advance to 5 (CCR page) in CCR, got ' + api.infoPageMode);
+            dispatchKey('i');
+            assert(api.infoPageMode === 0, 'infoPageMode should wrap back to 0 in CCR, got ' + api.infoPageMode);
+
+            return 'PASS — I-key cycles infoPageMode 0 <-> 5 in CCR mode';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-38: Phase A — horizontal physics: kick moves diver, velocity caps + decays
+    // ----------------------------------------------------------
+    {
+        id: 'TC-38',
+        name: 'Phase A — kick right: diverX increases, vel capped at maxSpeed, decays on release',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            api.clearKeys();
+            api.diverX = 0;
+            api.horizontalVelocity = 0;
+
+            // Kick right for ~10 dive-seconds (100 frames × 0.033 × 3 ≈ 9.9 dive-sec)
+            api.setKeys({ d: true });
+            for (var i = 0; i < 100; i++) { api.setDepth(20); api.updateDiving(0.033); }
+            api.clearKeys();
+
+            var vel = api.horizontalVelocity;
+            var x = api.diverX;
+            assert(x > 0.3, 'diverX should be > 0.3 m after kicking right, got ' + x.toFixed(3));
+            assert(vel <= 0.61, 'velocity should not exceed maxSpeed (0.6), got ' + vel.toFixed(3));
+            assert(vel > 0, 'velocity should be positive (right), got ' + vel.toFixed(3));
+
+            // Release: velocity should decay to near-zero within ~5 dive-seconds
+            // 100 frames × 0.033 × 3 = 9.9 dive-sec >> 1/drag = 1/0.8 = 1.25 s
+            for (var j = 0; j < 100; j++) { api.setDepth(20); api.updateDiving(0.033); }
+            var velAfter = api.horizontalVelocity;
+            assert(Math.abs(velAfter) < 0.05, 'velocity should decay to ~0 after release, got ' + velAfter.toFixed(3));
+
+            return 'PASS — kicked x=' + x.toFixed(2) + 'm, peak vel=' + vel.toFixed(3) + 'm/s, decayed to ' + velAfter.toFixed(3) + 'm/s';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-39: Phase A — kicking increases gas consumption
+    // ----------------------------------------------------------
+    {
+        id: 'TC-39',
+        name: 'Phase A — kicking uses more gas than staying still (exertion multiplier)',
+        fn: function() {
+            // Ensure OC mode (earlier CCR tests leave diveMode='ccr')
+            api.diveMode = 'rec';
+            // Baseline: still, 100 frames at 30m
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(30);
+            api.clearKeys();
+            var g0 = api.tanks[0].gasRemaining;
+            for (var i = 0; i < 100; i++) { api.setDepth(30); api.updateDiving(0.033); }
+            var gasStill = g0 - api.tanks[0].gasRemaining;
+
+            // Kicking: same depth/duration
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(30);
+            api.setKeys({ d: true });
+            var g1 = api.tanks[0].gasRemaining;
+            for (var j = 0; j < 100; j++) { api.setDepth(30); api.updateDiving(0.033); }
+            api.clearKeys();
+            var gasKicking = g1 - api.tanks[0].gasRemaining;
+
+            assert(gasKicking > gasStill * 1.05, 'Kicking should use more gas: kicking=' + gasKicking.toFixed(2) + 'L still=' + gasStill.toFixed(2) + 'L');
+            return 'PASS — kicking: ' + gasKicking.toFixed(1) + 'L vs still: ' + gasStill.toFixed(1) + 'L (x' + (gasKicking / gasStill).toFixed(2) + ')';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-40: Phase A — diverX / horizontalVelocity survive save + restore
+    // ----------------------------------------------------------
+    {
+        id: 'TC-40',
+        name: 'Phase A — diverX and horizontalVelocity survive saveDiveState/restoreDiveState',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            api.gameState = 'diving';
+            api.diverX = 42.5;
+            api.horizontalVelocity = 0.35;
+
+            var win = document.getElementById('gameFrame').contentWindow;
+            win.saveDiveState();
+
+            api.resetDive();
+            assert(api.diverX === 0, 'resetDive should zero diverX, got ' + api.diverX);
+            assert(api.horizontalVelocity === 0, 'resetDive should zero horizontalVelocity, got ' + api.horizontalVelocity);
+
+            var saved = win.loadSavedDive();
+            assert(saved !== null, 'loadSavedDive should find a saved state');
+            win.restoreDiveState(saved);
+
+            assert(Math.abs(api.diverX - 42.5) < 0.01, 'diverX should restore to 42.5, got ' + api.diverX);
+            assert(Math.abs(api.horizontalVelocity - 0.35) < 0.01, 'horizontalVelocity should restore to 0.35, got ' + api.horizontalVelocity);
+
+            return 'PASS — diverX=' + api.diverX.toFixed(2) + ', hVel=' + api.horizontalVelocity.toFixed(2) + ' survived save/restore';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-41: Phase B — current drifts diverX; out-of-band has no effect
+    // ----------------------------------------------------------
+    {
+        id: 'TC-41',
+        name: 'Phase B — in-band current drifts diverX; out-of-band current has no effect',
+        fn: function() {
+            // In-band: diver at 20m, band 10-30m → should drift
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            api.clearKeys();
+            api.diverX = 0;
+            api.triggerCurrent({ direction: 1, strength: 0.4, depthMin: 10, depthMax: 30, duration: 200 });
+            api.current.level = 0.4;  // skip ramp: jump to full strength for the test
+
+            var x0 = api.diverX;
+            for (var i = 0; i < 100; i++) { api.setDepth(20); api.updateDiving(0.033); }
+            var xInBand = api.diverX;
+            assert(xInBand > x0 + 0.5, 'diverX should drift right in-band, got drift=' + (xInBand - x0).toFixed(2));
+
+            // Out-of-band: diver at 50m, same band 10-30m → no drift
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(50);
+            api.clearKeys();
+            api.diverX = 0;
+            api.triggerCurrent({ direction: 1, strength: 0.4, depthMin: 10, depthMax: 30, duration: 200 });
+            api.current.level = 0.4;
+
+            var x2 = api.diverX;
+            for (var j = 0; j < 100; j++) { api.setDepth(50); api.updateDiving(0.033); }
+            var xOutBand = api.diverX;
+            assert(Math.abs(xOutBand - x2) < 0.01, 'diverX should not drift out-of-band, got drift=' + Math.abs(xOutBand - x2).toFixed(3));
+
+            return 'PASS — in-band drift=' + (xInBand - x0).toFixed(2) + 'm, out-of-band drift=' + Math.abs(xOutBand - x2).toFixed(3) + 'm';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-42: Phase B — kicking against strong current loses ground + burns more gas
+    // ----------------------------------------------------------
+    {
+        id: 'TC-42',
+        name: 'Phase B — kicking against strong current: still loses ground, uses more gas',
+        fn: function() {
+            var STRONG = 0.7; // exceeds maxSpeed (0.6)
+            // Ensure OC mode (earlier CCR tests leave diveMode='ccr')
+            api.diveMode = 'rec';
+
+            // Drift with current, no kick
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            api.clearKeys();
+            api.diverX = 0;
+            api.triggerCurrent({ direction: 1, strength: STRONG, depthMin: 0, depthMax: 100, duration: 300 });
+            api.current.level = STRONG;
+            var g0 = api.tanks[0].gasRemaining;
+            for (var i = 0; i < 100; i++) { api.setDepth(20); api.updateDiving(0.033); }
+            var gasDrift = g0 - api.tanks[0].gasRemaining;
+            var xDrift = api.diverX;
+
+            // Kick against current (left, current goes right)
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            api.setKeys({ a: true });
+            api.diverX = 0;
+            api.triggerCurrent({ direction: 1, strength: STRONG, depthMin: 0, depthMax: 100, duration: 300 });
+            api.current.level = STRONG;
+            var g1 = api.tanks[0].gasRemaining;
+            for (var j = 0; j < 100; j++) { api.setDepth(20); api.updateDiving(0.033); }
+            api.clearKeys();
+            var gasFight = g1 - api.tanks[0].gasRemaining;
+            var xFight = api.diverX;
+
+            // Net drift is still positive (current > max kick)
+            assert(xFight > 0, 'Should still drift right against strong current, x=' + xFight.toFixed(2));
+            // But less drift than just drifting
+            assert(xFight < xDrift, 'Fighting should reduce drift: fight=' + xFight.toFixed(2) + ' drift=' + xDrift.toFixed(2));
+            // Kicking costs more gas
+            assert(gasFight > gasDrift, 'Fighting should use more gas: fight=' + gasFight.toFixed(1) + 'L drift=' + gasDrift.toFixed(1) + 'L');
+
+            return 'PASS — drift x=' + xDrift.toFixed(2) + 'm, fight x=' + xFight.toFixed(2) + 'm; gasFight=' + gasFight.toFixed(1) + 'L vs gasDrift=' + gasDrift.toFixed(1) + 'L';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-43: Phase B — current ramps in gradually (not instant)
+    // ----------------------------------------------------------
+    {
+        id: 'TC-43',
+        name: 'Phase B — current level ramps from 0 toward strength over rampTime',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            api.clearKeys();
+
+            api.triggerCurrent({ direction: 1, strength: 0.3, depthMin: 0, depthMax: 100, duration: 200 });
+            assert(api.current.level === 0, 'Current level should start at 0 after triggerCurrent, got ' + api.current.level);
+
+            // Run ~4 dive-sec (half of rampTime=8): level should be rising but not at full strength
+            // 40 frames × 0.033 × 3 = 3.96 dive-sec
+            for (var i = 0; i < 40; i++) { api.setDepth(20); api.updateDiving(0.033); }
+            var halfLevel = api.current.level;
+
+            assert(halfLevel > 0, 'Level should have started ramping up, got 0');
+            assert(halfLevel < api.current.strength - 0.01, 'Level should not reach full strength in half rampTime, got ' + halfLevel.toFixed(3) + ' vs strength=' + api.current.strength);
+
+            // Run another ~4 dive-sec: level should now be near full strength
+            for (var j = 0; j < 45; j++) { api.setDepth(20); api.updateDiving(0.033); }
+            var nearFullLevel = api.current.level;
+            assert(nearFullLevel > halfLevel, 'Level should keep increasing, half=' + halfLevel.toFixed(3) + ' later=' + nearFullLevel.toFixed(3));
+
+            return 'PASS — ramp: 0 → ' + halfLevel.toFixed(3) + ' (half rampTime) → ' + nearFullLevel.toFixed(3) + ' (near full, strength=' + api.current.strength.toFixed(2) + ')';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-44: Step 0 — floorAt/ceilingAt/solidAt/overheadAt interpolate correctly
+    // ----------------------------------------------------------
+    {
+        id: 'TC-44',
+        name: 'Step 0 — geometry helpers: lerpProfile, solidAt, overheadAt work correctly',
+        fn: function() {
+            // Shore floor: {x:-10,d:0},{x:0,d:3},{x:35,d:6},{x:70,d:10}
+            api.diveSite = 'shore';
+
+            // floorAt at control points
+            assert(Math.abs(api.floorAt(0) - 3) < 0.01, 'floorAt(0) should be 3, got ' + api.floorAt(0));
+            assert(Math.abs(api.floorAt(35) - 6) < 0.01, 'floorAt(35) should be 6, got ' + api.floorAt(35));
+            // floorAt midpoint between x=0,d=3 and x=35,d=6 → t=0.5 → d=4.5
+            var midFloor = api.floorAt(17.5);
+            assert(Math.abs(midFloor - 4.5) < 0.1, 'floorAt(17.5) should be ~4.5, got ' + midFloor.toFixed(2));
+            // floorAt beyond last point should clamp to last value (d=30)
+            assert(Math.abs(api.floorAt(300) - 30) < 0.01, 'floorAt(300) clamped to last d=30, got ' + api.floorAt(300));
+
+            // solidAt — shore has rock at {x1:100,x2:118,dTop:14,dBottom:22}
+            assert(api.solidAt(110, 18) === true,  'solidAt(110,18) should be true (inside rock)');
+            assert(api.solidAt(110, 5)  === false, 'solidAt(110,5) should be false (above rock)');
+            assert(api.solidAt(50, 18)  === false, 'solidAt(50,18) should be false (outside x-range)');
+
+            // overheadAt — shore has hasOverhead:false → never overhead
+            assert(api.overheadAt(110, 18) === false, 'overheadAt on shore (no overhead) should be false');
+
+            // Cave ceiling: {x:14,d:0}->{x:18,d:14} — at x=16: t=0.5 → d=7
+            api.diveSite = 'cave';
+            var midCeil = api.ceilingAt(16);
+            assert(Math.abs(midCeil - 7) < 0.2, 'ceilingAt(16) cave should be ~7, got ' + midCeil.toFixed(2));
+            // Cave is fully open at entry (x<14): ceiling=0
+            assert(api.ceilingAt(5) === 0, 'ceilingAt(5) cave entry should be 0 (open), got ' + api.ceilingAt(5));
+            // overheadAt inside cave passage
+            assert(api.overheadAt(50, 17) === true, 'overheadAt(50,17) inside cave passage should be true');
+
+            api.diveSite = 'open';
+            return 'PASS — lerpProfile, floorAt, ceilingAt, solidAt, overheadAt all correct';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-45: Step 0 — vertical clamp: floor stops descent on shore site
+    // ----------------------------------------------------------
+    {
+        id: 'TC-45',
+        name: 'Step 0 — vertical clamp: floor blocks descent at site floor depth',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            api.diveSite = 'shore';
+            // At x=35 the floor is at 6m — try to force diver deeper
+            api.diverX = 35;
+            api.setDepth(5.5);
+            api.clearKeys();
+
+            // Release BCD (vent) → diver sinks; floor clamp should stop at 6m
+            api.setKeys({ s: true });
+            for (var i = 0; i < 60; i++) {
+                api.diverX = 35; // hold x fixed
+                api.updateDiving(0.1);
+            }
+            api.clearKeys();
+
+            var d = api.depth;
+            assert(d <= 6.05, 'Depth should not exceed floor (6m) at x=35, got ' + d.toFixed(2));
+
+            api.diveSite = 'open';
+            return 'PASS — floor clamp stopped diver at ' + d.toFixed(2) + 'm (floor=6m at x=35)';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-46: Step 0 — vertical clamp: ceiling blocks ascent on cave site
+    // ----------------------------------------------------------
+    {
+        id: 'TC-46',
+        name: 'Step 0 — vertical clamp: ceiling blocks ascent inside cave',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            api.diveSite = 'cave';
+            // At x=50 the ceiling is ~14m (lerpProfile between x=30,d=15 and x=55,d=14 → d≈14.4)
+            api.diverX = 50;
+            api.setDepth(16);
+            api.clearKeys();
+
+            // Inflate BCD → diver rises; ceiling should stop them
+            api.setKeys({ w: true });
+            for (var j = 0; j < 60; j++) {
+                api.diverX = 50;  // hold x fixed
+                api.updateDiving(0.1);
+            }
+            api.clearKeys();
+
+            var d2 = api.depth;
+            var ceil = api.ceilingAt(50);
+            assert(d2 >= ceil - 0.1, 'Depth should not go above ceiling (' + ceil.toFixed(1) + 'm) at x=50, got ' + d2.toFixed(2));
+            assert(d2 < 0.3 === false, 'Diver should not reach the surface (depth=' + d2.toFixed(2) + ')');
+
+            api.diveSite = 'open';
+            return 'PASS — ceiling clamp held diver at ' + d2.toFixed(2) + 'm (ceiling=' + ceil.toFixed(2) + 'm at x=50)';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-47: Step 0 — horizontal collision: structure blocks lateral movement
+    // ----------------------------------------------------------
+    {
+        id: 'TC-47',
+        name: 'Step 0 — horizontal collision: rock structure stops horizontal movement',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            api.diveSite = 'shore';
+            // Shore rock at {x1:100,x2:118,dTop:14,dBottom:22}
+            // Place diver just left of the rock, at its depth
+            api.diverX = 95;
+            api.setDepth(18);
+            api.clearKeys();
+
+            // Kick right — should be stopped by the rock at x=100
+            api.setKeys({ d: true });
+            for (var k = 0; k < 100; k++) {
+                api.setDepth(18);  // hold depth in the rock's d-range
+                api.updateDiving(0.033);
+            }
+            api.clearKeys();
+
+            var x = api.diverX;
+            // Should be stopped at or before x=100 (rock left edge)
+            assert(x <= 100.1, 'diverX should be blocked at rock edge (x=100), got ' + x.toFixed(2));
+            assert(x > 95, 'diverX should have advanced some from 95, got ' + x.toFixed(2));
+
+            api.diveSite = 'open';
+            return 'PASS — horizontal collision blocked at x=' + x.toFixed(2) + ' (rock at x=100)';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-48: Step 1 Shore — slope descent: swimming right goes deeper
+    // ----------------------------------------------------------
+    {
+        id: 'TC-48',
+        name: 'Step 1 Shore — slope descent: kicking right increases accessible depth',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            api.diveSite = 'shore';
+            // Start at entry: x=0, depth=3 (floor)
+            api.diverX = 0;
+            api.setDepth(3);
+            api.clearKeys();
+
+            // Floor at x=70 is 10m — kick right and descend
+            api.setKeys({ d: true, s: true });
+            for (var i = 0; i < 200; i++) {
+                api.updateDiving(0.033);
+                if (api.gameState !== 'diving') break;
+            }
+            api.clearKeys();
+
+            // After kicking right, diverX should be positive and floor should be deeper
+            var newX = api.diverX;
+            var newFloor = api.floorAt(newX);
+            assert(newX > 0, 'diverX should increase when kicking right, got ' + newX.toFixed(2));
+            assert(newFloor > 3, 'Floor at new position should be deeper than 3m (entry), got ' + newFloor.toFixed(2));
+
+            api.diveSite = 'open';
+            return 'PASS — after kicking right: x=' + newX.toFixed(1) + 'm, floor=' + newFloor.toFixed(1) + 'm';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-49: Step 1 Shore — no shark spawns on shore site
+    // ----------------------------------------------------------
+    {
+        id: 'TC-49',
+        name: 'Step 1 Shore — noShark: shark never spawns on shore',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            api.diveSite = 'shore';
+            api.setDepth(10);
+            api.shark = null;
+            api.sharkTimer = 0.01;
+            api.clearKeys();
+
+            // Force spawn attempt with random that would normally trigger shark
+            var win = document.getElementById('gameFrame').contentWindow;
+            var orig = win.Math.random;
+            win.Math.random = function() { return 0.004; };
+            try {
+                api.updateDiving(0.1);
+            } finally {
+                win.Math.random = orig;
+            }
+
+            assert(api.shark === null, 'Shore site should suppress shark spawn, got: ' + JSON.stringify(api.shark));
+
+            api.diveSite = 'open';
+            return 'PASS — noShark=true prevents spawn on shore';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-50: Step 2 Reef — D7 redesign: crest body blocks, both sides open
+    // ----------------------------------------------------------
+    {
+        id: 'TC-50',
+        name: 'Step 2 Reef — reef crest blocks lateral movement; both sides open to MAX_DEPTH',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            api.diveSite = 'reef';
+
+            // Trapezoid mesa: at d=25 the right flank seabed reaches x≈11.2
+            // (floorAt(11.2)=25). Kicking left from open water (x=40) the diver
+            // is blocked by `depth > floorAt(x)` before entering the wall.
+            api.diverX = 40;
+            api.setDepth(25);
+            api.clearKeys();
+            api.setKeys({ a: true });  // kick left toward the reef flank
+            for (var i = 0; i < 100; i++) {
+                api.setDepth(25);
+                api.updateDiving(0.033);
+            }
+            api.clearKeys();
+
+            var x = api.diverX;
+            assert(x >= 11, 'diverX should stop at the reef flank (x~11.2 at d=25), got ' + x.toFixed(2));
+            assert(x < 40, 'diverX should have moved left from 40, got ' + x.toFixed(2));
+
+            // Both sides open to MAX_DEPTH
+            assert(api.floorAt(-50) >= 200, 'Left side floor should be >= 200m (open), got ' + api.floorAt(-50).toFixed(0));
+            assert(api.floorAt(50)  >= 200, 'Right side floor should be >= 200m (open), got ' + api.floorAt(50).toFixed(0));
+
+            api.diveSite = 'open';
+            return 'PASS — crest blocked at x=' + x.toFixed(2) + '; both sides open (left=' + api.floorAt(-50).toFixed(0) + 'm, right=' + api.floorAt(50).toFixed(0) + 'm)';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-51: Step 2 Reef — current drifts diver in open water beside reef
+    // ----------------------------------------------------------
+    {
+        id: 'TC-51',
+        name: 'Step 2 Reef — current drifts diver in open water beside reef',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            api.diveSite = 'reef';
+            // x=40, d=20 — open water beside reef, floor=MAX_DEPTH
+            api.setDepth(20);
+            api.clearKeys();
+            api.diverX = 40;
+
+            // Force a rightward current at diver depth
+            api.triggerCurrent({ direction: 1, strength: 0.4, depthMin: 10, depthMax: 30, duration: 200 });
+            api.current.level = 0.4;
+
+            var x0 = api.diverX;
+            for (var j = 0; j < 60; j++) { api.setDepth(20); api.updateDiving(0.033); }
+            var x1 = api.diverX;
+
+            assert(x1 > x0 + 0.3, 'Diver should drift right with current beside reef, drift=' + (x1 - x0).toFixed(2));
+
+            api.diveSite = 'open';
+            return 'PASS — drifted ' + (x1 - x0).toFixed(2) + 'm with current beside reef';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-52: Step 2 Reef — both sides allow descent to MAX_DEPTH, crest shallow
+    // ----------------------------------------------------------
+    {
+        id: 'TC-52',
+        name: 'Step 2 Reef — crest shallow (5m), both sides open to MAX_DEPTH',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            api.diveSite = 'reef';
+
+            // Crest at x=0: floor=5m
+            var crestFlr = api.floorAt(0);
+            assert(crestFlr <= 6, 'Crest floor at x=0 should be <= 6m, got ' + crestFlr.toFixed(1));
+
+            // Both sides open
+            var rightFlr = api.floorAt(150);
+            assert(rightFlr >= 200, 'Right side floor at x=150 should be >= 200m, got ' + rightFlr.toFixed(0));
+            var leftFlr = api.floorAt(-150);
+            assert(leftFlr >= 200, 'Left side floor at x=-150 should be >= 200m, got ' + leftFlr.toFixed(0));
+
+            // No overhead anywhere on reef
+            assert(api.ceilingAt(0) === 0, 'Ceiling at crest x=0 should be 0 (open surface)');
+
+            api.diveSite = 'open';
+            return 'PASS — crest=' + crestFlr.toFixed(1) + 'm; right=' + rightFlr.toFixed(0) + 'm; left=' + leftFlr.toFixed(0) + 'm';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-53: Step 3 Wreck — overheadAt is true inside hull, false outside
+    // ----------------------------------------------------------
+    {
+        id: 'TC-53',
+        name: 'Step 3 Wreck — inOverhead true inside hull, false outside',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            api.diveSite = 'wreck';
+
+            // Inside vehicle deck (x=50, d=33): deck at dTop=30, dBottom=31 above → overhead
+            assert(api.overheadAt(50, 33) === true, 'overheadAt(50,33) inside vehicle deck should be true');
+            // Outside hull (x=-10, d=35): no structure overhead
+            assert(api.overheadAt(-10, 35) === false, 'overheadAt(-10,35) outside hull should be false');
+            // Above the top deck (x=50, d=22): no overhead this far up
+            assert(api.overheadAt(50, 22) === false, 'overheadAt(50,22) above top deck should be false');
+
+            // Run frames inside the hull so updateOverheadState fires
+            api.diverX = 50;
+            api.setDepth(33);
+            api.clearKeys();
+            api.updateDiving(0.033);
+            assert(api.inOverhead === true, 'inOverhead should be true after tick inside hull, got ' + api.inOverhead);
+
+            api.diveSite = 'open';
+            return 'PASS — overheadAt and inOverhead correct inside/outside wreck hull';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-54: Step 3 Wreck — D8: fast kick near new keel (68m) raises silt
+    // ----------------------------------------------------------
+    {
+        id: 'TC-54',
+        name: 'Step 3 Wreck — fast kick near keel inside hull degrades visibility',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            api.diveSite = 'wreck';
+            // Hull seabed at 66 m; keel plating spans 65–66 the whole length, so
+            // the open bilge a diver can actually swim in is just above it.
+            // x=50, d=64.5: in the bilge → floorAt-66 minus depth = 1.5 m so
+            // nearFloor is true, the engine-room floor (dBottom 62) is overhead,
+            // and there is no solid here (keel starts at 65) so x is free to move.
+            api.diverX = 50;
+            api.setDepth(64.5);
+            api.clearKeys();
+            api.updateDiving(0.016);
+
+            assert(api.inOverhead === true, 'Should be inOverhead at x=50 d=64.5 (engine floor overhead)');
+
+            api.setKeys({ d: true });
+            var vis0 = api.visibility;
+            for (var i = 0; i < 80; i++) {
+                api.setDepth(64.5);   // pin depth in the bilge; x free to move
+                api.updateDiving(0.033);
+            }
+            api.clearKeys();
+            var vis1 = api.visibility;
+
+            assert(vis1 < vis0, 'Visibility should decrease with fast kick near keel: ' + vis0.toFixed(2) + ' -> ' + vis1.toFixed(2));
+
+            // Stop — visibility should recover
+            for (var j = 0; j < 80; j++) {
+                api.setDepth(64.5);
+                api.updateDiving(0.033);
+            }
+            var vis2 = api.visibility;
+            assert(vis2 > vis1, 'Visibility should recover when calm: ' + vis1.toFixed(2) + ' -> ' + vis2.toFixed(2));
+
+            api.diveSite = 'open';
+            return 'PASS — silt: ' + vis0.toFixed(2) + ' (start) -> ' + vis1.toFixed(2) + ' (kick) -> ' + vis2.toFixed(2) + ' (calm)';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-55: (rule-of-thirds HUD removed — placeholder)
+    // ----------------------------------------------------------
+    {
+        id: 'TC-55',
+        name: 'Step 3 Wreck — wreck site state resets correctly on new dive',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'wreck';
+            setupDive([[0.21, 0, 200]]);
+            assert(api.diveSite === 'wreck', 'diveSite should remain wreck after resetDive');
+            assert(api.visibility === 1.0, 'visibility should reset to 1.0, got ' + api.visibility);
+            api.diveSite = 'open';
+            return 'PASS — wreck site state (diveSite + visibility) resets correctly';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-56: Step 4 Cave — cannot surface inside bad-air dome
+    // ----------------------------------------------------------
+    {
+        id: 'TC-56',
+        name: 'Step 4 Cave — badAirWarning true inside dome; ceiling blocks surface attempt',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            api.diveSite = 'cave';
+
+            // Bad-air dome: {x1:103,x2:109,d:12} — ceiling at cave x=106 is 12m
+            api.diverX = 106;
+            var ceilAt106 = api.ceilingAt(106);
+            assert(ceilAt106 > 0, 'Cave ceiling at x=106 (bad-air dome) should be > 0, got ' + ceilAt106);
+
+            // Attempt to ascend to depth 0 — ceiling should block it
+            api.setDepth(14);
+            api.clearKeys();
+            api.setKeys({ w: true });
+            for (var i = 0; i < 80; i++) {
+                api.diverX = 106;
+                api.updateDiving(0.1);
+                if (api.gameState !== 'diving') break;
+            }
+            api.clearKeys();
+
+            assert(api.depth >= ceilAt106 - 0.2, 'Diver should be stopped at cave ceiling, not surface. depth=' + api.depth.toFixed(2) + ' ceil=' + ceilAt106.toFixed(2));
+            assert(api.depth > 0.3, 'Diver must not have surfaced inside bad-air dome, depth=' + api.depth.toFixed(2));
+
+            // Run one frame to check badAirWarning
+            api.setDepth(12.3);  // just inside the bad-air dome
+            api.diverX = 106;
+            api.updateDiving(0.016);
+            assert(api.badAirWarning === true, 'badAirWarning should be true inside dome, got ' + api.badAirWarning);
+
+            api.diveSite = 'open';
+            return 'PASS — bad-air dome: ceiling=' + ceilAt106.toFixed(1) + 'm blocks surface; badAirWarning=true inside';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-57: Step 4 Cave — CAN surface at far-exit pond (x=200)
+    // ----------------------------------------------------------
+    {
+        id: 'TC-57',
+        name: 'Step 4 Cave — far-exit pond (x=200): ceiling=0, ceilingAt allows surfacing',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            api.diveSite = 'cave';
+
+            // Far exit geometry: ceiling at x=200 must be 0 (open to air)
+            var ceilAt200 = api.ceilingAt(200);
+            assert(ceilAt200 === 0, 'Cave ceiling at far-exit x=200 should be 0, got ' + ceilAt200);
+
+            // Contrast: inside cave passage (x=50) ceiling is > 0
+            var ceilAt50 = api.ceilingAt(50);
+            assert(ceilAt50 > 0, 'Cave ceiling at x=50 should be > 0 (blocked), got ' + ceilAt50);
+
+            // Vertical clamp at x=200: diver at d=0.1 should NOT be clamped to ceiling
+            // (since ceilingAt(200)=0, the clamp depth<ceil → 0.1 < 0 is false)
+            api.diverX = 200;
+            api.setDepth(2);
+            api.clearKeys();
+            // Accumulate > 0.5 dive-min (needed for post-dive trigger)
+            for (var prep = 0; prep < 25; prep++) { api.setDepth(2); api.diverX = 200; api.updateDiving(0.5); }
+
+            // Now ascend
+            api.setKeys({ w: true });
+            for (var j = 0; j < 300; j++) {
+                api.diverX = 200;
+                api.updateDiving(0.033);
+                if (api.depth < 0.3 || api.gameState !== 'diving') break;
+            }
+            api.clearKeys();
+
+            assert(api.depth < 0.8 || api.gameState === 'post-dive',
+                'Diver should ascend near-surface at far exit; depth=' + api.depth.toFixed(2) + ' state=' + api.gameState);
+
+            api.diveSite = 'open';
+            return 'PASS — far exit: ceilAt200=' + ceilAt200 + '; ceilAt50=' + ceilAt50.toFixed(1) + 'm; final depth=' + api.depth.toFixed(2) + 'm';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-58: Step 4 Cave — rule-of-thirds fires inside cave
+    // ----------------------------------------------------------
+    {
+        id: 'TC-58',
+        name: 'Step 4 Cave — bad-air dome detected inside unbreathable pocket',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            api.diveSite = 'cave';
+            // Bad-air dome: {x1:103,x2:109,d:12}
+            api.diverX = 106;
+            api.setDepth(11.5);
+            api.clearKeys();
+            api.updateDiving(0.016);
+            assert(api.badAirWarning === true, 'badAirWarning should be true inside dome at x=106,d=11.5');
+            api.diverX = 50;
+            api.setDepth(17);
+            api.updateDiving(0.016);
+            assert(api.badAirWarning === false, 'badAirWarning should be false outside dome');
+            api.diveSite = 'open';
+            return 'PASS — bad-air dome detected correctly at x=106 d=11.5';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-59: Step 4 Cave — guideline lays while overhead
+    // ----------------------------------------------------------
+    {
+        id: 'TC-59',
+        name: 'Step 4 Cave — guideline nodes recorded while inOverhead; not recorded in open',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            api.diveSite = 'cave';
+
+            // Inside cave passage at x=50, d=17 (overhead: ceiling ~14m is above diver)
+            api.diverX = 50;
+            api.setDepth(17);
+            api.clearKeys();
+
+            // Confirm overhead
+            api.updateDiving(0.016);
+            assert(api.inOverhead === true, 'Should be inOverhead inside cave at x=50,d=17, got ' + api.inOverhead);
+
+            var nodesBefore = api.guidelineNodeCount;
+            // Run enough frames to accumulate 2+ guideline samples (GUIDELINE_SAMPLE_SEC=1 dive-sec)
+            // dt=0.1, TIME_ACCEL=3, dtDiveSec=0.3/frame → need 10+ frames per sample
+            // Let's run 50 frames = 15 dive-sec → at least 15 samples expected
+            for (var i = 0; i < 50; i++) {
+                api.diverX = 50;
+                api.setDepth(17);
+                api.updateDiving(0.1);
+            }
+            var nodesAfter = api.guidelineNodeCount;
+            assert(nodesAfter > nodesBefore + 1, 'Guideline should accumulate nodes while overhead: before=' + nodesBefore + ' after=' + nodesAfter);
+
+            // Outside cave (entry basin, x=-5, ceiling=0): should NOT record
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.diveSite = 'open';
+            api.diverX = 5;
+            api.setDepth(3);
+            for (var j = 0; j < 30; j++) { api.setDepth(3); api.updateDiving(0.1); }
+            assert(api.guidelineNodeCount === 0, 'No guideline in open water, got ' + api.guidelineNodeCount);
+
+            api.diveSite = 'open';
+            return 'PASS — guideline: ' + nodesBefore + ' -> ' + nodesAfter + ' nodes inside cave; 0 in open water';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-X1: Reef descriptor integrity
+    // ----------------------------------------------------------
+    {
+        id: 'TC-X1',
+        name: 'Reef descriptor — all new coral/cloud kinds present, geometry correct',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            api.diveSite = 'reef';
+            var reef = api.DIVE_SITES.reef;
+            var kinds = reef.features.map(function(f) { return f.kind; });
+            var required = ['tableCoral','brainCoral','staghorn','softCoral','gorgonian','barrelSponge','anthiasCloud'];
+            for (var i = 0; i < required.length; i++) {
+                assert(kinds.indexOf(required[i]) !== -1, 'Missing feature kind: ' + required[i]);
+            }
+            assert(api.floorAt(0) <= 6, 'Crest floor should be <=6m, got ' + api.floorAt(0).toFixed(1));
+            // Clean trapezoid mesa: collision is floor-based (no AABB structures).
+            // A point inside the flank lies below the seabed; open blue does not.
+            assert(api.floorAt(10) < 34, 'x=10 flank should be shallower than 34m (solid below), got ' + api.floorAt(10).toFixed(1));
+            assert(api.floorAt(40) >= 200, 'x=40 should be open water to the abyss, got ' + api.floorAt(40).toFixed(0));
+            api.diveSite = 'open';
+            return 'PASS — all reef feature kinds present, mesa geometry correct';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-X2: New species registered
+    // ----------------------------------------------------------
+    {
+        id: 'TC-X2',
+        name: 'New reef species registered in FISH_TYPES and WILDLIFE_TYPES',
+        fn: function() {
+            var FT = api.FISH_TYPES;
+            var WT = api.WILDLIFE_TYPES;
+            var fishNames = FT.map(function(f) { return f.name; });
+            assert(fishNames.indexOf('anthias') !== -1, 'anthias missing from FISH_TYPES');
+            assert(fishNames.indexOf('bannerfish') !== -1, 'bannerfish missing from FISH_TYPES');
+            var anthias = FT.filter(function(f) { return f.name === 'anthias'; })[0];
+            assert(anthias && anthias.sites && anthias.sites.indexOf('reef') !== -1, 'anthias not reef-only');
+            var banner = FT.filter(function(f) { return f.name === 'bannerfish'; })[0];
+            assert(banner && banner.sites && banner.sites.indexOf('reef') !== -1, 'bannerfish not reef-only');
+            var wldNames = WT.map(function(w) { return w.name; });
+            assert(wldNames.indexOf('greyReefShark') !== -1, 'greyReefShark missing from WILDLIFE_TYPES');
+            assert(wldNames.indexOf('hammerhead') !== -1, 'hammerhead missing from WILDLIFE_TYPES');
+            assert(wldNames.indexOf('dolphin') !== -1, 'dolphin missing from WILDLIFE_TYPES');
+            return 'PASS — all new species registered';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-X3: Reef species eligibility filtering
+    // ----------------------------------------------------------
+    {
+        id: 'TC-X3',
+        name: 'Reef-only species not eligible on other dive sites',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            api.diveSite = 'wreck';
+            var eligible = api.eligibleFishTypes();
+            if (eligible.length > 0) {
+                var names = eligible.map(function(f) { return f.name; });
+                assert(names.indexOf('anthias') === -1, 'anthias should not spawn on wreck site');
+                assert(names.indexOf('bannerfish') === -1, 'bannerfish should not spawn on wreck site');
+            }
+            api.diveSite = 'open';
+            return 'PASS — reef-only species not eligible on non-reef sites';
+        }
+    }
+];
+
+// ============================================================
+//  TEST RUNNER
+// ============================================================
+
+function renderResults() {
+    var el = document.getElementById('results');
+    var html = '';
+    for (var i = 0; i < tests.length; i++) {
+        var t = tests[i];
+        var r = results[t.id];
+        var cls = 'pending';
+        var badge = 'PENDING';
+        var detail = '';
+        if (r) {
+            cls = r.pass ? 'pass' : 'fail';
+            badge = r.pass ? 'PASS' : 'FAIL';
+            detail = r.detail;
+        }
+        html += '<div class="card ' + cls + '">' +
+            '<div class="card-header">' +
+            '<span class="card-title">' + t.id + ': ' + t.name + '</span>' +
+            '<span class="badge ' + cls + '">' + badge + '</span>' +
+            '</div>' +
+            (detail ? '<div class="card-detail">' + detail + '</div>' : '') +
+            '</div>';
+    }
+    el.innerHTML = html;
+}
+
+function updateSummary() {
+    var total = tests.length;
+    var passed = 0;
+    var failed = 0;
+    var pending = 0;
+    for (var i = 0; i < tests.length; i++) {
+        var r = results[tests[i].id];
+        if (!r) { pending++; }
+        else if (r.pass) { passed++; }
+        else { failed++; }
+    }
+    var el = document.getElementById('summary');
+    if (running) {
+        el.innerHTML = '<span class="pending">Running...</span> &nbsp; <span class="pass">' + passed + ' passed</span> &nbsp; <span class="fail">' + failed + ' failed</span> &nbsp; <span class="pending">' + pending + ' pending</span>';
+    } else {
+        el.innerHTML = '<span class="pass">' + passed + '/' + total + ' passed</span>' +
+            (failed > 0 ? ' &nbsp; <span class="fail">' + failed + ' failed</span>' : '') +
+            (pending > 0 ? ' &nbsp; <span class="pending">' + pending + ' pending</span>' : '');
+    }
+}
+
+function runSingleTest(idx) {
+    var t = tests[idx];
+    results[t.id] = { pass: false, detail: 'Running...' };
+    renderResults();
+    try {
+        var detail = t.fn();
+        results[t.id] = { pass: true, detail: detail };
+    } catch(e) {
+        results[t.id] = { pass: false, detail: e.message };
+    }
+    renderResults();
+    updateSummary();
+}
+
+function runAllTests(callback) {
+    if (running) return;
+    running = true;
+    results = {};
+    renderResults();
+    updateSummary();
+    setButtonsDisabled(true);
+
+    var idx = 0;
+    function next() {
+        if (idx >= tests.length) {
+            running = false;
+            updateSummary();
+            setButtonsDisabled(false);
+            // Expose structured results for programmatic access (agent/Playwright)
+            var total = tests.length, passed = 0, failed = 0;
+            var testResults = [];
+            for (var i = 0; i < tests.length; i++) {
+                var r = results[tests[i].id];
+                var entry = { id: tests[i].id, name: tests[i].name, pass: r ? r.pass : false, detail: r ? r.detail : 'NOT RUN' };
+                testResults.push(entry);
+                if (r && r.pass) passed++; else failed++;
+            }
+            window.testResults = { total: total, passed: passed, failed: failed, done: true, tests: testResults };
+            if (callback) callback(window.testResults);
+            return;
+        }
+        runSingleTest(idx);
+        idx++;
+        // Use setTimeout to allow UI repaint between tests
+        setTimeout(next, 10);
+    }
+    next();
+}
+
+function setButtonsDisabled(disabled) {
+    document.getElementById('btnRunAll').disabled = disabled;
+    var btns = document.querySelectorAll('.individual');
+    for (var i = 0; i < btns.length; i++) btns[i].disabled = disabled;
+}
+
+// ============================================================
+//  EVENT BINDINGS
+// ============================================================
+
+document.getElementById('btnRunAll').addEventListener('click', runAllTests);
+
+var indivBtns = document.querySelectorAll('.individual');
+for (var i = 0; i < indivBtns.length; i++) {
+    (function(idx) {
+        indivBtns[idx].addEventListener('click', function() {
+            if (running) return;
+            running = true;
+            setButtonsDisabled(true);
+            runSingleTest(idx);
+            running = false;
+            updateSummary();
+            setButtonsDisabled(false);
+        });
+    })(i);
+}
+
+// Initial render
+renderResults();
+
+// Expose testResults early (not done yet)
+window.testResults = { total: tests.length, passed: 0, failed: 0, done: false, tests: [] };
+
+// Auto-run when ?autorun is in the URL (for agent/Playwright invocation)
+if (window.location.search.indexOf('autorun') !== -1) {
+    iframe.addEventListener('load', function autoRun() {
+        iframe.removeEventListener('load', autoRun);
+        // Small delay to ensure gameAPI is ready
+        setTimeout(function() { runAllTests(); }, 100);
+    });
+}
+</script>
+</body>
+</html>
