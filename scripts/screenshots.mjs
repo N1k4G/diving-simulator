@@ -77,7 +77,7 @@ async function run() {
     await ctx.close();
   }
 
-  // ---- Desktop: wreck dive ----
+  // ---- Desktop: setup + all authored dive sites ----
   {
     const ctx = await browser.newContext(DESKTOP);
     const page = await ctx.newPage();
@@ -85,8 +85,25 @@ async function run() {
     await page.goto(pageUrl, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1000);
     await shot(page, 'desktop-setup');
-    await startDive(page, { site: 'Wreck', x: 60, depth: 24 });
-    await shot(page, 'desktop-dive-wreck');
+    await ctx.close();
+  }
+
+  const desktopDiveShots = [
+    { site: 'Shore', x: 85, depth: 12, name: 'desktop-dive-shore' },
+    { site: 'Reef',  x: 11, depth: 20, name: 'desktop-dive-reef' },
+    { site: 'Wreck', x: 60, depth: 24, name: 'desktop-dive-wreck' },
+    { site: 'Wreck', x: 92, depth: 36, name: 'desktop-dive-wreck-wide' },
+    { site: 'Cave',  x: 90, depth: 24, name: 'desktop-dive-cave' },
+  ];
+
+  for (const diveShot of desktopDiveShots) {
+    const ctx = await browser.newContext(DESKTOP);
+    const page = await ctx.newPage();
+    page.on('pageerror', (e) => errors.push(`[desktop ${diveShot.site}] ` + e));
+    await page.goto(pageUrl, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(500);
+    await startDive(page, diveShot);
+    await shot(page, diveShot.name);
     await ctx.close();
   }
 
