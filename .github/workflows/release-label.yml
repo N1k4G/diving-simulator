@@ -1,0 +1,58 @@
+name: Release Label
+
+on:
+  # Uses pull_request_target so the workflow can apply labels even when the PR
+  # comes from a fork. It intentionally does not check out or run PR code.
+  pull_request_target:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+
+jobs:
+  release-label:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Auto-label and enforce release bump
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+
+          current_count="$(
+            gh pr view "$PR_NUMBER" --json labels \
+              --jq '[.labels[].name | select(. == "release:major" or . == "release:minor" or . == "release:patch" or . == "release:none")] | length'
+          )"
+
+          if [ "$current_count" -eq 0 ]; then
+            inferred=""
+            title_lc="$(printf '%s' "$PR_TITLE" | tr '[:upper:]' '[:lower:]')"
+
+            case "$title_lc" in
+              *"[major]"*|*"breaking change"*|*"!:"*) inferred="release:major" ;;
+              feat:*|feat\(*|*"[minor]"*) inferred="release:minor" ;;
+              fix:*|fix\(*|perf:*|perf\(*|refactor:*|refactor\(*|*"[patch]"*) inferred="release:patch" ;;
+              docs:*|docs\(*|test:*|test\(*|ci:*|ci\(*|chore:*|chore\(*|*"[no release]"*|*"[no-release]"*) inferred="release:none" ;;
+            esac
+
+            if [ -n "$inferred" ]; then
+              gh pr edit "$PR_NUMBER" --add-label "$inferred"
+            fi
+          fi
+
+          selected="$(
+            gh pr view "$PR_NUMBER" --json labels \
+              --jq '[.labels[].name | select(. == "release:major" or . == "release:minor" or . == "release:patch" or . == "release:none")]'
+          )"
+          selected_count="$(printf '%s' "$selected" | jq 'length')"
+
+          if [ "$selected_count" -ne 1 ]; then
+            echo "::error::Select exactly one release label: release:major, release:minor, release:patch, or release:none. Current selection: $selected"
+            exit 1
+          fi
+
+          echo "Release label OK: $(printf '%s' "$selected" | jq -r '.[0]')"

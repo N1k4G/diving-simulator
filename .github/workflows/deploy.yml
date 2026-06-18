@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
@@ -54,3 +58,86 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy src/ --project-name=diving-simulator --branch=main
+
+  release:
+    runs-on: ubuntu-latest
+    needs: deploy
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Create semver release from merged PR label
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          pr_json="$(
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
+              --jq '[.[] | select(.merged_at != null) | {number, labels}]'
+          )"
+          pr_count="$(printf '%s' "$pr_json" | jq 'length')"
+
+          if [ "$pr_count" -ne 1 ]; then
+            echo "::error::Could not find exactly one merged PR for commit $GITHUB_SHA."
+            exit 1
+          fi
+
+          release_label="$(
+            printf '%s' "$pr_json" |
+              jq -r '.[0].labels[].name | select(. == "release:major" or . == "release:minor" or . == "release:patch" or . == "release:none")'
+          )"
+          label_count="$(printf '%s\n' "$release_label" | sed '/^$/d' | wc -l | tr -d ' ')"
+
+          if [ "$label_count" -ne 1 ]; then
+            echo "::error::Merged PR must have exactly one release label. Found: $release_label"
+            exit 1
+          fi
+
+          if [ "$release_label" = "release:none" ]; then
+            echo "release:none selected; skipping GitHub release."
+            exit 0
+          fi
+
+          latest_tag="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)"
+          if [ -z "$latest_tag" ]; then
+            latest_tag="v0.0.0"
+          fi
+
+          version="${latest_tag#v}"
+          IFS='.' read -r major minor patch <<< "$version"
+
+          case "$release_label" in
+            release:major)
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+            release:minor)
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            release:patch)
+              patch=$((patch + 1))
+              ;;
+          esac
+
+          next_tag="v${major}.${minor}.${patch}"
+
+          if git rev-parse "$next_tag" >/dev/null 2>&1; then
+            echo "::error::Tag $next_tag already exists."
+            exit 1
+          fi
+
+          pr_number="$(printf '%s' "$pr_json" | jq -r '.[0].number')"
+          gh release create "$next_tag" \
+            --target "$GITHUB_SHA" \
+            --title "$next_tag" \
+            --notes "Production release $next_tag after deploying PR #$pr_number ($release_label)."
