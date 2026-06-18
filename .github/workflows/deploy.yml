@@ -137,7 +137,50 @@ jobs:
           fi
 
           pr_number="$(printf '%s' "$pr_json" | jq -r '.[0].number')"
+          pr_details="$(gh pr view "$pr_number" --json title,body,url,author,labels)"
+          pr_title="$(printf '%s' "$pr_details" | jq -r '.title')"
+          pr_body="$(printf '%s' "$pr_details" | jq -r '.body // ""')"
+          pr_url="$(printf '%s' "$pr_details" | jq -r '.url')"
+          pr_author="$(printf '%s' "$pr_details" | jq -r '.author.login')"
+          pr_labels="$(printf '%s' "$pr_details" | jq -r '[.labels[].name] | join(", ")')"
+          commit_subject="$(git log -1 --format=%s "$GITHUB_SHA")"
+          commit_body="$(git log -1 --format=%b "$GITHUB_SHA")"
+          short_sha="${GITHUB_SHA::7}"
+
+          {
+            echo "## What's Changed"
+            echo
+            echo "- ${pr_title} (#${pr_number}) by @${pr_author}"
+            echo
+            echo "## PR Description"
+            echo
+            if [ -n "$pr_body" ]; then
+              printf '%s\n' "$pr_body"
+            else
+              echo "_No PR description provided._"
+            fi
+            echo
+            echo "## Commit Message"
+            echo
+            echo "### ${commit_subject}"
+            if [ -n "$commit_body" ]; then
+              echo
+              printf '%s\n' "$commit_body"
+            fi
+            echo
+            echo "## Release Details"
+            echo
+            echo "- Version: \`${next_tag}\`"
+            echo "- Bump: \`${release_label#release:}\`"
+            echo "- Previous version: \`${latest_tag}\`"
+            echo "- Commit: \`${short_sha}\`"
+            echo "- PR: ${pr_url}"
+            echo "- Labels: ${pr_labels}"
+            echo
+            echo "_Created automatically after successful production deployment._"
+          } > release-notes.md
+
           gh release create "$next_tag" \
             --target "$GITHUB_SHA" \
             --title "$next_tag" \
-            --notes "Production release $next_tag after deploying PR #$pr_number ($release_label)."
+            --notes-file release-notes.md
