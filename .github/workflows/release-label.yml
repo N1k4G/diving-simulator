@@ -18,13 +18,14 @@ jobs:
       - name: Auto-label and enforce release bump
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           set -euo pipefail
 
           current_count="$(
-            gh pr view "$PR_NUMBER" --json labels \
+            gh pr view "$PR_NUMBER" --repo "$REPO" --json labels \
               --jq '[.labels[].name | select(. == "release:major" or . == "release:minor" or . == "release:patch" or . == "release:none")] | length'
           )"
 
@@ -40,12 +41,12 @@ jobs:
             esac
 
             if [ -n "$inferred" ]; then
-              gh pr edit "$PR_NUMBER" --add-label "$inferred"
+              gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "$inferred"
             fi
           fi
 
           selected="$(
-            gh pr view "$PR_NUMBER" --json labels \
+            gh pr view "$PR_NUMBER" --repo "$REPO" --json labels \
               --jq '[.labels[].name | select(. == "release:major" or . == "release:minor" or . == "release:patch" or . == "release:none")]'
           )"
           selected_count="$(printf '%s' "$selected" | jq 'length')"
