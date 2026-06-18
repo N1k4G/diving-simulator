@@ -284,6 +284,12 @@ var DIVE_SITES = {
     features: [
       // ---- BRIDGE / WHEELHOUSE (18–22 m) ----
       {kind:'helm',      x:90, d:22},
+      // Soft shafts through the three intended entry routes. The renderer fades
+      // these in only while the diver is inside the hull so they help navigation
+      // without making the exterior look artificially lit.
+      {kind:'lightShaft', x:18,  d:34, topHalf:30, botHalf:70, alpha:0.45},
+      {kind:'lightShaft', x:85,  d:43, topHalf:38, botHalf:82, alpha:0.42},
+      {kind:'lightShaft', x:158, d:34, topHalf:34, botHalf:78, alpha:0.45},
 
       // ---- ACCOMMODATION DECK (22–28 m) ----
       // Mess hall fwd of midship: row of long tables (rest on the 27 m deck).
@@ -422,6 +428,7 @@ var DIVE_SITES = {
       {x1:103,x2:109,d:12}
     ],
     features: [
+      {kind:'pond',x:0},
       {kind:'warningSign',x:17}
     ],
     surfaceMarker: 'pond',

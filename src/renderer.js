@@ -308,8 +308,12 @@ function drawScene() {
         cx.restore();
     }
 
+    // Site-specific atmosphere is cheap gradient/line work behind terrain.
+    drawSiteAtmosphere();
+
     // Phase C: Site terrain (floor + ceiling) drawn before entities
     drawTerrain();
+    drawSiteDetailPass();
     // Cenote-only: refractive halocline band at ~7 m
     if (_isCave) drawHalocline(cx, W, H, diverScreenY, metersPerPixel);
     // Wreck: steel hull skin BEHIND the interior objects (so behind cars/decks
@@ -323,6 +327,8 @@ function drawScene() {
     // from outside) with a line-of-sight bubble punched around the diver while
     // inside the hull (makes interior navigation harder).
     drawWreckHullSkin();
+    // Decorative-only ship cues sit on top of the exterior skin.
+    drawWreckExteriorDetails();
     // Wreck: highlight the three penetration points so they're findable from
     // outside (drawn over the hull skin; fades as the diver enters).
     drawWreckEntryMarkers();
@@ -488,6 +494,7 @@ function drawScene() {
         diverTilt = current.direction * Math.min(current.level / CURRENT_PARAMS.maxStrength, 1) * 0.25;
     }
     drawDiver(W * 0.25, diverScreenY, diverTilt);
+    drawForegroundLayer();
 
     // Phase C: Bad-air warning banner (cave unbreathable dome)
     if (badAirWarning) {
@@ -1152,6 +1159,615 @@ function drawStalagmite(cx, x, y, h, w) {
 // ── Seeded deterministic pseudo-random (Task 7-10 structure helpers) ──
 function sRand(n) {
     return (Math.abs(Math.sin(n * 127.1 + 311.7) * 43758.5453)) % 1;
+}
+
+function drawSiteAtmosphere() {
+    var s = activeSite();
+    if (!s) return;
+    var W = canvas.width, H = canvas.height;
+    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var cx = ctx;
+    var surfaceY = dsy - depth / mpp;
+    cx.save();
+
+    if (s.id === 'shore') {
+        // Shallow caustics and a warm surface veil make the sandy descent feel sunlit.
+        var causticAlpha = Math.max(0, 1 - depth / 24);
+        if (causticAlpha > 0.02) {
+            cx.strokeStyle = 'rgba(245,238,188,' + (0.16 * causticAlpha).toFixed(3) + ')';
+            cx.lineWidth = 1.2;
+            for (var cy = Math.max(surfaceY + 36, -30); cy < H; cy += 44) {
+                cx.beginPath();
+                for (var x = -20; x <= W + 20; x += 18) {
+                    var y = cy + Math.sin(x * 0.03 + waveTime * 1.7 + cy * 0.02) * 5;
+                    if (x === -20) cx.moveTo(x, y); else cx.lineTo(x, y);
+                }
+                cx.stroke();
+            }
+        }
+        var shoreGlow = cx.createLinearGradient(0, Math.max(0, surfaceY), 0, H);
+        shoreGlow.addColorStop(0, 'rgba(235,218,160,0.08)');
+        shoreGlow.addColorStop(1, 'rgba(75,42,16,0)');
+        cx.fillStyle = shoreGlow;
+        cx.fillRect(0, Math.max(0, surfaceY), W, H);
+    } else if (s.id === 'reef') {
+        // Distant reef silhouettes behind the playable wall: a low-cost parallax layer.
+        cx.globalAlpha = 0.12;
+        cx.fillStyle = '#142a32';
+        var baseD = Math.max(18, depth + 8);
+        cx.beginPath();
+        cx.moveTo(0, H);
+        for (var wx = diverX - 80; wx <= diverX + 80; wx += 5) {
+            var sx = dsx + (wx - diverX) / mpp * 0.18;
+            var ridgeD = baseD + 14 + Math.sin(wx * 0.12) * 7 + Math.sin(wx * 0.29) * 2;
+            var sy = dsy + (ridgeD - depth) / mpp;
+            if (wx === diverX - 80) cx.lineTo(sx, sy); else cx.lineTo(sx, sy);
+        }
+        cx.lineTo(W, H);
+        cx.closePath();
+        cx.fill();
+        cx.globalAlpha = 1;
+    } else if (s.id === 'wreck') {
+        // Slight murk and searchlight falloff around the wreck exterior/interior.
+        var murk = cx.createRadialGradient(dsx, dsy, 80, dsx, dsy, Math.max(W, H) * 0.75);
+        murk.addColorStop(0, 'rgba(135,185,190,0.03)');
+        murk.addColorStop(1, 'rgba(12,22,26,0.18)');
+        cx.fillStyle = murk;
+        cx.fillRect(0, 0, W, H);
+    } else if (s.id === 'cave') {
+        // Subtle limestone dust in the water before the torch overlay darkens it.
+        cx.fillStyle = 'rgba(188,178,148,0.08)';
+        for (var i = 0; i < 80; i++) {
+            var seed = i * 19.37;
+            var px = (sRand(seed) * W + Math.sin(waveTime * 0.08 + i) * 8) % W;
+            var py = sRand(seed + 2.1) * H;
+            var pr = 0.7 + sRand(seed + 4.2) * 1.8;
+            cx.beginPath(); cx.arc(px, py, pr, 0, Math.PI * 2); cx.fill();
+        }
+    }
+    cx.restore();
+}
+
+function drawSiteDetailPass() {
+    var s = activeSite();
+    if (!s) return;
+    drawTerrainEdgeAccents(s);
+    if (s.id === 'shore') drawShoreSandDetails();
+    else if (s.id === 'reef') drawReefTextureDetails();
+    else if (s.id === 'cave') drawCaveMineralDetails();
+}
+
+function drawTerrainEdgeAccents(s) {
+    var W = canvas.width, H = canvas.height;
+    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var xLeftM = diverX + (0 - dsx) * mpp - 2;
+    var xRightM = diverX + (W - dsx) * mpp + 2;
+    var cx = ctx;
+    cx.save();
+
+    if (s.id === 'shore') {
+        cx.strokeStyle = 'rgba(236,205,135,0.32)';
+        cx.lineWidth = 1.4;
+        cx.beginPath();
+        var first = true;
+        for (var sxm = xLeftM; sxm <= xRightM; sxm += 0.35) {
+            var sandY = dsy + (floorAt(sxm) - depth) / mpp;
+            var wob = Math.sin(sxm * 2.8 + waveTime * 0.25) * 1.4;
+            var spx = dsx + (sxm - diverX) / mpp;
+            if (first) { cx.moveTo(spx, sandY + wob); first = false; }
+            else cx.lineTo(spx, sandY + wob);
+        }
+        cx.stroke();
+    } else if (s.id === 'reef') {
+        // Small shelves and dark notches break the clean wall edge into ledges.
+        for (var rk = Math.floor(xLeftM / 2); rk <= Math.ceil(xRightM / 2); rk++) {
+            var rwx = rk * 2;
+            if (sRand(rwx + 70) > 0.38) continue;
+            var rfd = floorAt(rwx);
+            if (rfd >= MAX_DEPTH - 1) continue;
+            var rpx = dsx + (rwx - diverX) / mpp;
+            var rpy = dsy + (rfd - depth) / mpp;
+            if (rpx < -30 || rpx > W + 30 || rpy < -40 || rpy > H + 60) continue;
+            var shelfW = 10 + sRand(rwx) * 24;
+            cx.fillStyle = sRand(rwx + 1) > 0.5 ? 'rgba(30,18,10,0.34)' : 'rgba(158,98,60,0.22)';
+            cx.beginPath();
+            cx.ellipse(rpx, rpy + 2, shelfW, 4 + sRand(rwx + 3) * 5, 0, 0, Math.PI * 2);
+            cx.fill();
+        }
+    } else if (s.id === 'cave') {
+        cx.strokeStyle = 'rgba(202,190,160,0.16)';
+        cx.lineWidth = 1.2;
+        for (var ck = Math.floor(xLeftM / 3); ck <= Math.ceil(xRightM / 3); ck++) {
+            var cwx = ck * 3;
+            var cd = ceilingAt(cwx);
+            if (cd <= 1 || sRand(cwx + 44) > 0.55) continue;
+            var cpx = dsx + (cwx - diverX) / mpp;
+            var cpy = dsy + (cd - depth) / mpp;
+            if (cpx < -20 || cpx > W + 20 || cpy < -40 || cpy > H + 20) continue;
+            var dripH = 18 + sRand(cwx + 2) * 42;
+            cx.beginPath();
+            cx.moveTo(cpx, cpy + 2);
+            cx.lineTo(cpx + (sRand(cwx + 3) - 0.5) * 5, cpy + dripH);
+            cx.stroke();
+        }
+    }
+    cx.restore();
+}
+
+function drawShoreSandDetails() {
+    var W = canvas.width, H = canvas.height;
+    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var xLeftM = diverX + (0 - dsx) * mpp - 2;
+    var xRightM = diverX + (W - dsx) * mpp + 2;
+    var cx = ctx;
+    cx.save();
+    cx.strokeStyle = 'rgba(255,226,162,0.16)';
+    cx.lineWidth = 1;
+    for (var r = Math.floor(xLeftM / 3); r <= Math.ceil(xRightM / 3); r++) {
+        var wx = r * 3;
+        var fd = floorAt(wx);
+        var sx = dsx + (wx - diverX) / mpp;
+        var sy = dsy + (fd - depth) / mpp;
+        if (sy < -20 || sy > H + 40) continue;
+        var len = 28 + sRand(wx) * 36;
+        var rise = 4 + sRand(wx + 1.2) * 6;
+        cx.beginPath();
+        cx.moveTo(sx - len * 0.5, sy - 2);
+        cx.quadraticCurveTo(sx, sy - rise, sx + len * 0.5, sy - 2);
+        cx.stroke();
+    }
+    cx.fillStyle = 'rgba(45,30,16,0.16)';
+    for (var p = Math.floor(xLeftM / 1.8); p <= Math.ceil(xRightM / 1.8); p++) {
+        var pwx = p * 1.8;
+        if (sRand(pwx + 9.1) > 0.42) continue;
+        var pd = floorAt(pwx);
+        var psx = dsx + (pwx - diverX) / mpp + (sRand(pwx + 2) - 0.5) * 20;
+        var psy = dsy + (pd - depth) / mpp - 1;
+        if (psy < -10 || psy > H + 20) continue;
+        cx.beginPath(); cx.ellipse(psx, psy, 1.3 + sRand(pwx) * 2.5, 0.8, 0, 0, Math.PI * 2); cx.fill();
+    }
+    drawShoreAnchoredGrass(cx, xLeftM, xRightM, dsx, dsy, mpp, H);
+    cx.restore();
+}
+
+function drawShoreAnchoredGrass(cx, xLeftM, xRightM, dsx, dsy, mpp, H) {
+    cx.save();
+    cx.globalAlpha = 0.34;
+    cx.strokeStyle = '#21452b';
+    cx.lineCap = 'round';
+    for (var k = Math.floor(xLeftM / 3.4); k <= Math.ceil(xRightM / 3.4); k++) {
+        var wx = k * 3.4;
+        var fd = floorAt(wx);
+        if (fd < 6 || fd > 24 || sRand(wx + 80) > 0.52) continue;
+        // Do not paint grass through solid structures; those rocks/wrecks should
+        // visually own the foreground when they occupy the same world space.
+        if (solidAt(wx, fd - 0.25) || solidAt(wx, fd - 1.5)) continue;
+        var sx = dsx + (wx - diverX) / mpp;
+        var sy = dsy + (fd - depth) / mpp;
+        if (sx < -50 || sx > canvas.width + 50 || sy < -20 || sy > H + 30) continue;
+        var blades = 4 + Math.floor(sRand(wx + 1) * 4);
+        for (var b = 0; b < blades; b++) {
+            var ox = (b - blades / 2) * 5;
+            var h = 20 + sRand(wx + b * 2.7) * 34;
+            cx.lineWidth = 1.4 + sRand(wx + b) * 1.2;
+            cx.beginPath();
+            cx.moveTo(sx + ox, sy);
+            cx.quadraticCurveTo(sx + ox + Math.sin(waveTime + b) * 5, sy - h * 0.55,
+                                sx + ox + Math.sin(waveTime * 1.3 + b) * 8, sy - h);
+            cx.stroke();
+        }
+    }
+    cx.restore();
+}
+
+function drawReefTextureDetails() {
+    var W = canvas.width, H = canvas.height;
+    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var xLeftM = diverX + (0 - dsx) * mpp - 2;
+    var xRightM = diverX + (W - dsx) * mpp + 2;
+    var cx = ctx;
+    cx.save();
+    for (var k = Math.floor(xLeftM / 1.2); k <= Math.ceil(xRightM / 1.2); k++) {
+        var wx = k * 1.2;
+        var fd = floorAt(wx);
+        if (fd >= MAX_DEPTH - 1 || sRand(wx + 31) > 0.55) continue;
+        var sx = dsx + (wx - diverX) / mpp;
+        var sy = dsy + (fd - depth) / mpp;
+        if (sx < -50 || sx > W + 50 || sy < -50 || sy > H + 60) continue;
+        var hue = sRand(wx + 2.4);
+        cx.fillStyle = hue < 0.33 ? 'rgba(230,142,70,0.35)' : hue < 0.66 ? 'rgba(198,68,132,0.32)' : 'rgba(236,205,110,0.28)';
+        cx.beginPath();
+        cx.ellipse(sx, sy - 3, 5 + sRand(wx) * 11, 2 + sRand(wx + 4) * 4, -0.2, 0, Math.PI * 2);
+        cx.fill();
+    }
+    cx.strokeStyle = 'rgba(10,8,6,0.34)';
+    cx.lineCap = 'round';
+    for (var c = Math.floor(xLeftM / 3.2); c <= Math.ceil(xRightM / 3.2); c++) {
+        var cwx = c * 3.2;
+        var cfd = floorAt(cwx);
+        if (cfd >= MAX_DEPTH - 1 || sRand(cwx + 105) > 0.42) continue;
+        var cpx = dsx + (cwx - diverX) / mpp;
+        var cpy = dsy + (cfd + 1.4 + sRand(cwx) * 16 - depth) / mpp;
+        if (cpx < -40 || cpx > W + 40 || cpy < -50 || cpy > H + 70) continue;
+        if (sRand(cwx + 6) > 0.55) {
+            cx.fillStyle = 'rgba(8,8,8,0.28)';
+            cx.beginPath(); cx.ellipse(cpx, cpy, 5 + sRand(cwx + 1) * 9, 8 + sRand(cwx + 2) * 15, 0.15, 0, Math.PI * 2); cx.fill();
+        } else {
+            cx.lineWidth = 1.2 + sRand(cwx + 3) * 1.2;
+            cx.beginPath();
+            cx.moveTo(cpx, cpy - 14);
+            cx.quadraticCurveTo(cpx + (sRand(cwx + 4) - 0.5) * 15, cpy + 10,
+                                cpx + (sRand(cwx + 5) - 0.5) * 12, cpy + 42);
+            cx.stroke();
+        }
+    }
+    cx.restore();
+}
+
+function drawWreckExteriorDetails() {
+    var s = activeSite();
+    if (!s || s.id !== 'wreck') return;
+    var W = canvas.width, H = canvas.height, cx = ctx;
+    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var exteriorFade = Math.max(0.18, 1 - _wreckMetal * 0.78);
+
+    cx.save();
+    cx.globalAlpha = exteriorFade;
+    _buildWreckSilhouette(cx, dsx, dsy, mpp);
+    cx.clip();
+    drawUprightFerryShell(cx, dsx, dsy, mpp, W, H);
+    // Long rust tears and old paint scratches, seeded in world-space columns.
+    for (var i = 0; i < 34; i++) {
+        var wx = 18 + i * 4.5 + sRand(i) * 2;
+        var d0 = 19 + sRand(i + 7) * 22;
+        var sx = dsx + (wx - diverX) / mpp;
+        var sy = dsy + (d0 - depth) / mpp;
+        if (sx < -20 || sx > W + 20 || sy > H + 60) continue;
+        var len = 26 + sRand(i + 12) * 70;
+        var rust = cx.createLinearGradient(sx, sy, sx, sy + len);
+        rust.addColorStop(0, 'rgba(190,82,28,0.34)');
+        rust.addColorStop(1, 'rgba(80,36,18,0)');
+        cx.strokeStyle = rust;
+        cx.lineWidth = 1 + sRand(i + 4) * 2.5;
+        cx.beginPath();
+        cx.moveTo(sx, sy);
+        cx.quadraticCurveTo(sx + (sRand(i + 2) - 0.5) * 18, sy + len * 0.45,
+                            sx + (sRand(i + 3) - 0.5) * 10, sy + len);
+        cx.stroke();
+    }
+    drawWreckShipCues(cx, dsx, dsy, mpp, W, H, exteriorFade);
+    cx.restore();
+}
+
+function drawUprightFerryShell(cx, dsx, dsy, mpp, W, H) {
+    function SX(wx) { return dsx + (wx - diverX) / mpp; }
+    function SY(wd) { return dsy + (wd - depth) / mpp; }
+    cx.save();
+
+    // Keel contact shadow and silt mound: the ship feels heavy on the seabed.
+    var keelY = SY(66);
+    var keelG = cx.createRadialGradient(SX(92), keelY, 20, SX(92), keelY, 680);
+    keelG.addColorStop(0, 'rgba(0,0,0,0.34)');
+    keelG.addColorStop(1, 'rgba(0,0,0,0)');
+    cx.fillStyle = keelG;
+    cx.beginPath(); cx.ellipse(SX(92), keelY + 8, 1550, 34, 0, 0, Math.PI * 2); cx.fill();
+
+    // Upright ferry shell: angled bow/stern faces and a dark lower hull band.
+    var hullTop = SY(28), hullBot = SY(66);
+    var shellG = cx.createLinearGradient(0, hullTop, 0, hullBot);
+    shellG.addColorStop(0, 'rgba(54,65,68,0.34)');
+    shellG.addColorStop(0.55, 'rgba(34,40,43,0.22)');
+    shellG.addColorStop(1, 'rgba(10,12,14,0.38)');
+    cx.fillStyle = shellG;
+    cx.beginPath();
+    cx.moveTo(SX(14), SY(66));
+    cx.lineTo(SX(17), SY(34));
+    cx.quadraticCurveTo(SX(21), SY(29), SX(29), SY(28));
+    cx.lineTo(SX(154), SY(28));
+    cx.quadraticCurveTo(SX(166), SY(30), SX(170), SY(39));
+    cx.lineTo(SX(170), SY(66));
+    cx.closePath();
+    cx.fill();
+    cx.strokeStyle = 'rgba(125,146,148,0.18)';
+    cx.lineWidth = 2;
+    cx.stroke();
+
+    // Old antifouling/boot stripe and deck-level seams.
+    cx.fillStyle = 'rgba(92,36,28,0.20)';
+    cx.fillRect(SX(14), SY(53), SX(170) - SX(14), SY(66) - SY(53));
+    cx.strokeStyle = 'rgba(8,10,12,0.55)';
+    cx.lineWidth = 2;
+    cx.beginPath(); cx.moveTo(SX(18), SY(40)); cx.lineTo(SX(166), SY(40)); cx.stroke();
+    cx.beginPath(); cx.moveTo(SX(18), SY(46)); cx.lineTo(SX(166), SY(46)); cx.stroke();
+    cx.beginPath(); cx.moveTo(SX(18), SY(53)); cx.lineTo(SX(166), SY(53)); cx.stroke();
+
+    // Vehicle deck shadow slot: long Ro-Ro identity, but still upright.
+    cx.fillStyle = 'rgba(0,0,0,0.18)';
+    cx.beginPath();
+    cx.roundRect(SX(24), SY(31), SX(148) - SX(24), Math.max(8, SY(39) - SY(31)), 2);
+    cx.fill();
+    cx.strokeStyle = 'rgba(130,150,150,0.14)';
+    cx.lineWidth = 1;
+    cx.stroke();
+
+    // Superstructure front panels and bridge glazing.
+    cx.fillStyle = 'rgba(88,96,88,0.22)';
+    cx.fillRect(SX(42), SY(22), SX(138) - SX(42), SY(28) - SY(22));
+    cx.fillStyle = 'rgba(18,45,54,0.55)';
+    for (var w = 73; w <= 105; w += 8) {
+        cx.beginPath();
+        cx.roundRect(SX(w), SY(19.4), 5 / mpp, 2.4 / mpp, 1.2);
+        cx.fill();
+    }
+    cx.strokeStyle = 'rgba(160,190,190,0.15)';
+    cx.lineWidth = 1;
+    cx.beginPath(); cx.moveTo(SX(72), SY(19)); cx.lineTo(SX(108), SY(19)); cx.stroke();
+
+    cx.restore();
+}
+
+function drawWreckShipCues(cx, dsx, dsy, mpp, W, H, alpha) {
+    function SX(wx) { return dsx + (wx - diverX) / mpp; }
+    function SY(wd) { return dsy + (wd - depth) / mpp; }
+
+    // Portholes and a tired livery stripe help the blocky shell read as a ferry.
+    cx.save();
+    cx.globalAlpha *= alpha;
+    cx.strokeStyle = 'rgba(95,130,140,0.34)';
+    cx.lineWidth = 1.2;
+    for (var x = 46; x <= 134; x += 8) {
+        var px = SX(x), py = SY(24.5);
+        if (px < -20 || px > W + 20 || py < -20 || py > H + 20) continue;
+        cx.fillStyle = 'rgba(18,48,58,0.45)';
+        cx.beginPath(); cx.arc(px, py, 3.2, 0, Math.PI * 2); cx.fill(); cx.stroke();
+        cx.fillStyle = 'rgba(160,220,220,0.12)';
+        cx.beginPath(); cx.arc(px - 0.8, py - 0.8, 1.1, 0, Math.PI * 2); cx.fill();
+    }
+    cx.strokeStyle = 'rgba(180,70,48,0.28)';
+    cx.lineWidth = 4;
+    cx.beginPath(); cx.moveTo(SX(18), SY(30)); cx.lineTo(SX(166), SY(30)); cx.stroke();
+
+    // Bow visor and stern ramp outlines: Ro-Ro ferry, upright on the bottom.
+    cx.strokeStyle = 'rgba(20,24,26,0.70)';
+    cx.lineWidth = 2.2;
+    cx.beginPath();
+    cx.moveTo(SX(16), SY(29)); cx.lineTo(SX(26), SY(36)); cx.lineTo(SX(22), SY(40));
+    cx.stroke();
+    cx.beginPath();
+    cx.moveTo(SX(148), SY(30)); cx.lineTo(SX(168), SY(35)); cx.lineTo(SX(164), SY(40));
+    cx.stroke();
+
+    // Deck railings: decorative only, not collision.
+    cx.strokeStyle = 'rgba(18,24,26,0.78)';
+    cx.lineWidth = 2;
+    var railY = SY(22);
+    cx.beginPath(); cx.moveTo(SX(42), railY); cx.lineTo(SX(138), railY); cx.stroke();
+    cx.lineWidth = 1;
+    for (var r = 42; r <= 138; r += 6) {
+        cx.beginPath(); cx.moveTo(SX(r), railY); cx.lineTo(SX(r), railY - 12); cx.stroke();
+    }
+
+    // Davit arms near the lifeboat positions.
+    cx.strokeStyle = 'rgba(20,24,26,0.62)';
+    cx.lineWidth = 1.6;
+    var davits = [48, 132];
+    for (var d = 0; d < davits.length; d++) {
+        cx.beginPath();
+        cx.moveTo(SX(davits[d]), SY(22));
+        cx.quadraticCurveTo(SX(davits[d] + (d === 0 ? -5 : 5)), SY(21), SX(davits[d] + (d === 0 ? -8 : 8)), SY(24));
+        cx.stroke();
+    }
+
+    // Torn plating around the three entry mouths and a few hanging cables.
+    var entries = [18, 85, 158];
+    cx.strokeStyle = 'rgba(10,12,14,0.55)';
+    cx.lineWidth = 2.2;
+    for (var e = 0; e < entries.length; e++) {
+        var ex = SX(entries[e]);
+        var ey = SY(e === 1 ? 28 : 27.5);
+        if (ex < -80 || ex > W + 80) continue;
+        cx.beginPath();
+        cx.moveTo(ex - 24, ey + 2);
+        cx.lineTo(ex - 12, ey + 12);
+        cx.lineTo(ex + 2, ey + 5);
+        cx.lineTo(ex + 18, ey + 16);
+        cx.stroke();
+        cx.lineWidth = 1.2;
+        cx.beginPath();
+        cx.moveTo(ex + 10, ey + 2);
+        cx.quadraticCurveTo(ex + 16, ey + 22, ex + 8, ey + 40);
+        cx.stroke();
+        cx.lineWidth = 2.2;
+    }
+
+    // Marine-growth fringes along exposed rails and deck lips.
+    cx.strokeStyle = 'rgba(150,130,72,0.46)';
+    cx.lineWidth = 2.2;
+    cx.lineCap = 'round';
+    for (var g = 0; g < 26; g++) {
+        var gx = 30 + g * 5.1;
+        if (sRand(gx + 211) > 0.62) continue;
+        var gd = 28 + sRand(gx) * 3.5;
+        cx.beginPath();
+        cx.moveTo(SX(gx), SY(gd));
+        cx.quadraticCurveTo(SX(gx + 0.6), SY(gd + 1.2), SX(gx + 0.2), SY(gd + 3.2 + sRand(gx + 3) * 2));
+        cx.stroke();
+    }
+
+    // Small debris and silt against the upright keel.
+    cx.fillStyle = 'rgba(70,56,38,0.34)';
+    for (var s = 0; s < 22; s++) {
+        var dx = 18 + sRand(s + 301) * 148;
+        var dy = 65.4 + sRand(s + 302) * 1.2;
+        var px2 = SX(dx), py2 = SY(dy);
+        if (px2 < -20 || px2 > W + 20 || py2 < -20 || py2 > H + 20) continue;
+        cx.beginPath(); cx.ellipse(px2, py2, 2 + sRand(s) * 5, 0.8 + sRand(s + 2) * 1.4, 0, 0, Math.PI * 2); cx.fill();
+    }
+    cx.restore();
+}
+
+function drawCaveMineralDetails() {
+    var W = canvas.width, H = canvas.height;
+    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var xLeftM = diverX + (0 - dsx) * mpp - 2;
+    var xRightM = diverX + (W - dsx) * mpp + 2;
+    var cx = ctx;
+    cx.save();
+    for (var k = Math.floor(xLeftM / 2.4); k <= Math.ceil(xRightM / 2.4); k++) {
+        var wx = k * 2.4;
+        if (sRand(wx + 15) > 0.45) continue;
+        var cd = ceilingAt(wx);
+        if (cd <= 1) continue;
+        var sx = dsx + (wx - diverX) / mpp;
+        var sy = dsy + (cd - depth) / mpp;
+        if (sx < -20 || sx > W + 20 || sy < -30 || sy > H + 30) continue;
+        cx.strokeStyle = 'rgba(232,220,192,0.22)';
+        cx.lineWidth = 1 + sRand(wx) * 1.5;
+        var h = 24 + sRand(wx + 3) * 60;
+        cx.beginPath();
+        cx.moveTo(sx, sy + 3);
+        cx.quadraticCurveTo(sx + (sRand(wx + 4) - 0.5) * 10, sy + h * 0.45,
+                            sx + (sRand(wx + 5) - 0.5) * 8, sy + h);
+        cx.stroke();
+    }
+    var s = activeSite();
+    if (s && s.badAir && s.badAir.length) {
+        cx.save();
+        cx.globalCompositeOperation = 'lighter';
+        for (var i = 0; i < s.badAir.length; i++) {
+            var pocket = s.badAir[i];
+            var x1 = dsx + (pocket.x1 - diverX) / mpp;
+            var x2 = dsx + (pocket.x2 - diverX) / mpp;
+            var y = dsy + (pocket.d - depth) / mpp;
+            if (x2 < -30 || x1 > W + 30 || y < -40 || y > H + 40) continue;
+            cx.strokeStyle = 'rgba(210,185,110,0.22)';
+            cx.lineWidth = 1.4;
+            cx.beginPath();
+            for (var sx = x1; sx <= x2; sx += 6) {
+                var sy = y + Math.sin((sx + waveTime * 36) * 0.08) * 2.2;
+                if (sx === x1) cx.moveTo(sx, sy); else cx.lineTo(sx, sy);
+            }
+            cx.stroke();
+        }
+        cx.restore();
+    }
+    cx.restore();
+}
+
+function drawForegroundLayer() {
+    var s = activeSite();
+    if (!s) return;
+    var W = canvas.width, H = canvas.height;
+    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var cx = ctx;
+    cx.save();
+    if (s.id === 'shore') {
+        // Shore grass is drawn world-anchored in the sand detail pass so rocks
+        // and wreckage can occlude it correctly.
+    } else if (s.id === 'reef') {
+        drawForegroundReefFans(cx, W, H, dsx, dsy, mpp);
+    } else if (s.id === 'wreck') {
+        drawForegroundWreckDebris(cx, W, H, dsx, dsy, mpp);
+    } else if (s.id === 'cave') {
+        drawForegroundCaveColumns(cx, W, H, dsx, dsy, mpp);
+    }
+    cx.restore();
+}
+
+function drawForegroundReefFans(cx, W, H, dsx, dsy, mpp) {
+    var side = diverX > 0 ? -1 : 1;
+    var baseX = side < 0 ? -15 : W + 15;
+    cx.globalAlpha = 0.24;
+    cx.strokeStyle = '#5a1730';
+    cx.lineCap = 'round';
+    for (var i = 0; i < 5; i++) {
+        var seed = i * 17.3 + Math.floor(diverX / 5);
+        var y = H * (0.25 + i * 0.14) + Math.sin(seed) * 22;
+        var h = 95 + sRand(seed) * 90;
+        var sign = side;
+        cx.lineWidth = 3;
+        cx.beginPath();
+        cx.moveTo(baseX, y + h * 0.45);
+        cx.quadraticCurveTo(baseX + sign * 28, y - h * 0.15, baseX + sign * 46, y - h * 0.42);
+        cx.stroke();
+        cx.lineWidth = 1.5;
+        for (var r = 0; r < 12; r++) {
+            var t = r / 11;
+            var len = h * (0.42 + Math.sin(t * Math.PI) * 0.35);
+            cx.beginPath();
+            cx.moveTo(baseX, y + h * 0.45);
+            cx.quadraticCurveTo(baseX + sign * len * 0.34, y + h * 0.2 - len * t,
+                                baseX + sign * len, y + h * 0.35 - len);
+            cx.stroke();
+        }
+    }
+    cx.globalAlpha = 1;
+}
+
+function drawForegroundWreckDebris(cx, W, H, dsx, dsy, mpp) {
+    var floorY = dsy + (66 - depth) / mpp;
+    if (floorY < H * 0.45 || floorY > H + 220) return;
+    cx.globalAlpha = 0.26;
+    cx.strokeStyle = '#0b0d0f';
+    cx.lineWidth = 5;
+    cx.lineCap = 'round';
+    for (var i = 0; i < 9; i++) {
+        var wx = -20 + i * 28 + sRand(i) * 10;
+        var sx = dsx + (wx - diverX) / (mpp * 0.82);
+        var sy = floorY + 18 + sRand(i + 2) * 110;
+        if (sx < -120 || sx > W + 120) continue;
+        cx.beginPath();
+        cx.moveTo(sx - 42, sy);
+        cx.lineTo(sx + 36, sy - 10 - sRand(i + 5) * 35);
+        cx.stroke();
+        cx.lineWidth = 2;
+        cx.beginPath();
+        cx.moveTo(sx - 20, sy - 4);
+        cx.lineTo(sx - 14, sy - 36);
+        cx.moveTo(sx + 12, sy - 7);
+        cx.lineTo(sx + 18, sy - 42);
+        cx.stroke();
+        cx.lineWidth = 5;
+    }
+    cx.globalAlpha = 1;
+}
+
+function drawForegroundCaveColumns(cx, W, H, dsx, dsy, mpp) {
+    var xLeftM = diverX + (0 - dsx) * mpp * 0.7 - 8;
+    var xRightM = diverX + (W - dsx) * mpp * 0.7 + 8;
+    cx.globalAlpha = 0.18;
+    for (var k = Math.floor(xLeftM / 12); k <= Math.ceil(xRightM / 12); k++) {
+        var wx = k * 12;
+        if (sRand(wx + 99) > 0.42) continue;
+        var cd = ceilingAt(wx);
+        var fd = floorAt(wx);
+        if (cd <= 1 || fd - cd < 12) continue;
+        var sx = dsx + (wx - diverX) / (mpp * 0.7);
+        var y1 = dsy + (cd - depth) / mpp;
+        var y2 = dsy + (fd - depth) / mpp;
+        if (sx < -120 || sx > W + 120 || y2 < -80 || y1 > H + 80) continue;
+        if (sx > W * 0.18 && sx < W * 0.82) continue;
+        var w = 12 + sRand(wx + 2) * 18;
+        var g = cx.createLinearGradient(sx, y1, sx, y2);
+        g.addColorStop(0, 'rgba(6,5,4,0.58)');
+        g.addColorStop(0.5, 'rgba(22,20,17,0.36)');
+        g.addColorStop(1, 'rgba(5,4,3,0.60)');
+        cx.fillStyle = g;
+        cx.beginPath();
+        cx.moveTo(sx - w * 0.45, y1);
+        cx.quadraticCurveTo(sx - w, (y1 + y2) * 0.5, sx - w * 0.35, y2);
+        cx.lineTo(sx + w * 0.35, y2);
+        cx.quadraticCurveTo(sx + w, (y1 + y2) * 0.5, sx + w * 0.45, y1);
+        cx.closePath();
+        cx.fill();
+        cx.strokeStyle = 'rgba(180,170,140,0.10)';
+        cx.lineWidth = 1.2;
+        cx.beginPath();
+        cx.moveTo(sx - w * 0.12, y1 + 20);
+        cx.lineTo(sx - w * 0.28, y2 - 20);
+        cx.stroke();
+    }
+    cx.globalAlpha = 1;
 }
 
 // ── Wreck interior backdrop — riveted steel plating + windows ──
@@ -2337,13 +2953,13 @@ function drawFeatures() {
             drawThermocline(cx, f.d || 0);
         } else if (f.kind === 'coral') {
             var fcy = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (fcy > -20 && fcy < H + 20) drawCoral(cx, ffx, fcy, (f.x || 0));
+            if (fcy > -20 && fcy < H + 20) { drawContactShadow(cx, ffx, fcy, 34, 8, 0.18); drawCoral(cx, ffx, fcy, (f.x || 0)); }
         } else if (f.kind === 'lorry') {
             var flY = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (flY > -20 && flY < H + 20) drawVehicle(cx, ffx, flY, 'lorry', (f.x || 0));
+            if (flY > -20 && flY < H + 20) { drawContactShadow(cx, ffx, flY, 138, 14, 0.26); drawVehicle(cx, ffx, flY, 'lorry', (f.x || 0)); }
         } else if (f.kind === 'car') {
             var fcaY = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (fcaY > -20 && fcaY < H + 20) drawVehicle(cx, ffx, fcaY, 'car', (f.x || 0));
+            if (fcaY > -20 && fcaY < H + 20) { drawContactShadow(cx, ffx, fcaY, 82, 10, 0.24); drawVehicle(cx, ffx, fcaY, 'car', (f.x || 0)); }
         } else if (f.kind === 'umbrella') {
             var fuy = diverScreenY + (floorAt(f.x || 0) - depth) / mpp;  // sand line
             if (fuy > -120 && fuy < H + 40) drawUmbrella(cx, ffx, fuy);
@@ -2357,40 +2973,40 @@ function drawFeatures() {
             var faY = diverScreenY + (floorAt(f.x || 0) - depth) / mpp;  // sand line
             // Larger anchors (e.g. the wreck's bow anchor) cull from higher up.
             var aMargin = 40 + (f.scale ? f.scale * 60 : 0);
-            if (faY > -aMargin && faY < H + 40) drawAnchor(cx, ffx, faY, (f.x || 0), f.scale);
+            if (faY > -aMargin && faY < H + 40) { drawContactShadow(cx, ffx, faY, 46 * (f.scale || 1), 8 * (f.scale || 1), 0.22); drawAnchor(cx, ffx, faY, (f.x || 0), f.scale); }
         } else if (f.kind === 'pond') {
             var fpY = diverScreenY - depth / mpp;
             if (fpY > -60 && fpY < H + 20) drawPond(cx, ffx, fpY);
         } else if (f.kind === 'tableCoral') {
             var ty = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (ty > -40 && ty < H + 40) drawTableCoral(cx, ffx, ty);
+            if (ty > -40 && ty < H + 40) { drawContactShadow(cx, ffx, ty, 72, 9, 0.18); drawTableCoral(cx, ffx, ty); }
         } else if (f.kind === 'brainCoral') {
             var by2 = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (by2 > -40 && by2 < H + 40) drawBrainCoral(cx, ffx, by2, (f.x || 0));
+            if (by2 > -40 && by2 < H + 40) { drawContactShadow(cx, ffx, by2, 56, 8, 0.18); drawBrainCoral(cx, ffx, by2, (f.x || 0)); }
         } else if (f.kind === 'staghorn') {
             var sy = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (sy > -40 && sy < H + 40) drawStaghorn(cx, ffx, sy, (f.x || 0));
+            if (sy > -40 && sy < H + 40) { drawContactShadow(cx, ffx, sy, 48, 7, 0.16); drawStaghorn(cx, ffx, sy, (f.x || 0)); }
         } else if (f.kind === 'softCoral') {
             var scy = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (scy > -90 && scy < H + 40) drawSoftCoral(cx, ffx, scy, f.color);
+            if (scy > -90 && scy < H + 40) { drawContactShadow(cx, ffx, scy, 42, 8, 0.14); drawSoftCoral(cx, ffx, scy, f.color); }
         } else if (f.kind === 'gorgonian') {
             var gy = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (gy > -160 && gy < H + 160) drawGorgonian(cx, ffx, gy, f.side, f.color);
+            if (gy > -160 && gy < H + 160) { drawContactShadow(cx, ffx, gy, 44, 9, 0.15); drawGorgonian(cx, ffx, gy, f.side, f.color); }
         } else if (f.kind === 'barrelSponge') {
             var bsy = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (bsy > -80 && bsy < H + 40) drawBarrelSponge(cx, ffx, bsy, f.color);
+            if (bsy > -80 && bsy < H + 40) { drawContactShadow(cx, ffx, bsy, 42, 9, 0.17); drawBarrelSponge(cx, ffx, bsy, f.color); }
         } else if (f.kind === 'anthiasCloud') {
             var acy = diverScreenY + ((f.d || 0) - depth) / mpp;
             if (acy > -200 && acy < H + 200) drawAnthiasCloud(cx, ffx, acy, f);
         } else if (f.kind === 'bunk') {
             var fby = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (fby > -40 && fby < H + 40) drawBunk(cx, ffx, fby);
+            if (fby > -40 && fby < H + 40) { drawContactShadow(cx, ffx, fby, 48, 7, 0.18); drawBunk(cx, ffx, fby); }
         } else if (f.kind === 'container') {
             var fcoy = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (fcoy > -60 && fcoy < H + 60) drawContainer(cx, ffx, fcoy, f.color);
+            if (fcoy > -60 && fcoy < H + 60) { drawContactShadow(cx, ffx, fcoy, 96, 10, 0.22); drawContainer(cx, ffx, fcoy, f.color); }
         } else if (f.kind === 'engine') {
             var fegy = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (fegy > -80 && fegy < H + 80) drawEngine(cx, ffx, fegy);
+            if (fegy > -80 && fegy < H + 80) { drawContactShadow(cx, ffx, fegy, 78, 10, 0.24); drawEngine(cx, ffx, fegy); }
         } else if (f.kind === 'messTable') {
             var fmy = diverScreenY + ((f.d || 0) - depth) / mpp;
             if (fmy > -30 && fmy < H + 30) drawMessTable(cx, ffx, fmy);
@@ -2408,6 +3024,18 @@ function drawFeatures() {
             if (fry > -30 && fry < H + 30) drawRustHole(cx, ffx, fry);
         }
     }
+}
+
+function drawContactShadow(cx, x, y, w, h, alpha) {
+    cx.save();
+    var grad = cx.createRadialGradient(x, y, 1, x, y, Math.max(w * 0.55, h));
+    grad.addColorStop(0, 'rgba(0,0,0,' + (alpha || 0.18).toFixed(3) + ')');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    cx.fillStyle = grad;
+    cx.beginPath();
+    cx.ellipse(x, y + 1, w * 0.55, h, 0, 0, Math.PI * 2);
+    cx.fill();
+    cx.restore();
 }
 
 // Beach towel — striped mat lying flat on the sand.
@@ -3126,7 +3754,37 @@ function drawSiltAndTorch() {
         cx.fillStyle = grad;
         cx.fillRect(0, 0, W, H);
         cx.globalCompositeOperation = 'source-over';
+        drawTorchGlowAndSparkles(cx, W, H, diverScreenX, diverScreenY, effectiveR);
     }
+}
+
+function drawTorchGlowAndSparkles(cx, W, H, diverScreenX, diverScreenY, effectiveR) {
+    var s = activeSite();
+    if (!s || s.id !== 'cave') return;
+    cx.save();
+    cx.globalCompositeOperation = 'lighter';
+    var warm = cx.createRadialGradient(diverScreenX, diverScreenY, 0,
+                                       diverScreenX, diverScreenY, effectiveR * 0.72);
+    warm.addColorStop(0, 'rgba(255,220,150,0.10)');
+    warm.addColorStop(0.45, 'rgba(120,180,190,0.045)');
+    warm.addColorStop(1, 'rgba(80,130,170,0)');
+    cx.fillStyle = warm;
+    cx.fillRect(0, 0, W, H);
+
+    cx.fillStyle = 'rgba(238,226,184,0.32)';
+    for (var i = 0; i < 36; i++) {
+        var seed = i * 23.7;
+        var ang = sRand(seed) * Math.PI * 2;
+        var rr = Math.pow(sRand(seed + 1), 0.65) * effectiveR * 0.85;
+        var x = diverScreenX + Math.cos(ang) * rr + Math.sin(waveTime * 0.8 + i) * 2;
+        var y = diverScreenY + Math.sin(ang) * rr;
+        if (x < 0 || x > W || y < 0 || y > H) continue;
+        var a = Math.max(0, 1 - rr / effectiveR);
+        cx.globalAlpha = a * 0.85;
+        cx.beginPath(); cx.arc(x, y, 0.7 + sRand(seed + 2) * 1.3, 0, Math.PI * 2); cx.fill();
+    }
+    cx.globalAlpha = 1;
+    cx.restore();
 }
 
 // Reef ambient: blue-water haze fading toward the open-water screen edge.
@@ -3166,13 +3824,14 @@ function drawLightShafts() {
         var botD = (f.d || 0) + 26;
         var topY = diverScreenY + (topD - depth) / mpp;
         var botY = diverScreenY + (botD - depth) / mpp;
-        var topHalf = 90, botHalf = 150;   // beam widens as it falls
+        var topHalf = f.topHalf || 44, botHalf = f.botHalf || 92;   // beam widens as it falls
+        var shaftAlpha = f.alpha || 0.72;
         cx.save();
         cx.globalCompositeOperation = 'lighter';
-        cx.globalAlpha = beamFade;
+        cx.globalAlpha = beamFade * shaftAlpha;
         var beam = cx.createLinearGradient(0, topY, 0, botY);
-        beam.addColorStop(0,   'rgba(150,210,255,0.30)');
-        beam.addColorStop(0.5, 'rgba(140,200,250,0.16)');
+        beam.addColorStop(0,   'rgba(150,210,255,0.22)');
+        beam.addColorStop(0.5, 'rgba(140,200,250,0.10)');
         beam.addColorStop(1,   'rgba(130,190,245,0)');
         cx.fillStyle = beam;
         cx.beginPath();
