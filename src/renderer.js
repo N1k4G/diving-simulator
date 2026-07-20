@@ -5190,12 +5190,32 @@ function drawPostDive() {
     cx.font = '15px monospace';
     cx.fillStyle = '#a8b6cc';
 
-    // Gas usage per tank
-    for (var ti = 0; ti < tankCount; ti++) {
-        var tk = tanks[ti];
-        var used = tk.totalGas - tk.gasRemaining;
-        cx.fillText('Tank ' + (ti + 1) + ' (' + tk.label + '): ' + used.toFixed(0) + 'L ' + S('gasUsed') + ' / ' + tk.totalGas + 'L', centerX, y);
+    // Gas usage — BUG-24: CCR doesn't breathe from tanks[], so show the
+    // O2/diluent cylinders and scrubber instead of the untouched OC tank
+    // that's just leftover state from a previous mode.
+    if (diveMode === 'ccr') {
+        var o2Used = (ccrState.o2CylPressureStart - ccrState.o2CylPressure) * ccrState.o2CylVolume;
+        var dilUsed = (ccrState.dilCylPressureStart - ccrState.dilCylPressure) * ccrState.dilCylVolume;
+        var scrubUsed = ccrState.scrubberTotal - ccrState.scrubberRemaining;
+        cx.fillText(S('ccrO2Cyl') + ': ' + o2Used.toFixed(0) + 'L ' + S('gasUsed') + ' / ' + ccrState.o2CylPressure.toFixed(0) + ' bar left', centerX, y);
         y += 24;
+        cx.fillText(S('ccrDilCyl') + ': ' + dilUsed.toFixed(0) + 'L ' + S('gasUsed') + ' / ' + ccrState.dilCylPressure.toFixed(0) + ' bar left', centerX, y);
+        y += 24;
+        cx.fillText(S('ccrScrubber') + ': ' + scrubUsed.toFixed(0) + ' min ' + S('gasUsed'), centerX, y);
+        y += 24;
+        if (ccrState.onBailout) {
+            cx.fillStyle = '#ffd24d';
+            cx.fillText(S('ccrBailout'), centerX, y);
+            cx.fillStyle = '#a8b6cc';
+            y += 24;
+        }
+    } else {
+        for (var ti = 0; ti < tankCount; ti++) {
+            var tk = tanks[ti];
+            var used = tk.totalGas - tk.gasRemaining;
+            cx.fillText('Tank ' + (ti + 1) + ' (' + tk.label + '): ' + used.toFixed(0) + 'L ' + S('gasUsed') + ' / ' + tk.totalGas + 'L', centerX, y);
+            y += 24;
+        }
     }
     y += 15;
 

@@ -243,8 +243,8 @@ let modeSettings = { rec: null, tec: null, ccr: null };
 
 // TASK-032A: CCR state
 var CCR_DEFAULTS = {
-  o2CylVolume: 2, o2CylPressure: 200,
-  dilCylVolume: 3, dilCylPressure: 200,
+  o2CylVolume: 2, o2CylPressure: 200, o2CylPressureStart: 200,
+  dilCylVolume: 3, dilCylPressure: 200, dilCylPressureStart: 200,
   dilFO2: 0.21, dilFN2: 0.79, dilFHe: 0.00,
   loopVolume: 6.0,
   targetSP: 0.7,
@@ -827,7 +827,22 @@ function resetDive() {
         tanks[i].gasRemaining = tanks[i].totalGas;
     }
     activeTank = 0;
-    if (diveMode === 'ccr') { initCCR(); }
+    if (diveMode === 'ccr') {
+        // BUG-5: previously called initCCR(), which wiped the entire
+        // ccrState back to CCR_DEFAULTS — silently discarding every
+        // setup-screen choice (diluent preset, cylinder sizes, setpoint).
+        // Reset only the dynamic per-dive fields; configuration survives.
+        ccrState.actualPO2 = ccrState.targetSP < ambientPressure(0) ? ccrState.targetSP : 0.21;
+        ccrState.onBailout = false;
+        ccrState.scrubberFailed = false;
+        ccrState.co2BuildupTime = 0;
+        ccrState.scrubberRemaining = ccrState.scrubberTotal;
+        // BUG-24: snapshot the starting cylinder pressures so drawPostDive()
+        // can compute gas used this dive (start - current), the same way
+        // OC tanks track totalGas vs gasRemaining.
+        ccrState.o2CylPressureStart = ccrState.o2CylPressure;
+        ccrState.dilCylPressureStart = ccrState.dilCylPressure;
+    }
     ccrHypoxiaTime = 0;
     ccrHyperoxiaTime = 0;
     ccrWarningBeepTriggered = false;

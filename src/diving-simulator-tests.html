@@ -2520,6 +2520,85 @@ tests = [
             return 'PASS — insufficient O2 caps actualPO2 at ' + api.ccrState.actualPO2.toFixed(3) +
                 ' instead of reaching setpoint for free';
         }
+    },
+    // ----------------------------------------------------------
+    // TC-CCR-SETUP-1: Bug #5 — startDiveAction() must preserve the CCR
+    // setup-screen configuration (diluent preset, setpoint, cylinder
+    // sizes), not wipe it back to CCR_DEFAULTS via initCCR().
+    // ----------------------------------------------------------
+    {
+        id: 'TC-CCR-SETUP-1',
+        name: 'CCR #5 — startDiveAction() preserves setup-configured values',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.diveMode = 'ccr';
+            api.initCCR();
+
+            // Configure away from CCR_DEFAULTS, as if on the setup screen.
+            api.ccrApplyDilPreset(3); // Tmx 10/70
+            api.ccrState.targetSP = 1.3;
+            api.ccrAdjustO2Pres(-50); // 200 -> 150
+            api.ccrAdjustDilVol(2);   // 3 -> 5
+
+            var dilFO2Before = api.ccrState.dilFO2;
+            var dilFHeBefore = api.ccrState.dilFHe;
+            var spBefore = api.ccrState.targetSP;
+            var o2PresBefore = api.ccrState.o2CylPressure;
+            var dilVolBefore = api.ccrState.dilCylVolume;
+
+            api.startDiveAction();
+
+            assert(approx(api.ccrState.dilFO2, dilFO2Before, 0.001),
+                'Diluent preset fO2 must survive startDiveAction(), before=' + dilFO2Before + ', after=' + api.ccrState.dilFO2);
+            assert(approx(api.ccrState.dilFHe, dilFHeBefore, 0.001),
+                'Diluent preset fHe must survive startDiveAction(), before=' + dilFHeBefore + ', after=' + api.ccrState.dilFHe);
+            assert(approx(api.ccrState.targetSP, spBefore, 0.001),
+                'Setpoint must survive startDiveAction(), before=' + spBefore + ', after=' + api.ccrState.targetSP);
+            assert(approx(api.ccrState.o2CylPressure, o2PresBefore, 0.001),
+                'O2 cylinder pressure must survive startDiveAction(), before=' + o2PresBefore + ', after=' + api.ccrState.o2CylPressure);
+            assert(approx(api.ccrState.dilCylVolume, dilVolBefore, 0.001),
+                'Diluent cylinder volume must survive startDiveAction(), before=' + dilVolBefore + ', after=' + api.ccrState.dilCylVolume);
+            return 'PASS — CCR setup configuration (preset/SP/cylinder sizes) survives dive start';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-CCR-POSTDIVE-1: Bug #24 — post-dive gas usage must be computed
+    // from the O2/diluent cylinders (via the o2CylPressureStart /
+    // dilCylPressureStart snapshot taken in resetDive()), not from the
+    // untouched OC tank left over from a previous mode.
+    // ----------------------------------------------------------
+    {
+        id: 'TC-CCR-POSTDIVE-1',
+        name: 'CCR #24 — post-dive gas usage reflects O2/diluent cylinders',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.diveMode = 'ccr';
+            api.initCCR();
+            api.ccrState.o2CylPressure = 200;
+            api.ccrState.dilCylPressure = 200;
+            api.ccrState.o2CylVolume = 2;
+            api.ccrState.dilCylVolume = 3;
+
+            api.startDiveAction(); // must snapshot o2/dilCylPressureStart = 200/200
+
+            assert(approx(api.ccrState.o2CylPressureStart, 200, 0.001),
+                'o2CylPressureStart must snapshot the configured starting pressure, got ' +
+                api.ccrState.o2CylPressureStart);
+            assert(approx(api.ccrState.dilCylPressureStart, 200, 0.001),
+                'dilCylPressureStart must snapshot the configured starting pressure, got ' +
+                api.ccrState.dilCylPressureStart);
+
+            // Simulate consumption during the dive.
+            api.ccrState.o2CylPressure = 180;  // (200-180) * 2L = 40L used
+            api.ccrState.dilCylPressure = 190; // (200-190) * 3L = 30L used
+
+            var o2Used = (api.ccrState.o2CylPressureStart - api.ccrState.o2CylPressure) * api.ccrState.o2CylVolume;
+            var dilUsed = (api.ccrState.dilCylPressureStart - api.ccrState.dilCylPressure) * api.ccrState.dilCylVolume;
+            assert(approx(o2Used, 40, 0.1), 'Expected 40L O2 used, got ' + o2Used.toFixed(1));
+            assert(approx(dilUsed, 30, 0.1), 'Expected 30L diluent used, got ' + dilUsed.toFixed(1));
+            return 'PASS — CCR post-dive gas usage: O2 used=' + o2Used.toFixed(0) +
+                'L, diluent used=' + dilUsed.toFixed(0) + 'L (computed from cylinders, not the OC tank)';
+        }
     }
 ];
 
