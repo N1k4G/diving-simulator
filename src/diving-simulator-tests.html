@@ -3067,6 +3067,295 @@ tests = [
         }
     },
     // ----------------------------------------------------------
+    // Issue #53 — Visual Zones (declarative biome data + lookup)
+    // These tests cover:
+    //   • API surface (gameAPI.visualZoneAt / zoneBlendWeight /
+    //     debugVisualZones)
+    //   • data-model shape on every site (id, x-range, d-range)
+    //   • at least two confirmed points per site landing in the
+    //     expected zone (real coordinates, computed from the zone
+    //     definitions in sites.js — not made-up numbers)
+    //   • priority rule
+    //   • priority-tie tiebreak by smaller area (deliberate small-in-
+    //     large overlap constructed on a scratch site so the rule is
+    //     testable regardless of production data)
+    //   • boundary inclusivity (both edges inclusive — matches solidAt)
+    //   • zone_exterior does NOT swallow interior zones on the wreck
+    //   • outside-all-zones point → null
+    //   • zoneBlendWeight always in [0, 1] and behaves correctly at
+    //     core / edge / outside
+    // ----------------------------------------------------------
+    {
+        id: 'TC-53-API-SURFACE',
+        name: 'Issue #53 — gameAPI exposes visualZoneAt / zoneBlendWeight / debugVisualZones',
+        fn: function() {
+            assert(typeof api.visualZoneAt === 'function', 'visualZoneAt not exposed');
+            assert(typeof api.zoneBlendWeight === 'function', 'zoneBlendWeight not exposed');
+            assert(typeof api.drawVisualZoneDebug === 'function', 'drawVisualZoneDebug not exposed');
+            assert(api.debugVisualZones === false, 'debugVisualZones must default to false');
+            // Toggle round-trips through the setter.
+            api.debugVisualZones = true;
+            assert(api.debugVisualZones === true, 'debugVisualZones setter did not stick');
+            api.debugVisualZones = false;
+            assert(typeof api.VISUAL_ZONE_DEFAULT_PRIORITY === 'number', 'VISUAL_ZONE_DEFAULT_PRIORITY missing');
+            assert(typeof api.VISUAL_ZONE_DEFAULT_BLEND === 'number', 'VISUAL_ZONE_DEFAULT_BLEND missing');
+            return 'PASS — API surface intact and debug flag defaults to false';
+        }
+    },
+    {
+        id: 'TC-53-DATA-SHAPE',
+        name: 'Issue #53 — every site declares a well-formed visualZones array with unique ids',
+        fn: function() {
+            var sites = api.DIVE_SITES;
+            var siteIds = ['shore', 'reef', 'wreck', 'cave'];
+            for (var i = 0; i < siteIds.length; i++) {
+                var s = sites[siteIds[i]];
+                assert(s, 'site missing: ' + siteIds[i]);
+                assert(Array.isArray(s.visualZones), siteIds[i] + '.visualZones must be an array');
+                assert(s.visualZones.length > 0, siteIds[i] + '.visualZones must not be empty');
+                var seen = {};
+                for (var j = 0; j < s.visualZones.length; j++) {
+                    var z = s.visualZones[j];
+                    assert(typeof z.id === 'string' && z.id.length > 0, siteIds[i] + '[' + j + '].id missing');
+                    assert(!seen[z.id], siteIds[i] + ': duplicate zone id ' + z.id);
+                    seen[z.id] = true;
+                    assert(typeof z.x1 === 'number' && typeof z.x2 === 'number', z.id + ' x1/x2 must be numbers');
+                    assert(typeof z.d1 === 'number' && typeof z.d2 === 'number', z.id + ' d1/d2 must be numbers');
+                    assert(z.x2 > z.x1, z.id + ' x2 must be > x1');
+                    assert(z.d2 > z.d1, z.id + ' d2 must be > d1');
+                }
+            }
+            return 'PASS — all four sites carry a well-formed visualZones array';
+        }
+    },
+    {
+        id: 'TC-53-SHORE-POINTS',
+        name: 'Issue #53 — Shore: known points land in the expected zone',
+        fn: function() {
+            var s = api.DIVE_SITES.shore;
+            // Beach entry: x=0, d=2 (buoy at x=0, first sand at d=3)
+            var z1 = api.visualZoneAt(0, 2, s);
+            assert(z1 && z1.id === 'shore_entry', 'x=0,d=2 → expected shore_entry, got ' + (z1 && z1.id));
+            // Seagrass belt: x=50, d=8 (seagrass features x=45..60 at d=8..9)
+            var z2 = api.visualZoneAt(50, 8, s);
+            assert(z2 && z2.id === 'shore_grass', 'x=50,d=8 → expected shore_grass, got ' + (z2 && z2.id));
+            // Slope band: x=90, d=15 (floor descending, above rock structures)
+            var z3 = api.visualZoneAt(90, 15, s);
+            assert(z3 && z3.id === 'shore_slope', 'x=90,d=15 → expected shore_slope, got ' + (z3 && z3.id));
+            // Deep with rocks / small wreck: x=140, d=27
+            var z4 = api.visualZoneAt(140, 27, s);
+            assert(z4 && z4.id === 'shore_deep', 'x=140,d=27 → expected shore_deep, got ' + (z4 && z4.id));
+            return 'PASS — 4/4 shore points resolved correctly';
+        }
+    },
+    {
+        id: 'TC-53-REEF-POINTS',
+        name: 'Issue #53 — Reef: plateau/wall/blue-water points resolve correctly',
+        fn: function() {
+            var s = api.DIVE_SITES.reef;
+            // Plateau — small high-priority zone must beat the wider blue water
+            var z1 = api.visualZoneAt(0, 5, s);
+            assert(z1 && z1.id === 'reef_plateau', 'x=0,d=5 → expected reef_plateau, got ' + (z1 && z1.id));
+            // Upper wall (soft coral / gorgonians live at 12..30m on the flank)
+            var z2 = api.visualZoneAt(13, 25, s);
+            assert(z2 && z2.id === 'reef_upper_wall', 'x=13,d=25 → expected reef_upper_wall, got ' + (z2 && z2.id));
+            // Mid wall (37..52m features)
+            var z3 = api.visualZoneAt(15, 45, s);
+            assert(z3 && z3.id === 'reef_mid_wall', 'x=15,d=45 → expected reef_mid_wall, got ' + (z3 && z3.id));
+            // Deep wall (60m sentinels)
+            var z4 = api.visualZoneAt(20, 70, s);
+            assert(z4 && z4.id === 'reef_deep_wall', 'x=20,d=70 → expected reef_deep_wall, got ' + (z4 && z4.id));
+            // Off the mesa: only the low-priority blue-water fallback matches
+            var z5 = api.visualZoneAt(50, 20, s);
+            assert(z5 && z5.id === 'reef_blue_water', 'x=50,d=20 → expected reef_blue_water, got ' + (z5 && z5.id));
+            return 'PASS — 5/5 reef points resolved correctly';
+        }
+    },
+    {
+        id: 'TC-53-WRECK-POINTS',
+        name: 'Issue #53 — Wreck: deck bands and bridge resolve correctly',
+        fn: function() {
+            var s = api.DIVE_SITES.wreck;
+            // Bridge (18..22m, x=70..110)
+            var z1 = api.visualZoneAt(90, 20, s);
+            assert(z1 && z1.id === 'wreck_bridge', 'x=90,d=20 → expected wreck_bridge, got ' + (z1 && z1.id));
+            // Accommodation (22..28m, x=40..140)
+            var z2 = api.visualZoneAt(80, 25, s);
+            assert(z2 && z2.id === 'wreck_accommodation', 'x=80,d=25 → expected wreck_accommodation, got ' + (z2 && z2.id));
+            // Vehicle deck (28..40m, hull x=14..170)
+            var z3 = api.visualZoneAt(50, 35, s);
+            assert(z3 && z3.id === 'wreck_vehicle_deck', 'x=50,d=35 → expected wreck_vehicle_deck, got ' + (z3 && z3.id));
+            // Engine room (53..62m)
+            var z4 = api.visualZoneAt(50, 56, s);
+            assert(z4 && z4.id === 'wreck_engine_room', 'x=50,d=56 → expected wreck_engine_room, got ' + (z4 && z4.id));
+            // Bilge (62..66m)
+            var z5 = api.visualZoneAt(100, 64, s);
+            assert(z5 && z5.id === 'wreck_bilge', 'x=100,d=64 → expected wreck_bilge, got ' + (z5 && z5.id));
+            return 'PASS — 5/5 wreck points resolved correctly';
+        }
+    },
+    {
+        id: 'TC-53-WRECK-EXTERIOR-DOES-NOT-SWALLOW',
+        name: 'Issue #53 — wreck_exterior must not swallow interior zones despite covering the same box',
+        fn: function() {
+            var s = api.DIVE_SITES.wreck;
+            // wreck_exterior spans the entire dive-site rectangle (priority 0),
+            // so at (x=50,d=35) it also contains the point — the deck zone must
+            // still win because it has higher priority. Guards the exact bug
+            // called out in the issue.
+            var z = api.visualZoneAt(50, 35, s);
+            assert(z && z.id === 'wreck_vehicle_deck',
+                'interior point x=50,d=35 → expected wreck_vehicle_deck (not wreck_exterior), got ' + (z && z.id));
+            // A point far off the port bow (x=-30, d=20) is outside the hull —
+            // only wreck_exterior contains it.
+            var z2 = api.visualZoneAt(-30, 20, s);
+            assert(z2 && z2.id === 'wreck_exterior',
+                'off-hull point x=-30,d=20 → expected wreck_exterior, got ' + (z2 && z2.id));
+            return 'PASS — interior zones win inside hull; exterior only wins outside';
+        }
+    },
+    {
+        id: 'TC-53-CAVE-POINTS',
+        name: 'Issue #53 — Cave: entrance/tunnel/cathedral/exit resolve correctly',
+        fn: function() {
+            var s = api.DIVE_SITES.cave;
+            // Cenote entrance
+            var z1 = api.visualZoneAt(0, 5, s);
+            assert(z1 && z1.id === 'cave_entrance', 'x=0,d=5 → expected cave_entrance, got ' + (z1 && z1.id));
+            // Upper tunnel (shallow passage along the ceiling)
+            var z2 = api.visualZoneAt(60, 15, s);
+            assert(z2 && z2.id === 'cave_upper_tunnel', 'x=60,d=15 → expected cave_upper_tunnel, got ' + (z2 && z2.id));
+            // Cathedral (deep chamber under the bedrock partition)
+            var z3 = api.visualZoneAt(100, 90, s);
+            assert(z3 && z3.id === 'cave_cathedral', 'x=100,d=90 → expected cave_cathedral, got ' + (z3 && z3.id));
+            // Down shaft (floor plunge x≈50..72)
+            var z4 = api.visualZoneAt(60, 40, s);
+            assert(z4 && z4.id === 'cave_down_shaft', 'x=60,d=40 → expected cave_down_shaft, got ' + (z4 && z4.id));
+            // Up shaft
+            var z5 = api.visualZoneAt(135, 40, s);
+            assert(z5 && z5.id === 'cave_up_shaft', 'x=135,d=40 → expected cave_up_shaft, got ' + (z5 && z5.id));
+            // Exit tunnel
+            var z6 = api.visualZoneAt(170, 10, s);
+            assert(z6 && z6.id === 'cave_exit', 'x=170,d=10 → expected cave_exit, got ' + (z6 && z6.id));
+            return 'PASS — 6/6 cave points resolved correctly';
+        }
+    },
+    {
+        id: 'TC-53-CATHEDRAL-PRIORITY',
+        name: 'Issue #53 — cave_cathedral (P=25) beats overlapping down_shaft (P=15) — priority rule',
+        fn: function() {
+            var s = api.DIVE_SITES.cave;
+            // At (x=68,d=60) both cave_down_shaft (x=48..72, d=20..90, P=15)
+            // and cave_cathedral (x=60..134, d=50..104, P=25) contain the point.
+            // Cathedral must win because its priority is higher — this makes
+            // the deep chamber a landmark zone that is not swallowed by the
+            // wider shaft rectangle.
+            var z = api.visualZoneAt(68, 60, s);
+            assert(z && z.id === 'cave_cathedral', 'x=68,d=60 → expected cave_cathedral (priority 25), got ' + (z && z.id));
+            return 'PASS — higher priority wins on overlap';
+        }
+    },
+    {
+        id: 'TC-53-TIEBREAK-SMALLER-AREA',
+        name: 'Issue #53 — priority tie is broken by smaller-area zone (small-in-large overlap)',
+        fn: function() {
+            // Construct a scratch site with two zones at the same priority
+            // where one rectangle is strictly inside the other, so the rule
+            // is testable regardless of production data.
+            var scratch = {
+                visualZones: [
+                    { id: 'outer', x1: -10, x2: 10, d1: 0, d2: 20, priority: 5 },
+                    { id: 'inner', x1: -2,  x2: 2,  d1: 4, d2: 8,  priority: 5 }
+                ]
+            };
+            // A point inside BOTH must resolve to 'inner' (smaller area).
+            var z1 = api.visualZoneAt(0, 5, scratch);
+            assert(z1 && z1.id === 'inner', 'small-in-large overlap → expected inner, got ' + (z1 && z1.id));
+            // A point only inside the outer resolves to 'outer'.
+            var z2 = api.visualZoneAt(0, 15, scratch);
+            assert(z2 && z2.id === 'outer', 'outer-only point → expected outer, got ' + (z2 && z2.id));
+            return 'PASS — smaller-area zone wins on priority tie';
+        }
+    },
+    {
+        id: 'TC-53-BOUNDARY-INCLUSIVE',
+        name: 'Issue #53 — boundaries are INCLUSIVE on all four edges (matches solidAt convention)',
+        fn: function() {
+            var scratch = {
+                visualZones: [
+                    { id: 'box', x1: -5, x2: 5, d1: 10, d2: 20, priority: 0 }
+                ]
+            };
+            // Each of x1, x2, d1, d2 must be treated as inside the zone.
+            var corners = [[-5, 15], [5, 15], [0, 10], [0, 20], [-5, 10], [5, 20]];
+            for (var i = 0; i < corners.length; i++) {
+                var z = api.visualZoneAt(corners[i][0], corners[i][1], scratch);
+                assert(z && z.id === 'box',
+                    'edge point (' + corners[i][0] + ',' + corners[i][1] + ') should be inside box, got ' + (z && z.id));
+            }
+            // Just outside on each edge must be null.
+            var outside = [[-5.001, 15], [5.001, 15], [0, 9.999], [0, 20.001]];
+            for (var j = 0; j < outside.length; j++) {
+                var z2 = api.visualZoneAt(outside[j][0], outside[j][1], scratch);
+                assert(z2 === null, 'just-outside point (' + outside[j][0] + ',' + outside[j][1] + ') → expected null, got ' + (z2 && z2.id));
+            }
+            return 'PASS — x1/x2/d1/d2 edges are inclusive, just past is null';
+        }
+    },
+    {
+        id: 'TC-53-NULL-OUTSIDE-ALL',
+        name: 'Issue #53 — a point outside every declared zone returns null',
+        fn: function() {
+            var s = api.DIVE_SITES.cave;
+            // Far to the left of the cenote, above the ceiling → outside all
+            // six cave zones.
+            var z = api.visualZoneAt(-50, 5, s);
+            assert(z === null, 'x=-50,d=5 (far left of cenote) → expected null, got ' + (z && z.id));
+            // Below the deepest cave zone (cathedral d2=104)
+            var z2 = api.visualZoneAt(100, 110, s);
+            assert(z2 === null, 'x=100,d=110 (below cathedral) → expected null, got ' + (z2 && z2.id));
+            return 'PASS — points outside every zone resolve to null';
+        }
+    },
+    {
+        id: 'TC-53-BLEND-WEIGHT-RANGE',
+        name: 'Issue #53 — zoneBlendWeight is always in [0, 1] and behaves correctly at core/edge/outside',
+        fn: function() {
+            var scratch = {
+                visualZones: [
+                    { id: 'z', x1: 0, x2: 20, d1: 0, d2: 20, priority: 0, blend: 4 }
+                ]
+            };
+            var z = scratch.visualZones[0];
+            // Outside → 0
+            var wOut = api.zoneBlendWeight(z, -1, 10);
+            assert(wOut === 0, 'outside → expected 0, got ' + wOut);
+            // Exact edge → 0 (distEdge = 0 → w = 0 via smoothstep(0))
+            var wEdge = api.zoneBlendWeight(z, 0, 10);
+            assert(wEdge === 0, 'on edge x=x1 → expected 0, got ' + wEdge);
+            // Just inside the blend margin → strictly between 0 and 1
+            var wSoft = api.zoneBlendWeight(z, 2, 10);
+            assert(wSoft > 0 && wSoft < 1, 'inside blend margin → expected 0<w<1, got ' + wSoft);
+            // Core (deeper into the rectangle than blend from every edge) → 1
+            var wCore = api.zoneBlendWeight(z, 10, 10);
+            assert(wCore === 1, 'core point → expected 1, got ' + wCore);
+            // Null zone → 0 (never throws)
+            assert(api.zoneBlendWeight(null, 5, 5) === 0, 'null zone → expected 0');
+            // Zone with blend=0 (or missing) → 1 anywhere inside, 0 outside
+            var noBlend = { id: 'nb', x1: 0, x2: 10, d1: 0, d2: 10, priority: 0 };
+            assert(api.zoneBlendWeight(noBlend, 5, 5) === 1, 'no blend, inside → expected 1');
+            assert(api.zoneBlendWeight(noBlend, 5, 10.001) === 0, 'no blend, just past d2 → expected 0');
+            // Sweep and confirm every sample is in [0, 1].
+            for (var i = -2; i <= 22; i++) {
+                for (var j = -2; j <= 22; j++) {
+                    var w = api.zoneBlendWeight(z, i, j);
+                    assert(w >= 0 && w <= 1, 'weight out of [0,1] at (' + i + ',' + j + '): ' + w);
+                }
+            }
+            return 'PASS — zoneBlendWeight domain and edge behaviour correct';
+        }
+    },
+    // ----------------------------------------------------------
     // TC-CNS-PERSIST-1: Bug #10 — cnsPercent missing from save/restore.
     // After a browser reload + resume, the CNS O2-toxicity display used
     // to snap back to 0% even though the dive continued.

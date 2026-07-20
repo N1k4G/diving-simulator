@@ -963,5 +963,15 @@ window.gameAPI = {
     get MAT_TILE() { return MAT_TILE; },
     // Issue #34: AO contact band helper (renderer-only, decorative)
     drawContactBand: drawContactBand,
-    get CONTACT_AO() { return CONTACT_AO; }
+    get CONTACT_AO() { return CONTACT_AO; },
+    // Issue #53: Visual zones — declarative biome data + deterministic
+    // lookup helpers. `debugVisualZones` toggles a diagnostic overlay
+    // in drawScene(); default false — zero visual change when unset.
+    visualZoneAt: visualZoneAt,
+    zoneBlendWeight: zoneBlendWeight,
+    get debugVisualZones() { return debugVisualZones; },
+    set debugVisualZones(v) { debugVisualZones = !!v; },
+    get VISUAL_ZONE_DEFAULT_PRIORITY() { return VISUAL_ZONE_DEFAULT_PRIORITY; },
+    get VISUAL_ZONE_DEFAULT_BLEND() { return VISUAL_ZONE_DEFAULT_BLEND; },
+    drawVisualZoneDebug: drawVisualZoneDebug
 };

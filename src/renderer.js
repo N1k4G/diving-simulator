@@ -802,6 +802,83 @@ function drawScene() {
         cx.fillStyle = vigGrad;
         cx.fillRect(0, 0, W, H);
     }
+
+    // Issue #53: opt-in visual-zone debug overlay. Off by default; when
+    // enabled paints translucent zone rectangles + current-zone id text so
+    // future consumers can verify the map/zone assignment visually.
+    if (debugVisualZones) drawVisualZoneDebug();
+}
+
+// Issue #53: debug visualization for the visualZones lookup. Purely
+// diagnostic — never called in normal gameplay. Uses only sites.js data
+// via visualZoneAt(); this function does not itself decide which zone
+// the diver is in, keeping decoration/lookup concerns separated.
+const VISUAL_ZONE_DEBUG = {
+    mpp:        0.05,     // metres per pixel, matches drawScene() world scale
+    diverSx:    0.25,     // diver screen-x fraction, matches drawScene()
+    diverSy:    0.45,     // diver screen-y fraction, matches drawScene()
+    fillAlpha:  0.10,     // translucent rectangle fill
+    edgeAlpha:  0.45,     // rectangle outline
+    labelAlpha: 0.75,     // per-rect id label
+    labelFont:  '10px monospace',
+    hudFont:    'bold 12px monospace',
+    hudFill:    'rgba(255, 220, 80, 0.90)',
+    hudBg:      'rgba(0, 0, 0, 0.55)',
+    // Distinct hues so overlapping zones read as separate rectangles.
+    palette: [
+        '#ff6b6b', '#4ecdc4', '#ffe66d', '#a8e6cf', '#c780e8',
+        '#ff9770', '#6ab7ff', '#f7a072', '#7ee8b8', '#e0b0ff'
+    ]
+};
+
+function drawVisualZoneDebug() {
+    var s = activeSite();
+    if (!s || !s.visualZones || !s.visualZones.length) return;
+    var cx = ctx;
+    var W = cssWidth, H = cssHeight;
+    var cfg = VISUAL_ZONE_DEBUG;
+    var mpp = cfg.mpp;
+    var dsx = W * cfg.diverSx;
+    var dsy = H * cfg.diverSy;
+    var zones = s.visualZones;
+    cx.save();
+    cx.font = cfg.labelFont;
+    cx.textAlign = 'left';
+    cx.textBaseline = 'top';
+    for (var i = 0; i < zones.length; i++) {
+        var z = zones[i];
+        var sx1 = dsx + (z.x1 - diverX) / mpp;
+        var sx2 = dsx + (z.x2 - diverX) / mpp;
+        var sy1 = dsy + (z.d1 - depth) / mpp;
+        var sy2 = dsy + (z.d2 - depth) / mpp;
+        // Skip rectangles fully off-screen — cheap frustum cull.
+        if (sx2 < -20 || sx1 > W + 20 || sy2 < -20 || sy1 > H + 20) continue;
+        var col = cfg.palette[i % cfg.palette.length];
+        cx.globalAlpha = cfg.fillAlpha;
+        cx.fillStyle = col;
+        cx.fillRect(sx1, sy1, sx2 - sx1, sy2 - sy1);
+        cx.globalAlpha = cfg.edgeAlpha;
+        cx.strokeStyle = col;
+        cx.lineWidth = 1;
+        cx.strokeRect(sx1 + 0.5, sy1 + 0.5, sx2 - sx1 - 1, sy2 - sy1 - 1);
+        cx.globalAlpha = cfg.labelAlpha;
+        cx.fillStyle = col;
+        var lx = Math.max(4, sx1 + 4);
+        var ly = Math.max(4, sy1 + 4);
+        cx.fillText(z.id, lx, ly);
+    }
+    cx.globalAlpha = 1;
+    // HUD text — current zone id, in the top-left corner.
+    var here = visualZoneAt(diverX, depth, s);
+    var label = 'ZONE: ' + (here ? here.id : '(none)');
+    cx.font = cfg.hudFont;
+    var pad = 6;
+    var textW = cx.measureText(label).width;
+    cx.fillStyle = cfg.hudBg;
+    cx.fillRect(8, 8, textW + pad * 2, 20);
+    cx.fillStyle = cfg.hudFill;
+    cx.fillText(label, 8 + pad, 8 + pad - 2);
+    cx.restore();
 }
 
 function drawDiver(x, y, tilt) {

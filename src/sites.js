@@ -29,6 +29,13 @@
 // structures: solid AABBs [{x1,x2,dTop,dBottom,kind}].
 // features: cosmetic markers [{kind,x,d,...}].
 // badAir: unbreathable dome pockets [{x1,x2,d}].
+//
+// Issue #53 — visualZones: purely declarative visual sub-areas of the map
+// (biomes / rooms / decks) used by future atmosphere / decoration / material
+// consumers. Format: [{id,x1,x2,d1,d2,priority?,blend?,tags?}]. See
+// visualZoneAt() / zoneBlendWeight() at the bottom of this file for the
+// deterministic selection rule. The data itself never drives physics,
+// collision, decompression, gas, or wildlife-spawn logic.
 
 var DIVE_SITES = {
   shore: {
@@ -73,7 +80,18 @@ var DIVE_SITES = {
     ],
     surfaceMarker: 'buoy',
     noShark: true,
-    currentBias: 0.0
+    currentBias: 0.0,
+    // Issue #53 — visual zones derived from the shore floor profile and
+    // structure list above. The beach/entry sits above the -10→0→3 m sand;
+    // the seagrass belt (features x=18..78, d=5..11) drives shore_grass; the
+    // slope band tracks the floor descent from d=10 at x=70 to d=22 at x=115;
+    // shore_deep covers the rock outcrops + small wreck at x=100..184, d≈14..37.
+    visualZones: [
+      { id: 'shore_entry',  x1: -20, x2: 25,  d1: 0,  d2: 4,  priority: 10, blend: 1, tags: ['shore','sand','sunlit','shallow'] },
+      { id: 'shore_grass',  x1: 10,  x2: 88,  d1: 3,  d2: 13, priority: 10, blend: 2, tags: ['shore','sand','seagrass','shallow'] },
+      { id: 'shore_slope',  x1: 55,  x2: 118, d1: 10, d2: 22, priority: 8,  blend: 2, tags: ['shore','sand','slope'] },
+      { id: 'shore_deep',   x1: 90,  x2: 190, d1: 18, d2: 32, priority: 12, blend: 2, tags: ['shore','sand','deep','wreck-debris'] }
+    ]
   },
   reef: {
     id: 'reef',
@@ -135,7 +153,21 @@ var DIVE_SITES = {
 
     surfaceMarker: 'boat',
     noShark: false,
-    currentBias: 0.4
+    currentBias: 0.4,
+    // Issue #53 — zones follow the mesa floor profile. Plateau is the flat
+    // top at d=5, x=-8..8 (matches the coral-garden feature cluster). Upper
+    // wall covers the flanks where the floor drops from d=12 (x=±9) to d=30
+    // (x=±12) — softCoral/gorgonian/barrelSponge features live there. Mid
+    // wall covers d=30..55 (features at 37 and 52 m). Deep wall covers d=55
+    // to abyss (60 m sentinels). Blue water is a wide low-priority fallback
+    // for open water off the mesa.
+    visualZones: [
+      { id: 'reef_plateau',    x1: -8,   x2: 8,   d1: 0,  d2: 8,          priority: 20, blend: 1, tags: ['reef','sunlit','plateau','coral'] },
+      { id: 'reef_upper_wall', x1: -16,  x2: 16,  d1: 8,  d2: 30,         priority: 10, blend: 2, tags: ['reef','wall','upper','coral'] },
+      { id: 'reef_mid_wall',   x1: -20,  x2: 20,  d1: 30, d2: 55,         priority: 10, blend: 2, tags: ['reef','wall','mid'] },
+      { id: 'reef_deep_wall',  x1: -24,  x2: 24,  d1: 55, d2: 90,         priority: 10, blend: 3, tags: ['reef','wall','deep'] },
+      { id: 'reef_blue_water', x1: -100, x2: 100, d1: 0,  d2: MAX_DEPTH,  priority: 0,  blend: 0, tags: ['open-water','blue'] }
+    ]
   },
   wreck: {
     id: 'wreck',
@@ -382,7 +414,26 @@ var DIVE_SITES = {
     ],
     surfaceMarker: 'boat',
     noShark: false,
-    currentBias: 0.2
+    currentBias: 0.2,
+    // Issue #53 — deck bands come straight from the site's own comment
+    // header (bridge 18-22, accommodation 22-28, vehicle 28-40, crew 40-46,
+    // cargo 46-53, engine 53-62, bilge 62-66). Interior x-range = hull span
+    // from bow stem (x=14..16) to stern transom (x=168..170). Bridge is
+    // narrower (x=70..110) — matches the wheelhouse bulkheads at x=70..72
+    // and x=108..110. Accommodation width (x=40..140) matches the outer
+    // superstructure walls at x=40..42 and x=138..140. Bridge/interior have
+    // priority ≥ 15 so wreck_exterior (priority 0, world-wide fallback)
+    // never swallows them despite being defined over the same rectangle.
+    visualZones: [
+      { id: 'wreck_exterior',      x1: -40, x2: 200, d1: 0,  d2: 66, priority: 0,  blend: 0, tags: ['wreck','open-water','outside-hull'] },
+      { id: 'wreck_bridge',        x1: 70,  x2: 110, d1: 18, d2: 22, priority: 20, blend: 1, tags: ['wreck','interior','bridge','confined'] },
+      { id: 'wreck_accommodation', x1: 40,  x2: 140, d1: 22, d2: 28, priority: 15, blend: 1, tags: ['wreck','interior','accommodation'] },
+      { id: 'wreck_vehicle_deck',  x1: 14,  x2: 170, d1: 28, d2: 40, priority: 15, blend: 1, tags: ['wreck','interior','vehicle-deck','cargo'] },
+      { id: 'wreck_crew_deck',     x1: 14,  x2: 170, d1: 40, d2: 46, priority: 15, blend: 1, tags: ['wreck','interior','maze','crew'] },
+      { id: 'wreck_cargo_hold',    x1: 14,  x2: 170, d1: 46, d2: 53, priority: 15, blend: 1, tags: ['wreck','interior','maze','cargo'] },
+      { id: 'wreck_engine_room',   x1: 14,  x2: 170, d1: 53, d2: 62, priority: 15, blend: 1, tags: ['wreck','interior','deep','engine'] },
+      { id: 'wreck_bilge',         x1: 14,  x2: 170, d1: 62, d2: 66, priority: 15, blend: 0, tags: ['wreck','interior','deep','bilge'] }
+    ]
   },
   cave: {
     id: 'cave',
@@ -433,7 +484,25 @@ var DIVE_SITES = {
     ],
     surfaceMarker: 'pond',
     noShark: true,
-    currentBias: 0.05
+    currentBias: 0.05,
+    // Issue #53 — anchored on the ceiling/floor profiles and the bedrock
+    // partition. The cenote is open to surface where the ceiling is d=0 for
+    // x=-10..14, then dives to d=14 at x=18. Upper tunnel runs along the
+    // ceiling (d≈12..16) above the bedrock top (d=22, x=70..130). The floor
+    // plunges from d=23 (x=50) to d=42 (x=56) to d=74 (x=64) to d=96 (x=72)
+    // — that's the down shaft. Cathedral is the deep chamber under the
+    // bedrock (d=52..103 for x=70..130); given priority 25 so it wins over
+    // any overlapping shaft/tunnel zone and reads as its own dramatic space.
+    // Up shaft mirrors the down shaft (x=124..146). Exit tunnel ascends
+    // where the ceiling rises again from d=16 (x=146) to d=0 (x=200).
+    visualZones: [
+      { id: 'cave_entrance',     x1: -10, x2: 18,  d1: 0,  d2: 14,  priority: 10, blend: 1, tags: ['cave','entrance','open-to-surface'] },
+      { id: 'cave_upper_tunnel', x1: 18,  x2: 146, d1: 10, d2: 22,  priority: 15, blend: 1, tags: ['cave','tunnel','shallow'] },
+      { id: 'cave_down_shaft',   x1: 48,  x2: 72,  d1: 20, d2: 90,  priority: 15, blend: 2, tags: ['cave','shaft','descent'] },
+      { id: 'cave_cathedral',    x1: 60,  x2: 134, d1: 50, d2: 104, priority: 25, blend: 3, tags: ['cave','cathedral','deep','open-chamber'] },
+      { id: 'cave_up_shaft',     x1: 124, x2: 146, d1: 20, d2: 90,  priority: 15, blend: 2, tags: ['cave','shaft','ascent'] },
+      { id: 'cave_exit',         x1: 146, x2: 200, d1: 0,  d2: 20,  priority: 10, blend: 1, tags: ['cave','exit','open-to-surface'] }
+    ]
   }
 };
 
@@ -513,4 +582,89 @@ function badAirAt(x) {
     if (x >= p.x1 && x <= p.x2) return p;
   }
   return null;
+}
+
+// ============================================================
+//  ISSUE #53 — VISUAL ZONE LOOKUP
+//
+//  visualZoneAt(x, d, site?)
+//    Returns the single best-matching zone object at (x, d), or null.
+//    Selection is DETERMINISTIC:
+//      1. Only zones whose rectangle contains (x, d) are candidates.
+//         Rectangle test is INCLUSIVE on both edges of x1/x2/d1/d2,
+//         matching the convention used by solidAt()/badAirAt().
+//      2. Highest `priority` wins (missing priority defaults to 0).
+//      3. Priority tie → smaller-area zone wins, so specific sub-zones
+//         always override broader wrappers.
+//      4. Deterministic zero-area tie-break: the zone declared earlier
+//         in the visualZones array wins (only reachable if two zones
+//         have identical priority AND identical area — otherwise the
+//         first two rules already picked a winner).
+//      5. No candidate → null.
+//    `site` is optional; defaults to the active site so most callers
+//    can just pass (x, d).
+//
+//  zoneBlendWeight(zone, x, d)
+//    Returns a scalar in [0, 1] describing how deep inside its OWN
+//    rectangle the point (x, d) is:
+//      • 0 if the point is outside the zone
+//      • 1 if the point is inside the core (further from every edge
+//        than the zone's `blend` margin, or if blend is 0/absent)
+//      • smoothstep-interpolated between 0 and 1 within `blend` metres
+//        of the nearest edge.
+//    Consumers that want soft transitions should call visualZoneAt() to
+//    pick the zone, then this helper to get an interior/edge factor.
+//    (We deliberately expose the single-value form instead of a
+//    multi-zone weights array — the array form is documented as
+//    optional in issue #53 and no consumer needs it yet.)
+// ============================================================
+
+const VISUAL_ZONE_DEFAULT_PRIORITY = 0;
+const VISUAL_ZONE_DEFAULT_BLEND    = 0;
+
+function visualZoneAt(x, d, site) {
+  var s = site || activeSite();
+  if (!s || !s.visualZones) return null;
+  var zones = s.visualZones;
+  var best = null;
+  var bestPrio = -Infinity;
+  var bestArea = Infinity;
+  var bestIdx  = Infinity;
+  for (var i = 0; i < zones.length; i++) {
+    var z = zones[i];
+    if (x < z.x1 || x > z.x2 || d < z.d1 || d > z.d2) continue;
+    var prio = (z.priority != null) ? z.priority : VISUAL_ZONE_DEFAULT_PRIORITY;
+    var area = (z.x2 - z.x1) * (z.d2 - z.d1);
+    var better = false;
+    if (prio > bestPrio) better = true;
+    else if (prio === bestPrio) {
+      if (area < bestArea) better = true;
+      else if (area === bestArea && i < bestIdx) better = true;
+    }
+    if (better) {
+      best = z;
+      bestPrio = prio;
+      bestArea = area;
+      bestIdx  = i;
+    }
+  }
+  return best;
+}
+
+function zoneBlendWeight(zone, x, d) {
+  if (!zone) return 0;
+  if (x < zone.x1 || x > zone.x2 || d < zone.d1 || d > zone.d2) return 0;
+  var blend = (zone.blend != null) ? zone.blend : VISUAL_ZONE_DEFAULT_BLEND;
+  if (blend <= 0) return 1;
+  var distEdge = Math.min(
+    x - zone.x1,
+    zone.x2 - x,
+    d - zone.d1,
+    zone.d2 - d
+  );
+  if (distEdge <= 0) return 0;
+  if (distEdge >= blend) return 1;
+  // smoothstep(0, blend, distEdge)
+  var t = distEdge / blend;
+  return t * t * (3 - 2 * t);
 }

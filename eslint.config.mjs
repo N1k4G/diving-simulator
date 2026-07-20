@@ -123,6 +123,11 @@ const gameGlobals = {
   activeSite: "readonly", lerpProfile: "readonly",
   floorAt: "readonly", ceilingAt: "readonly",
   solidAt: "readonly", overheadAt: "readonly", badAirAt: "readonly",
+  // Issue #53: Visual zones (sites.js + state.js + renderer.js)
+  visualZoneAt: "readonly", zoneBlendWeight: "readonly",
+  VISUAL_ZONE_DEFAULT_PRIORITY: "readonly", VISUAL_ZONE_DEFAULT_BLEND: "readonly",
+  debugVisualZones: "writable",
+  drawVisualZoneDebug: "readonly", VISUAL_ZONE_DEBUG: "readonly",
 
   // Physics functions (physics.js)
   ambientPressure: "readonly", updateTissues: "readonly",

@@ -211,6 +211,12 @@ let thirdsReserveActive = false;
 // D6: Player torch — ON by default for overhead sites, OFF in open water
 let torchOn = false;
 
+// Issue #53: opt-in visual-zone debug overlay. Default OFF — zero visual
+// change in normal gameplay. When true, drawVisualZoneDebug() paints the
+// current site's zone rectangles with a low-alpha overlay and prints the
+// current zone id as a small HUD line.
+let debugVisualZones = false;
+
 // Phase B: Current state
 let current = {
   active: false,
