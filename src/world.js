@@ -338,7 +338,7 @@ function drawWildlife(cx, x, y, w) {
         // Tentacles
         cx.strokeStyle = w.type.color;
         cx.lineWidth = 2.5;
-        for (var t = 0; t < 8; t++) {
+        for (t = 0; t < 8; t++) {
             var angle = (t / 8) * Math.PI - Math.PI * 0.5;
             var tx = Math.cos(angle) * sz * 0.3;
             var ty = sz * 0.1;

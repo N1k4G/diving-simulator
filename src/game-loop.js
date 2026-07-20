@@ -237,7 +237,7 @@ function updateDiving(dtReal) {
         updateCCRLoop(dtDiveSeconds);
       }
     } else {
-      var consumed = effectiveAMV(kicking) * pAmb * dtDiveMinutes;
+      consumed = effectiveAMV(kicking) * pAmb * dtDiveMinutes;
       var tank = getActiveTank();
       tank.gasRemaining = Math.max(0, tank.gasRemaining - consumed);
 

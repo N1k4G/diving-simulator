@@ -949,7 +949,7 @@ function drawTerrain() {
             cx.beginPath();
             cx.moveTo(cLeftX, -10);
             cx.lineTo(ceilPts[0][0], ceilPts[0][1]);
-            for (var ci = 1; ci < ceilPts.length; ci++) cx.lineTo(ceilPts[ci][0], ceilPts[ci][1]);
+            for (ci = 1; ci < ceilPts.length; ci++) cx.lineTo(ceilPts[ci][0], ceilPts[ci][1]);
             cx.lineTo(cRightX, -10);
             cx.closePath();
             cx.fill();
@@ -1643,8 +1643,8 @@ function drawCaveMineralDetails() {
             cx.strokeStyle = 'rgba(210,185,110,0.22)';
             cx.lineWidth = 1.4;
             cx.beginPath();
-            for (var sx = x1; sx <= x2; sx += 6) {
-                var sy = y + Math.sin((sx + waveTime * 36) * 0.08) * 2.2;
+            for (sx = x1; sx <= x2; sx += 6) {
+                sy = y + Math.sin((sx + waveTime * 36) * 0.08) * 2.2;
                 if (sx === x1) cx.moveTo(sx, sy); else cx.lineTo(sx, sy);
             }
             cx.stroke();
@@ -4389,10 +4389,10 @@ function drawDiveComputer() {
 
     } else {
     // OC Gas Box (original)
-    var tank = getActiveTank();
+    tank = getActiveTank();
     var bestIdx = recommendBestGas();
     var isBest = (activeTank === bestIdx);
-    var tBar = tankBar();
+    tBar = tankBar();
     var barColor = tBar > 100 ? '#33ff33' : (tBar >= 50 ? '#ffff33' : '#ff3333');
 
     // Row 1: "Gas" label (left-aligned, consistent font)
@@ -4548,7 +4548,7 @@ function drawDiveComputer() {
             var bX = (ti === 0) ? box0X : (ti === 1) ? box1X : box2X;
             var bW = (ti === 0) ? box0W : (ti === 1) ? box1W : box2W;
             if (tankIdx < tankCount) {
-                var tk = tanks[tankIdx];
+                tk = tanks[tankIdx];
                 var tkBar = Math.round(tk.gasRemaining / tk.volume);
                 var tkBarColor = tkBar > 100 ? '#33ff33' : tkBar >= 50 ? '#ffff33' : '#ff3333';
                 var tkMOD = Math.floor(((PO2_HIGH / tk.fO2) - 1) * 10);
@@ -4611,10 +4611,10 @@ function drawDiveComputer() {
         var barAreaTop = slotY + s(14);
         var barAreaH = slotH - s(20);
         var barGap = s(2);
-        var barW = Math.floor((barAreaW - barGap * 15) / 16);
+        barW = Math.floor((barAreaW - barGap * 15) / 16);
         var pAmb = ambientPressure(depth);
 
-        for (var i = 0; i < 16; i++) {
+        for (i = 0; i < 16; i++) {
             var ab = combinedAB(i);
             var ptTotal = tissues[i] + tissuesHe[i];
             var mVal = ab.a + pAmb / ab.b;
@@ -4645,14 +4645,14 @@ function drawDiveComputer() {
 
     } else if (infoPageMode === 4) {
         // WP-039: Deco metrics page — 3-row layout matching Box 3.2/3.3
-        var pAmb = ambientPressure(depth);
+        pAmb = ambientPressure(depth);
 
         // GF99 calculation
         var gf99 = 0;
-        for (var i = 0; i < 16; i++) {
-            var ab = combinedAB(i);
-            var ptTotal = tissues[i] + tissuesHe[i];
-            var mVal = ab.a + pAmb / ab.b;
+        for (i = 0; i < 16; i++) {
+            ab = combinedAB(i);
+            ptTotal = tissues[i] + tissuesHe[i];
+            mVal = ab.a + pAmb / ab.b;
             var gfi = (mVal - pAmb) > 0.0001 ? (ptTotal - pAmb) / (mVal - pAmb) * 100 : 0;
             if (gfi > gf99) gf99 = gfi;
         }
@@ -4661,11 +4661,11 @@ function drawDiveComputer() {
         // SurfGF calculation
         var surfGF = 0;
         var pSurf = 1.0;
-        for (var i = 0; i < 16; i++) {
-            var ab = combinedAB(i);
-            var ptTotal = tissues[i] + tissuesHe[i];
-            var mVal = ab.a + pSurf / ab.b;
-            var gfi = (mVal - pSurf) > 0.0001 ? (ptTotal - pSurf) / (mVal - pSurf) * 100 : 0;
+        for (i = 0; i < 16; i++) {
+            ab = combinedAB(i);
+            ptTotal = tissues[i] + tissuesHe[i];
+            mVal = ab.a + pSurf / ab.b;
+            gfi = (mVal - pSurf) > 0.0001 ? (ptTotal - pSurf) / (mVal - pSurf) * 100 : 0;
             if (gfi > surfGF) surfGF = gfi;
         }
         surfGF = Math.max(0, Math.round(surfGF));
@@ -5066,7 +5066,7 @@ function drawDiveProfileChart(cx, x, y, w, h) {
     cx.beginPath();
     cx.strokeStyle = '#17a8ff';
     cx.lineWidth = 2;
-    for (var i = 0; i < diveProfile.length; i++) {
+    for (i = 0; i < diveProfile.length; i++) {
         var px = chartX + (diveProfile[i].t / maxT) * chartW;
         var py = chartY + (diveProfile[i].depth / maxD) * chartH;
         if (i === 0) cx.moveTo(px, py);
@@ -5079,11 +5079,11 @@ function drawDiveProfileChart(cx, x, y, w, h) {
     cx.strokeStyle = '#ff3333';
     cx.lineWidth = 1.5;
     var inCeiling = false;
-    for (var i = 0; i < diveProfile.length; i++) {
+    for (i = 0; i < diveProfile.length; i++) {
         var ceil = diveProfile[i].ceiling;
         if (ceil > 0) {
-            var px = chartX + (diveProfile[i].t / maxT) * chartW;
-            var py = chartY + (ceil / maxD) * chartH;
+            px = chartX + (diveProfile[i].t / maxT) * chartW;
+            py = chartY + (ceil / maxD) * chartH;
             if (!inCeiling) { cx.moveTo(px, py); inCeiling = true; }
             else cx.lineTo(px, py);
         } else {
