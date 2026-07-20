@@ -268,7 +268,7 @@ var CCR_DIL_PRESETS = [
   { name: 'Tmx 21/35', fO2: 0.21, fHe: 0.35 },
   { name: 'Tmx 15/45', fO2: 0.15, fHe: 0.45 },
   { name: 'Tmx 10/70', fO2: 0.10, fHe: 0.70 },
-  { name: 'Heliox',    fO2: 0.00, fHe: 1.00 }
+  { name: 'Hx 10/90',  fO2: 0.10, fHe: 0.90 }
 ];
 
 function ccrDilPresetName() {
