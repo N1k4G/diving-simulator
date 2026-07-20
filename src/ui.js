@@ -35,8 +35,8 @@
 
 function drawHelpOverlay() {
     var cx = ctx;
-    var W = canvas.width;
-    var H = canvas.height;
+    var W = cssWidth;
+    var H = cssHeight;
     
     cx.fillStyle = 'rgba(0,0,0,0.92)';
     cx.fillRect(0, 0, W, H);
