@@ -267,7 +267,7 @@ function spawnWildlife() {
     var wt = pool[Math.floor(Math.random() * pool.length)];
     // Whale and ray are rare — 20% chance when selected
     if ((wt.name === 'whale' || wt.name === 'ray') && Math.random() > 0.2) {
-        wt = pool[0];
+        wt = pool[Math.floor(Math.random() * pool.length)];
     }
     var wDepth = wt.depthMin + Math.random() * (wt.depthMax - wt.depthMin);
     var direction = Math.random() < 0.5 ? 1 : -1;
