@@ -441,6 +441,16 @@ function calculateDecoSchedule() {
 // ============================================================
 
 function calculatePO2() {
+    // In an active CCR loop the diver breathes the loop mix at the regulated
+    // setpoint — NOT the OC cylinder gas. `activeGas()` in CCR-loop mode
+    // returns `tanks[activeTank]` (leftover/normalised OC state), which is
+    // the wrong source for O2 toxicity, hypoxia, CNS, and the HUD PO2
+    // readout (issues #4 & #50). In CCR bailout and pure OC the diver IS
+    // breathing that gas, so the fO2 * pAmb calculation is correct.
+    // Mirrors the split used by updateTissues()/calculateNDL().
+    if (diveMode === 'ccr' && !ccrState.onBailout) {
+        return ccrState.actualPO2;
+    }
     return activeGas().fO2 * ambientPressure(depth);
 }
 
@@ -489,15 +499,30 @@ function smoothstep(edge0, edge1, x) {
     return t * t * (3 - 2 * t);
 }
 
+// Gas source for narcosis/END. In an active CCR loop the inspired gas is
+// the loop mix (diluent + O2 titrated to setpoint), NOT `tanks[activeTank]`
+// — the OC tank state can be leftover/stale from a previous mode and is
+// decoupled from the configured diluent (issue #50). In CCR bailout the
+// diver is breathing the diluent directly, which `activeGas()` returns
+// correctly; in OC `activeGas()` returns the active tank fractions
+// (same .fHe as the previous `getActiveTank()` call, so OC behaviour is
+// unchanged). Mirrors updateTissues().
+function narcosisGas() {
+    if (diveMode === 'ccr' && !ccrState.onBailout) {
+        return getCCRInspiredGas(depth, ccrState.actualPO2);
+    }
+    return activeGas();
+}
+
 function calculateNarcoticPP() {
-    var tank = getActiveTank();
+    var gas = narcosisGas();
     var ambientBar = 1 + depth / 10;
-    return (1 - tank.fHe) * ambientBar;
+    return (1 - gas.fHe) * ambientBar;
 }
 
 function calculateEND() {
-    var tank = getActiveTank();
-    return Math.max(0, (depth + 10) * (1 - tank.fHe) - 10);
+    var gas = narcosisGas();
+    return Math.max(0, (depth + 10) * (1 - gas.fHe) - 10);
 }
 
 function updateNarcosis(dtDiveSec) {

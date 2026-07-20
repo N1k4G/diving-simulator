@@ -2201,6 +2201,172 @@ tests = [
             api.diveSite = 'open';
             return 'PASS — reef-only species not eligible on non-reef sites';
         }
+    },
+    // ----------------------------------------------------------
+    // TC-CCR-PO2-1: Bug #4 — deep CCR dive with junk OC tank does NOT falsely
+    // trigger the generic O2 toxicity or hypoxia timers. In an active CCR
+    // loop, calculatePO2() must report the loop's regulated PO2, not the
+    // OC cylinder gas × ambient. Regression for issue #4.
+    // ----------------------------------------------------------
+    {
+        id: 'TC-CCR-PO2-1',
+        name: 'CCR #4 — 70m, SP 1.3, junk OC tank: no false O2-tox/hypoxia game over',
+        fn: function() {
+            // Deliberately fill tanks[0] with something whose fO2 * pAmb(70m)
+            // would trip the OC toxicity check (0.21 × 8 = 1.68 > PO2_HIGH).
+            // The bug allowed this to leak into calculatePO2() and end the dive.
+            setupDive([[0.21, 0, 200]]);
+            api.diveMode = 'ccr';
+            api.initCCR();
+            api.ccrApplyDilPreset(2); // Tmx 15/45 — realistic deep diluent
+            api.ccrState.targetSP = 1.3;
+            api.ccrState.actualPO2 = 1.3; // loop already at setpoint
+            api.setDepth(70);
+            api.clearKeys();
+
+            // Sanity: with the bug, activeGas().fO2 × pAmb(70m) = 0.21 × 8.0 = 1.68,
+            // which is above PO2_HIGH (1.6) — that is exactly what used to drive
+            // po2ViolationTime. After the fix, calculatePO2() must return the
+            // loop PO2 (~1.3), safely below PO2_HIGH.
+            var reportedPO2 = api.calculatePO2();
+            assert(approx(reportedPO2, 1.3, 0.05),
+                'calculatePO2() in active CCR loop must return actualPO2 (~1.3), got ' + reportedPO2);
+
+            // Run ~40 dive-seconds at 70m; both PO2_TOXICITY_TIME (30s) and
+            // ccrHyperoxiaTime (30s) would fire well within this window if
+            // the bug were still present.
+            for (var i = 0; i < 80; i++) {
+                api.setDepth(70);
+                // Keep the loop pinned at setpoint — the real solenoid model would
+                // hold it there; we short-circuit it so the test isolates the PO2
+                // *reporting* bug rather than the solenoid dynamics.
+                api.ccrState.actualPO2 = 1.3;
+                api.updateDiving(0.5); // 0.5 real → 1.5 dive-sec at 3x accel
+                if (api.gameState === 'gameover') break;
+            }
+            assert(api.gameState !== 'gameover',
+                'CCR loop holding at SP 1.3 must not trigger game over (got: ' + api.gameOverReason + ')');
+            assert(api.po2ViolationTime < 5,
+                'po2ViolationTime must stay near 0 with loop PO2 at 1.3, got ' + api.po2ViolationTime);
+            assert(api.hypoxiaTime < 5,
+                'hypoxiaTime must stay near 0 with loop PO2 at 1.3, got ' + api.hypoxiaTime);
+            return 'PASS — CCR loop at 70m/SP1.3 does not falsely trigger generic PO2/hypoxia timers';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-CCR-NARC-1: Bug #50 — Air diluent produces higher narcosis / END
+    // than Tmx 10/70 at the same depth. Regression for issue #50.
+    // ----------------------------------------------------------
+    {
+        id: 'TC-CCR-NARC-1',
+        name: 'CCR #50 — Air diluent END > Tmx 10/70 END at same depth',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.diveMode = 'ccr';
+            api.initCCR();
+            api.ccrState.targetSP = 1.3;
+            api.ccrState.actualPO2 = 1.3;
+            api.setDepth(70);
+
+            // Air diluent (preset 0)
+            api.ccrApplyDilPreset(0);
+            var endAir = api.calculateEND();
+            var narcAir = api.calculateNarcoticPP();
+
+            // Tmx 10/70 diluent (preset 3) — helium-rich
+            api.ccrApplyDilPreset(3);
+            var endTmx = api.calculateEND();
+            var narcTmx = api.calculateNarcoticPP();
+
+            assert(endAir > endTmx + 5,
+                'Air diluent END (' + endAir.toFixed(1) + ') must be substantially > Tmx 10/70 END (' + endTmx.toFixed(1) + ')');
+            assert(narcAir > narcTmx + 0.5,
+                'Air narcotic PP (' + narcAir.toFixed(2) + ') must be substantially > Tmx 10/70 narcotic PP (' + narcTmx.toFixed(2) + ')');
+            return 'PASS — CCR narcosis/END respond to diluent choice (Air END=' +
+                endAir.toFixed(1) + 'm, Tmx10/70 END=' + endTmx.toFixed(1) + 'm)';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-CCR-NARC-2: Bug #50 — mutating tanks[0] in active CCR loop must NOT
+    // affect narcosis or END (the OC tank is not the breathing source).
+    // ----------------------------------------------------------
+    {
+        id: 'TC-CCR-NARC-2',
+        name: 'CCR #50 — tanks[0] mutations do not affect narcosis/END in active loop',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.diveMode = 'ccr';
+            api.initCCR();
+            api.ccrApplyDilPreset(0); // Air diluent
+            api.ccrState.targetSP = 1.3;
+            api.ccrState.actualPO2 = 1.3;
+            api.setDepth(70);
+
+            var endBefore = api.calculateEND();
+            var narcBefore = api.calculateNarcoticPP();
+
+            // Mutate tanks[0] to a fictional helium-rich mix — this used to
+            // reduce narcosis via the buggy getActiveTank() lookup.
+            api.tanks[0].fO2 = 0.10;
+            api.tanks[0].fHe = 0.90;
+            api.tanks[0].fN2 = 0.00;
+
+            var endAfter = api.calculateEND();
+            var narcAfter = api.calculateNarcoticPP();
+
+            assert(approx(endBefore, endAfter, 0.01),
+                'END must be unaffected by tanks[0] mutation in CCR loop (before=' +
+                endBefore.toFixed(2) + ', after=' + endAfter.toFixed(2) + ')');
+            assert(approx(narcBefore, narcAfter, 0.001),
+                'Narcotic PP must be unaffected by tanks[0] mutation in CCR loop (before=' +
+                narcBefore.toFixed(3) + ', after=' + narcAfter.toFixed(3) + ')');
+            return 'PASS — narcosis/END insensitive to tanks[0] in active CCR loop';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-CCR-NARC-3: Bug #50 — after bailout, narcosis/END must revert to
+    // the OC diluent gas (via activeGas()), not stay on the loop mix.
+    // ----------------------------------------------------------
+    {
+        id: 'TC-CCR-NARC-3',
+        name: 'CCR #50 — bailout narcosis/END uses diluent gas (not stale loop mix)',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.diveMode = 'ccr';
+            api.initCCR();
+            api.ccrApplyDilPreset(3); // Tmx 10/70 — helium-rich diluent
+            api.ccrState.targetSP = 1.3;
+            api.ccrState.actualPO2 = 1.3;
+            api.setDepth(70);
+
+            // Loop-mode END: at 70m/SP1.3, inspired fHe ≈ 70/8 × 0.70 = 0.61 of inert
+            var endLoop = api.calculateEND();
+
+            // Trigger bailout — diver now breathes diluent directly (fHe = 0.70)
+            api.ccrState.onBailout = true;
+
+            var endBailout = api.calculateEND();
+            var narcBailout = api.calculateNarcoticPP();
+
+            // The diluent is Tmx 10/70 → fHe=0.70. Bailout must use activeGas()
+            // (which returns diluent fractions in CCR-bailout), NOT the leftover
+            // tanks[0] (air, fHe=0) that would give a much higher narcosis reading.
+            var expectedNarc = (1 - 0.70) * (1 + 70 / 10); // = 0.30 × 8.0 = 2.4
+            var expectedEnd  = Math.max(0, (70 + 10) * (1 - 0.70) - 10); // = 80×0.3 − 10 = 14
+            assert(approx(narcBailout, expectedNarc, 0.05),
+                'Bailout narcotic PP must reflect diluent fHe=0.70 (~' + expectedNarc.toFixed(2) +
+                '), got ' + narcBailout.toFixed(2));
+            assert(approx(endBailout, expectedEnd, 0.5),
+                'Bailout END must reflect diluent fHe=0.70 (~' + expectedEnd.toFixed(1) +
+                'm), got ' + endBailout.toFixed(1) + 'm');
+            // Sanity: bailout END should be *lower* than loop END at the same depth,
+            // because pure diluent has more He than the loop mix (which was diluted
+            // by O2 titration up to SP).
+            assert(endBailout < endLoop,
+                'Bailout END (' + endBailout.toFixed(1) + ') should be < loop END (' +
+                endLoop.toFixed(1) + ') for helium-rich diluent');
+            return 'PASS — bailout narcosis/END correctly use diluent gas';
+        }
     }
 ];
 
