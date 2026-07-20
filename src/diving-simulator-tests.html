@@ -2819,6 +2819,93 @@ tests = [
         }
     },
     // ----------------------------------------------------------
+    // Issue #41 — Material texture tiles
+    // Offscreen-canvas patterns (grain, sand, limestone, steel, crust)
+    // generated once at first render, applied as a world-anchored overlay
+    // pass on top of the base gradient fills. These tests verify the
+    // registry surface — the visual result is covered by screenshots.
+    // ----------------------------------------------------------
+    {
+        id: 'TC-41-TILE-REGISTRY',
+        name: 'Issue #41 — buildMaterialTiles produces the 5 expected tiles at declared dimensions',
+        fn: function() {
+            var tiles = api.buildMaterialTiles();
+            var keys = ['grain', 'sand', 'limestone', 'steel', 'crust'];
+            for (var i = 0; i < keys.length; i++) {
+                assert(tiles[keys[i]], 'missing tile: ' + keys[i]);
+                assert(tiles[keys[i]].width  === api.MAT_TILE[keys[i]].w,
+                    keys[i] + ' width mismatch: got ' + tiles[keys[i]].width +
+                    ', expected ' + api.MAT_TILE[keys[i]].w);
+                assert(tiles[keys[i]].height === api.MAT_TILE[keys[i]].h,
+                    keys[i] + ' height mismatch: got ' + tiles[keys[i]].height +
+                    ', expected ' + api.MAT_TILE[keys[i]].h);
+            }
+            return 'PASS — 5 tiles present (grain 64x64, sand 128x64, limestone 128x128, steel 128x96, crust 96x96)';
+        }
+    },
+    {
+        id: 'TC-41-TILE-IDENTITY',
+        name: 'Issue #41 — buildMaterialTiles is idempotent (no per-call re-allocation)',
+        fn: function() {
+            var t1 = api.buildMaterialTiles();
+            var t2 = api.buildMaterialTiles();
+            assert(t1 === t2, 'top-level tile registry not memoized');
+            var keys = ['grain', 'sand', 'limestone', 'steel', 'crust'];
+            for (var i = 0; i < keys.length; i++) {
+                assert(t1[keys[i]] === t2[keys[i]],
+                    keys[i] + ' canvas re-allocated on repeat call');
+            }
+            // Also the exposed getter must return the same object.
+            assert(api.materialTiles === t1, 'materialTiles getter drifted from build result');
+            return 'PASS — repeat builds return the same canvas references';
+        }
+    },
+    {
+        id: 'TC-41-TILE-DETERMINISTIC',
+        name: 'Issue #41 — tile pixels are stable across repeated reads (getImageData)',
+        fn: function() {
+            var tiles = api.buildMaterialTiles();
+            var keys = ['grain', 'sand', 'limestone', 'steel', 'crust'];
+            var samples = 0;
+            for (var k = 0; k < keys.length; k++) {
+                var tile = tiles[keys[k]];
+                var g = tile.getContext('2d');
+                var w = tile.width, h = tile.height;
+                var pts = [[1,1], [w/2|0, h/2|0], [w-2, h-2], [w/4|0, h/3|0]];
+                for (var p = 0; p < pts.length; p++) {
+                    var a = g.getImageData(pts[p][0], pts[p][1], 1, 1).data;
+                    var b = g.getImageData(pts[p][0], pts[p][1], 1, 1).data;
+                    for (var c = 0; c < 4; c++) {
+                        assert(a[c] === b[c],
+                            keys[k] + ' pixel drift at (' + pts[p][0] + ',' + pts[p][1] +
+                            ') channel ' + c + ': ' + a[c] + ' vs ' + b[c]);
+                    }
+                    samples++;
+                }
+            }
+            return 'PASS — sampled ' + samples + ' pixel points across 5 tiles, all stable';
+        }
+    },
+    {
+        id: 'TC-41-TILE-API-SURFACE',
+        name: 'Issue #41 — gameAPI exposes buildMaterialTiles / materialTiles / MAT_TILE',
+        fn: function() {
+            assert(typeof api.buildMaterialTiles === 'function', 'buildMaterialTiles not exposed');
+            assert(api.MAT_TILE && typeof api.MAT_TILE === 'object', 'MAT_TILE not exposed');
+            var expectedKeys = ['grain', 'sand', 'limestone', 'steel', 'crust'];
+            for (var i = 0; i < expectedKeys.length; i++) {
+                var k = expectedKeys[i];
+                assert(api.MAT_TILE[k], 'MAT_TILE.' + k + ' missing');
+                assert(typeof api.MAT_TILE[k].w === 'number', 'MAT_TILE.' + k + '.w not a number');
+                assert(typeof api.MAT_TILE[k].h === 'number', 'MAT_TILE.' + k + '.h not a number');
+            }
+            // materialTiles is populated after buildMaterialTiles() has run.
+            api.buildMaterialTiles();
+            assert(api.materialTiles && api.materialTiles.grain, 'materialTiles empty after build');
+            return 'PASS — API surface intact';
+        }
+    },
+    // ----------------------------------------------------------
     // TC-CNS-PERSIST-1: Bug #10 — cnsPercent missing from save/restore.
     // After a browser reload + resume, the CNS O2-toxicity display used
     // to snap back to 0% even though the dive continued.

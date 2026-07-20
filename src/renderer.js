@@ -131,6 +131,223 @@ var _torchDark = 0;
 // Wreck metal-interior backdrop ramp — fades in only while inside the hull
 var _wreckMetal = 0;
 
+// ── Material texture tiles (issue #41) ─────────────────────────────
+// Offscreen-canvas patterns generated once at first-render, applied as a
+// semi-transparent overlay pass on top of each site's base gradient fills.
+// World-anchored so the texture stays glued to the world (does not swim
+// with the camera). Precedent for offscreen-canvas caching: _rockCache.
+//
+// SEARCH TERMS: buildMaterialTiles, _matTiles, fillWithMaterialPattern
+var MAT_TILE = {
+    grain:     { w: 64,  h: 64  },
+    sand:      { w: 128, h: 64  },
+    limestone: { w: 128, h: 128 },
+    steel:     { w: 128, h: 96  },
+    crust:     { w: 96,  h: 96  }
+};
+// Fixed seeds for sRand — deterministic tile generation (no Math.random()).
+var MAT_SEED = {
+    grain:     101.13,
+    sand:      207.71,
+    limestone: 313.29,
+    steel:     419.87,
+    crust:     521.43
+};
+// Reef mesa: use `crust` above this floor depth, `grain` below.
+var REEF_CRUST_MAX_DEPTH = 20;
+// Open-water threshold for applying the grain dither pass (banding is
+// most visible where the water gradient is near-black).
+var GRAIN_DITHER_MIN_DEPTH = 40;
+// Metres per pixel — matches drawScene/drawTerrain (0.05 m/px = 20 px/m).
+var MAT_MPP = 0.05;
+
+// Lazy registry — populated on first drawScene(); never re-allocated.
+var _matTiles = null;
+
+function buildMaterialTiles() {
+    if (_matTiles) return _matTiles;    // idempotent — never re-allocate
+    var tiles = {};
+    tiles.grain     = _buildGrainTile();
+    tiles.sand      = _buildSandTile(tiles.grain);
+    tiles.limestone = _buildLimestoneTile(tiles.grain);
+    tiles.steel     = _buildSteelTile();
+    tiles.crust     = _buildCrustTile();
+    _matTiles = tiles;
+    return _matTiles;
+}
+
+// Grain: monochrome ±alpha stipple. Doubles as the gradient-dither pass
+// for the dark cave / deep-water backgrounds (closes #34 point 1).
+function _buildGrainTile() {
+    var w = MAT_TILE.grain.w, h = MAT_TILE.grain.h;
+    var oc = document.createElement('canvas');
+    oc.width = w; oc.height = h;
+    var cx = oc.getContext('2d');
+    var pixels = 400;
+    for (var i = 0; i < pixels; i++) {
+        var s = MAT_SEED.grain + i * 3.17;
+        var gx = Math.floor(sRand(s)         * w);
+        var gy = Math.floor(sRand(s + 0.53)  * h);
+        cx.fillStyle = (i % 2 === 0)
+            ? 'rgba(255,255,255,0.04)'
+            : 'rgba(0,0,0,0.04)';
+        cx.fillRect(gx, gy, 1, 1);
+    }
+    return oc;
+}
+
+// Sand: grain base + a few shallow highlight arcs for fine grain.
+function _buildSandTile(grainCanvas) {
+    var w = MAT_TILE.sand.w, h = MAT_TILE.sand.h;
+    var oc = document.createElement('canvas');
+    oc.width = w; oc.height = h;
+    var cx = oc.getContext('2d');
+    // Tile the grain across the (wider) sand canvas so both dimensions
+    // are covered — grain is 64×64, sand is 128×64.
+    var gw = grainCanvas.width, gh = grainCanvas.height;
+    for (var gyOff = 0; gyOff < h; gyOff += gh) {
+        for (var gxOff = 0; gxOff < w; gxOff += gw) {
+            cx.drawImage(grainCanvas, gxOff, gyOff);
+        }
+    }
+    cx.strokeStyle = 'rgba(255,226,162,0.05)';
+    cx.lineWidth = 1;
+    var arcs = 9;
+    for (var a = 0; a < arcs; a++) {
+        var s = MAT_SEED.sand + a * 7.31;
+        var ax = sRand(s)         * w;
+        var ay = sRand(s + 1.13)  * h;
+        var rx = 15 + sRand(s + 2.27) * 25;
+        var ry = 2  + sRand(s + 3.41) * 4;
+        cx.beginPath();
+        cx.ellipse(ax, ay, rx, ry, 0, 0, Math.PI);
+        cx.stroke();
+    }
+    return oc;
+}
+
+// Limestone: grain base + calcite patches + dark pore dots.
+function _buildLimestoneTile(grainCanvas) {
+    var w = MAT_TILE.limestone.w, h = MAT_TILE.limestone.h;
+    var oc = document.createElement('canvas');
+    oc.width = w; oc.height = h;
+    var cx = oc.getContext('2d');
+    var gw = grainCanvas.width, gh = grainCanvas.height;
+    for (var gyOff = 0; gyOff < h; gyOff += gh) {
+        for (var gxOff = 0; gxOff < w; gxOff += gw) {
+            cx.drawImage(grainCanvas, gxOff, gyOff);
+        }
+    }
+    // Lighter calcite patches
+    cx.fillStyle = 'rgba(220,210,185,0.05)';
+    var patches = 20;
+    for (var pi = 0; pi < patches; pi++) {
+        var ps = MAT_SEED.limestone + pi * 5.19;
+        var px = sRand(ps)         * w;
+        var py = sRand(ps + 1.29)  * h;
+        var pr = 3 + sRand(ps + 2.71) * 5;
+        cx.beginPath(); cx.arc(px, py, pr, 0, Math.PI * 2); cx.fill();
+    }
+    // Dark pore dots
+    cx.fillStyle = 'rgba(10,8,6,0.08)';
+    var pores = 40;
+    for (var di = 0; di < pores; di++) {
+        var ds = MAT_SEED.limestone + 1000 + di * 3.71;
+        var dx = sRand(ds)         * w;
+        var dy = sRand(ds + 0.83)  * h;
+        var dr = 1 + sRand(ds + 1.57);
+        cx.beginPath(); cx.arc(dx, dy, dr, 0, Math.PI * 2); cx.fill();
+    }
+    return oc;
+}
+
+// Steel: 2×2 plate grid with edge seams + rivets + a few rust streaks.
+function _buildSteelTile() {
+    var w = MAT_TILE.steel.w, h = MAT_TILE.steel.h;
+    var oc = document.createElement('canvas');
+    oc.width = w; oc.height = h;
+    var cx = oc.getContext('2d');
+    // 2×2 plate seams — one internal, one on the far edge (so the tile
+    // reads seamlessly across the repeat).
+    cx.strokeStyle = 'rgba(0,0,0,0.18)';
+    cx.lineWidth = 1;
+    var seamX1 = w / 2;
+    var seamY1 = h / 2;
+    cx.beginPath(); cx.moveTo(seamX1, 0); cx.lineTo(seamX1, h); cx.stroke();
+    cx.beginPath(); cx.moveTo(w - 0.5, 0); cx.lineTo(w - 0.5, h); cx.stroke();
+    cx.beginPath(); cx.moveTo(0, seamY1); cx.lineTo(w, seamY1); cx.stroke();
+    cx.beginPath(); cx.moveTo(0, h - 0.5); cx.lineTo(w, h - 0.5); cx.stroke();
+    // Rivets along each seam
+    cx.fillStyle = 'rgba(255,255,255,0.08)';
+    var rivetSpacing = 10;
+    for (var rx = rivetSpacing / 2; rx < w; rx += rivetSpacing) {
+        cx.beginPath(); cx.arc(rx, seamY1, 1.2, 0, Math.PI * 2); cx.fill();
+        cx.beginPath(); cx.arc(rx, h - 0.5, 1.2, 0, Math.PI * 2); cx.fill();
+    }
+    for (var ry = rivetSpacing / 2; ry < h; ry += rivetSpacing) {
+        cx.beginPath(); cx.arc(seamX1, ry, 1.2, 0, Math.PI * 2); cx.fill();
+        cx.beginPath(); cx.arc(w - 0.5, ry, 1.2, 0, Math.PI * 2); cx.fill();
+    }
+    // 2–3 vertical rust streaks
+    cx.fillStyle = 'rgba(150,60,20,0.06)';
+    var streaks = 3;
+    for (var st = 0; st < streaks; st++) {
+        var ss = MAT_SEED.steel + st * 11.7;
+        var sx = Math.floor(sRand(ss) * (w - 3));
+        cx.fillRect(sx, 0, 3, h);
+    }
+    return oc;
+}
+
+// Crust: dense coral blobs in 3 muted tones (reef growth).
+function _buildCrustTile() {
+    var w = MAT_TILE.crust.w, h = MAT_TILE.crust.h;
+    var oc = document.createElement('canvas');
+    oc.width = w; oc.height = h;
+    var cx = oc.getContext('2d');
+    var tones = ['192,90,58', '138,74,106', '176,138,74'];  // #c05a3a, #8a4a6a, #b08a4a
+    var blobs = 60;
+    for (var bi = 0; bi < blobs; bi++) {
+        var bs = MAT_SEED.crust + bi * 4.79;
+        var bx = sRand(bs)         * w;
+        var by = sRand(bs + 1.19)  * h;
+        var br = 2 + sRand(bs + 2.31) * 3;
+        var toneIdx = bi % tones.length;
+        var alpha = 0.05 + sRand(bs + 3.13) * 0.04;
+        cx.fillStyle = 'rgba(' + tones[toneIdx] + ',' + alpha.toFixed(3) + ')';
+        cx.beginPath(); cx.arc(bx, by, br, 0, Math.PI * 2); cx.fill();
+    }
+    return oc;
+}
+
+// Fill the current context with a repeating tile pattern, world-anchored so
+// the tile stays glued to the world rather than swimming with the camera.
+// The caller is responsible for any clipping.
+//   tile        — a canvas from _matTiles.*
+//   ox, oy      — anchor coordinate (world metres OR screen pixels)
+//   useScreen   — true if ox/oy are already screen px (used by wreck struct
+//                 callers that already have sx1/sy1 handy). Otherwise ox/oy
+//                 are world metres (converted via MAT_MPP).
+function fillWithMaterialPattern(cx, tile, ox, oy, useScreen) {
+    var tw = tile.width, th = tile.height;
+    var W = cssWidth, H = cssHeight;
+    var p = cx.createPattern(tile, 'repeat');
+    if (!p) return;
+    var offX, offY;
+    if (useScreen) {
+        offX = -(((ox % tw) + tw) % tw);
+        offY = -(((oy % th) + th) % th);
+    } else {
+        offX = -((((ox / MAT_MPP) % tw) + tw) % tw);
+        offY = -((((oy / MAT_MPP) % th) + th) % th);
+    }
+    cx.save();
+    cx.translate(offX, offY);
+    cx.fillStyle = p;
+    cx.fillRect(-tw, -th, W + 2 * tw, H + 2 * th);
+    cx.restore();
+}
+
 // SECTION: Underwater scene
 // SEARCH TERMS: drawScene, drawDiver, narcosis, waveTime, background gradient
 
@@ -142,6 +359,9 @@ function drawScene() {
     var W = cssWidth;
     var H = cssHeight;
     var cx = ctx;
+
+    // Issue #41: lazily build material texture tiles on first render.
+    if (!_matTiles) buildMaterialTiles();
 
     // WP-020: Narcosis visual effects — filters
     var narcFilter = '';
@@ -184,6 +404,14 @@ function drawScene() {
     grad.addColorStop(1, _wc(botD));
     cx.fillStyle = grad;
     cx.fillRect(0, 0, W, H);
+
+    // Issue #41: grain dither over dark background gradients (also closes
+    // #34 point 1 — banding). Cave gets it unconditionally (whole ramp is
+    // dark). Open water gets it when the diver is deep enough that banding
+    // in the near-black stops becomes visible.
+    if (_isCave || depth > GRAIN_DITHER_MIN_DEPTH) {
+        fillWithMaterialPattern(cx, _matTiles.grain, diverX, depth, false);
+    }
 
     // Wreck visibility: ease an "inside-ness" factor (0 outside → 1 inside the
     // hull). Drives the hull-skin visibility bubble + the hatch light beam. The
@@ -861,6 +1089,25 @@ function drawTerrain() {
     cx.closePath();
     cx.fill();
 
+    // Issue #41: material texture overlay on the floor polygon (shore sand,
+    // cave limestone). Reef gets its `crust`/`grain` inside its own clip
+    // block below (it needs the mesa-only clip anyway for its stipple pass).
+    if (s.id === 'shore' || caveSite) {
+        cx.save();
+        cx.beginPath();
+        for (var fpi2 = 0; fpi2 < floorPts.length; fpi2++) {
+            if (fpi2 === 0) cx.moveTo(floorPts[fpi2][0], floorPts[fpi2][1]);
+            else cx.lineTo(floorPts[fpi2][0], floorPts[fpi2][1]);
+        }
+        cx.lineTo(floorRight, H + 10);
+        cx.lineTo(floorLeft, H + 10);
+        cx.closePath();
+        cx.clip();
+        var floorTile = (s.id === 'shore') ? _matTiles.sand : _matTiles.limestone;
+        fillWithMaterialPattern(cx, floorTile, diverX, depth, false);
+        cx.restore();
+    }
+
     // Reef: warm rim along the lit crest + clipped rock texture so the mesa
     // reads as solid coral rock, not a flat silhouette.
     if (reefMesa) {
@@ -884,6 +1131,14 @@ function drawTerrain() {
         cx.lineTo(floorLeft, H + 10);
         cx.closePath();
         cx.clip();
+        // Issue #41: coral crust texture over the sunlit crest, plain grain
+        // deeper where crust growth thins out. Uses the floor depth AT the
+        // diver's world-x so the threshold tracks the terrain profile rather
+        // than the diver's viewing depth (which would toggle with vertical
+        // motion).
+        var reefFloorHere = floorAt(diverX);
+        var reefTile = (reefFloorHere < REEF_CRUST_MAX_DEPTH) ? _matTiles.crust : _matTiles.grain;
+        fillWithMaterialPattern(cx, reefTile, diverX, depth, false);
         // shading lumps — iterate an ABSOLUTE integer grid index so each cell's
         // seed is identical every frame (no float drift from a camera-relative
         // start → no flicker while scrolling).
@@ -960,6 +1215,11 @@ function drawTerrain() {
             cx.save();
             cx.clip();
             if (caveSite) {
+                // Issue #41: limestone material texture on the cave ceiling
+                // rock body — placed before the earth band + strata + speckle
+                // so those sharper features still read on top of the base
+                // texture.
+                fillWithMaterialPattern(cx, _matTiles.limestone, diverX, depth, false);
                 // Earth band along the karst rim — a thin dark soil layer
                 // hanging just under the surface (depth 0–1.5 m).
                 var earthTopY = ceilSurfY;
@@ -1837,6 +2097,11 @@ function drawWreckBackdrop(cx, W, H, dsx, dsy, mpp) {
     cx.fillStyle = g;
     cx.fillRect(0, 0, W, H);
 
+    // Issue #41: steel plate texture over the whole backdrop, world-anchored.
+    // The caller (drawWreckSteelBack / drawWreckHullSkin) has already clipped
+    // to the ship silhouette, so this lands only inside the hull outline.
+    if (_matTiles) fillWithMaterialPattern(cx, _matTiles.steel, diverX, depth, false);
+
     // ── Depth-layered hull livery ──────────────────────────────────────────
     // The wreck's hull reads as distinct bands split at the old waterline /
     // main-deck line ("bowline", ≈28 m): cooler bare topside steel ABOVE it,
@@ -2264,6 +2529,10 @@ function drawBedrockStruct(cx, wx1, wx2, wdTop, wdBottom) {
     // texture clipped to the organic mass (strata + speckle, world-anchored)
     cx.save();
     cx.clip();
+    // Issue #41: limestone material texture inside the bedrock mass.
+    // Anchored to the same (diverX, depth) origin as the cave floor/ceiling
+    // so the tile is continuous across the shared seam.
+    fillWithMaterialPattern(cx, _matTiles.limestone, diverX, depth, false);
     cx.strokeStyle = 'rgba(14,10,6,0.30)'; cx.lineWidth = 1.4;
     for (var wd = Math.ceil(wdTop / 4.5) * 4.5; wd < wdBottom; wd += 4.5) {
         var yy = SY(wd);
@@ -2431,6 +2700,15 @@ function drawHullStruct(cx, sx1, sy1, sw, sh, seed) {
     g.addColorStop(0, '#687888'); g.addColorStop(0.5, '#556677'); g.addColorStop(1, '#2e3c48');
     cx.fillStyle = g;
     cx.fillRect(sx1, sy1, sw, sh);
+    // Issue #41: steel plate texture. sx1/sy1 already track the world position
+    // via the caller in drawStructures(), so anchoring in screen space keeps
+    // the pattern glued to the structure as the camera scrolls.
+    if (_matTiles) {
+        cx.save();
+        cx.beginPath(); cx.rect(sx1, sy1, sw, sh); cx.clip();
+        fillWithMaterialPattern(cx, _matTiles.steel, sx1, sy1, true);
+        cx.restore();
+    }
     cx.fillStyle = 'rgba(140,70,20,0.18)';
     var rp = Math.max(2, Math.floor(sw / 30));
     for (var r = 0; r < rp; r++) {
@@ -2467,6 +2745,13 @@ function drawDeckStruct(cx, sx1, sy1, sw, sh, seed) {
     var g = cx.createLinearGradient(sx1, sy1, sx1, sy1 + sh);
     g.addColorStop(0, '#506070'); g.addColorStop(1, '#2a3845');
     cx.fillStyle = g; cx.fillRect(sx1, sy1, sw, sh);
+    // Issue #41: steel plate texture (anchored in screen px — see drawHullStruct).
+    if (_matTiles) {
+        cx.save();
+        cx.beginPath(); cx.rect(sx1, sy1, sw, sh); cx.clip();
+        fillWithMaterialPattern(cx, _matTiles.steel, sx1, sy1, true);
+        cx.restore();
+    }
     cx.strokeStyle = 'rgba(0,0,0,0.3)'; cx.lineWidth = 1;
     var ps = Math.max(6, Math.floor(sh / 4));
     for (var py = sy1 + ps; py < sy1 + sh; py += ps) {
@@ -2486,6 +2771,13 @@ function drawBulkheadStruct(cx, sx1, sy1, sw, sh, seed) {
     var g = cx.createLinearGradient(sx1, sy1, sx1, sy1 + sh);
     g.addColorStop(0, '#5a6878'); g.addColorStop(1, '#2e3c4e');
     cx.fillStyle = g; cx.fillRect(sx1, sy1, sw, sh);
+    // Issue #41: steel plate texture (anchored in screen px — see drawHullStruct).
+    if (_matTiles) {
+        cx.save();
+        cx.beginPath(); cx.rect(sx1, sy1, sw, sh); cx.clip();
+        fillWithMaterialPattern(cx, _matTiles.steel, sx1, sy1, true);
+        cx.restore();
+    }
     var inset = Math.min(6, sw * 0.08, sh * 0.12);
     cx.strokeStyle = 'rgba(255,255,255,0.12)'; cx.lineWidth = 1.5;
     cx.strokeRect(sx1 + inset, sy1 + inset, sw - inset * 2, sh - inset * 2);

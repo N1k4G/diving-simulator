@@ -956,5 +956,9 @@ window.gameAPI = {
     // Issue #52: Visual Surface Layer test hooks (renderer-only, decorative)
     visualSurfaceNoise: visualSurfaceNoise,
     visualProfileDepth: visualProfileDepth,
-    get VISUAL_SURFACE_CONFIG() { return VISUAL_SURFACE_CONFIG; }
+    get VISUAL_SURFACE_CONFIG() { return VISUAL_SURFACE_CONFIG; },
+    // Issue #41: Material texture tile registry (renderer-only, decorative)
+    buildMaterialTiles: buildMaterialTiles,
+    get materialTiles() { return _matTiles; },
+    get MAT_TILE() { return MAT_TILE; }
 };

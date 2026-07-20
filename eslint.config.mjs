@@ -173,6 +173,9 @@ const gameGlobals = {
   // Issue #52: Visual Surface Layer helpers (renderer.js)
   VISUAL_SURFACE_CONFIG: "readonly",
   visualSurfaceNoise: "readonly", visualProfileDepth: "readonly",
+  // Issue #41: Material texture tiles (renderer.js)
+  MAT_TILE: "readonly", buildMaterialTiles: "readonly",
+  _matTiles: "writable",
   // Phase C renderer helpers
   drawTerrain: "readonly", drawStructures: "readonly",
   drawFeatures: "readonly", drawSeagrass: "readonly",
