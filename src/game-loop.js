@@ -36,7 +36,7 @@ var _torchKeyPrev = false;
 // ============================================================
 function updateSurface(dtReal) {
     waveTime += dtReal;
-    if (keys['s']) {
+    if (keys['s'] || keys['arrowdown']) {
         bcdGasSurfaceLiters = 2.0;
         verticalVelocity = 0;
         if (diveMode === 'ccr') { ccrState.actualPO2 = ccrState.targetSP < ambientPressure(0) ? ccrState.targetSP : 0.21; }
