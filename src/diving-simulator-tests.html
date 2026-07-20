@@ -2632,6 +2632,34 @@ tests = [
                 actualDrop.toFixed(2) + ' bar drop');
             return 'PASS — 0->30m descent consumed ' + actualDrop.toFixed(2) + ' bar of diluent (expected 6.00)';
         }
+    },
+    // ----------------------------------------------------------
+    // TC-CNS-PERSIST-1: Bug #10 — cnsPercent missing from save/restore.
+    // After a browser reload + resume, the CNS O2-toxicity display used
+    // to snap back to 0% even though the dive continued.
+    // ----------------------------------------------------------
+    {
+        id: 'TC-CNS-PERSIST-1',
+        name: 'Bug #10 — cnsPercent survives saveDiveState/restoreDiveState',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            api.gameState = 'diving';
+
+            var win = document.getElementById('gameFrame').contentWindow;
+            api.cnsPercent = 37.5;
+            win.saveDiveState();
+
+            api.resetDive();
+            assert(api.cnsPercent === 0, 'resetDive should zero cnsPercent, got ' + api.cnsPercent);
+
+            var saved = win.loadSavedDive();
+            assert(saved !== null, 'loadSavedDive should find a saved state');
+            win.restoreDiveState(saved);
+
+            assert(Math.abs(api.cnsPercent - 37.5) < 0.01, 'cnsPercent should restore to 37.5, got ' + api.cnsPercent);
+            return 'PASS — cnsPercent=' + api.cnsPercent.toFixed(1) + ' survived save/restore';
+        }
     }
 ];
 

@@ -652,6 +652,10 @@ function saveDiveState() {
         safetyStopCountdownStarted: safetyStopCountdownStarted,
         safetyStopPaused: safetyStopPaused,
         ndlDroppedBelow5: ndlDroppedBelow5,
+        cnsPercent: cnsPercent,
+        breathPhase: breathPhase,
+        breathTimer: breathTimer,
+        exhaleEmitted: exhaleEmitted,
         narcosisIndex: narcosisIndex,
         narcosisKOTime: narcosisKOTime,
         narcDrift: narcDrift,
@@ -718,6 +722,13 @@ function restoreDiveState(state) {
     safetyStopCountdownStarted = state.safetyStopCountdownStarted;
     safetyStopPaused = state.safetyStopPaused;
     ndlDroppedBelow5 = state.ndlDroppedBelow5;
+    // BUG-10: cnsPercent was missing from save/restore -- CNS O2 toxicity
+    // display reset to 0% on resume even though the dive continued.
+    // || 0 fallback for saves written before this field existed.
+    cnsPercent = state.cnsPercent || 0;
+    breathPhase = state.breathPhase || 'inhale';
+    breathTimer = state.breathTimer != null ? state.breathTimer : BREATH_CYCLE_INHALE;
+    exhaleEmitted = !!state.exhaleEmitted;
     narcosisIndex = state.narcosisIndex;
     narcosisKOTime = state.narcosisKOTime;
     narcDrift = state.narcDrift;
@@ -828,6 +839,8 @@ window.gameAPI = {
     set tankCount(v) { tankCount = v; },
     get po2ViolationTime() { return po2ViolationTime; },
     get dcsViolationTime() { return dcsViolationTime; },
+    get cnsPercent() { return cnsPercent; },
+    set cnsPercent(v) { cnsPercent = v; },
     get barotraumaTime() { return barotraumaTime; },
     get hypoxiaTime() { return hypoxiaTime; },
     get safetyStopNeeded() { return safetyStopNeeded; },
