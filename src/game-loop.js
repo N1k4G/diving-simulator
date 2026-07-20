@@ -871,6 +871,7 @@ window.gameAPI = {
     calculateEND: calculateEND,
     getCCRInspiredGas: getCCRInspiredGas,
     updateCCRLoop: updateCCRLoop,
+    updateCCRDiluent: updateCCRDiluent,
     recommendBestGas: recommendBestGas,
     ambientPressure: ambientPressure,
     setDepth: function(d) { depth = d; },

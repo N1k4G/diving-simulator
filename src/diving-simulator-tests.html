@@ -2599,6 +2599,39 @@ tests = [
             return 'PASS — CCR post-dive gas usage: O2 used=' + o2Used.toFixed(0) +
                 'L, diluent used=' + dilUsed.toFixed(0) + 'L (computed from cylinders, not the OC tank)';
         }
+    },
+    // ----------------------------------------------------------
+    // TC-CCR-DIL-1: Bug #8 — updateCCRDiluent() overestimated consumption
+    // by a factor of p2/p1. Descent 0->30m must consume exactly
+    // loopVolume * 3 surface liters of diluent, not loopVolume * 3 * 4
+    // (the old formula's p2/p1 = 4.0/1.0 = 4x factor at this depth).
+    // ----------------------------------------------------------
+    {
+        id: 'TC-CCR-DIL-1',
+        name: 'CCR #8 — descent 0->30m consumes loopVolume*3 surface liters of diluent',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.diveMode = 'ccr';
+            api.initCCR();
+            api.ccrState.dilCylPressure = 200;
+            api.ccrState.dilCylVolume = 3;
+            api.ccrState.loopVolume = 6.0;
+
+            var pressureBefore = api.ccrState.dilCylPressure;
+            api.updateCCRDiluent(0, 30);
+            var pressureAfter = api.ccrState.dilCylPressure;
+
+            // Expected: loopVolume * (p2-p1) = 6.0 * (4.0-1.0) = 18 surface
+            // liters -> 18 / dilCylVolume(3) = 6 bar drop. The old buggy
+            // formula would have produced loopVolume*(p2-p1)*p2/p1 =
+            // 18*4.0 = 72L -> 24 bar drop, 4x too much at this depth.
+            var expectedDrop = 6.0;
+            var actualDrop = pressureBefore - pressureAfter;
+            assert(approx(actualDrop, expectedDrop, 0.1),
+                'Descent 0->30m should consume loopVolume*3=18L diluent (6 bar drop at 3L cylinder), got ' +
+                actualDrop.toFixed(2) + ' bar drop');
+            return 'PASS — 0->30m descent consumed ' + actualDrop.toFixed(2) + ' bar of diluent (expected 6.00)';
+        }
     }
 ];
 

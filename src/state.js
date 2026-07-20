@@ -376,9 +376,15 @@ function updateCCRDiluent(prevD, newD) {
   if (newD <= prevD) return; // only on descent
   var p1 = ambientPressure(prevD);
   var p2 = ambientPressure(newD);
-  // Loop volume compresses on descent, needs diluent to maintain volume
-  var dilNeeded = ccrState.loopVolume * (p2 / p1 - 1); // ambient liters needed
-  var dilSurfEquiv = dilNeeded * p2; // convert to surface equivalent
+  // BUG-8: to hold a constant loop volume of loopVolume ambient liters as
+  // pressure rises from p1 to p2, the required top-off is
+  // loopVolume * (p2 - p1) surface liters (Boyle's law: the ambient-liter
+  // deficit loopVolume*(p2/p1-1) at p2, converted to surface-equivalent by
+  // multiplying by p2, reduces to loopVolume*(p2-p1) once you cancel the
+  // p2 factor — NOT loopVolume*(p2-p1)*p2/p1 as the old two-step calc
+  // computed). The previous formula overestimated consumption by a
+  // factor of p2/p1 (e.g. +50% for a 10m -> 20m descent).
+  var dilSurfEquiv = ccrState.loopVolume * (p2 - p1);
   var dilAvailable = ccrState.dilCylPressure * ccrState.dilCylVolume;
   if (dilSurfEquiv > dilAvailable) dilSurfEquiv = dilAvailable;
   ccrState.dilCylPressure -= dilSurfEquiv / ccrState.dilCylVolume;
