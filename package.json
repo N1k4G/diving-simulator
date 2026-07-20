@@ -5,7 +5,7 @@
   "description": "A 2D HTML5 Canvas diving simulator implementing the Buhlmann ZHL-16C decompression algorithm with multi-gas, CCR, and a technical wrist dive computer-style HUD.",
   "license": "MIT",
   "scripts": {
-    "lint": "eslint src/*.js",
+    "lint": "eslint src/*.js --max-warnings=0",
     "test": "playwright test",
     "screenshots": "node scripts/screenshots.mjs",
     "prepare": "husky"

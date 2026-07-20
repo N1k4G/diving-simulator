@@ -289,7 +289,7 @@ function calculateNDL() {
         totalMin += stepMin;
 
         var exceeded = false;
-        for (var i = 0; i < 16; i++) {
+        for (i = 0; i < 16; i++) {
             var ab = combinedABSim(simN2, simHe, i);
             var m0 = ab.a + 1.0 / ab.b;
             var mAllowed = gfH * (m0 - 1.0) + 1.0;
