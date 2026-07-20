@@ -128,6 +128,9 @@ const gameGlobals = {
   VISUAL_ZONE_DEFAULT_PRIORITY: "readonly", VISUAL_ZONE_DEFAULT_BLEND: "readonly",
   debugVisualZones: "writable",
   drawVisualZoneDebug: "readonly", VISUAL_ZONE_DEBUG: "readonly",
+  // Issue #54: Local atmosphere profiles + sampler (sites.js)
+  sampleLocalAtmosphere: "readonly",
+  LOCAL_ATMO_DEFAULT: "readonly", LOCAL_ATMO_CLAMP: "readonly",
 
   // Physics functions (physics.js)
   ambientPressure: "readonly", updateTissues: "readonly",

@@ -429,6 +429,11 @@ function drawScene() {
     var topD = Math.max(0, depthAtTop);
     var botD = Math.min(MAX_DEPTH + 10, depthAtBottom);
     var _site = activeSite();
+    // Issue #54: sample the local atmosphere ONCE per frame at the diver's
+    // position. All downstream passes (tint/fog overlay, particle
+    // modulation, debug overlay) read from this single sample so we never
+    // re-run visualZoneAt / zoneBlendWeight per particle or per feature.
+    var _localAtmo = sampleLocalAtmosphere(_site, diverX, depth);
     var _isCave = _site && _site.id === 'cave';
     var _wc = _isCave ? caveWaterColor : waterColor;
     grad.addColorStop(0, _wc(topD));
@@ -627,14 +632,17 @@ function drawScene() {
         var py = diverScreenY + (p.depth - depth) / metersPerPixel;
         if (py < -10 || py > H + 10) continue;
         var px = ((p.x % W) + W) % W;
-        var densityAlpha = Math.min(1, p.depth / 50) * p.alpha;
+        var densityAlpha = Math.min(1, p.depth / 50) * p.alpha
+                         * Math.min(1, _localAtmo.particleDensity)
+                         * _localAtmo.particleBrightness;
         cx.fillStyle = 'rgba(200,220,180,' + densityAlpha + ')';
         cx.beginPath();
         cx.arc(px, py, p.size, 0, Math.PI * 2);
         cx.fill();
         // Reef particulate: brighter white dots
         if (_site && _site.id === 'reef') {
-            cx.fillStyle = 'rgba(255,255,255,0.3)';
+            var _reefDotAlpha = 0.3 * Math.min(1, _localAtmo.particleDensity) * _localAtmo.particleBrightness;
+            cx.fillStyle = 'rgba(255,255,255,' + _reefDotAlpha.toFixed(3) + ')';
             cx.beginPath();
             cx.arc(px, py + 3, p.size * 0.6, 0, Math.PI * 2);
             cx.fill();
@@ -748,6 +756,13 @@ function drawScene() {
     // Light shafts punch down through the gloom to mark navigable passages.
     drawLightShafts();
 
+    // Issue #54: local water volumes — tint + distance fog composite
+    // pass. Sits AFTER all world entities, silt, and torch so it reads
+    // as an atmospheric layer over the scene, and BEFORE the diver so
+    // the diver stays crisp. HUD is on a separate DOM layer, so it's
+    // physically unable to be touched by this pass.
+    drawLocalAtmospherePass(_localAtmo, W, H, W * 0.25, diverScreenY, metersPerPixel);
+
     // Diver (Phase B: tilt toward current direction proportional to current.level)
     var diverTilt = 0;
     if (current.active && current.level > 0) {
@@ -809,6 +824,81 @@ function drawScene() {
     if (debugVisualZones) drawVisualZoneDebug();
 }
 
+// Issue #54: local atmosphere composite pass. One pass, one canvas
+// save/restore, two visual layers:
+//   1. Subtle tint multiply over the underwater region only (never
+//      touches sky/surface, never touches HUD — HUD is a separate DOM
+//      layer above canvas anyway; this is defence in depth). Kept
+//      deliberately weak — the eventual #36 global depth absorption
+//      should remain the dominant depth-darkening logic.
+//   2. Radial "distance fog" gradient centered on the diver. Center
+//      near-transparent; edge alpha derived from (1 - visibility).
+//      NOT the same as the silt-out mechanic — silt is a separate
+//      pass and layers on top additively.
+// Called from drawScene() AFTER all world entities + silt/torch +
+// light shafts, BEFORE the diver and foreground layer, so the diver
+// stays crisp and the atmospheric character reads over the scene.
+const LOCAL_ATMO_TINT_MAX_ALPHA  = 0.22;   // hard ceiling on tint pass alpha
+const LOCAL_ATMO_TINT_STRENGTH   = 0.55;   // scales the deviation from neutral
+const LOCAL_ATMO_FOG_CENTER_FRAC = 0.18;   // radial gradient inner radius (fraction of min(W,H))
+const LOCAL_ATMO_FOG_EDGE_FRAC   = 0.75;   // outer radius (fraction of max(W,H))
+const LOCAL_ATMO_FOG_MAX_ALPHA   = 0.55;   // cap on fog edge alpha
+
+function drawLocalAtmospherePass(atmo, W, H, diverScreenX, diverScreenY, metersPerPixel) {
+    if (!atmo) return;
+    var cx = ctx;
+    // Underwater region — everything at or below the surface line.
+    var surfaceScreenY = diverScreenY - (depth / metersPerPixel);
+    var waterTop = Math.max(0, surfaceScreenY);
+    if (waterTop >= H) return; // fully above water — nothing to tint
+    cx.save();
+
+    // ---- 1. Tint pass ----
+    // Convert tint multipliers (~0.8..1.2) into an RGB color to paint at
+    // low alpha with 'multiply' composite. Deviation from 1.0 is scaled
+    // by LOCAL_ATMO_TINT_STRENGTH to keep the effect subtle.
+    var dR = 1 + (atmo.tintR - 1) * LOCAL_ATMO_TINT_STRENGTH;
+    var dG = 1 + (atmo.tintG - 1) * LOCAL_ATMO_TINT_STRENGTH;
+    var dB = 1 + (atmo.tintB - 1) * LOCAL_ATMO_TINT_STRENGTH;
+    // Also fold ambient brightness in as a uniform multiplier.
+    var amb = 1 + (atmo.ambient - 1) * LOCAL_ATMO_TINT_STRENGTH;
+    dR *= amb; dG *= amb; dB *= amb;
+    // Total deviation magnitude drives the alpha of the multiply pass;
+    // a perfectly neutral profile (1,1,1,1) draws nothing.
+    var deviation = Math.abs(dR - 1) + Math.abs(dG - 1) + Math.abs(dB - 1);
+    if (deviation > 0.001) {
+        var tintAlpha = Math.min(LOCAL_ATMO_TINT_MAX_ALPHA, deviation * 0.5);
+        // Compute the RGB color we're multiplying into the framebuffer.
+        // We render as a normal alpha blend of the target color — this is
+        // cheaper than 'multiply' composite and reads the same on the
+        // predominantly cool underwater palette.
+        var r = Math.round(255 * Math.max(0, Math.min(1, dR)));
+        var g = Math.round(255 * Math.max(0, Math.min(1, dG)));
+        var b = Math.round(255 * Math.max(0, Math.min(1, dB)));
+        cx.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + tintAlpha.toFixed(3) + ')';
+        cx.fillRect(0, waterTop, W, H - waterTop);
+    }
+
+    // ---- 2. Radial distance fog ----
+    // visibility == 1 → skip entirely.
+    if (atmo.visibility < 0.999) {
+        var fogAlpha = Math.min(LOCAL_ATMO_FOG_MAX_ALPHA, (1 - atmo.visibility) * 0.9);
+        var innerR = Math.min(W, H) * LOCAL_ATMO_FOG_CENTER_FRAC;
+        var outerR = Math.max(W, H) * LOCAL_ATMO_FOG_EDGE_FRAC;
+        // Fog edge color leans on the local tint so a warmer/rustier
+        // atmosphere fogs to a warmer edge than a cooler cave atmosphere.
+        var fR = Math.round(255 * Math.max(0, Math.min(1, atmo.tintR * atmo.ambient * 0.35)));
+        var fG = Math.round(255 * Math.max(0, Math.min(1, atmo.tintG * atmo.ambient * 0.35)));
+        var fB = Math.round(255 * Math.max(0, Math.min(1, atmo.tintB * atmo.ambient * 0.4)));
+        var fg = cx.createRadialGradient(diverScreenX, diverScreenY, innerR, diverScreenX, diverScreenY, outerR);
+        fg.addColorStop(0, 'rgba(' + fR + ',' + fG + ',' + fB + ',0)');
+        fg.addColorStop(1, 'rgba(' + fR + ',' + fG + ',' + fB + ',' + fogAlpha.toFixed(3) + ')');
+        cx.fillStyle = fg;
+        cx.fillRect(0, waterTop, W, H - waterTop);
+    }
+    cx.restore();
+}
+
 // Issue #53: debug visualization for the visualZones lookup. Purely
 // diagnostic — never called in normal gameplay. Uses only sites.js data
 // via visualZoneAt(); this function does not itself decide which zone
@@ -868,16 +958,26 @@ function drawVisualZoneDebug() {
         cx.fillText(z.id, lx, ly);
     }
     cx.globalAlpha = 1;
-    // HUD text — current zone id, in the top-left corner.
+    // HUD text — current zone id + Issue #54 sampled atmosphere values.
     var here = visualZoneAt(diverX, depth, s);
-    var label = 'ZONE: ' + (here ? here.id : '(none)');
+    var atmo = sampleLocalAtmosphere(s, diverX, depth);
+    var label1 = 'ZONE: ' + (here ? here.id : '(none)');
+    // Issue #54: sampled atmosphere values, one decimal each so the
+    // overlay is short but still verifiable at a glance.
+    var label2 = 'ATMO vis=' + atmo.visibility.toFixed(2)
+        + ' tint=' + atmo.tintR.toFixed(2) + '/' + atmo.tintG.toFixed(2) + '/' + atmo.tintB.toFixed(2)
+        + ' pd=' + atmo.particleDensity.toFixed(2)
+        + ' pb=' + atmo.particleBrightness.toFixed(2)
+        + ' amb=' + atmo.ambient.toFixed(2);
     cx.font = cfg.hudFont;
     var pad = 6;
-    var textW = cx.measureText(label).width;
+    var lineH = 16;
+    var textW = Math.max(cx.measureText(label1).width, cx.measureText(label2).width);
     cx.fillStyle = cfg.hudBg;
-    cx.fillRect(8, 8, textW + pad * 2, 20);
+    cx.fillRect(8, 8, textW + pad * 2, 4 + lineH * 2);
     cx.fillStyle = cfg.hudFill;
-    cx.fillText(label, 8 + pad, 8 + pad - 2);
+    cx.fillText(label1, 8 + pad, 8 + pad - 2);
+    cx.fillText(label2, 8 + pad, 8 + pad - 2 + lineH);
     cx.restore();
 }
 

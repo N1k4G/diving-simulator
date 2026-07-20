@@ -3382,6 +3382,247 @@ tests = [
             assert(Math.abs(api.cnsPercent - 37.5) < 0.01, 'cnsPercent should restore to 37.5, got ' + api.cnsPercent);
             return 'PASS — cnsPercent=' + api.cnsPercent.toFixed(1) + ' survived save/restore';
         }
+    },
+    // ----------------------------------------------------------
+    // Issue #54 — Local water volumes (atmosphere profiles + sampler)
+    // These tests cover:
+    //   • API surface (sampleLocalAtmosphere / LOCAL_ATMO_DEFAULT /
+    //     LOCAL_ATMO_CLAMP exist and have expected shapes)
+    //   • all-defaults when outside any zone / no profiles / unknown
+    //     zone id / partial profile with only some fields set
+    //   • out-of-range profile values clamped to LOCAL_ATMO_CLAMP bounds
+    //   • determinism: same input → identical output
+    //   • blend continuity: no discontinuous jump crossing a blend margin
+    //   • production site spot-checks (shore_entry visibility, reef
+    //     reef_deep_wall blue shift + ambient drop)
+    // ----------------------------------------------------------
+    {
+        id: 'TC-54-API-SURFACE',
+        name: 'Issue #54 — gameAPI exposes sampleLocalAtmosphere / LOCAL_ATMO_DEFAULT / LOCAL_ATMO_CLAMP',
+        fn: function() {
+            assert(typeof api.sampleLocalAtmosphere === 'function', 'sampleLocalAtmosphere not exposed');
+            var def = api.LOCAL_ATMO_DEFAULT;
+            assert(def && typeof def === 'object', 'LOCAL_ATMO_DEFAULT missing or not an object');
+            assert(def.visibility === 1, 'LOCAL_ATMO_DEFAULT.visibility should be 1');
+            assert(def.tintR === 1 && def.tintG === 1 && def.tintB === 1, 'LOCAL_ATMO_DEFAULT tint channels should all be 1');
+            assert(def.particleDensity === 1, 'LOCAL_ATMO_DEFAULT.particleDensity should be 1');
+            assert(def.particleBrightness === 1, 'LOCAL_ATMO_DEFAULT.particleBrightness should be 1');
+            assert(def.ambient === 1, 'LOCAL_ATMO_DEFAULT.ambient should be 1');
+            var clamp = api.LOCAL_ATMO_CLAMP;
+            assert(clamp && typeof clamp === 'object', 'LOCAL_ATMO_CLAMP missing or not an object');
+            assert(typeof clamp.visibility === 'object' && typeof clamp.visibility.min === 'number', 'LOCAL_ATMO_CLAMP.visibility missing min');
+            assert(typeof clamp.tint === 'object' && typeof clamp.tint.max === 'number', 'LOCAL_ATMO_CLAMP.tint missing max');
+            assert(typeof clamp.particleDensity === 'object', 'LOCAL_ATMO_CLAMP.particleDensity missing');
+            assert(typeof clamp.particleBrightness === 'object', 'LOCAL_ATMO_CLAMP.particleBrightness missing');
+            assert(typeof clamp.ambient === 'object', 'LOCAL_ATMO_CLAMP.ambient missing');
+            return 'PASS — API surface intact: sampleLocalAtmosphere, LOCAL_ATMO_DEFAULT, LOCAL_ATMO_CLAMP';
+        }
+    },
+    {
+        id: 'TC-54-DEFAULTS-NO-ZONE',
+        name: 'Issue #54 — point outside all zones returns all-default (1.0) atmosphere',
+        fn: function() {
+            // x=-500 is far outside any site zone; sampler must return pure defaults.
+            var s = api.DIVE_SITES.shore;
+            var atmo = api.sampleLocalAtmosphere(s, -500, 5);
+            assert(atmo.visibility === 1, 'visibility should be 1.0, got ' + atmo.visibility);
+            assert(atmo.tintR === 1 && atmo.tintG === 1 && atmo.tintB === 1,
+                'tint channels should all be 1.0');
+            assert(atmo.particleDensity === 1, 'particleDensity should be 1.0, got ' + atmo.particleDensity);
+            assert(atmo.particleBrightness === 1, 'particleBrightness should be 1.0, got ' + atmo.particleBrightness);
+            assert(atmo.ambient === 1, 'ambient should be 1.0, got ' + atmo.ambient);
+            return 'PASS — outside all zones → all defaults';
+        }
+    },
+    {
+        id: 'TC-54-DEFAULTS-NO-PROFILES',
+        name: 'Issue #54 — site with visualZones but no atmosphereProfiles returns all defaults',
+        fn: function() {
+            var scratch = {
+                visualZones: [
+                    { id: 'zone_a', x1: -10, x2: 10, d1: 0, d2: 20, priority: 0, blend: 0 }
+                ]
+                // no atmosphereProfiles property
+            };
+            var atmo = api.sampleLocalAtmosphere(scratch, 0, 10);
+            assert(atmo.visibility === 1, 'no profiles → visibility should be 1.0, got ' + atmo.visibility);
+            assert(atmo.tintR === 1 && atmo.tintG === 1 && atmo.tintB === 1, 'no profiles → tint all 1.0');
+            assert(atmo.particleDensity === 1, 'no profiles → particleDensity should be 1.0');
+            assert(atmo.ambient === 1, 'no profiles → ambient should be 1.0');
+            return 'PASS — no atmosphereProfiles → all defaults';
+        }
+    },
+    {
+        id: 'TC-54-DEFAULTS-UNKNOWN-ZONE-PROFILE',
+        name: 'Issue #54 — zone with no matching atmosphereProfiles entry returns all defaults',
+        fn: function() {
+            var scratch = {
+                visualZones: [
+                    { id: 'zone_missing', x1: -10, x2: 10, d1: 0, d2: 20, priority: 0, blend: 0 }
+                ],
+                atmosphereProfiles: {
+                    zone_other: { visibility: 0.5 }  // different key — zone_missing has no entry
+                }
+            };
+            var atmo = api.sampleLocalAtmosphere(scratch, 0, 10);
+            assert(atmo.visibility === 1, 'unknown profile key → visibility should be 1.0, got ' + atmo.visibility);
+            assert(atmo.ambient === 1, 'unknown profile key → ambient should be 1.0, got ' + atmo.ambient);
+            return 'PASS — zone with no matching profile entry → all defaults';
+        }
+    },
+    {
+        id: 'TC-54-PARTIAL-PROFILE',
+        name: 'Issue #54 — profile specifying only visibility leaves all other fields at default',
+        fn: function() {
+            // blend=0 → zoneBlendWeight returns 1 inside (full blend → full profile value).
+            var scratch = {
+                visualZones: [
+                    { id: 'partial', x1: -10, x2: 10, d1: 0, d2: 20, priority: 0, blend: 0 }
+                ],
+                atmosphereProfiles: {
+                    partial: { visibility: 0.5 }
+                }
+            };
+            // Sample at core (0, 10) — blend weight = 1 → profile fully applied.
+            var atmo = api.sampleLocalAtmosphere(scratch, 0, 10);
+            assert(Math.abs(atmo.visibility - 0.5) < 0.001,
+                'partial profile → visibility should be ~0.5, got ' + atmo.visibility);
+            assert(atmo.tintR === 1, 'partial profile → tintR should remain 1.0, got ' + atmo.tintR);
+            assert(atmo.tintG === 1, 'partial profile → tintG should remain 1.0, got ' + atmo.tintG);
+            assert(atmo.tintB === 1, 'partial profile → tintB should remain 1.0, got ' + atmo.tintB);
+            assert(atmo.particleDensity === 1, 'partial profile → particleDensity should remain 1.0, got ' + atmo.particleDensity);
+            assert(atmo.particleBrightness === 1, 'partial profile → particleBrightness should remain 1.0, got ' + atmo.particleBrightness);
+            assert(atmo.ambient === 1, 'partial profile → ambient should remain 1.0, got ' + atmo.ambient);
+            return 'PASS — partial profile: visibility=' + atmo.visibility.toFixed(3) + ', all others remain 1.0';
+        }
+    },
+    {
+        id: 'TC-54-CLAMPS',
+        name: 'Issue #54 — deliberately out-of-range profile values are clamped to LOCAL_ATMO_CLAMP bounds',
+        fn: function() {
+            var clamp = api.LOCAL_ATMO_CLAMP;
+            // blend=0 → zoneBlendWeight=1 at any interior point → full profile applied.
+            var scratch = {
+                visualZones: [
+                    { id: 'extreme', x1: -10, x2: 10, d1: 0, d2: 20, priority: 0, blend: 0 }
+                ],
+                atmosphereProfiles: {
+                    extreme: {
+                        visibility: 10,
+                        tint: [10, -1, 0],
+                        particleDensity: 99,
+                        particleBrightness: 99,
+                        ambient: 99
+                    }
+                }
+            };
+            var atmo = api.sampleLocalAtmosphere(scratch, 0, 10);
+            assert(atmo.visibility <= clamp.visibility.max,
+                'visibility should be <= ' + clamp.visibility.max + ', got ' + atmo.visibility);
+            assert(atmo.visibility >= clamp.visibility.min,
+                'visibility should be >= ' + clamp.visibility.min + ', got ' + atmo.visibility);
+            assert(atmo.tintR <= clamp.tint.max,
+                'tintR should be <= ' + clamp.tint.max + ', got ' + atmo.tintR);
+            assert(atmo.tintG >= clamp.tint.min,
+                'tintG should be >= ' + clamp.tint.min + ', got ' + atmo.tintG);
+            assert(atmo.tintB >= clamp.tint.min,
+                'tintB should be >= ' + clamp.tint.min + ', got ' + atmo.tintB);
+            assert(atmo.particleDensity <= clamp.particleDensity.max,
+                'particleDensity should be <= ' + clamp.particleDensity.max + ', got ' + atmo.particleDensity);
+            assert(atmo.particleBrightness <= clamp.particleBrightness.max,
+                'particleBrightness should be <= ' + clamp.particleBrightness.max + ', got ' + atmo.particleBrightness);
+            assert(atmo.ambient <= clamp.ambient.max,
+                'ambient should be <= ' + clamp.ambient.max + ', got ' + atmo.ambient);
+            return 'PASS — all out-of-range values clamped correctly';
+        }
+    },
+    {
+        id: 'TC-54-DETERMINISM',
+        name: 'Issue #54 — same input twice yields identical output object contents',
+        fn: function() {
+            var s = api.DIVE_SITES.wreck;
+            var a1 = api.sampleLocalAtmosphere(s, 90, 20);
+            var a2 = api.sampleLocalAtmosphere(s, 90, 20);
+            var keys = ['visibility', 'tintR', 'tintG', 'tintB', 'particleDensity', 'particleBrightness', 'ambient'];
+            for (var i = 0; i < keys.length; i++) {
+                var k = keys[i];
+                assert(a1[k] === a2[k], 'field ' + k + ' not deterministic: ' + a1[k] + ' vs ' + a2[k]);
+            }
+            return 'PASS — sampleLocalAtmosphere is deterministic for same (site, x, d)';
+        }
+    },
+    {
+        id: 'TC-54-BLEND-CONTINUITY',
+        name: 'Issue #54 — visibility changes monotonically and continuously across a blend margin',
+        fn: function() {
+            // Zone blend=4, so the soft margin is 4 m from any edge.
+            // Sample at 5 positions crossing into the zone along x (from x=-2 to x=2),
+            // with the zone starting at x=0. depth=10 is well inside d-range.
+            var scratch = {
+                visualZones: [
+                    { id: 'soft', x1: 0, x2: 20, d1: 0, d2: 20, priority: 0, blend: 4 }
+                ],
+                atmosphereProfiles: {
+                    soft: { visibility: 0.5 }  // 0.5 inside, 1.0 outside → deviation = 0.5
+                }
+            };
+            // Sample 5 points at x=0 (edge), 1, 2, 3, 4 (core). depth=10 is
+            // well inside d-range so the blend factor only depends on x.
+            var xs = [0, 1, 2, 3, 4];
+            var vals = [];
+            for (var i = 0; i < xs.length; i++) {
+                var a = api.sampleLocalAtmosphere(scratch, xs[i], 10);
+                vals.push(a.visibility);
+            }
+            // visibility should decrease (or stay equal) as we move further inside
+            // (blend weight increases → profile value takes over → vis decreases toward 0.5).
+            for (var j = 1; j < vals.length; j++) {
+                assert(vals[j] <= vals[j - 1] + 0.001,
+                    'visibility should be monotonically non-increasing going into the zone; got '
+                    + vals[j - 1].toFixed(4) + ' then ' + vals[j].toFixed(4) + ' at x=' + xs[j]);
+            }
+            // Max step between adjacent samples must be less than half the total deviation.
+            var totalDeviation = Math.abs(vals[0] - vals[vals.length - 1]);
+            for (var k = 1; k < vals.length; k++) {
+                var step = Math.abs(vals[k] - vals[k - 1]);
+                assert(step < totalDeviation / 2,
+                    'discontinuous jump between x=' + xs[k - 1] + ' and x=' + xs[k]
+                    + ': step=' + step.toFixed(4) + ', totalDeviation=' + totalDeviation.toFixed(4));
+            }
+            return 'PASS — visibility changes smoothly across blend margin; samples: '
+                + vals.map(function(v) { return v.toFixed(3); }).join(', ');
+        }
+    },
+    {
+        id: 'TC-54-SHORE-ENTRY-SAMPLE',
+        name: 'Issue #54 — shore_entry profile visibility sampled correctly at core position',
+        fn: function() {
+            // x=0, d=2 is inside shore_entry (x1=-20, x2=25, d1=0, d2=4, blend=1).
+            // The core (blend=1) is reached when distance to every edge >= 1.
+            // At x=0, d=2: distEdge = min(20, 25, 2, 2) = 2 >= blend=1 → weight=1.
+            // So we expect full profile value: visibility = 1.05, clamped to max 1.25.
+            var s = api.DIVE_SITES.shore;
+            var atmo = api.sampleLocalAtmosphere(s, 0, 2);
+            var expected = 1.05;
+            assert(Math.abs(atmo.visibility - expected) < 0.001,
+                'shore_entry at x=0,d=2 → visibility should be ' + expected + ', got ' + atmo.visibility);
+            return 'PASS — shore_entry visibility=' + atmo.visibility.toFixed(3);
+        }
+    },
+    {
+        id: 'TC-54-REEF-DEEP-SAMPLE',
+        name: 'Issue #54 — reef_deep_wall at core shows blue-shifted tint (tintB > 1) and reduced ambient',
+        fn: function() {
+            // reef_deep_wall: x1=-24, x2=24, d1=55, d2=90, blend=3.
+            // At x=0, d=70: distEdge = min(24, 24, 15, 20) = 15 >= blend=3 → weight=1 → full profile.
+            var s = api.DIVE_SITES.reef;
+            var atmo = api.sampleLocalAtmosphere(s, 0, 70);
+            assert(atmo.tintB > 1.0,
+                'reef_deep_wall → tintB should be > 1.0 (blue-shifted), got ' + atmo.tintB);
+            assert(atmo.ambient < 1.0,
+                'reef_deep_wall → ambient should be < 1.0 (darker), got ' + atmo.ambient);
+            return 'PASS — reef_deep_wall tintB=' + atmo.tintB.toFixed(3) + ', ambient=' + atmo.ambient.toFixed(3);
+        }
     }
 ];
 

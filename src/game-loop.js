@@ -973,5 +973,9 @@ window.gameAPI = {
     set debugVisualZones(v) { debugVisualZones = !!v; },
     get VISUAL_ZONE_DEFAULT_PRIORITY() { return VISUAL_ZONE_DEFAULT_PRIORITY; },
     get VISUAL_ZONE_DEFAULT_BLEND() { return VISUAL_ZONE_DEFAULT_BLEND; },
-    drawVisualZoneDebug: drawVisualZoneDebug
+    drawVisualZoneDebug: drawVisualZoneDebug,
+    // Issue #54: Local water volumes — atmosphere sampler + clamps
+    sampleLocalAtmosphere: sampleLocalAtmosphere,
+    get LOCAL_ATMO_DEFAULT() { return LOCAL_ATMO_DEFAULT; },
+    get LOCAL_ATMO_CLAMP() { return LOCAL_ATMO_CLAMP; }
 };

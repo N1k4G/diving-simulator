@@ -91,7 +91,14 @@ var DIVE_SITES = {
       { id: 'shore_grass',  x1: 10,  x2: 88,  d1: 3,  d2: 13, priority: 10, blend: 2, tags: ['shore','sand','seagrass','shallow'] },
       { id: 'shore_slope',  x1: 55,  x2: 118, d1: 10, d2: 22, priority: 8,  blend: 2, tags: ['shore','sand','slope'] },
       { id: 'shore_deep',   x1: 90,  x2: 190, d1: 18, d2: 32, priority: 12, blend: 2, tags: ['shore','sand','deep','wreck-debris'] }
-    ]
+    ],
+    // Issue #54 — local atmosphere profiles keyed by visualZone id.
+    atmosphereProfiles: {
+      shore_entry: { visibility: 1.05, tint: [0.98, 1.04, 0.98], particleDensity: 1.15, particleBrightness: 1.10, ambient: 1.10 },
+      shore_grass: { visibility: 0.95, tint: [0.98, 1.02, 0.98], particleDensity: 1.25, particleBrightness: 1.00, ambient: 1.00 },
+      shore_slope: { visibility: 1.00, tint: [1.00, 1.00, 1.00], particleDensity: 1.00, particleBrightness: 1.00, ambient: 0.95 },
+      shore_deep:  { visibility: 0.85, tint: [0.90, 0.95, 1.00], particleDensity: 0.90, particleBrightness: 0.80, ambient: 0.80 }
+    }
   },
   reef: {
     id: 'reef',
@@ -167,7 +174,15 @@ var DIVE_SITES = {
       { id: 'reef_mid_wall',   x1: -20,  x2: 20,  d1: 30, d2: 55,         priority: 10, blend: 2, tags: ['reef','wall','mid'] },
       { id: 'reef_deep_wall',  x1: -24,  x2: 24,  d1: 55, d2: 90,         priority: 10, blend: 3, tags: ['reef','wall','deep'] },
       { id: 'reef_blue_water', x1: -100, x2: 100, d1: 0,  d2: MAX_DEPTH,  priority: 0,  blend: 0, tags: ['open-water','blue'] }
-    ]
+    ],
+    // Issue #54 — local atmosphere profiles keyed by visualZone id.
+    atmosphereProfiles: {
+      reef_plateau:    { visibility: 1.15, tint: [1.02, 1.05, 1.02], particleDensity: 0.75, particleBrightness: 1.15, ambient: 1.10 },
+      reef_upper_wall: { visibility: 1.05, tint: [0.98, 1.00, 1.02], particleDensity: 0.85, particleBrightness: 1.05, ambient: 1.00 },
+      reef_mid_wall:   { visibility: 0.95, tint: [0.92, 0.96, 1.02], particleDensity: 0.85, particleBrightness: 0.90, ambient: 0.85 },
+      reef_deep_wall:  { visibility: 0.85, tint: [0.82, 0.92, 1.05], particleDensity: 0.55, particleBrightness: 0.75, ambient: 0.75 },
+      reef_blue_water: { visibility: 1.20, tint: [0.95, 0.98, 1.05], particleDensity: 0.35, particleBrightness: 0.90, ambient: 1.00 }
+    }
   },
   wreck: {
     id: 'wreck',
@@ -433,7 +448,18 @@ var DIVE_SITES = {
       { id: 'wreck_cargo_hold',    x1: 14,  x2: 170, d1: 46, d2: 53, priority: 15, blend: 1, tags: ['wreck','interior','maze','cargo'] },
       { id: 'wreck_engine_room',   x1: 14,  x2: 170, d1: 53, d2: 62, priority: 15, blend: 1, tags: ['wreck','interior','deep','engine'] },
       { id: 'wreck_bilge',         x1: 14,  x2: 170, d1: 62, d2: 66, priority: 15, blend: 0, tags: ['wreck','interior','deep','bilge'] }
-    ]
+    ],
+    // Issue #54 — local atmosphere profiles keyed by visualZone id.
+    atmosphereProfiles: {
+      wreck_exterior:      { visibility: 1.00, tint: [1.00, 1.00, 1.00], particleDensity: 1.00, particleBrightness: 1.00, ambient: 1.00 },
+      wreck_bridge:        { visibility: 0.95, tint: [1.00, 0.98, 0.94], particleDensity: 1.05, particleBrightness: 0.95, ambient: 0.95 },
+      wreck_accommodation: { visibility: 0.90, tint: [1.02, 0.98, 0.92], particleDensity: 1.15, particleBrightness: 0.90, ambient: 0.90 },
+      wreck_vehicle_deck:  { visibility: 0.85, tint: [1.02, 0.96, 0.90], particleDensity: 1.20, particleBrightness: 0.85, ambient: 0.85 },
+      wreck_crew_deck:     { visibility: 0.80, tint: [1.00, 0.94, 0.88], particleDensity: 1.15, particleBrightness: 0.80, ambient: 0.75 },
+      wreck_cargo_hold:    { visibility: 0.78, tint: [1.02, 0.94, 0.86], particleDensity: 1.35, particleBrightness: 0.80, ambient: 0.75 },
+      wreck_engine_room:   { visibility: 0.70, tint: [1.08, 0.92, 0.80], particleDensity: 1.20, particleBrightness: 0.75, ambient: 0.65 },
+      wreck_bilge:         { visibility: 0.60, tint: [1.05, 0.90, 0.78], particleDensity: 1.50, particleBrightness: 0.70, ambient: 0.55 }
+    }
   },
   cave: {
     id: 'cave',
@@ -502,7 +528,16 @@ var DIVE_SITES = {
       { id: 'cave_cathedral',    x1: 60,  x2: 134, d1: 50, d2: 104, priority: 25, blend: 3, tags: ['cave','cathedral','deep','open-chamber'] },
       { id: 'cave_up_shaft',     x1: 124, x2: 146, d1: 20, d2: 90,  priority: 15, blend: 2, tags: ['cave','shaft','ascent'] },
       { id: 'cave_exit',         x1: 146, x2: 200, d1: 0,  d2: 20,  priority: 10, blend: 1, tags: ['cave','exit','open-to-surface'] }
-    ]
+    ],
+    // Issue #54 — local atmosphere profiles keyed by visualZone id.
+    atmosphereProfiles: {
+      cave_entrance:     { visibility: 1.05, tint: [0.96, 1.04, 0.94], particleDensity: 1.05, particleBrightness: 1.05, ambient: 1.10 },
+      cave_upper_tunnel: { visibility: 0.90, tint: [0.95, 0.98, 1.00], particleDensity: 1.00, particleBrightness: 0.85, ambient: 0.80 },
+      cave_down_shaft:   { visibility: 0.85, tint: [0.92, 0.96, 1.05], particleDensity: 0.85, particleBrightness: 0.80, ambient: 0.75 },
+      cave_cathedral:    { visibility: 1.10, tint: [0.88, 0.94, 1.08], particleDensity: 0.45, particleBrightness: 0.70, ambient: 0.60 },
+      cave_up_shaft:     { visibility: 0.85, tint: [0.92, 0.96, 1.05], particleDensity: 0.85, particleBrightness: 0.80, ambient: 0.75 },
+      cave_exit:         { visibility: 1.05, tint: [0.96, 1.04, 0.94], particleDensity: 1.00, particleBrightness: 1.00, ambient: 1.05 }
+    }
   }
 };
 
@@ -667,4 +702,82 @@ function zoneBlendWeight(zone, x, d) {
   // smoothstep(0, blend, distEdge)
   var t = distEdge / blend;
   return t * t * (3 - 2 * t);
+}
+
+// ============================================================
+//  ISSUE #54 — LOCAL ATMOSPHERE PROFILES + SAMPLER
+//
+//  Per-visualZone modulation of visibility (distance fog),
+//  local color tint, particle density/brightness, ambient.
+//  Purely visual; never touches physics, gameplay visibility
+//  (silt), gas, deco, or wildlife spawn.
+//
+//  sampleLocalAtmosphere(site, x, d)
+//    1. Resolve zone via visualZoneAt(x, d, site).
+//    2. Look up site.atmosphereProfiles[zone.id]; missing profile
+//       or missing site.atmosphereProfiles → all defaults (1.0).
+//    3. Missing individual fields fall back to their default
+//       independently (a profile can specify only visibility).
+//    4. Blend profile values against defaults using
+//       zoneBlendWeight(zone, x, d) so crossing a zone boundary
+//       is smooth (weight 1 inside core → profile; weight 0 at
+//       edge → defaults).
+//    5. Clamp every returned scalar so bad data can't produce
+//       black/blown-out frames.
+// ============================================================
+const LOCAL_ATMO_DEFAULT = Object.freeze({
+  visibility: 1,
+  tintR: 1, tintG: 1, tintB: 1,
+  particleDensity: 1,
+  particleBrightness: 1,
+  ambient: 1
+});
+const LOCAL_ATMO_CLAMP = Object.freeze({
+  visibility:        { min: 0.35, max: 1.25 },
+  tint:              { min: 0.5,  max: 1.25 },
+  particleDensity:   { min: 0,    max: 2.0  },
+  particleBrightness:{ min: 0.25, max: 1.75 },
+  ambient:           { min: 0.4,  max: 1.3  }
+});
+
+function _clampAtmo(v, range) {
+  if (v < range.min) return range.min;
+  if (v > range.max) return range.max;
+  return v;
+}
+
+function sampleLocalAtmosphere(site, x, d) {
+  var s = site || activeSite();
+  var out = {
+    visibility: LOCAL_ATMO_DEFAULT.visibility,
+    tintR: LOCAL_ATMO_DEFAULT.tintR,
+    tintG: LOCAL_ATMO_DEFAULT.tintG,
+    tintB: LOCAL_ATMO_DEFAULT.tintB,
+    particleDensity: LOCAL_ATMO_DEFAULT.particleDensity,
+    particleBrightness: LOCAL_ATMO_DEFAULT.particleBrightness,
+    ambient: LOCAL_ATMO_DEFAULT.ambient
+  };
+  if (!s || !s.atmosphereProfiles) return out;
+  var zone = visualZoneAt(x, d, s);
+  if (!zone) return out;
+  var profile = s.atmosphereProfiles[zone.id];
+  if (!profile) return out;
+  var w = zoneBlendWeight(zone, x, d);
+  // Field-by-field: profile value blended with default by w.
+  function pick(defVal, profVal) {
+    if (profVal == null) return defVal;
+    return defVal + (profVal - defVal) * w;
+  }
+  var tint = profile.tint;
+  var pR = (tint && tint[0] != null) ? tint[0] : null;
+  var pG = (tint && tint[1] != null) ? tint[1] : null;
+  var pB = (tint && tint[2] != null) ? tint[2] : null;
+  out.visibility         = _clampAtmo(pick(1, profile.visibility),         LOCAL_ATMO_CLAMP.visibility);
+  out.tintR              = _clampAtmo(pick(1, pR),                          LOCAL_ATMO_CLAMP.tint);
+  out.tintG              = _clampAtmo(pick(1, pG),                          LOCAL_ATMO_CLAMP.tint);
+  out.tintB              = _clampAtmo(pick(1, pB),                          LOCAL_ATMO_CLAMP.tint);
+  out.particleDensity    = _clampAtmo(pick(1, profile.particleDensity),    LOCAL_ATMO_CLAMP.particleDensity);
+  out.particleBrightness = _clampAtmo(pick(1, profile.particleBrightness), LOCAL_ATMO_CLAMP.particleBrightness);
+  out.ambient            = _clampAtmo(pick(1, profile.ambient),            LOCAL_ATMO_CLAMP.ambient);
+  return out;
 }
