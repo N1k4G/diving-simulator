@@ -52,6 +52,9 @@ jobs:
       - name: Stamp build version
         run: echo "var BUILD_VERSION = '$(date +%Y-%m-%d)-${GITHUB_SHA::7}';" > src/version.js
 
+      - name: Prune test harness from deploy
+        run: rm src/diving-simulator-tests.html
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v4
         with:
