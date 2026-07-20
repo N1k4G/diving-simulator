@@ -39,9 +39,24 @@
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 
+// WP-015: HiDPI canvas. The buffer is physical-pixel-sized (innerWidth * dpr)
+// so text/lines are crisp on Retina and mobile displays. The 2D context is
+// pre-scaled by dpr so ALL drawing code continues to work in CSS pixels.
+// cssWidth / cssHeight expose the logical CSS-pixel size for layout math —
+// every reader of canvas.width/height across the renderer/world/ui/game-loop
+// has been switched to these.
+let cssWidth = 0;
+let cssHeight = 0;
+
 function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    const dpr = Math.min(window.devicePixelRatio || 1, MAX_DEVICE_PIXEL_RATIO);
+    cssWidth = window.innerWidth;
+    cssHeight = window.innerHeight;
+    canvas.width = cssWidth * dpr;
+    canvas.height = cssHeight * dpr;
+    canvas.style.width = cssWidth + 'px';
+    canvas.style.height = cssHeight + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 window.addEventListener('resize', resize);
 resize();

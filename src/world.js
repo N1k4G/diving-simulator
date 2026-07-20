@@ -141,7 +141,7 @@ function spawnFish() {
     var direction = Math.random() < 0.5 ? 1 : -1;
     var speed = (ft.speedMin + Math.random() * (ft.speedMax - ft.speedMin)) * WORLD_MPS; // m/s
     // Spawn just off the visible screen edge in world metres
-    var W = canvas.width;
+    var W = cssWidth;
     var startX = direction > 0
         ? diverX - (W * 0.25 + ft.size * 2) * 0.05
         : diverX + (W * 0.75 + ft.size * 2) * 0.05;
@@ -160,7 +160,7 @@ function updateFish(dtReal) {
         spawnFish();
         fishSpawnTimer = randomFishInterval();
     }
-    var W = canvas.width;
+    var W = cssWidth;
     for (var i = fishes.length - 1; i >= 0; i--) {
         var f = fishes[i];
         f.x += f.direction * f.speed * dtReal; // world metres
@@ -272,7 +272,7 @@ function spawnWildlife() {
     var wDepth = wt.depthMin + Math.random() * (wt.depthMax - wt.depthMin);
     var direction = Math.random() < 0.5 ? 1 : -1;
     var speed = (wt.speedMin + Math.random() * (wt.speedMax - wt.speedMin)) * WORLD_MPS; // m/s
-    var W = canvas.width;
+    var W = cssWidth;
     var startX = direction > 0
         ? diverX - (W * 0.25 + wt.size * 2) * 0.05
         : diverX + (W * 0.75 + wt.size * 2) * 0.05;
@@ -292,7 +292,7 @@ function updateWildlife(dtReal) {
         spawnWildlife();
         wildlifeSpawnTimer = 8 + Math.random() * 15;
     }
-    var W = canvas.width;
+    var W = cssWidth;
     for (var i = wildlife.length - 1; i >= 0; i--) {
         var w = wildlife[i];
         w.x += w.direction * w.speed * dtReal; // world metres

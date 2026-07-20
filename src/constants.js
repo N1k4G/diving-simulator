@@ -29,6 +29,9 @@ const TIME_ACCELERATION = 3;
 const FAST_FORWARD_MULTIPLIER = 10;
 const MAX_ASCENT_RATE   = 25;   // max possible ascent m/min (a runaway BCD CAN exceed the 18 barotrauma threshold)
 const MAX_DESCENT_RATE  = 20;   // max possible descent m/min
+// WP-015: HiDPI canvas — cap devicePixelRatio to avoid fill-rate cost on
+// phones with dpr 3+ where the visual gain is negligible.
+const MAX_DEVICE_PIXEL_RATIO = 2;
 // (Old movement constants removed — buoyancy system replaced direct accel/decel)
 
 const BUOYANCY_PARAMS = {

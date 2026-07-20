@@ -402,7 +402,7 @@ function updateDiving(dtReal) {
         var _noSharkSite = activeSite();
         if (!shark && Math.random() < 0.005 && !(_noSharkSite && _noSharkSite.noShark)) {
             var sharkDir = Math.random() < 0.5 ? 1 : -1;
-            var W = canvas.width;
+            var W = cssWidth;
             // Spawn just off the visible screen edge in world metres
             var sharkStartX = sharkDir > 0
                 ? diverX - (W * 0.25 + 100) * 0.05
@@ -437,7 +437,7 @@ function updateDiving(dtReal) {
             shark.speed = 4 * 0.05 * 60; // m/s
         }
         // Remove once it has passed well beyond the visible area
-        var W2 = canvas.width;
+        var W2 = cssWidth;
         if ((shark.direction > 0 && shark.x > diverX + (W2 * 0.75 + 150) * 0.05) ||
             (shark.direction < 0 && shark.x < diverX - (W2 * 0.25 + 150) * 0.05)) {
             shark = null;
@@ -554,7 +554,7 @@ function gameLoop(timestamp) {
     lastFrameTime = timestamp;
     dtReal = Math.min(dtReal, 0.1);
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, cssWidth, cssHeight);
 
     switch (gameState) {
         case 'gas-setup':
@@ -816,6 +816,8 @@ window.gameAPI = {
     get currentVerticalRate() { return currentVerticalRate; },
     get gameState() { return gameState; },
     set gameState(v) { gameState = v; },
+    get cssWidth() { return cssWidth; },
+    get cssHeight() { return cssHeight; },
     get gameOverReason() { return gameOverReason; },
     get tissues() { return tissues; },
     get tissuesHe() { return tissuesHe; },

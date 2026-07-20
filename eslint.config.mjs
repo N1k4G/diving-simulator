@@ -15,6 +15,7 @@ const gameGlobals = {
   TIME_ACCELERATION: "readonly", FAST_FORWARD_MULTIPLIER: "readonly",
   MAX_ASCENT_RATE: "readonly", MAX_DESCENT_RATE: "readonly",
   MAX_DEPTH: "readonly",
+  MAX_DEVICE_PIXEL_RATIO: "readonly",
 
   // Diver physics
   BUOYANCY_PARAMS: "readonly",
@@ -67,6 +68,7 @@ const gameGlobals = {
 
   // Canvas
   canvas: "writable", ctx: "writable", resize: "readonly",
+  cssWidth: "writable", cssHeight: "writable",
 
   // Input
   keys: "writable",

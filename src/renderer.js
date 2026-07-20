@@ -139,8 +139,8 @@ var _wreckMetal = 0;
 // ============================================================
 
 function drawScene() {
-    var W = canvas.width;
-    var H = canvas.height;
+    var W = cssWidth;
+    var H = cssHeight;
     var cx = ctx;
 
     // WP-020: Narcosis visual effects — filters
@@ -747,7 +747,7 @@ function paintShip(cx, isRefl) {
 // ============================================================
 
 function drawTerrain() {
-    var W = canvas.width, H = canvas.height;
+    var W = cssWidth, H = cssHeight;
     var diverScreenX = W * 0.25;
     var diverScreenY = H * 0.45;
     var mpp = 0.05;
@@ -1164,7 +1164,7 @@ function sRand(n) {
 function drawSiteAtmosphere() {
     var s = activeSite();
     if (!s) return;
-    var W = canvas.width, H = canvas.height;
+    var W = cssWidth, H = cssHeight;
     var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
     var cx = ctx;
     var surfaceY = dsy - depth / mpp;
@@ -1238,7 +1238,7 @@ function drawSiteDetailPass() {
 }
 
 function drawTerrainEdgeAccents(s) {
-    var W = canvas.width, H = canvas.height;
+    var W = cssWidth, H = cssHeight;
     var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
     var xLeftM = diverX + (0 - dsx) * mpp - 2;
     var xRightM = diverX + (W - dsx) * mpp + 2;
@@ -1295,7 +1295,7 @@ function drawTerrainEdgeAccents(s) {
 }
 
 function drawShoreSandDetails() {
-    var W = canvas.width, H = canvas.height;
+    var W = cssWidth, H = cssHeight;
     var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
     var xLeftM = diverX + (0 - dsx) * mpp - 2;
     var xRightM = diverX + (W - dsx) * mpp + 2;
@@ -1344,7 +1344,7 @@ function drawShoreAnchoredGrass(cx, xLeftM, xRightM, dsx, dsy, mpp, H) {
         if (solidAt(wx, fd - 0.25) || solidAt(wx, fd - 1.5)) continue;
         var sx = dsx + (wx - diverX) / mpp;
         var sy = dsy + (fd - depth) / mpp;
-        if (sx < -50 || sx > canvas.width + 50 || sy < -20 || sy > H + 30) continue;
+        if (sx < -50 || sx > cssWidth + 50 || sy < -20 || sy > H + 30) continue;
         var blades = 4 + Math.floor(sRand(wx + 1) * 4);
         for (var b = 0; b < blades; b++) {
             var ox = (b - blades / 2) * 5;
@@ -1361,7 +1361,7 @@ function drawShoreAnchoredGrass(cx, xLeftM, xRightM, dsx, dsy, mpp, H) {
 }
 
 function drawReefTextureDetails() {
-    var W = canvas.width, H = canvas.height;
+    var W = cssWidth, H = cssHeight;
     var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
     var xLeftM = diverX + (0 - dsx) * mpp - 2;
     var xRightM = diverX + (W - dsx) * mpp + 2;
@@ -1407,7 +1407,7 @@ function drawReefTextureDetails() {
 function drawWreckExteriorDetails() {
     var s = activeSite();
     if (!s || s.id !== 'wreck') return;
-    var W = canvas.width, H = canvas.height, cx = ctx;
+    var W = cssWidth, H = cssHeight, cx = ctx;
     var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
     var exteriorFade = Math.max(0.18, 1 - _wreckMetal * 0.78);
 
@@ -1607,7 +1607,7 @@ function drawWreckShipCues(cx, dsx, dsy, mpp, W, H, alpha) {
 }
 
 function drawCaveMineralDetails() {
-    var W = canvas.width, H = canvas.height;
+    var W = cssWidth, H = cssHeight;
     var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
     var xLeftM = diverX + (0 - dsx) * mpp - 2;
     var xRightM = diverX + (W - dsx) * mpp + 2;
@@ -1657,7 +1657,7 @@ function drawCaveMineralDetails() {
 function drawForegroundLayer() {
     var s = activeSite();
     if (!s) return;
-    var W = canvas.width, H = canvas.height;
+    var W = cssWidth, H = cssHeight;
     var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
     var cx = ctx;
     cx.save();
@@ -1906,7 +1906,7 @@ function _buildWreckSilhouette(cx, dsx, dsy, mpp) {
 function drawWreckSteelBack() {
     var s = activeSite();
     if (!s || s.id !== 'wreck') return;
-    var W = canvas.width, H = canvas.height, cx = ctx;
+    var W = cssWidth, H = cssHeight, cx = ctx;
     var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
     cx.save();
     _buildWreckSilhouette(cx, dsx, dsy, mpp);
@@ -1924,7 +1924,7 @@ function drawWreckSteelBack() {
 function drawWreckHullSkin() {
     var s = activeSite();
     if (!s || s.id !== 'wreck') return;
-    var W = canvas.width, H = canvas.height, cx = ctx;
+    var W = cssWidth, H = cssHeight, cx = ctx;
     var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
     var rad = (torchOn ? 165 : 100) * Math.max(0.55, visibility) * _wreckMetal;
 
@@ -1965,7 +1965,7 @@ function drawWreckEntryMarkers() {
     if (!s || s.id !== 'wreck') return;
     var vis = 1 - _wreckMetal;
     if (vis < 0.05) return;
-    var W = canvas.width, H = canvas.height, cx = ctx;
+    var W = cssWidth, H = cssHeight, cx = ctx;
     var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
     var deckD = 27.5;                       // main-deck line (top of the openings)
     var entries = [
@@ -2165,7 +2165,7 @@ function _paintRockStruct(cx, sx1, sy1, sw, sh, seed, tone) {
 //    seamlessly with the surrounding walls; strata + speckle are world-anchored
 //    so they don't shimmer while the camera scrolls. ──
 function drawBedrockStruct(cx, wx1, wx2, wdTop, wdBottom) {
-    var W = canvas.width, H = canvas.height;
+    var W = cssWidth, H = cssHeight;
     var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
     var sy1 = dsy + (wdTop - depth) / mpp, sy2 = dsy + (wdBottom - depth) / mpp;
     var sx1 = dsx + (wx1 - diverX) / mpp, sx2 = dsx + (wx2 - diverX) / mpp;
@@ -2888,7 +2888,7 @@ function drawHalocline(cx, W, H, dsy, mpp) {
 function drawStructures() {
     var s = activeSite();
     if (!s || !s.structures.length) return;
-    var W = canvas.width, H = canvas.height;
+    var W = cssWidth, H = cssHeight;
     var diverScreenX = W * 0.25, diverScreenY = H * 0.45, mpp = 0.05;
     var cx = ctx;
     for (var i = 0; i < s.structures.length; i++) {
@@ -2934,7 +2934,7 @@ function drawStructures() {
 function drawFeatures() {
     var s = activeSite();
     if (!s || !s.features.length) return;
-    var W = canvas.width, H = canvas.height;
+    var W = cssWidth, H = cssHeight;
     var diverScreenX = W * 0.25, diverScreenY = H * 0.45, mpp = 0.05;
     var cx = ctx;
     for (var i = 0; i < s.features.length; i++) {
@@ -3215,7 +3215,7 @@ function drawWarningSign(cx, x, y) {
 }
 
 function drawThermocline(cx, thd) {
-    var W = canvas.width, H = canvas.height;
+    var W = cssWidth, H = cssHeight;
     var diverScreenY = H * 0.45, mpp = 0.05;
     var thy = diverScreenY + (thd - depth) / mpp;
     if (thy < -5 || thy > H + 5) return;
@@ -3631,7 +3631,7 @@ function drawPond(cx, x, y) {
     // Cenote pond entrance — a sunlit shaft of warm light pouring through
     // the open sinkhole, with a rimmed water surface and root strands.
     cx.save();
-    var W = canvas.width, H = canvas.height;
+    var W = cssWidth, H = cssHeight;
     var mpp = 0.05;
     var diverScreenY = H * 0.45;
     var floorD = floorAt(x ? (diverX + (x - W * 0.25) * mpp) : diverX);
@@ -3700,7 +3700,7 @@ function drawPond(cx, x, y) {
 
 function drawGuideline() {
     if (guidelineNodes.length < 2) return;
-    var W = canvas.width, H = canvas.height;
+    var W = cssWidth, H = cssHeight;
     var diverScreenX = W * 0.25, diverScreenY = H * 0.45, mpp = 0.05;
     var cx = ctx;
     cx.save();
@@ -3729,7 +3729,7 @@ function drawSiltAndTorch() {
     var s = activeSite();
     if (s && s.id === 'wreck') return;
 
-    var W = canvas.width, H = canvas.height;
+    var W = cssWidth, H = cssHeight;
     var diverScreenX = W * 0.25, diverScreenY = H * 0.45, mpp = 0.05;
     var cx = ctx;
 
@@ -3791,7 +3791,7 @@ function drawTorchGlowAndSparkles(cx, W, H, diverScreenX, diverScreenY, effectiv
 function drawBlueHaze() {
     var s = activeSite();
     if (!s || s.id !== 'reef') return;
-    var W = canvas.width, H = canvas.height;
+    var W = cssWidth, H = cssHeight;
     var cx = ctx;
     // open water is on the side away from the wall (wall at x=0)
     var hazeOnLeft = diverX > 0;
@@ -3812,7 +3812,7 @@ function drawLightShafts() {
     if (!s || !s.features.length) return;
     var beamFade = (s.id === 'wreck') ? _wreckMetal : 1;
     if (beamFade < 0.02) return;
-    var W = canvas.width, H = canvas.height;
+    var W = cssWidth, H = cssHeight;
     var diverScreenX = W * 0.25, diverScreenY = H * 0.45, mpp = 0.05;
     var cx = ctx;
     for (var i = 0; i < s.features.length; i++) {
@@ -3862,7 +3862,7 @@ function drawLightShafts() {
 
 function drawDiveComputer() {
     var cx = ctx;
-    var W = canvas.width;
+    var W = cssWidth;
     var dcScale = W < 400 ? 0.6 : W < 600 ? 0.75 : 1;
     var s = function(v) { return Math.round(v * dcScale); };
     var DCF = "'Barlow Semi Condensed', monospace";
@@ -4869,8 +4869,8 @@ function drawDiveComputer() {
 
 function drawGasSetup() {
     var cx = ctx;
-    var W = canvas.width;
-    var H = canvas.height;
+    var W = cssWidth;
+    var H = cssHeight;
 
     cx.fillStyle = 'rgba(0,0,0,0.95)';
     cx.fillRect(0, 0, W, H);
@@ -5137,8 +5137,8 @@ function gsPanel(cx, x, y, w, h, r) {
 
 function drawPostDive() {
     var cx = ctx;
-    var W = canvas.width;
-    var H = canvas.height;
+    var W = cssWidth;
+    var H = cssHeight;
     var DCF = "'Barlow Semi Condensed', monospace";
 
     gsBackdrop(cx, W, H);
@@ -5336,8 +5336,8 @@ function drawWrappedText(cx, text, x, y, maxWidth, lineHeight, measureOnly) {
 
 function drawGameOver() {
     var cx = ctx;
-    var W = canvas.width;
-    var H = canvas.height;
+    var W = cssWidth;
+    var H = cssHeight;
 
     var DCF = "'Barlow Semi Condensed', monospace";
     var g = cx.createLinearGradient(0, 0, 0, H);
@@ -5484,16 +5484,16 @@ function drawSurface() {
         cx2.textAlign = 'center';
         cx2.font = 'bold 20px monospace';
         cx2.fillStyle = 'rgba(255,255,255,0.8)';
-        cx2.fillText(S('surfaceDescend'), canvas.width / 2, canvas.height * 0.75);
+        cx2.fillText(S('surfaceDescend'), cssWidth / 2, cssHeight * 0.75);
         cx2.font = '14px monospace';
         cx2.fillStyle = 'rgba(255,255,255,0.5)';
         var tLabel = getActiveTank().label;
         var hintParts = tLabel + ' ' + S('surfaceLoaded') + '  |  ' + S('surfaceHints') + '  |  1-' + tankCount + ' ' + S('surfaceTankHint') + '  |  ' + S('surfaceHelp');
         if (isAdvanced()) hintParts += '  |  ' + S('surfaceGasInfo');
-        cx2.fillText(hintParts, canvas.width / 2, canvas.height * 0.80);
+        cx2.fillText(hintParts, cssWidth / 2, cssHeight * 0.80);
     }
     cx2.font = '11px monospace';
     cx2.fillStyle = 'rgba(255,255,255,0.25)';
-    cx2.fillText('build ' + (typeof BUILD_VERSION !== 'undefined' ? BUILD_VERSION : 'dev'), canvas.width / 2, canvas.height * 0.85);
+    cx2.fillText('build ' + (typeof BUILD_VERSION !== 'undefined' ? BUILD_VERSION : 'dev'), cssWidth / 2, cssHeight * 0.85);
     cx2.textAlign = 'left';
 }
