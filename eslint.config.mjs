@@ -236,6 +236,7 @@ export default [
       "use-isnan": "error",
       "valid-typeof": "error",
       "no-undef": "error",
+      "no-redeclare": ["error", { "builtinGlobals": false }],
 
       // Warnings — code quality
       "eqeqeq": ["warn", "always", { "null": "ignore" }],
