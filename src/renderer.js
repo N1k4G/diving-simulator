@@ -843,9 +843,10 @@ function drawTerrain() {
     // can re-clip to them for rock texture.
     var floorPts = [];
     for (var fwx = xLeftM; fwx <= xRightM + stepM; fwx += stepM) {
-        var fd = floorAt(fwx);
+        var fdCol = floorAt(fwx);
+        var fdVis = visualProfileDepth(s.id, 'floor', fwx, fdCol);
         var fpx = diverScreenX + (fwx - diverX) / mpp;
-        var fpy = diverScreenY + (fd - depth) / mpp;
+        var fpy = diverScreenY + (fdVis - depth) / mpp;
         floorPts.push([fpx, fpy]);
     }
     var floorRight = diverScreenX + (xRightM + stepM - diverX) / mpp;
@@ -919,10 +920,11 @@ function drawTerrain() {
         // Build the ceiling outline points (and remember them for texturing)
         var ceilPts = [];
         for (var cwx = xLeftM; cwx <= xRightM + stepM; cwx += stepM) {
-            var cd = ceilingAt(cwx);
-            if (cd <= 0.01) continue;  // open shaft (pond) — leave sky visible
+            var cdCol = ceilingAt(cwx);
+            if (cdCol <= 0.01) continue;  // open shaft — leave sky visible
+            var cdVis = visualProfileDepth(s.id, 'ceiling', cwx, cdCol);
             ceilPts.push([diverScreenX + (cwx - diverX) / mpp,
-                          diverScreenY + (cd - depth) / mpp]);
+                          diverScreenY + (cdVis - depth) / mpp]);
         }
         if (ceilPts.length > 1) {
             var cLeftX = ceilPts[0][0], cRightX = ceilPts[ceilPts.length - 1][0];
@@ -1159,6 +1161,61 @@ function drawStalagmite(cx, x, y, h, w) {
 // ── Seeded deterministic pseudo-random (Task 7-10 structure helpers) ──
 function sRand(n) {
     return (Math.abs(Math.sin(n * 127.1 + 311.7) * 43758.5453)) % 1;
+}
+
+// ── Visual Surface Layer (issue #52) ─────────────────────────────
+// Deterministic, world-anchored contour noise added ON TOP OF the
+// unchanged collision profile (floorAt / ceilingAt). The safety
+// clamp in visualProfileDepth() guarantees the visual surface never
+// recedes into the solid — it may only wobble into the passable
+// water column. Amplitudes are intentionally small (tens of cm).
+//
+// Contract:
+//   visualSurfaceNoise(worldX, seed) → number in ~[-1, 1]
+//   visualProfileDepth(siteId, kind, worldX, collisionDepth)
+//     kind = 'floor'  → returned depth ≤ collisionDepth
+//     kind = 'ceiling' → returned depth ≥ collisionDepth
+// Pure functions of their inputs — no state, no time, no Math.random().
+
+var VISUAL_SURFACE_CONFIG = {
+    shore: { floorAmp: 0.15, floorSeed: 11.31 },
+    reef:  { floorAmp: 0.28, floorSeed: 27.17 },
+    cave:  { floorAmp: 0.22, floorSeed: 42.71,
+             ceilAmp:  0.20, ceilSeed:  63.83 }
+};
+
+// low-frequency base shape + two smaller high-frequency components
+function visualSurfaceNoise(worldX, seed) {
+    return Math.sin(worldX * 0.55 + seed) * 0.55
+         + Math.sin(worldX * 1.70 + seed * 1.7) * 0.30
+         + Math.sin(worldX * 4.10 + seed * 2.3) * 0.15;
+}
+
+function visualProfileDepth(siteId, surfaceKind, worldX, collisionDepth) {
+    var cfg = VISUAL_SURFACE_CONFIG[siteId];
+    if (!cfg) return collisionDepth;
+    var amp, seed;
+    if (surfaceKind === 'floor') {
+        amp  = cfg.floorAmp;
+        seed = cfg.floorSeed;
+    } else if (surfaceKind === 'ceiling') {
+        amp  = cfg.ceilAmp;
+        seed = cfg.ceilSeed;
+    }
+    if (!amp) return collisionDepth;
+    var n = visualSurfaceNoise(worldX, seed);
+    // Bias the offset entirely INTO the water column so the contour
+    // has continuous smooth wobble (never clipped flat by the safety
+    // Math.min/Math.max below). The clamp is still applied as a
+    // defensive guard.
+    if (surfaceKind === 'floor') {
+        // floor: visualD must be ≤ collisionDepth  → offset ∈ [−amp, 0]
+        var floorCand = collisionDepth + 0.5 * amp * (n - 1);
+        return Math.min(collisionDepth, floorCand);
+    }
+    // ceiling: visualD must be ≥ collisionDepth  → offset ∈ [0, amp]
+    var ceilCand = collisionDepth + 0.5 * amp * (1 - n);
+    return Math.max(collisionDepth, ceilCand);
 }
 
 function drawSiteAtmosphere() {

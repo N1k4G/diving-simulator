@@ -2634,6 +2634,191 @@ tests = [
         }
     },
     // ----------------------------------------------------------
+    // Issue #52 — Visual Surface Layer
+    // ----------------------------------------------------------
+    {
+        id: 'TC-52-DETERMINISM',
+        name: 'Issue #52 — visualProfileDepth is deterministic',
+        fn: function() {
+            // Same inputs → same outputs, every call.
+            var sites = ['shore', 'reef', 'cave'];
+            var kinds = ['floor', 'ceiling'];
+            var xs = [-15, 0, 12.5, 47.3, 88, 121.7, 175];
+            var mismatches = 0;
+            for (var i = 0; i < sites.length; i++) {
+                for (var k = 0; k < kinds.length; k++) {
+                    for (var j = 0; j < xs.length; j++) {
+                        var a = api.visualProfileDepth(sites[i], kinds[k], xs[j], 30);
+                        var b = api.visualProfileDepth(sites[i], kinds[k], xs[j], 30);
+                        var c = api.visualProfileDepth(sites[i], kinds[k], xs[j], 30);
+                        if (a !== b || b !== c) mismatches++;
+                    }
+                }
+            }
+            assert(mismatches === 0, mismatches + ' non-deterministic samples');
+            // And the noise helper itself:
+            var n1 = api.visualSurfaceNoise(12.5, 11.31);
+            var n2 = api.visualSurfaceNoise(12.5, 11.31);
+            assert(n1 === n2, 'visualSurfaceNoise not deterministic');
+            return 'PASS — deterministic across ' + (sites.length * kinds.length * xs.length) + ' samples';
+        }
+    },
+    {
+        id: 'TC-52-AMPLITUDE',
+        name: 'Issue #52 — visual offset stays within configured amplitude',
+        fn: function() {
+            var cfg = api.VISUAL_SURFACE_CONFIG;
+            var testCases = [
+                { site: 'shore', kind: 'floor',   amp: cfg.shore.floorAmp },
+                { site: 'reef',  kind: 'floor',   amp: cfg.reef.floorAmp },
+                { site: 'cave',  kind: 'floor',   amp: cfg.cave.floorAmp },
+                { site: 'cave',  kind: 'ceiling', amp: cfg.cave.ceilAmp }
+            ];
+            var collision = 30;
+            var maxAbs = 0;
+            for (var t = 0; t < testCases.length; t++) {
+                var tc = testCases[t];
+                // dense sweep across a wide world-x range
+                for (var x = -50; x <= 200; x += 0.25) {
+                    var v = api.visualProfileDepth(tc.site, tc.kind, x, collision);
+                    var off = v - collision;
+                    // Direction check: floor offset ≤ 0, ceiling offset ≥ 0
+                    if (tc.kind === 'floor' && off > 1e-9) {
+                        throw new Error(tc.site + '/floor offset >0 at x=' + x + ': ' + off);
+                    }
+                    if (tc.kind === 'ceiling' && off < -1e-9) {
+                        throw new Error(tc.site + '/ceiling offset <0 at x=' + x + ': ' + off);
+                    }
+                    var mag = Math.abs(off);
+                    if (mag > tc.amp + 1e-9) {
+                        throw new Error(tc.site + '/' + tc.kind + ' |offset|=' + mag.toFixed(4) +
+                                        ' exceeds amp=' + tc.amp + ' at x=' + x);
+                    }
+                    if (mag > maxAbs) maxAbs = mag;
+                }
+            }
+            return 'PASS — largest |offset|=' + maxAbs.toFixed(3) + ' m, all within budget';
+        }
+    },
+    {
+        id: 'TC-52-FLOOR-INVARIANT',
+        name: 'Issue #52 — visual floor ≤ collision floor (no invisible walls)',
+        fn: function() {
+            api.diveSite = 'shore';
+            var sites = ['shore', 'reef', 'cave'];
+            var breaches = 0;
+            for (var s = 0; s < sites.length; s++) {
+                api.diveSite = sites[s];
+                for (var x = -30; x <= 200; x += 0.5) {
+                    var col = api.floorAt(x);
+                    var vis = api.visualProfileDepth(sites[s], 'floor', x, col);
+                    if (vis > col + 1e-9) breaches++;
+                }
+            }
+            assert(breaches === 0, breaches + ' floor invariant breaches');
+            return 'PASS — floor invariant holds across shore/reef/cave';
+        }
+    },
+    {
+        id: 'TC-52-CEILING-INVARIANT',
+        name: 'Issue #52 — visual ceiling ≥ collision ceiling (Cave)',
+        fn: function() {
+            api.diveSite = 'cave';
+            var breaches = 0;
+            var samples = 0;
+            for (var x = -10; x <= 200; x += 0.5) {
+                var col = api.ceilingAt(x);
+                if (col <= 0.01) continue;  // open shaft — no ceiling to test
+                var vis = api.visualProfileDepth('cave', 'ceiling', x, col);
+                samples++;
+                if (vis < col - 1e-9) breaches++;
+            }
+            assert(samples > 0, 'no ceiling samples found');
+            assert(breaches === 0, breaches + ' ceiling invariant breaches');
+            return 'PASS — ceiling invariant holds across ' + samples + ' samples';
+        }
+    },
+    {
+        id: 'TC-52-COLLISION-UNCHANGED',
+        name: 'Issue #52 — floorAt/ceilingAt values unchanged by this issue',
+        fn: function() {
+            // Reference values captured from the collision profiles as of
+            // release/batch-2 baseline. If any of these change, the collision
+            // geometry was accidentally touched.
+            api.diveSite = 'shore';
+            assert(Math.abs(api.floorAt(0)   -  3) < 1e-6, 'shore floorAt(0)');
+            assert(Math.abs(api.floorAt(35)  -  6) < 1e-6, 'shore floorAt(35)');
+            assert(Math.abs(api.floorAt(70)  - 10) < 1e-6, 'shore floorAt(70)');
+            assert(Math.abs(api.floorAt(115) - 22) < 1e-6, 'shore floorAt(115)');
+
+            api.diveSite = 'reef';
+            assert(Math.abs(api.floorAt(-8)  -  5) < 1e-6, 'reef floorAt(-8)');
+            assert(Math.abs(api.floorAt(0)   -  5) < 1e-6, 'reef floorAt(0)');
+            assert(Math.abs(api.floorAt(8)   -  5) < 1e-6, 'reef floorAt(8)');
+            assert(Math.abs(api.floorAt(20)  - 90) < 1e-6, 'reef floorAt(20)');
+
+            api.diveSite = 'cave';
+            assert(Math.abs(api.floorAt(0)    - 10)  < 1e-6, 'cave floorAt(0)');
+            assert(Math.abs(api.floorAt(50)   - 23)  < 1e-6, 'cave floorAt(50)');
+            assert(Math.abs(api.floorAt(90)   - 103) < 1e-6, 'cave floorAt(90)');
+            assert(Math.abs(api.ceilingAt(30) - 15)  < 1e-6, 'cave ceilingAt(30)');
+            assert(Math.abs(api.ceilingAt(75) - 13)  < 1e-6, 'cave ceilingAt(75)');
+            assert(Math.abs(api.ceilingAt(146)- 16)  < 1e-6, 'cave ceilingAt(146)');
+            return 'PASS — collision profiles unchanged';
+        }
+    },
+    {
+        id: 'TC-52-WORLD-ANCHORED',
+        name: 'Issue #52 — visual contour is world-anchored (not camera-relative)',
+        fn: function() {
+            // Same worldX must give same visualD regardless of any external
+            // state: setting diverX / depth to different values must NOT
+            // change the noise. The function is pure of its args.
+            var beforeX = api.diverX, beforeD = api.depth;
+            var samples = [];
+            for (var x = -20; x <= 150; x += 3.7) {
+                samples.push(api.visualProfileDepth('reef', 'floor', x, 30));
+            }
+            api.diverX = 500;
+            api.setDepth(80);
+            var mismatches = 0;
+            for (var i = 0, x2 = -20; x2 <= 150; x2 += 3.7, i++) {
+                var v = api.visualProfileDepth('reef', 'floor', x2, 30);
+                if (v !== samples[i]) mismatches++;
+            }
+            // restore
+            api.diverX = beforeX;
+            api.setDepth(beforeD);
+            assert(mismatches === 0, mismatches + ' samples changed with camera position');
+            return 'PASS — visualProfileDepth is a pure function of its arguments';
+        }
+    },
+    {
+        id: 'TC-52-NOT-MIRROR',
+        name: 'Issue #52 — Cave floor and ceiling use different seeds',
+        fn: function() {
+            // If floor and ceiling shared the same seed, the offsets would
+            // mirror each other. Sample several xs and check the two offset
+            // sequences are not simply proportional / identical in shape.
+            var xs = [10, 20, 30, 40, 55, 70, 85, 100, 115, 130];
+            var floorOffsets = [], ceilOffsets = [];
+            for (var i = 0; i < xs.length; i++) {
+                floorOffsets.push(api.visualProfileDepth('cave', 'floor', xs[i], 30) - 30);
+                ceilOffsets.push(api.visualProfileDepth('cave', 'ceiling', xs[i], 30) - 30);
+            }
+            // Check they aren't identical (or trivially negated) at every point
+            var identical = 0, negated = 0;
+            for (var j = 0; j < xs.length; j++) {
+                if (Math.abs(floorOffsets[j] - ceilOffsets[j]) < 1e-6) identical++;
+                if (Math.abs(floorOffsets[j] + ceilOffsets[j]) < 1e-6) negated++;
+            }
+            assert(identical < xs.length, 'floor and ceiling offsets are identical everywhere');
+            assert(negated   < xs.length, 'floor and ceiling offsets are mirror-negated everywhere');
+            return 'PASS — floor/ceiling have independent noise (identical=' + identical +
+                   ', negated=' + negated + ' of ' + xs.length + ')';
+        }
+    },
+    // ----------------------------------------------------------
     // TC-CNS-PERSIST-1: Bug #10 — cnsPercent missing from save/restore.
     // After a browser reload + resume, the CNS O2-toxicity display used
     // to snap back to 0% even though the dive continued.

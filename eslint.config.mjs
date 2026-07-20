@@ -170,6 +170,9 @@ const gameGlobals = {
   po2Color: "readonly", waterColor: "readonly",
   tankBar: "readonly", tankColor: "readonly",
   smoothstep: "readonly", formatTime: "readonly",
+  // Issue #52: Visual Surface Layer helpers (renderer.js)
+  VISUAL_SURFACE_CONFIG: "readonly",
+  visualSurfaceNoise: "readonly", visualProfileDepth: "readonly",
   // Phase C renderer helpers
   drawTerrain: "readonly", drawStructures: "readonly",
   drawFeatures: "readonly", drawSeagrass: "readonly",

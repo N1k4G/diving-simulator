@@ -952,5 +952,9 @@ window.gameAPI = {
     get FISH_TYPES() { return FISH_TYPES; },
     get WILDLIFE_TYPES() { return WILDLIFE_TYPES; },
     eligibleFishTypes: function() { return _eligibleTypes(FISH_TYPES); },
-    eligibleWildlifeTypes: function() { return _eligibleTypes(WILDLIFE_TYPES); }
+    eligibleWildlifeTypes: function() { return _eligibleTypes(WILDLIFE_TYPES); },
+    // Issue #52: Visual Surface Layer test hooks (renderer-only, decorative)
+    visualSurfaceNoise: visualSurfaceNoise,
+    visualProfileDepth: visualProfileDepth,
+    get VISUAL_SURFACE_CONFIG() { return VISUAL_SURFACE_CONFIG; }
 };
