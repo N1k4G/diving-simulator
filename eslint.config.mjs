@@ -176,6 +176,8 @@ const gameGlobals = {
   // Issue #41: Material texture tiles (renderer.js)
   MAT_TILE: "readonly", buildMaterialTiles: "readonly",
   _matTiles: "writable",
+  // Issue #34: AO contact band (renderer.js)
+  CONTACT_AO: "readonly", drawContactBand: "readonly",
   // Phase C renderer helpers
   drawTerrain: "readonly", drawStructures: "readonly",
   drawFeatures: "readonly", drawSeagrass: "readonly",

@@ -960,5 +960,8 @@ window.gameAPI = {
     // Issue #41: Material texture tile registry (renderer-only, decorative)
     buildMaterialTiles: buildMaterialTiles,
     get materialTiles() { return _matTiles; },
-    get MAT_TILE() { return MAT_TILE; }
+    get MAT_TILE() { return MAT_TILE; },
+    // Issue #34: AO contact band helper (renderer-only, decorative)
+    drawContactBand: drawContactBand,
+    get CONTACT_AO() { return CONTACT_AO; }
 };

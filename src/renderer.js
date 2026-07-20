@@ -161,6 +161,38 @@ var GRAIN_DITHER_MIN_DEPTH = 40;
 // Metres per pixel — matches drawScene/drawTerrain (0.05 m/px = 20 px/m).
 var MAT_MPP = 0.05;
 
+// Issue #34 point 2: Ambient occlusion contact bands.
+// A soft darkening stroke along floor/ceiling silhouettes and structure
+// baselines. Uses canvas shadowBlur on a low-alpha stroke to produce the
+// soft falloff cheaply in one draw call per polyline. World-anchored by
+// construction: the input point arrays are already computed from world
+// coordinates, so the band moves rigidly with the camera.
+const CONTACT_AO = {
+    // Terrain silhouette (floor + ceiling): a thin dark stroke with a wider
+    // soft-blur halo. The halo is what reads as an AO band; the stroke
+    // itself is invisible where the line is convex (bulging away from the
+    // solid), and pools visibly darker at concave kinks.
+    terrain: {
+        strokeAlpha: 0.18,   // core stroke color alpha
+        strokeWidth: 1.5,    // core stroke line width (px)
+        blurRadius: 6,       // shadowBlur radius (px) — this is the visible band width
+        shadowAlpha: 0.42    // shadowColor alpha
+    },
+    // Structure baselines (bottom edge for floor-sitting structures, top
+    // edge for ceiling-hanging structures). Slightly stronger than terrain
+    // because it's a shorter line and needs to read against the fill.
+    structure: {
+        strokeAlpha: 0.22,
+        strokeWidth: 1.5,
+        blurRadius: 5,
+        shadowAlpha: 0.5,
+        // World-space distance (m) below which a structure's bottom counts as
+        // "sitting on the floor" (or top on the ceiling). Beyond this, no
+        // contact band is drawn — the structure is floating in the water column.
+        contactSlackM: 0.6
+    }
+};
+
 // Lazy registry — populated on first drawScene(); never re-allocated.
 var _matTiles = null;
 
@@ -1170,6 +1202,11 @@ function drawTerrain() {
         cx.restore();
     }
 
+    // Issue #34: AO contact band along the floor silhouette. Runs on ALL
+    // sites (shore/reef/cave/wreck) — creases in the silhouette pool
+    // shadow, giving the terrain more perceived volume.
+    drawContactBand(cx, floorPts, CONTACT_AO.terrain);
+
     // Ceiling polygon — textured rock, filled from profile up to top of screen (cave only)
     if (s.ceiling) {
         // Build the ceiling outline points (and remember them for texturing)
@@ -1308,6 +1345,9 @@ function drawTerrain() {
                 cx.stroke();
             }
             cx.restore();
+
+            // Issue #34: AO contact band along the ceiling silhouette.
+            drawContactBand(cx, ceilPts, CONTACT_AO.terrain);
         }
 
         // Cave-only: stalactites hanging from the ceiling + stalagmites on
@@ -3277,6 +3317,27 @@ function drawStructures() {
                 cx.lineWidth = 1;
                 cx.strokeRect(sx1, sy1, sw, sh);
         }
+
+        // Issue #34: AO contact band along the structure's contact edge with
+        // terrain. Sits-on-floor: draw the bottom edge. Hangs-from-ceiling:
+        // draw the top edge. World-anchored via the same screen-space
+        // conversion the structure uses. Skipped for structures floating in
+        // the water column (e.g. midwater bedrock crossings) — those don't
+        // touch anything, so an AO band there would read as a bug.
+        var floorHereL = floorAt(w.x1), floorHereR = floorAt(w.x2);
+        var ceilHereL  = ceilingAt(w.x1), ceilHereR = ceilingAt(w.x2);
+        var slack = CONTACT_AO.structure.contactSlackM;
+        var sitsOnFloor = (Math.abs(w.dBottom - floorHereL) < slack)
+                       || (Math.abs(w.dBottom - floorHereR) < slack);
+        var hangsFromCeil = (s.ceiling)
+                       && ((Math.abs(w.dTop - ceilHereL) < slack)
+                        || (Math.abs(w.dTop - ceilHereR) < slack));
+        if (sitsOnFloor) {
+            drawContactBand(cx, [[sx1, sy2], [sx2, sy2]], CONTACT_AO.structure);
+        }
+        if (hangsFromCeil) {
+            drawContactBand(cx, [[sx1, sy1], [sx2, sy1]], CONTACT_AO.structure);
+        }
     }
 }
 
@@ -3384,6 +3445,35 @@ function drawContactShadow(cx, x, y, w, h, alpha) {
     cx.beginPath();
     cx.ellipse(x, y + 1, w * 0.55, h, 0, 0, Math.PI * 2);
     cx.fill();
+    cx.restore();
+}
+
+// Issue #34 point 2: Draw a soft AO darkening band along a polyline.
+//
+// `points`   — array of [screenX, screenY] pairs (already computed in world
+//              → screen space by the caller, so the band is world-anchored).
+// `cfg`      — one of CONTACT_AO.terrain / CONTACT_AO.structure.
+//
+// Uses canvas shadowBlur on a low-alpha stroke so the visible band is the
+// blurred shadow, not the stroke itself. One draw call per polyline. No
+// allocations. Safe to call with < 2 points (early return).
+function drawContactBand(cx, points, cfg) {
+    if (!points || points.length < 2) return;
+    cx.save();
+    cx.strokeStyle = 'rgba(0,0,0,' + cfg.strokeAlpha.toFixed(3) + ')';
+    cx.lineWidth = cfg.strokeWidth;
+    cx.lineCap = 'round';
+    cx.lineJoin = 'round';
+    cx.shadowColor = 'rgba(0,0,0,' + cfg.shadowAlpha.toFixed(3) + ')';
+    cx.shadowBlur = cfg.blurRadius;
+    cx.shadowOffsetX = 0;
+    cx.shadowOffsetY = 0;
+    cx.beginPath();
+    cx.moveTo(points[0][0], points[0][1]);
+    for (var i = 1; i < points.length; i++) {
+        cx.lineTo(points[i][0], points[i][1]);
+    }
+    cx.stroke();
     cx.restore();
 }
 

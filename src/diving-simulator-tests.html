@@ -2906,6 +2906,167 @@ tests = [
         }
     },
     // ----------------------------------------------------------
+    // Issue #34 — Ambient Occlusion contact bands
+    // drawContactBand() paints a soft dark halo along terrain and
+    // structure silhouettes using canvas shadowBlur. These tests
+    // verify the API surface, configuration sanity, degenerate
+    // inputs, pixel-level rendering, determinism, and state hygiene.
+    // ----------------------------------------------------------
+    {
+        id: 'TC-34-API-SURFACE',
+        name: 'Issue #34 — gameAPI exposes drawContactBand (function) and CONTACT_AO (object)',
+        fn: function() {
+            assert(typeof api.drawContactBand === 'function', 'drawContactBand not exposed');
+            assert(api.CONTACT_AO && typeof api.CONTACT_AO === 'object', 'CONTACT_AO not exposed');
+            var ao = api.CONTACT_AO;
+            // terrain sub-config
+            assert(ao.terrain && typeof ao.terrain === 'object', 'CONTACT_AO.terrain missing');
+            assert(typeof ao.terrain.strokeAlpha === 'number', 'terrain.strokeAlpha not a number');
+            assert(typeof ao.terrain.strokeWidth === 'number', 'terrain.strokeWidth not a number');
+            assert(typeof ao.terrain.blurRadius  === 'number', 'terrain.blurRadius not a number');
+            assert(typeof ao.terrain.shadowAlpha === 'number', 'terrain.shadowAlpha not a number');
+            // structure sub-config
+            assert(ao.structure && typeof ao.structure === 'object', 'CONTACT_AO.structure missing');
+            assert(typeof ao.structure.strokeAlpha   === 'number', 'structure.strokeAlpha not a number');
+            assert(typeof ao.structure.strokeWidth   === 'number', 'structure.strokeWidth not a number');
+            assert(typeof ao.structure.blurRadius    === 'number', 'structure.blurRadius not a number');
+            assert(typeof ao.structure.shadowAlpha   === 'number', 'structure.shadowAlpha not a number');
+            assert(typeof ao.structure.contactSlackM === 'number', 'structure.contactSlackM not a number');
+            return 'PASS — drawContactBand and CONTACT_AO with all required keys present';
+        }
+    },
+    {
+        id: 'TC-34-CONFIG-SANE',
+        name: 'Issue #34 — CONTACT_AO values are in sane numeric ranges',
+        fn: function() {
+            var ao = api.CONTACT_AO;
+            var configs = [
+                { label: 'terrain',   cfg: ao.terrain },
+                { label: 'structure', cfg: ao.structure }
+            ];
+            for (var i = 0; i < configs.length; i++) {
+                var label = configs[i].label;
+                var cfg   = configs[i].cfg;
+                assert(cfg.strokeAlpha > 0 && cfg.strokeAlpha <= 1,
+                    label + '.strokeAlpha out of (0,1]: ' + cfg.strokeAlpha);
+                assert(cfg.shadowAlpha > 0 && cfg.shadowAlpha <= 1,
+                    label + '.shadowAlpha out of (0,1]: ' + cfg.shadowAlpha);
+                assert(cfg.strokeWidth > 0 && cfg.strokeWidth < 20,
+                    label + '.strokeWidth out of (0,20): ' + cfg.strokeWidth);
+                assert(cfg.blurRadius > 0 && cfg.blurRadius < 20,
+                    label + '.blurRadius out of (0,20): ' + cfg.blurRadius);
+            }
+            assert(ao.structure.contactSlackM > 0 && ao.structure.contactSlackM < 5,
+                'structure.contactSlackM out of (0,5): ' + ao.structure.contactSlackM);
+            return 'PASS — all CONTACT_AO values within sane ranges';
+        }
+    },
+    {
+        id: 'TC-34-DEGENERATE-INPUT',
+        name: 'Issue #34 — drawContactBand is a safe no-op for degenerate inputs',
+        fn: function() {
+            var cvs = document.createElement('canvas');
+            cvs.width = 10; cvs.height = 10;
+            var cx = cvs.getContext('2d');
+            cx.fillStyle = '#ffffff';
+            cx.fillRect(0, 0, 10, 10);
+            var cfg = api.CONTACT_AO.terrain;
+            var before = cx.getImageData(0, 0, 1, 1).data;
+            // Empty array — should early-return without touching the canvas
+            api.drawContactBand(cx, [], cfg);
+            // Single point — still < 2 points, should early-return
+            api.drawContactBand(cx, [[0, 0]], cfg);
+            // Null — should early-return without throwing
+            api.drawContactBand(cx, null, cfg);
+            var after = cx.getImageData(0, 0, 1, 1).data;
+            for (var c = 0; c < 4; c++) {
+                assert(before[c] === after[c],
+                    'canvas pixel channel ' + c + ' changed after degenerate call: ' +
+                    before[c] + ' -> ' + after[c]);
+            }
+            return 'PASS — degenerate inputs ([], single point, null) are safe no-ops';
+        }
+    },
+    {
+        id: 'TC-34-STROKES-A-PATH',
+        name: 'Issue #34 — drawContactBand darkens pixels along the drawn line',
+        fn: function() {
+            var cvs = document.createElement('canvas');
+            cvs.width = 200; cvs.height = 50;
+            var cx = cvs.getContext('2d');
+            // White background so any darkening is measurable
+            cx.fillStyle = '#ffffff';
+            cx.fillRect(0, 0, 200, 50);
+            // Draw a horizontal contact band at y=10
+            api.drawContactBand(cx, [[10, 10], [100, 10]], api.CONTACT_AO.terrain);
+            // Sample on the band and far below it
+            var onBand  = cx.getImageData(55, 10, 1, 1).data;
+            var offBand = cx.getImageData(55, 40, 1, 1).data;
+            var avgOn  = (onBand[0]  + onBand[1]  + onBand[2])  / 3;
+            var avgOff = (offBand[0] + offBand[1] + offBand[2]) / 3;
+            assert(avgOn < avgOff - 20,
+                'band at (55,10) not dark enough vs background at (55,40): ' +
+                'avgOn=' + avgOn.toFixed(1) + ', avgOff=' + avgOff.toFixed(1) +
+                ' — difference must exceed 20');
+            return 'PASS — band averageRGB at (55,10)=' + avgOn.toFixed(1) +
+                   ' is visibly darker than background at (55,40)=' + avgOff.toFixed(1);
+        }
+    },
+    {
+        id: 'TC-34-DETERMINISTIC',
+        name: 'Issue #34 — drawContactBand produces identical pixels on repeat calls',
+        fn: function() {
+            var points = [[10, 10], [90, 20], [150, 10]];
+            var cfg = api.CONTACT_AO.terrain;
+            // Canvas A
+            var cvsA = document.createElement('canvas');
+            cvsA.width = 200; cvsA.height = 50;
+            var cxA = cvsA.getContext('2d');
+            cxA.fillStyle = '#888888';
+            cxA.fillRect(0, 0, 200, 50);
+            api.drawContactBand(cxA, points, cfg);
+            // Canvas B — identical setup
+            var cvsB = document.createElement('canvas');
+            cvsB.width = 200; cvsB.height = 50;
+            var cxB = cvsB.getContext('2d');
+            cxB.fillStyle = '#888888';
+            cxB.fillRect(0, 0, 200, 50);
+            api.drawContactBand(cxB, points, cfg);
+            // Sample 4 pixels and compare all 4 channels
+            var samplePts = [[10, 10], [90, 20], [150, 10], [80, 15]];
+            for (var p = 0; p < samplePts.length; p++) {
+                var sx = samplePts[p][0], sy = samplePts[p][1];
+                var pA = cxA.getImageData(sx, sy, 1, 1).data;
+                var pB = cxB.getImageData(sx, sy, 1, 1).data;
+                for (var c = 0; c < 4; c++) {
+                    assert(pA[c] === pB[c],
+                        'pixel mismatch at (' + sx + ',' + sy + ') channel ' + c +
+                        ': A=' + pA[c] + ' B=' + pB[c]);
+                }
+            }
+            return 'PASS — identical pixel output across two independent draws at 4 sample points';
+        }
+    },
+    {
+        id: 'TC-34-NO-STATE-LEAK',
+        name: 'Issue #34 — drawContactBand restores canvas state via save/restore',
+        fn: function() {
+            var cvs = document.createElement('canvas');
+            cvs.width = 200; cvs.height = 50;
+            var cx = cvs.getContext('2d');
+            // Set a recognizable strokeStyle and a known shadowBlur
+            cx.strokeStyle = '#ff00ff';
+            cx.shadowBlur  = 0;
+            api.drawContactBand(cx, [[10, 10], [100, 10]], api.CONTACT_AO.terrain);
+            // strokeStyle must be restored (browsers normalise the colour string)
+            assert(cx.strokeStyle.toLowerCase() === '#ff00ff',
+                'strokeStyle not restored: got ' + cx.strokeStyle);
+            assert(cx.shadowBlur === 0,
+                'shadowBlur not restored: got ' + cx.shadowBlur);
+            return 'PASS — strokeStyle and shadowBlur restored after drawContactBand';
+        }
+    },
+    // ----------------------------------------------------------
     // TC-CNS-PERSIST-1: Bug #10 — cnsPercent missing from save/restore.
     // After a browser reload + resume, the CNS O2-toxicity display used
     // to snap back to 0% even though the dive continued.
