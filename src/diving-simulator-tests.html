@@ -2367,6 +2367,159 @@ tests = [
                 endLoop.toFixed(1) + ') for helium-rich diluent');
             return 'PASS — bailout narcosis/END correctly use diluent gas';
         }
+    },
+    // ----------------------------------------------------------
+    // TC-CCR-DYN-1: Bug #25 — setpoint increase mid-dive raises actualPO2
+    // AND costs O2 cylinder pressure beyond the constant metabolic draw.
+    // Previously the solenoid correction was gas-balance-free.
+    // ----------------------------------------------------------
+    {
+        id: 'TC-CCR-DYN-1',
+        name: 'CCR #25 — setpoint increase consumes O2 proportional to the correction',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.diveMode = 'ccr';
+            api.initCCR();
+            api.setDepth(20); // pAmb = 3.0, held constant — isolate solenoid O2 cost
+            api.ccrState.targetSP = 0.7;
+            api.ccrState.actualPO2 = 0.7; // settled at old setpoint
+            api.ccrState.o2CylPressure = 200;
+
+            // Raise setpoint mid-dive — deficit becomes 0.6 bar.
+            api.ccrState.targetSP = 1.3;
+
+            // 20 x 1s ticks at constant depth (prevDepth === depth, no compression
+            // term). po2ResponseRate = 0.05 bar/s -> max 1.0 bar of correction
+            // capacity over 20s, comfortably enough to fully reach the 0.6 bar
+            // deficit if O2 supply were unlimited (it is here: full cylinder).
+            for (var i = 0; i < 20; i++) {
+                api.updateCCRLoop(1, 20);
+            }
+
+            assert(approx(api.ccrState.actualPO2, 1.3, 0.05),
+                'actualPO2 must reach the new setpoint (~1.3), got ' + api.ccrState.actualPO2.toFixed(3));
+
+            // O2 cost of the 0.6 bar correction = loopVolume(6.0) * 0.6 = 3.6
+            // surface liters -> 3.6 / o2CylVolume(2L) = 1.8 bar of cylinder
+            // pressure. Plus 20s of metabolic draw: 0.8 L/min * (20/60 min) =
+            // 0.267 L -> /2L = 0.133 bar. Total expected drop ~= 1.93 bar.
+            var pressureDrop = 200 - api.ccrState.o2CylPressure;
+            assert(pressureDrop > 1.0,
+                'Setpoint correction must cost real O2 cylinder pressure (expected ~1.93 bar drop), got ' +
+                pressureDrop.toFixed(2) + ' bar — metabolic-only draw alone would be ~0.13 bar');
+            assert(approx(pressureDrop, 1.93, 0.2),
+                'O2 cylinder pressure drop should match loopVolume*deficit + metabolic draw (~1.93 bar), got ' +
+                pressureDrop.toFixed(2) + ' bar');
+            return 'PASS — setpoint increase costs ' + pressureDrop.toFixed(2) + ' bar of O2, not just metabolic draw';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-CCR-DYN-2: Bug #25 — rapid descent produces a transient PO2 spike
+    // that can exceed the hyperoxia threshold, even with the loop already
+    // sitting at a moderate setpoint. This is the previously-dead
+    // "Hyperoxia" game-over path (actualPO2 > 1.6 for 30s).
+    // ----------------------------------------------------------
+    {
+        id: 'TC-CCR-DYN-2',
+        name: 'CCR #25 — rapid descent produces a transient hyperoxia-range PO2 spike',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.diveMode = 'ccr';
+            api.initCCR();
+            api.setDepth(6); // pAmb = 1.6, settled shallow
+            api.ccrState.targetSP = 0.9;
+            api.ccrState.actualPO2 = 0.9;
+            api.ccrState.o2CylPressure = 200;
+
+            // Instant rapid descent to 70m (pAmb = 8.0). Small dtSec (0.1s) keeps
+            // the solenoid's own response-rate correction negligible (max 0.005
+            // bar) so the assertion isolates the compression-scaling effect,
+            // not the control loop reacting to it in the same tick.
+            api.setDepth(70);
+            api.updateCCRLoop(0.1, 6);
+
+            // Expected: actualPO2 *= pAmb_new/pAmb_old = 0.9 * (8.0/1.6) = 4.5,
+            // clamped only by pAmb (8.0) — well above both targetSP and the
+            // CCR_SP_MAX / hyperoxia threshold of 1.6.
+            assert(api.ccrState.actualPO2 > 1.6,
+                'Rapid descent must produce a transient PO2 spike above the hyperoxia threshold (1.6), got ' +
+                api.ccrState.actualPO2.toFixed(2));
+            assert(approx(api.ccrState.actualPO2, 4.5, 0.3),
+                'Expected actualPO2 ~= 4.5 (0.9 * 8.0/1.6) after the compression spike, got ' +
+                api.ccrState.actualPO2.toFixed(2));
+            return 'PASS — rapid descent spikes actualPO2 to ' + api.ccrState.actualPO2.toFixed(2) +
+                ' (hyperoxia now reachable)';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-CCR-DYN-3: Bug #25 — rapid ascent produces a transient PO2 drop
+    // below the hypoxia threshold, even with a completely full O2 cylinder.
+    // Previously hypoxia was only reachable via an empty O2 tank.
+    // ----------------------------------------------------------
+    {
+        id: 'TC-CCR-DYN-3',
+        name: 'CCR #25 — rapid ascent produces a transient hypoxia-range PO2 drop despite full O2 tank',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.diveMode = 'ccr';
+            api.initCCR();
+            api.setDepth(90); // pAmb = 10.0
+            api.ccrState.targetSP = 1.3;
+            api.ccrState.actualPO2 = 1.3; // settled at setpoint
+            api.ccrState.o2CylPressure = 200; // full O2 cylinder — bug #25 claimed hypoxia was unreachable while this holds
+
+            // Instant rapid ascent to the surface (pAmb = 1.0). Small dtSec keeps
+            // the solenoid's own correction negligible for the same reason as
+            // TC-CCR-DYN-2.
+            api.setDepth(0);
+            api.updateCCRLoop(0.1, 90);
+
+            // Expected: actualPO2 *= 1.0/10.0 = 0.13, clearly below PO2_HYPOXIA (0.16).
+            assert(api.ccrState.actualPO2 < 0.16,
+                'Rapid ascent must produce a transient PO2 drop below the hypoxia threshold (0.16), got ' +
+                api.ccrState.actualPO2.toFixed(3));
+            assert(api.ccrState.o2CylPressure > 195,
+                'O2 cylinder must remain essentially full — hypoxia here comes from decompression, not gas supply, got ' +
+                api.ccrState.o2CylPressure.toFixed(1) + ' bar');
+            return 'PASS — rapid ascent drops actualPO2 to ' + api.ccrState.actualPO2.toFixed(3) +
+                ' despite a full O2 cylinder (hypoxia now reachable)';
+        }
+    },
+    // ----------------------------------------------------------
+    // TC-CCR-DYN-4: Bug #25 — with insufficient O2 reserve, the solenoid
+    // cannot fully correct actualPO2 up to targetSP; it applies only what
+    // the remaining cylinder can afford.
+    // ----------------------------------------------------------
+    {
+        id: 'TC-CCR-DYN-4',
+        name: 'CCR #25 — insufficient O2 reserve means setpoint is not fully reached',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.diveMode = 'ccr';
+            api.initCCR();
+            api.setDepth(20); // pAmb = 3.0, held constant
+            api.ccrState.targetSP = 1.3;
+            api.ccrState.actualPO2 = 0.5; // 0.8 bar deficit
+            api.ccrState.o2CylVolume = 2; // liters
+            api.ccrState.o2CylPressure = 1; // only 2 surface liters of O2 left
+
+            // 20s tick: response-rate alone (0.05 * 20 = 1.0 bar) would be enough
+            // to close the 0.8 bar deficit if O2 supply were unlimited — it is
+            // NOT unlimited here, so the O2 mass-balance constraint must bind.
+            api.updateCCRLoop(20, 20);
+
+            assert(api.ccrState.actualPO2 < 1.2,
+                'With an almost-empty O2 cylinder, actualPO2 must NOT fully reach targetSP (1.3), got ' +
+                api.ccrState.actualPO2.toFixed(3));
+            assert(api.ccrState.actualPO2 > 0.5,
+                'actualPO2 should still rise partially with the O2 that was available, got ' +
+                api.ccrState.actualPO2.toFixed(3));
+            assert(api.ccrState.o2CylPressure < 0.05,
+                'The O2 cylinder should be essentially drained by the partial correction, got ' +
+                api.ccrState.o2CylPressure.toFixed(3) + ' bar');
+            return 'PASS — insufficient O2 caps actualPO2 at ' + api.ccrState.actualPO2.toFixed(3) +
+                ' instead of reaching setpoint for free';
+        }
     }
 ];
 

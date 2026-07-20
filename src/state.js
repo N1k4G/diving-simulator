@@ -310,25 +310,52 @@ function ccrAdjustO2Pres(delta) {
   _gsBuilt = false;
 }
 
-function updateCCRLoop(dtSec) {
+function updateCCRLoop(dtSec, prevDepth) {
   if (ccrState.onBailout) return;
   var dtMin = dtSec / 60;
 
   // Metabolic O2 consumption (constant rate regardless of depth)
   var o2Used = ccrState.metabolicO2Rate * dtMin; // surface liters
-  var o2Available = ccrState.o2CylPressure * ccrState.o2CylVolume; // total surface liters in O2 cyl
-  if (o2Used > o2Available) o2Used = o2Available;
+  var o2AvailBefore = ccrState.o2CylPressure * ccrState.o2CylVolume; // total surface liters in O2 cyl
+  if (o2Used > o2AvailBefore) o2Used = o2AvailBefore;
   ccrState.o2CylPressure -= o2Used / ccrState.o2CylVolume;
   if (ccrState.o2CylPressure < 0) ccrState.o2CylPressure = 0;
 
   // PO2 management
   var pAmb = ambientPressure(depth);
 
-  // If O2 cylinder has gas, solenoid injects to maintain setpoint
-  if (ccrState.o2CylPressure > 0 && ccrState.actualPO2 < ccrState.targetSP) {
+  // BUG-25: Depth-change compression/decompression. The loop is a closed
+  // volume — as ambient pressure rises on descent, all partial pressures
+  // in it (including O2) rise proportionally before the solenoid can react;
+  // on ascent they fall the same way. Without this, actualPO2 could only
+  // ever approach targetSP from below and could only drop via an empty O2
+  // cylinder, making both hyperoxia (>1.6, descent spike) and hypoxia from
+  // a fast ascent unreachable regardless of setpoint.
+  var pAmbPrev = ambientPressure(prevDepth === undefined ? depth : prevDepth);
+  ccrState.actualPO2 *= pAmb / pAmbPrev;
+
+  // If O2 cylinder has gas, solenoid injects to maintain setpoint. BUG-25:
+  // the injected O2 must be deducted from the cylinder like any other
+  // consumption — previously a setpoint increase was gas-balance-free.
+  // Surface liters needed for a PO2 rise of `desiredRise` in a loop of
+  // volume loopVolume is loopVolume * desiredRise, independent of depth
+  // (the ambient-liter injection volume and the ambient->surface
+  // conversion cancel out).
+  var o2Available = ccrState.o2CylPressure * ccrState.o2CylVolume; // surface liters remaining after metabolic draw
+  if (o2Available > 0 && ccrState.actualPO2 < ccrState.targetSP) {
     var maxRise = ccrState.po2ResponseRate * dtSec;
     var deficit = ccrState.targetSP - ccrState.actualPO2;
-    ccrState.actualPO2 += Math.min(maxRise, deficit);
+    var desiredRise = Math.min(maxRise, deficit);
+    var o2Cost = ccrState.loopVolume * desiredRise;
+    var actualRise = desiredRise;
+    if (o2Cost > o2Available) {
+      // Not enough O2 to fully correct — apply only what's affordable.
+      actualRise = o2Available / ccrState.loopVolume;
+      o2Cost = o2Available;
+    }
+    ccrState.actualPO2 += actualRise;
+    ccrState.o2CylPressure -= o2Cost / ccrState.o2CylVolume;
+    if (ccrState.o2CylPressure < 0) ccrState.o2CylPressure = 0;
   } else if (ccrState.o2CylPressure <= 0) {
     // No O2 available — PO2 drops from metabolism
     var po2Drop = (ccrState.metabolicO2Rate / 60 * dtSec) / ccrState.loopVolume * pAmb;

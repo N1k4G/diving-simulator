@@ -234,7 +234,7 @@ function updateDiving(dtReal) {
         ccrState.dilCylPressure -= consumed / ccrState.dilCylVolume;
         if (ccrState.dilCylPressure < 0) ccrState.dilCylPressure = 0;
       } else {
-        updateCCRLoop(dtDiveSeconds);
+        updateCCRLoop(dtDiveSeconds, prevDepth);
       }
     } else {
       consumed = effectiveAMV(kicking) * pAmb * dtDiveMinutes;
@@ -870,6 +870,7 @@ window.gameAPI = {
     calculateNarcoticPP: calculateNarcoticPP,
     calculateEND: calculateEND,
     getCCRInspiredGas: getCCRInspiredGas,
+    updateCCRLoop: updateCCRLoop,
     recommendBestGas: recommendBestGas,
     ambientPressure: ambientPressure,
     setDepth: function(d) { depth = d; },
