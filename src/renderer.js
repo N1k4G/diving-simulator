@@ -1734,6 +1734,11 @@ var SET_DRESSING_ROT_SEED_MULT         = 7717;
 var SET_DRESSING_DEFAULT_MIN_SCALE     = 0.8;
 var SET_DRESSING_DEFAULT_MAX_SCALE     = 1.15;
 var SET_DRESSING_UNKNOWN_KIND_WARN_CAP = 4;
+// Vertical offset (world metres) above a deck structure's dTop used to
+// anchor 'floor' props resting on it -- solidAt() is inclusive at dTop,
+// so anchoring exactly on the surface would get the candidate rejected
+// by its own solid check.
+var SET_DRESSING_DECK_SURFACE_OFFSET   = 0.05;
 
 // Rate-limits the "unknown prop kind" console.warn per kind, and surfaces
 // the last frame's accepted-candidate count for perf inspection/tests.
@@ -1779,6 +1784,34 @@ function pickProp(rule, r) {
     return props[props.length - 1].kind;
 }
 
+// Some sites (currently: Wreck) define their walkable interior floors as
+// thin 'deck' AABB structures rather than as part of the site-wide
+// floor/ceiling profile -- the wreck's `floor` array is just the flat
+// outer seabed line at d=66. Without this, every 'floor' decoration rule
+// probes at the seabed depth regardless of which deck it's meant to
+// target, so interior-deck rules would silently produce zero candidates.
+// Returns the containing deck's dTop, or null if wx isn't over a deck.
+// Generic by design (checks structure kind, not site id) so it applies to
+// any future site with the same floor/deck split, not just Wreck.
+//
+// Ships stack multiple decks at very similar x-ranges but different
+// depths (e.g. bridge roof, accommodation, vehicle deck, crew deck all
+// overlap in x). A plain "first deck containing wx" scan picks whichever
+// deck happens to be earliest in the array, which is very often the
+// WRONG deck for the zone a given rule targets. Constraining the match
+// to a [zoneD1, zoneD2] depth band (the target zone's own bounds) ties
+// deck selection to "the deck that IS this named zone", removing the
+// ambiguity.
+function _deckSurfaceAt(site, wx, zoneD1, zoneD2) {
+    if (!site.structures) return null;
+    for (var i = 0; i < site.structures.length; i++) {
+        var st = site.structures[i];
+        if (st.kind === 'deck' && wx >= st.x1 && wx <= st.x2
+            && st.dTop >= zoneD1 && st.dTop <= zoneD2) return st.dTop;
+    }
+    return null;
+}
+
 // Shared iteration core used by both drawSetDressing() (real canvas draw)
 // and sampleSetDressingCandidates() (pure, test-friendly candidate list).
 // Keeps the density/zone/depth/solid filter logic in exactly one place so
@@ -1790,6 +1823,15 @@ function _forEachDecorationCandidate(site, visibleWorldLeft, visibleWorldRight, 
     var rules = site.decorationRules;
     for (var ri = 0; ri < rules.length; ri++) {
         var rule = rules[ri];
+        // Resolve the rule's target zone definition once per rule (not per
+        // cell) so _deckSurfaceAt can constrain deck selection to this
+        // zone's own depth band. See _deckSurfaceAt for why this matters.
+        var targetZoneDef = null;
+        if (site.visualZones) {
+            for (var zi = 0; zi < site.visualZones.length; zi++) {
+                if (site.visualZones[zi].id === rule.zone) { targetZoneDef = site.visualZones[zi]; break; }
+            }
+        }
         var startCell = Math.floor(visibleWorldLeft / rule.spacing) - SET_DRESSING_MAX_MARGIN_CELLS;
         var endCell = Math.ceil(visibleWorldRight / rule.spacing) + SET_DRESSING_MAX_MARGIN_CELLS;
         var maxPerScreen = (rule.maxPerScreen != null) ? rule.maxPerScreen : Infinity;
@@ -1806,14 +1848,25 @@ function _forEachDecorationCandidate(site, visibleWorldLeft, visibleWorldRight, 
 
             // Zone-probe: sample the zone AT the real collision surface the
             // prop would sit on, so a rule targeting a specific deck/zone
-            // doesn't fire where that surface isn't actually present.
-            var probeD = (rule.surface === 'ceiling') ? ceilingAt(wx) : floorAt(wx);
+            // doesn't fire where that surface isn't actually present. For
+            // 'floor' rules, prefer a containing deck structure's top face
+            // over the raw seabed profile (see _deckSurfaceAt) — otherwise
+            // every wreck interior-deck rule would probe at the seabed and
+            // never match its own zone.
+            var deckD = (rule.surface === 'floor' && targetZoneDef)
+                ? _deckSurfaceAt(site, wx, targetZoneDef.d1, targetZoneDef.d2) : null;
+            var probeD = (rule.surface === 'ceiling') ? ceilingAt(wx) : (deckD != null ? deckD : floorAt(wx));
             var zone = visualZoneAt(wx, probeD, site);
             if (!zone || zone.id !== rule.zone) continue;
 
-            // Anchor to the issue #52 VISUAL surface — no fallback to the
-            // raw collision depth.
-            var visualD = visualProfileDepth(site.id, rule.surface === 'ceiling' ? 'ceiling' : 'floor', wx, probeD);
+            // Anchor: deck surfaces are flat structural AABBs, not part of
+            // the #52 organic terrain contour, so anchor a hair above the
+            // deck's dTop (solidAt() is inclusive there) instead of routing
+            // through visualProfileDepth. Otherwise, anchor to the issue #52
+            // VISUAL surface — no fallback to the raw collision depth.
+            var visualD = (deckD != null)
+                ? deckD - SET_DRESSING_DECK_SURFACE_OFFSET
+                : visualProfileDepth(site.id, rule.surface === 'ceiling' ? 'ceiling' : 'floor', wx, probeD);
 
             if (rule.minDepth != null && visualD < rule.minDepth) continue;
             if (rule.maxDepth != null && visualD > rule.maxDepth) continue;

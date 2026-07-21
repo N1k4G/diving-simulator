@@ -4002,6 +4002,55 @@ tests = [
                 api.diveSite = savedSite;
             }
         }
+    },
+    // ----------------------------------------------------------
+    // TC-55-WRECK-INTERIOR-DECKS-PRODUCE-CANDIDATES: regression guard.
+    // The wreck site's `floor` profile is just the flat outer seabed
+    // (d=66) -- interior walkable surfaces exist only as 'deck' AABB
+    // structures at various depths, and multiple decks share very
+    // similar x-ranges. A naive "first deck containing wx" anchor would
+    // silently pick the WRONG deck for a given rule's target zone
+    // (verified: it originally always resolved to whichever deck came
+    // first in the structures array, which produced zero candidates for
+    // wreck_vehicle_deck_debris and wreck_engine_room_debris across the
+    // entire visible range). This test pins that both interior-deck
+    // rules produce real candidates, anchored at the correct deck depth
+    // for their own zone.
+    // ----------------------------------------------------------
+    {
+        id: 'TC-55-WRECK-INTERIOR-DECKS-PRODUCE-CANDIDATES',
+        name: 'Issue #55 — wreck interior-deck rules anchor to the correct deck, not just the first one found',
+        fn: function() {
+            var savedSite = api.diveSite;
+            try {
+                api.diveSite = 'wreck';
+                var site = api.DIVE_SITES.wreck;
+                var cands = api.sampleSetDressingCandidates(site, 0, 180);
+
+                var vehicle = cands.filter(function(c) { return c.ruleId === 'wreck_vehicle_deck_debris'; });
+                var engine  = cands.filter(function(c) { return c.ruleId === 'wreck_engine_room_debris'; });
+
+                assert(vehicle.length > 0, 'wreck_vehicle_deck_debris produced 0 candidates (deck-anchoring regression)');
+                assert(engine.length > 0, 'wreck_engine_room_debris produced 0 candidates (deck-anchoring regression)');
+
+                // Depth sanity: candidates must sit within their own zone's
+                // depth band (28..40 for vehicle deck, 53..62 for engine
+                // room), not at the seabed (d=66) or some other deck's depth.
+                var vehicleZone = site.visualZones.filter(function(z) { return z.id === 'wreck_vehicle_deck'; })[0];
+                var engineZone  = site.visualZones.filter(function(z) { return z.id === 'wreck_engine_room'; })[0];
+                for (var i = 0; i < vehicle.length; i++) {
+                    assert(vehicle[i].depth >= vehicleZone.d1 && vehicle[i].depth <= vehicleZone.d2,
+                        'vehicle deck candidate depth ' + vehicle[i].depth + ' outside zone band [' + vehicleZone.d1 + ',' + vehicleZone.d2 + ']');
+                }
+                for (var j = 0; j < engine.length; j++) {
+                    assert(engine[j].depth >= engineZone.d1 && engine[j].depth <= engineZone.d2,
+                        'engine room candidate depth ' + engine[j].depth + ' outside zone band [' + engineZone.d1 + ',' + engineZone.d2 + ']');
+                }
+                return 'PASS — vehicle deck: ' + vehicle.length + ' candidates, engine room: ' + engine.length + ' candidates, both correctly depth-anchored';
+            } finally {
+                api.diveSite = savedSite;
+            }
+        }
     }
 ];
 
