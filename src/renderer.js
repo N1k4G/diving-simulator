@@ -193,6 +193,112 @@ const CONTACT_AO = {
     }
 };
 
+// ============================================================
+//  ISSUE #56 — SURFACE ACCUMULATION (material-based deposits)
+//
+//  A shared visual pass that places sediment on horizontal top
+//  surfaces, rubble/debris at wall bases, rust streaks on steel
+//  panels, and small growth patches along exposed exterior edges.
+//  Complementary to (not a replacement for) #34's ambient
+//  occlusion contact bands: #34 owns "this edge should look
+//  dark" via a soft blurred shadow; this pass owns "material has
+//  accumulated here" via warm sediment colors and small irregular
+//  shapes. See comment on drawContactAccumulation for details.
+// ============================================================
+
+// Per-zone intensities in [0..1]. Missing zone → site default;
+// missing site → ACCUMULATION_NEUTRAL_DEFAULT. Any value outside
+// [0..1] is clamped inside accumulationProfileFor().
+var ACCUMULATION_PROFILES = {
+    // Shore
+    shore_entry:         { sediment: 0.55, contactDebris: 0.4,  streaks: 0,    growth: 0.10 },
+    shore_grass:         { sediment: 0.45, contactDebris: 0.35, streaks: 0,    growth: 0.20 },
+    shore_slope:         { sediment: 0.55, contactDebris: 0.5,  streaks: 0,    growth: 0.10 },
+    shore_deep:          { sediment: 0.7,  contactDebris: 0.6,  streaks: 0,    growth: 0.05 },
+    // Reef
+    reef_plateau:        { sediment: 0.2,  contactDebris: 0.2,  streaks: 0,    growth: 0.6  },
+    reef_upper_wall:     { sediment: 0.1,  contactDebris: 0.3,  streaks: 0,    growth: 0.7  },
+    reef_mid_wall:       { sediment: 0.15, contactDebris: 0.4,  streaks: 0,    growth: 0.5  },
+    reef_deep_wall:      { sediment: 0.3,  contactDebris: 0.5,  streaks: 0,    growth: 0.2  },
+    // Wreck
+    wreck_exterior:      { sediment: 0.3,  contactDebris: 0.4,  streaks: 0.6,  growth: 0.5  },
+    wreck_bridge:        { sediment: 0.6,  contactDebris: 0.5,  streaks: 0.8,  growth: 0.10 },
+    wreck_accommodation: { sediment: 0.7,  contactDebris: 0.6,  streaks: 0.9,  growth: 0.05 },
+    wreck_vehicle_deck:  { sediment: 0.55, contactDebris: 0.5,  streaks: 0.7,  growth: 0.05 },
+    wreck_crew_deck:     { sediment: 0.7,  contactDebris: 0.6,  streaks: 0.9,  growth: 0.05 },
+    wreck_cargo_hold:    { sediment: 0.9,  contactDebris: 0.7,  streaks: 0.8,  growth: 0.02 },
+    wreck_engine_room:   { sediment: 0.8,  contactDebris: 0.7,  streaks: 1.0,  growth: 0.05 },
+    wreck_bilge:         { sediment: 1.0,  contactDebris: 0.8,  streaks: 1.0,  growth: 0.02 },
+    // Cave
+    cave_entrance:       { sediment: 0.4,  contactDebris: 0.4,  streaks: 0.2,  growth: 0.10 },
+    cave_upper_tunnel:   { sediment: 0.55, contactDebris: 0.5,  streaks: 0.3,  growth: 0.02 },
+    cave_down_shaft:     { sediment: 0.2,  contactDebris: 0.4,  streaks: 0.5,  growth: 0    },
+    cave_cathedral:      { sediment: 0.25, contactDebris: 0.5,  streaks: 0.4,  growth: 0    },
+    cave_up_shaft:       { sediment: 0.2,  contactDebris: 0.4,  streaks: 0.4,  growth: 0    },
+    cave_exit:           { sediment: 0.4,  contactDebris: 0.4,  streaks: 0.2,  growth: 0.05 }
+};
+
+var ACCUMULATION_SITE_DEFAULTS = {
+    shore: { sediment: 0.5,  contactDebris: 0.4,  streaks: 0,    growth: 0.10 },
+    reef:  { sediment: 0.2,  contactDebris: 0.35, streaks: 0,    growth: 0.4  },
+    wreck: { sediment: 0.55, contactDebris: 0.55, streaks: 0.7,  growth: 0.10 },
+    cave:  { sediment: 0.35, contactDebris: 0.45, streaks: 0.25, growth: 0    }
+};
+
+var ACCUMULATION_NEUTRAL_DEFAULT = { sediment: 0.3, contactDebris: 0.3, streaks: 0.2, growth: 0.1 };
+
+// Palette shared by all accumulation helpers. Deliberately warm
+// browns / rust / muted greens — NOT pure black — so the pass
+// stays visually distinct from #34's light-based dark AO band.
+var ACCUMULATION_PAL = {
+    sedimentFill:   'rgba(106,90,72,0.55)',
+    sedimentEdge:   'rgba(74,60,44,0.35)',
+    sedimentGrain:  'rgba(56,44,32,0.4)',
+    rubbleDark:     'rgba(58,46,36,0.5)',
+    rubbleMid:      'rgba(96,80,60,0.5)',
+    // For "contact darkening" component we deliberately cap the
+    // black alpha to stay well below CONTACT_AO.terrain.shadowAlpha (0.42).
+    contactDark:    'rgba(20,14,10,0.09)',
+    rustLight:      'rgba(160,72,32,0.20)',
+    rustDark:       'rgba(110,44,18,0.28)',
+    mineralPale:    'rgba(180,168,140,0.14)',
+    growthOlive:    'rgba(58,80,52,0.55)',
+    growthCoralline:'rgba(148,88,102,0.45)'
+};
+
+// Fixed seed offsets so surface-accumulation randomness never
+// collides with other passes' seeds (#41 MAT_SEED, #55 CELL_SEED_MULT, ...).
+var ACCUM_SEED = {
+    sediment: 601.17,
+    contact:  733.29,
+    streak:   857.83,
+    growth:   971.51
+};
+
+// Cap the max sediment cap thickness in world metres. Issue #56
+// suggests 0.10–0.35 m visible deposit — keep the upper bound so
+// the pass never dominates the surface it decorates.
+var ACCUMULATION_SEDIMENT_MAX_M = 0.35;
+
+// Cap streak count per panel — issue asks 2–5.
+var ACCUMULATION_STREAKS_MIN = 2;
+var ACCUMULATION_STREAKS_MAX = 5;
+
+// Clamped, safe accessor — used by all callers, never index
+// ACCUMULATION_PROFILES directly.
+function accumulationProfileFor(siteId, zoneId) {
+    function clamp01(v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
+    var raw = (zoneId && ACCUMULATION_PROFILES[zoneId])
+        || (siteId && ACCUMULATION_SITE_DEFAULTS[siteId])
+        || ACCUMULATION_NEUTRAL_DEFAULT;
+    return {
+        sediment:      clamp01(raw.sediment      != null ? raw.sediment      : 0),
+        contactDebris: clamp01(raw.contactDebris != null ? raw.contactDebris : 0),
+        streaks:       clamp01(raw.streaks       != null ? raw.streaks       : 0),
+        growth:        clamp01(raw.growth        != null ? raw.growth        : 0)
+    };
+}
+
 // Lazy registry — populated on first drawScene(); never re-allocated.
 var _matTiles = null;
 
@@ -1244,6 +1350,12 @@ function drawTerrain() {
     var xRightM = diverX + (W - diverScreenX) * mpp + 2;   // a bit beyond right edge
     var stepM = 4 * mpp;  // sample every 4 pixels
 
+    // Issue #56: fetch the per-zone accumulation profile ONCE for this
+    // frame's terrain pass (not per-column) — zone lookup is a linear
+    // scan over the site's visualZones, so keep it out of the sampling loop.
+    var _accumZoneHere = visualZoneAt(diverX, floorAt(diverX), s);
+    var _accumProfile = accumulationProfileFor(s.id, _accumZoneHere ? _accumZoneHere.id : null);
+
     // Floor polygon — fill from profile down to bottom of screen
     // D3: Shore gets a sandy gradient; reef is warm rock; cave is warm
     // limestone bedrock; others dark brown.
@@ -1321,6 +1433,13 @@ function drawTerrain() {
         cx.clip();
         var floorTile = (s.id === 'shore') ? _matTiles.sand : _matTiles.limestone;
         fillWithMaterialPattern(cx, floorTile, diverX, depth, false);
+        // Issue #56: sediment cap on this horizontal top surface.
+        drawSedimentCap(cx, floorPts, {
+            intensity: _accumProfile.sediment,
+            thicknessM: 0.28,
+            mpp: mpp,
+            worldSeed: xLeftM * 11.7 + ACCUM_SEED.sediment
+        });
         cx.restore();
     }
 
@@ -1355,6 +1474,19 @@ function drawTerrain() {
         var reefFloorHere = floorAt(diverX);
         var reefTile = (reefFloorHere < REEF_CRUST_MAX_DEPTH) ? _matTiles.crust : _matTiles.grain;
         fillWithMaterialPattern(cx, reefTile, diverX, depth, false);
+        // Issue #56: sediment cap on the mesa's top surface.
+        drawSedimentCap(cx, floorPts, {
+            intensity: _accumProfile.sediment,
+            thicknessM: 0.28,
+            mpp: mpp,
+            worldSeed: xLeftM * 11.7 + ACCUM_SEED.sediment
+        });
+        // Issue #56: growth edge along the sunlit upper crest — reef only.
+        drawGrowthEdge(cx, floorPts, {
+            intensity: _accumProfile.growth,
+            worldSeed: xLeftM * 9.13 + ACCUM_SEED.growth,
+            variant: 'coralline'
+        });
         // shading lumps — iterate an ABSOLUTE integer grid index so each cell's
         // seed is identical every frame (no float drift from a camera-relative
         // start → no flicker while scrolling).
@@ -1390,6 +1522,15 @@ function drawTerrain() {
     // sites (shore/reef/cave/wreck) — creases in the silhouette pool
     // shadow, giving the terrain more perceived volume.
     drawContactBand(cx, floorPts, CONTACT_AO.terrain);
+    // Issue #56: material accumulation along the same silhouette, layered
+    // ON TOP of #34's AO band (drawn after it — see drawContactAccumulation's
+    // header comment for why this doesn't double up the darkness).
+    drawContactAccumulation(cx, floorPts, {
+        intensity: _accumProfile.contactDebris,
+        mpp: mpp,
+        worldSeed: xLeftM * 13.3 + ACCUM_SEED.contact,
+        side: 'above'
+    });
 
     // Ceiling polygon — textured rock, filled from profile up to top of screen (cave only)
     if (s.ceiling) {
@@ -3272,7 +3413,7 @@ function _paintRockStruct(cx, sx1, sy1, sw, sh, seed, tone) {
 //    the same depth-graded limestone gradient as the floor/ceiling so it tiles
 //    seamlessly with the surrounding walls; strata + speckle are world-anchored
 //    so they don't shimmer while the camera scrolls. ──
-function drawBedrockStruct(cx, wx1, wx2, wdTop, wdBottom) {
+function drawBedrockStruct(cx, wx1, wx2, wdTop, wdBottom, accum) {
     var W = cssWidth, H = cssHeight;
     var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
     var sy1 = dsy + (wdTop - depth) / mpp, sy2 = dsy + (wdBottom - depth) / mpp;
@@ -3344,6 +3485,25 @@ function drawBedrockStruct(cx, wx1, wx2, wdTop, wdBottom) {
         }
     }
     cx.restore();
+
+    // Issue #56: sediment on the rolling top surface + material accumulation
+    // along the same edge. Both operate on topPts which is already in
+    // screen-space coordinates. Gated on accum being passed by the caller
+    // (drawStructures always passes it; any legacy caller that omits it is safe).
+    if (accum) {
+        drawSedimentCap(cx, topPts, {
+            intensity: accum.sediment,
+            thicknessM: 0.30,
+            mpp: 0.05,
+            worldSeed: wx1 * 11.7 + ACCUM_SEED.sediment
+        });
+        drawContactAccumulation(cx, topPts, {
+            intensity: accum.contactDebris,
+            mpp: 0.05,
+            worldSeed: wx1 * 13.3 + ACCUM_SEED.contact,
+            side: 'above'
+        });
+    }
 
     // lit rim along the rolling top + soft shadow along the lumpy underside
     cx.strokeStyle = 'rgba(156,154,146,0.30)'; cx.lineWidth = 1.6;
@@ -3481,7 +3641,7 @@ function drawSmallWreck(cx, sx1, sy1, sw, sh) {
 }
 
 // ── Task 8: Hull — steel gradient, rust patches, rivets, drip streaks ──
-function drawHullStruct(cx, sx1, sy1, sw, sh, seed) {
+function drawHullStruct(cx, sx1, sy1, sw, sh, seed, accum) {
     var g = cx.createLinearGradient(sx1, sy1, sx1, sy1 + sh);
     g.addColorStop(0, '#687888'); g.addColorStop(0.5, '#556677'); g.addColorStop(1, '#2e3c48');
     cx.fillStyle = g;
@@ -3524,10 +3684,20 @@ function drawHullStruct(cx, sx1, sy1, sw, sh, seed) {
     }
     cx.strokeStyle = 'rgba(255,255,255,0.07)'; cx.lineWidth = 1;
     cx.strokeRect(sx1, sy1, sw, sh);
+    // Issue #56: vertical rust streaks on the hull plating. Exterior hull
+    // panels also get a faint biofouling tail; interior panels stay pure rust.
+    if (accum) {
+        drawVerticalStreaks(cx, { sx: sx1, sy: sy1, sw: sw, sh: sh }, {
+            intensity: accum.streaks,
+            worldSeed: seed + ACCUM_SEED.streak,
+            variant: 'rust',
+            exterior: !!accum.exterior
+        });
+    }
 }
 
 // ── Task 8: Deck — plank lines across top face ──────────────────
-function drawDeckStruct(cx, sx1, sy1, sw, sh, seed) {
+function drawDeckStruct(cx, sx1, sy1, sw, sh, seed, accum) {
     var g = cx.createLinearGradient(sx1, sy1, sx1, sy1 + sh);
     g.addColorStop(0, '#506070'); g.addColorStop(1, '#2a3845');
     cx.fillStyle = g; cx.fillRect(sx1, sy1, sw, sh);
@@ -3550,10 +3720,26 @@ function drawDeckStruct(cx, sx1, sy1, sw, sh, seed) {
     cx.fill();
     cx.strokeStyle = 'rgba(255,255,255,0.06)'; cx.lineWidth = 1;
     cx.strokeRect(sx1, sy1, sw, sh);
+    // Issue #56: sediment settling on the top face + rust streaks bleeding
+    // down the sides — decks are horizontal, so both passes apply.
+    if (accum) {
+        drawSedimentCap(cx, [[sx1, sy1], [sx1 + sw, sy1]], {
+            intensity: accum.sediment,
+            thicknessM: 0.30,
+            mpp: 0.05,
+            worldSeed: seed + ACCUM_SEED.sediment
+        });
+        drawVerticalStreaks(cx, { sx: sx1, sy: sy1, sw: sw, sh: sh }, {
+            intensity: accum.streaks,
+            worldSeed: seed + ACCUM_SEED.streak,
+            variant: 'rust',
+            exterior: false
+        });
+    }
 }
 
 // ── Task 8: Bulkhead — panel frame + portholes on wide sections ──
-function drawBulkheadStruct(cx, sx1, sy1, sw, sh, seed) {
+function drawBulkheadStruct(cx, sx1, sy1, sw, sh, seed, accum, sitsOnFloor) {
     var g = cx.createLinearGradient(sx1, sy1, sx1, sy1 + sh);
     g.addColorStop(0, '#5a6878'); g.addColorStop(1, '#2e3c4e');
     cx.fillStyle = g; cx.fillRect(sx1, sy1, sw, sh);
@@ -3588,6 +3774,24 @@ function drawBulkheadStruct(cx, sx1, sy1, sw, sh, seed) {
     cx.fill();
     cx.strokeStyle = 'rgba(255,255,255,0.06)'; cx.lineWidth = 1;
     cx.strokeRect(sx1, sy1, sw, sh);
+    // Issue #56: rust streaks on the panel, and — mirroring #34's own
+    // sitsOnFloor gate — a contact-accumulation band along the bottom
+    // edge only when this bulkhead actually meets the floor.
+    if (accum) {
+        drawVerticalStreaks(cx, { sx: sx1, sy: sy1, sw: sw, sh: sh }, {
+            intensity: accum.streaks,
+            worldSeed: seed + ACCUM_SEED.streak,
+            variant: 'rust',
+            exterior: false
+        });
+        if (sitsOnFloor) {
+            drawContactAccumulation(cx, [[sx1, sy1 + sh], [sx1 + sw, sy1 + sh]], {
+                intensity: accum.contactDebris,
+                worldSeed: seed + ACCUM_SEED.contact,
+                side: 'above'
+            });
+        }
+    }
 }
 
 // ============================================================
@@ -4039,19 +4243,43 @@ function drawStructures() {
         if (s.id === 'reef') rockTone = 'reef';
         else if (s.id === 'shore') rockTone = 'shore';
         else if (s.id === 'cave') rockTone = (w.dTop >= 16) ? 'caveGrey' : 'caveBrown';
+
+        // Issue #56: per-zone accumulation profile for this structure,
+        // sampled once at its centre. `accum.exterior` is a call-local
+        // convenience flag (not part of the shared profile shape) so
+        // drawHullStruct can tell exterior plating from interior plating
+        // without re-deriving the zone itself.
+        var midWx = (w.x1 + w.x2) / 2;
+        var midWd = (w.dTop + w.dBottom) / 2;
+        var _z = visualZoneAt(midWx, midWd, s);
+        var accum = accumulationProfileFor(s.id, _z ? _z.id : null);
+        accum.exterior = !!(_z && _z.id === 'wreck_exterior');
+
+        // Issue #34: AO contact band gate — computed BEFORE the switch so
+        // #56's drawBulkheadStruct can mirror the same "sits on floor" gate
+        // for its own bottom-edge contact accumulation.
+        var floorHereL = floorAt(w.x1), floorHereR = floorAt(w.x2);
+        var ceilHereL  = ceilingAt(w.x1), ceilHereR = ceilingAt(w.x2);
+        var slack = CONTACT_AO.structure.contactSlackM;
+        var sitsOnFloor = (Math.abs(w.dBottom - floorHereL) < slack)
+                       || (Math.abs(w.dBottom - floorHereR) < slack);
+        var hangsFromCeil = (s.ceiling)
+                       && ((Math.abs(w.dTop - ceilHereL) < slack)
+                        || (Math.abs(w.dTop - ceilHereR) < slack));
+
         switch (w.kind) {
             case 'rock': case 'pillar':
                 drawRockStruct(cx, sx1, sy1, sw, sh, seed, rockTone); break;
             case 'bedrock':
-                drawBedrockStruct(cx, w.x1, w.x2, w.dTop, w.dBottom); break;
+                drawBedrockStruct(cx, w.x1, w.x2, w.dTop, w.dBottom, accum); break;
             case 'wreckSmall':
                 drawSmallWreck(cx, sx1, sy1, sw, sh); break;
             case 'hull':
-                drawHullStruct(cx, sx1, sy1, sw, sh, seed); break;
+                drawHullStruct(cx, sx1, sy1, sw, sh, seed, accum); break;
             case 'deck':
-                drawDeckStruct(cx, sx1, sy1, sw, sh, seed); break;
+                drawDeckStruct(cx, sx1, sy1, sw, sh, seed, accum); break;
             case 'bulkhead':
-                drawBulkheadStruct(cx, sx1, sy1, sw, sh, seed); break;
+                drawBulkheadStruct(cx, sx1, sy1, sw, sh, seed, accum, sitsOnFloor); break;
             case 'funnel':
                 drawFunnelStruct(cx, sx1, sy1, sw, sh); break;
             case 'mast':
@@ -4070,14 +4298,6 @@ function drawStructures() {
         // conversion the structure uses. Skipped for structures floating in
         // the water column (e.g. midwater bedrock crossings) — those don't
         // touch anything, so an AO band there would read as a bug.
-        var floorHereL = floorAt(w.x1), floorHereR = floorAt(w.x2);
-        var ceilHereL  = ceilingAt(w.x1), ceilHereR = ceilingAt(w.x2);
-        var slack = CONTACT_AO.structure.contactSlackM;
-        var sitsOnFloor = (Math.abs(w.dBottom - floorHereL) < slack)
-                       || (Math.abs(w.dBottom - floorHereR) < slack);
-        var hangsFromCeil = (s.ceiling)
-                       && ((Math.abs(w.dTop - ceilHereL) < slack)
-                        || (Math.abs(w.dTop - ceilHereR) < slack));
         if (sitsOnFloor) {
             drawContactBand(cx, [[sx1, sy2], [sx2, sy2]], CONTACT_AO.structure);
         }
@@ -4220,6 +4440,268 @@ function drawContactBand(cx, points, cfg) {
         cx.lineTo(points[i][0], points[i][1]);
     }
     cx.stroke();
+    cx.restore();
+}
+
+// ── Issue #56: Surface accumulation helpers ──────────────────────
+// Shared, deterministic, render-only. No offscreen canvases, no
+// Math.random() — all variation comes from sRand(seed). Every helper
+// early-returns on intensity <= 0 so callers can pass a per-zone
+// profile straight through without a guard at the call site.
+
+// drawSedimentCap(cx, points, options)
+//   points  — screen-space polyline of the TOP visible edge (already
+//             computed in world→screen by the caller).
+//   options — { intensity, thicknessM, mpp, worldSeed, palette }
+// Renders a thin sediment band clipped to a constant-thickness strip
+// BELOW the polyline (so it hugs the contour exactly), alpha-graded
+// opaque at the surface to transparent at its lower edge, plus a
+// handful of deterministic sediment grains scattered along the line.
+// Never mutates `points`.
+function drawSedimentCap(cx, points, options) {
+    if (!options || options.intensity <= 0) return;
+    if (!points || points.length < 2) return;
+    var intensity = options.intensity;
+    var mpp = options.mpp || MAT_MPP;
+    var thicknessM = Math.min(
+        options.thicknessM != null ? options.thicknessM : 0.25,
+        ACCUMULATION_SEDIMENT_MAX_M
+    );
+    var thicknessPx = Math.max(1.5, thicknessM / mpp) * intensity;
+    var worldSeed = options.worldSeed || 0;
+    var pal = options.palette || ACCUMULATION_PAL;
+
+    var minX = points[0][0], maxX = points[0][0];
+    var minY = points[0][1], maxBottomY = points[0][1] + thicknessPx;
+    for (var i = 1; i < points.length; i++) {
+        if (points[i][0] < minX) minX = points[i][0];
+        if (points[i][0] > maxX) maxX = points[i][0];
+        if (points[i][1] < minY) minY = points[i][1];
+        var bY = points[i][1] + thicknessPx;
+        if (bY > maxBottomY) maxBottomY = bY;
+    }
+
+    cx.save();
+    // Clip to a constant-thickness band hugging the polyline's contour:
+    // top edge L→R along `points`, bottom edge R→L offset by thicknessPx.
+    cx.beginPath();
+    cx.moveTo(points[0][0], points[0][1]);
+    for (var pi = 1; pi < points.length; pi++) cx.lineTo(points[pi][0], points[pi][1]);
+    for (var pj = points.length - 1; pj >= 0; pj--) cx.lineTo(points[pj][0], points[pj][1] + thicknessPx);
+    cx.closePath();
+    cx.clip();
+
+    var grad = cx.createLinearGradient(0, minY, 0, maxBottomY);
+    grad.addColorStop(0, pal.sedimentFill || ACCUMULATION_PAL.sedimentFill);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    cx.globalAlpha = intensity;
+    cx.fillStyle = grad;
+    cx.fillRect(minX - 2, minY - 2, (maxX - minX) + 4, (maxBottomY - minY) + 4);
+
+    // Thin sediment-color edge line right at the top of the cap.
+    cx.strokeStyle = pal.sedimentEdge || ACCUMULATION_PAL.sedimentEdge;
+    cx.lineWidth = 1.2;
+    cx.beginPath();
+    cx.moveTo(points[0][0], points[0][1]);
+    for (var li = 1; li < points.length; li++) cx.lineTo(points[li][0], points[li][1]);
+    cx.stroke();
+    cx.restore();
+
+    // Deterministic sediment grains distributed along the polyline —
+    // drawn outside the clip/gradient save block (own alpha per grain).
+    cx.save();
+    var grainCount = Math.max(3, Math.min(24, Math.round(points.length * 0.5 * intensity)));
+    for (var gi = 0; gi < grainCount; gi++) {
+        var gseed = worldSeed + gi * 2.71;
+        var t = sRand(gseed);
+        var idxF = t * (points.length - 1);
+        var idx0 = Math.floor(idxF);
+        var idx1 = Math.min(points.length - 1, idx0 + 1);
+        var frac = idxF - idx0;
+        var gx = points[idx0][0] + (points[idx1][0] - points[idx0][0]) * frac;
+        var gy = points[idx0][1] + (points[idx1][1] - points[idx0][1]) * frac;
+        var goff = sRand(gseed + 4.19) * thicknessPx * 0.7;
+        var gr = 0.8 + sRand(gseed + 6.53) * 1.6;
+        cx.globalAlpha = intensity * (0.5 + sRand(gseed + 8.71) * 0.5);
+        cx.fillStyle = pal.sedimentGrain || ACCUMULATION_PAL.sedimentGrain;
+        cx.beginPath();
+        cx.ellipse(gx, gy + goff, gr * 1.4, gr * 0.7, 0, 0, Math.PI * 2);
+        cx.fill();
+    }
+    cx.restore();
+}
+
+// drawContactAccumulation(cx, points, options)
+//   points  — screen-space polyline of the contact edge (structure
+//             baseline OR wall/floor meeting line).
+//   options — { intensity, mpp, worldSeed, side }
+//     side: 'below' | 'above' (default 'above') — which side of the
+//     line the rubble jitters toward.
+//
+// Issue #34 (drawContactBand / CONTACT_AO) already draws a soft dark
+// AMBIENT-OCCLUSION band at these same edges: a low-alpha stroke with
+// shadowBlur, reading as "this edge should look dark." This helper is
+// deliberately built differently so it reads as "material has piled
+// up here" instead of stacking a second dark band on top of #34's:
+//   • warm sediment/rubble browns (ACCUMULATION_PAL), never pure black
+//   • NO shadowBlur anywhere in this function (that is #34's signature)
+//   • small irregular rubble ellipses + a thin flat sediment line,
+//     not a single smooth uniform stroke
+//   • the one pure-black darkening component uses ACCUMULATION_PAL
+//     .contactDark, alpha 0.09 — well below CONTACT_AO.terrain's
+//     shadowAlpha (0.42) / CONTACT_AO.structure's shadowAlpha (0.5)
+// The two passes are meant to layer additively (#34 first, this pass
+// second) without doubling up the darkness.
+function drawContactAccumulation(cx, points, options) {
+    if (!options || options.intensity <= 0) return;
+    if (!points || points.length < 2) return;
+    var intensity = options.intensity;
+    var worldSeed = options.worldSeed || 0;
+    var side = (options.side === 'below') ? 1 : -1;
+    var pal = ACCUMULATION_PAL;
+
+    cx.save();
+    // Thin sediment-colored line along the contact edge — flat stroke,
+    // no shadowBlur, warm brown — NOT #34's dark blurred band.
+    cx.globalAlpha = intensity;
+    cx.strokeStyle = pal.sedimentEdge;
+    cx.lineWidth = 1.5;
+    cx.lineCap = 'round';
+    cx.lineJoin = 'round';
+    cx.beginPath();
+    cx.moveTo(points[0][0], points[0][1]);
+    for (var i = 1; i < points.length; i++) cx.lineTo(points[i][0], points[i][1]);
+    cx.stroke();
+
+    // Very-low-alpha darkening component (alpha 0.09, see block comment
+    // above) — nowhere near #34's shadowAlpha of 0.42/0.5.
+    cx.strokeStyle = pal.contactDark;
+    cx.lineWidth = 2.5;
+    cx.beginPath();
+    cx.moveTo(points[0][0], points[0][1]);
+    for (var di = 1; di < points.length; di++) cx.lineTo(points[di][0], points[di][1]);
+    cx.stroke();
+
+    // Small irregular rubble ellipses scattered along the line.
+    var totalLen = points.length - 1;
+    var rubbleCount = Math.max(3, Math.min(18, Math.round(totalLen * 1.2 * intensity)));
+    for (var ri = 0; ri < rubbleCount; ri++) {
+        var rseed = worldSeed + ri * 4.19;
+        var t = sRand(rseed);
+        var idxF = t * totalLen;
+        var idx0 = Math.floor(idxF);
+        var idx1 = Math.min(points.length - 1, idx0 + 1);
+        var frac = idxF - idx0;
+        var rx = points[idx0][0] + (points[idx1][0] - points[idx0][0]) * frac;
+        var ry = points[idx0][1] + (points[idx1][1] - points[idx0][1]) * frac;
+        var jitterY = (1 + sRand(rseed + 6.53) * 2.5) * side;
+        var rw = 1.5 + sRand(rseed + 8.31) * 3.5;
+        var rh = 0.8 + sRand(rseed + 1.13) * 1.6;
+        cx.globalAlpha = intensity * (0.5 + sRand(rseed + 2.91) * 0.5);
+        cx.fillStyle = (sRand(rseed + 3.7) > 0.5) ? pal.rubbleDark : pal.rubbleMid;
+        cx.beginPath();
+        cx.ellipse(rx + (sRand(rseed + 5.1) - 0.5) * 4, ry + jitterY, rw, rh, 0, 0, Math.PI * 2);
+        cx.fill();
+    }
+    cx.restore();
+}
+
+// drawVerticalStreaks(cx, bounds, options)
+//   bounds  — { sx, sy, sw, sh } screen-space AABB of the panel (e.g.
+//             a wreck hull/deck/bulkhead panel).
+//   options — { intensity, worldSeed, variant, exterior }
+//     variant  : 'rust' (default) | 'mineral'
+//     exterior : true → adds a small biofouling-green tail to each
+//                streak; false → pure rust/mineral only.
+// Draws ACCUMULATION_STREAKS_MIN..MAX thin near-vertical streaks,
+// clipped to `bounds`. Positions/lengths/alphas are all derived from
+// sRand(worldSeed + i * prime) — no gradients per streak, cheap fillRect
+// + a single thin quadratic path per streak for organic drift.
+function drawVerticalStreaks(cx, bounds, options) {
+    if (!options || options.intensity <= 0) return;
+    if (!bounds || bounds.sw <= 0 || bounds.sh <= 0) return;
+    var intensity = options.intensity;
+    var worldSeed = options.worldSeed || 0;
+    var variant = options.variant || 'rust';
+    var exterior = !!options.exterior;
+    var pal = ACCUMULATION_PAL;
+    var sx = bounds.sx, sy = bounds.sy, sw = bounds.sw, sh = bounds.sh;
+
+    var countF = ACCUMULATION_STREAKS_MIN + (ACCUMULATION_STREAKS_MAX - ACCUMULATION_STREAKS_MIN) * intensity;
+    var count = Math.max(ACCUMULATION_STREAKS_MIN, Math.round(countF));
+
+    cx.save();
+    cx.beginPath(); cx.rect(sx, sy, sw, sh); cx.clip();
+
+    for (var i = 0; i < count; i++) {
+        var seed = worldSeed + i * 2.71;
+        var fracX = sRand(seed);
+        var x0 = sx + fracX * sw;
+        var lenFrac = 0.4 + sRand(seed + 4.19) * 0.5;   // 40–90% of sh
+        var len = sh * lenFrac;
+        var y0 = sy + sRand(seed + 6.53) * Math.max(0, sh - len);
+        var width = 1 + sRand(seed + 8.31);              // 1–2 px
+        var alpha = intensity * (0.4 + sRand(seed + 1.91) * 0.5);
+        var drift = (sRand(seed + 3.3) - 0.5) * width * 3;
+
+        var color = (variant === 'mineral')
+            ? pal.mineralPale
+            : (sRand(seed + 5.7) > 0.5 ? pal.rustDark : pal.rustLight);
+        cx.globalAlpha = alpha;
+        cx.fillStyle = color;
+        cx.fillRect(x0 - width / 2, y0, width, len);
+        cx.strokeStyle = color;
+        cx.lineWidth = width;
+        cx.beginPath();
+        cx.moveTo(x0, y0);
+        cx.quadraticCurveTo(x0 + drift, y0 + len * 0.5, x0 + drift * 1.4, y0 + len);
+        cx.stroke();
+
+        if (exterior) {
+            cx.globalAlpha = alpha * 0.6;
+            cx.fillStyle = pal.growthOlive;
+            cx.fillRect(x0 - width, y0 + len * 0.7, width * 2, len * 0.3);
+        }
+    }
+    cx.restore();
+}
+
+// drawGrowthEdge(cx, points, options)
+//   Small dark olive / coralline patches placed deterministically
+//   along selected segments of a screen-space polyline. Coverage
+//   stays low (sparse gate below) so this never competes with #35's
+//   big coral objects or #55's props — it's a thin accent, not a
+//   growth feature of its own.
+function drawGrowthEdge(cx, points, options) {
+    if (!options || options.intensity <= 0) return;
+    if (!points || points.length < 2) return;
+    var intensity = options.intensity;
+    var worldSeed = options.worldSeed || 0;
+    var variant = options.variant || 'olive';
+    var pal = ACCUMULATION_PAL;
+
+    cx.save();
+    var totalLen = points.length - 1;
+    var patchCount = Math.max(1, Math.min(10, Math.round(totalLen * 0.3 * intensity)));
+    for (var i = 0; i < patchCount; i++) {
+        var seed = worldSeed + i * 6.53;
+        // Sparse gate — most candidate slots produce nothing.
+        if (sRand(seed) > (0.25 + intensity * 0.35)) continue;
+        var t = sRand(seed + 2.71);
+        var idxF = t * totalLen;
+        var idx0 = Math.floor(idxF);
+        var idx1 = Math.min(points.length - 1, idx0 + 1);
+        var frac = idxF - idx0;
+        var px = points[idx0][0] + (points[idx1][0] - points[idx0][0]) * frac;
+        var py = points[idx0][1] + (points[idx1][1] - points[idx0][1]) * frac;
+        var pr = 1.5 + sRand(seed + 4.19) * 3;
+        cx.globalAlpha = intensity * (0.5 + sRand(seed + 8.31) * 0.5);
+        cx.fillStyle = (variant === 'coralline' && sRand(seed + 1.13) > 0.5)
+            ? pal.growthCoralline : pal.growthOlive;
+        cx.beginPath();
+        cx.ellipse(px, py, pr * 1.3, pr * 0.7, sRand(seed + 3.3) * Math.PI, 0, Math.PI * 2);
+        cx.fill();
+    }
     cx.restore();
 }
 

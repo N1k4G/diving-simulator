@@ -197,6 +197,15 @@ const gameGlobals = {
   CONTACT_AO: "readonly", drawContactBand: "readonly",
   // Issue #55: Set-dressing internal state (renderer.js)
   _setDressingLastFrameCount: "writable", _setDressingUnknownWarned: "writable",
+  // Issue #56: Surface accumulation pass (renderer.js)
+  ACCUMULATION_PROFILES: "readonly", ACCUMULATION_SITE_DEFAULTS: "readonly",
+  ACCUMULATION_NEUTRAL_DEFAULT: "readonly", ACCUMULATION_PAL: "readonly",
+  ACCUM_SEED: "readonly",
+  ACCUMULATION_SEDIMENT_MAX_M: "readonly",
+  ACCUMULATION_STREAKS_MIN: "readonly", ACCUMULATION_STREAKS_MAX: "readonly",
+  accumulationProfileFor: "readonly",
+  drawSedimentCap: "readonly", drawContactAccumulation: "readonly",
+  drawVerticalStreaks: "readonly", drawGrowthEdge: "readonly",
   // Phase C renderer helpers
   drawTerrain: "readonly", drawStructures: "readonly",
   drawFeatures: "readonly", drawSeagrass: "readonly",

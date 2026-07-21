@@ -4051,6 +4051,353 @@ tests = [
                 api.diveSite = savedSite;
             }
         }
+    },
+    // ----------------------------------------------------------
+    // Issue #56 — Surface Accumulation pass
+    // Covers: API surface, profile accessor, clamping, determinism,
+    // early-return on zero intensity, #34 differentiation guard,
+    // collision regression, gameplay-state isolation, zone coverage.
+    // ----------------------------------------------------------
+    {
+        id: 'TC-56-API',
+        name: 'Issue #56 — gameAPI exposes surface-accumulation helpers and data',
+        fn: function() {
+            assert(typeof api.drawSedimentCap === 'function',         'drawSedimentCap not exposed');
+            assert(typeof api.drawContactAccumulation === 'function', 'drawContactAccumulation not exposed');
+            assert(typeof api.drawVerticalStreaks === 'function',     'drawVerticalStreaks not exposed');
+            assert(typeof api.accumulationProfileFor === 'function',  'accumulationProfileFor not exposed');
+            assert(api.ACCUMULATION_PROFILES && typeof api.ACCUMULATION_PROFILES === 'object',
+                'ACCUMULATION_PROFILES not exposed as object');
+            assert(api.ACCUMULATION_SITE_DEFAULTS && typeof api.ACCUMULATION_SITE_DEFAULTS === 'object',
+                'ACCUMULATION_SITE_DEFAULTS not exposed as object');
+            assert(api.ACCUMULATION_NEUTRAL_DEFAULT && typeof api.ACCUMULATION_NEUTRAL_DEFAULT === 'object',
+                'ACCUMULATION_NEUTRAL_DEFAULT not exposed as object');
+            assert(api.ACCUMULATION_PAL && typeof api.ACCUMULATION_PAL === 'object',
+                'ACCUMULATION_PAL not exposed as object');
+            assert(api.ACCUM_SEED && typeof api.ACCUM_SEED === 'object',
+                'ACCUM_SEED not exposed as object');
+            var seed = api.ACCUM_SEED;
+            var seedKeys = Object.keys(seed);
+            assert(seedKeys.length >= 4, 'ACCUM_SEED has fewer than 4 keys: ' + seedKeys.join(','));
+            for (var i = 0; i < seedKeys.length; i++) {
+                assert(typeof seed[seedKeys[i]] === 'number',
+                    'ACCUM_SEED.' + seedKeys[i] + ' is not a number: ' + seed[seedKeys[i]]);
+            }
+            return 'PASS — all Issue #56 API surface present: 4 helpers, 5 constants, ' +
+                   seedKeys.length + ' ACCUM_SEED keys all numeric';
+        }
+    },
+    {
+        id: 'TC-56-PROFILE-UNKNOWN-ZONE',
+        name: 'Issue #56 — accumulationProfileFor falls back to site then neutral defaults',
+        fn: function() {
+            // Unknown zone → should fall back to wreck site default
+            var wreckFallback = api.accumulationProfileFor('wreck', 'not_a_real_zone');
+            var wreckDefault  = api.ACCUMULATION_SITE_DEFAULTS.wreck;
+            assert(wreckFallback.sediment      === wreckDefault.sediment,
+                'wreck sediment fallback wrong: got ' + wreckFallback.sediment + ' want ' + wreckDefault.sediment);
+            assert(wreckFallback.contactDebris === wreckDefault.contactDebris,
+                'wreck contactDebris fallback wrong');
+            assert(wreckFallback.streaks       === wreckDefault.streaks,
+                'wreck streaks fallback wrong');
+            assert(wreckFallback.growth        === wreckDefault.growth,
+                'wreck growth fallback wrong');
+
+            // Unknown site AND zone → neutral default
+            var neutral    = api.ACCUMULATION_NEUTRAL_DEFAULT;
+            var neutralOut = api.accumulationProfileFor('nonsite', 'nonzone');
+            assert(neutralOut.sediment      === neutral.sediment,
+                'neutral sediment fallback wrong: got ' + neutralOut.sediment + ' want ' + neutral.sediment);
+            assert(neutralOut.contactDebris === neutral.contactDebris,
+                'neutral contactDebris fallback wrong');
+            assert(neutralOut.streaks       === neutral.streaks,
+                'neutral streaks fallback wrong');
+            assert(neutralOut.growth        === neutral.growth,
+                'neutral growth fallback wrong');
+
+            return 'PASS — unknown zone falls to site default; unknown site+zone falls to neutral default';
+        }
+    },
+    {
+        id: 'TC-56-PROFILE-CLAMP',
+        name: 'Issue #56 — accumulationProfileFor clamps all values to [0,1]',
+        fn: function() {
+            try {
+                api.ACCUMULATION_PROFILES.__test_clamp_zone__ = {
+                    sediment: 2, contactDebris: -1, streaks: 0.5, growth: 999
+                };
+                var result = api.accumulationProfileFor('wreck', '__test_clamp_zone__');
+                assert(result.sediment      === 1,
+                    'sediment 2 not clamped to 1: ' + result.sediment);
+                assert(result.contactDebris === 0,
+                    'contactDebris -1 not clamped to 0: ' + result.contactDebris);
+                assert(result.streaks       === 0.5,
+                    'streaks 0.5 should stay 0.5: ' + result.streaks);
+                assert(result.growth        === 1,
+                    'growth 999 not clamped to 1: ' + result.growth);
+                return 'PASS — out-of-range values clamped: sediment 2→1, contactDebris -1→0, streaks 0.5→0.5, growth 999→1';
+            } finally {
+                delete api.ACCUMULATION_PROFILES.__test_clamp_zone__;
+            }
+        }
+    },
+    {
+        id: 'TC-56-DETERMINISM-STREAKS',
+        name: 'Issue #56 — drawVerticalStreaks is pixel-deterministic for the same worldSeed',
+        fn: function() {
+            function drawAndCapture(seed) {
+                var cvs = document.createElement('canvas');
+                cvs.width = 200; cvs.height = 200;
+                var cx = cvs.getContext('2d');
+                cx.fillStyle = '#556677';
+                cx.fillRect(0, 0, 200, 200);
+                api.drawVerticalStreaks(cx, { sx: 10, sy: 10, sw: 180, sh: 180 },
+                    { intensity: 0.9, worldSeed: seed, variant: 'rust', exterior: false });
+                return cx.getImageData(0, 0, 200, 200).data;
+            }
+
+            var run1 = drawAndCapture(12345);
+            var run2 = drawAndCapture(12345);
+            var runX = drawAndCapture(999999);
+
+            // run1 and run2 must be identical
+            for (var b = 0; b < run1.length; b++) {
+                if (run1[b] !== run2[b]) {
+                    throw new Error('Non-deterministic: byte ' + b + ' differs between identical seeds (' + run1[b] + ' vs ' + run2[b] + ')');
+                }
+            }
+            // runX must differ from run1 (different seed → different pixel pattern)
+            var diffFound = false;
+            for (var c = 0; c < run1.length; c++) {
+                if (run1[c] !== runX[c]) { diffFound = true; break; }
+            }
+            assert(diffFound, 'worldSeed 12345 and 999999 produced identical output — seeding not working');
+            return 'PASS — same worldSeed produces identical pixels; different worldSeed produces different pixels';
+        }
+    },
+    {
+        id: 'TC-56-INTENSITY-ZERO-NO-OP',
+        name: 'Issue #56 — intensity ≤0 early-returns without touching the canvas',
+        fn: function() {
+            function noOpCheck(label, drawFn, pts, opts) {
+                var cvs = document.createElement('canvas');
+                cvs.width = 100; cvs.height = 100;
+                var cx = cvs.getContext('2d');
+                cx.fillStyle = '#4a5a6a';
+                cx.fillRect(0, 0, 100, 100);
+                var before = Array.from(cx.getImageData(0, 0, 100, 100).data);
+                drawFn(cx, pts, opts);
+                var after = cx.getImageData(0, 0, 100, 100).data;
+                for (var i = 0; i < before.length; i++) {
+                    if (before[i] !== after[i]) {
+                        throw new Error(label + ': pixel changed at byte ' + i + ': ' + before[i] + ' → ' + after[i]);
+                    }
+                }
+            }
+
+            noOpCheck('drawSedimentCap',
+                api.drawSedimentCap,
+                [[10, 50], [90, 50]],
+                { intensity: 0, thicknessM: 0.25, mpp: 0.05, worldSeed: 42 });
+
+            noOpCheck('drawContactAccumulation',
+                api.drawContactAccumulation,
+                [[10, 50], [90, 50]],
+                { intensity: 0, mpp: 0.05, worldSeed: 42, side: 'above' });
+
+            noOpCheck('drawVerticalStreaks',
+                api.drawVerticalStreaks,
+                { sx: 5, sy: 5, sw: 90, sh: 90 },
+                { intensity: 0, worldSeed: 42, variant: 'rust', exterior: false });
+
+            return 'PASS — all 3 helpers are no-ops when intensity = 0';
+        }
+    },
+    {
+        id: 'TC-56-CONTACT-NOT-BLACK-DOMINATED',
+        name: 'Issue #56 — drawContactAccumulation reads as warm material, not black shadow',
+        fn: function() {
+            // Regression guard for #56 vs #34 differentiation:
+            // contact accumulation must read as warm material, not black shadow.
+            var cvs = document.createElement('canvas');
+            cvs.width = 200; cvs.height = 200;
+            var cx = cvs.getContext('2d');
+            // Warm mid-grey background (#8a7a6a)
+            cx.fillStyle = '#8a7a6a';
+            cx.fillRect(0, 0, 200, 200);
+
+            api.drawContactAccumulation(cx, [[20, 100], [180, 100]], {
+                intensity: 1.0, mpp: 0.05, worldSeed: 42, side: 'above'
+            });
+
+            var data = cx.getImageData(0, 0, 200, 200).data;
+            var sumR = 0, sumB = 0, count = 0;
+            var pureBlackFound = false;
+            // Sample the band y in [95, 108], x in [20, 180]
+            for (var y = 95; y <= 108; y++) {
+                for (var x = 20; x <= 180; x++) {
+                    var idx = (y * 200 + x) * 4;
+                    var r = data[idx], g = data[idx + 1], b = data[idx + 2], a = data[idx + 3];
+                    if (a > 200) {
+                        sumR += r; sumB += b; count++;
+                        if (r < 20 && g < 20 && b < 20) pureBlackFound = true;
+                    }
+                }
+            }
+
+            assert(!pureBlackFound,
+                'Found a pure-black pixel in the contact accumulation band — ' +
+                'this pass should use warm brown colors not black (#34 differentiation violated)');
+
+            // If there are qualifying pixels, the channel mean must be warm (R > B).
+            // It is OK to have zero qualifying pixels if the layer is so translucent
+            // that compositing never pushes any pixel above alpha=200 — the warm
+            // background is still present and proves no black smear happened.
+            if (count > 0) {
+                var avgR = sumR / count;
+                var avgB = sumB / count;
+                assert(avgR > avgB,
+                    'Painted pixels are not warm: avgR=' + avgR.toFixed(1) +
+                    ' avgB=' + avgB.toFixed(1) + ' — expected R > B');
+                return 'PASS — contact accumulation band: no pure-black pixels, warm-biased (avgR=' +
+                       avgR.toFixed(1) + ' > avgB=' + avgB.toFixed(1) + ' over ' + count + ' px)';
+            }
+            return 'PASS — no pure-black pixels in band (layer is translucent; warm background confirms no black smear)';
+        }
+    },
+    {
+        id: 'TC-56-REGRESSION-COLLISION-UNCHANGED',
+        name: 'Issue #56 — floorAt/ceilingAt/solidAt reference values unchanged after calling accumulation helpers',
+        fn: function() {
+            var savedSite = api.diveSite;
+            try {
+                // Pin reference values before calling helpers
+                api.diveSite = 'shore';
+                assert(Math.abs(api.floorAt(0) - 3) < 1e-9,   'shore floorAt(0) regressed: ' + api.floorAt(0));
+                assert(api.solidAt(105, 20) === true,           'shore solidAt(105,20) regressed');
+
+                api.diveSite = 'reef';
+                assert(Math.abs(api.floorAt(0) - 5) < 1e-9,   'reef floorAt(0) regressed: ' + api.floorAt(0));
+                assert(api.ceilingAt(50) === 0,                 'reef ceilingAt(50) regressed');
+
+                api.diveSite = 'wreck';
+                assert(Math.abs(api.floorAt(50) - 66) < 1e-9, 'wreck floorAt(50) regressed: ' + api.floorAt(50));
+                assert(api.solidAt(50, 10) === false,           'wreck solidAt(50,10) regressed');
+
+                api.diveSite = 'cave';
+                assert(Math.abs(api.floorAt(0) - 10) < 1e-9,  'cave floorAt(0) regressed: ' + api.floorAt(0));
+                assert(api.solidAt(100, 30) === true,           'cave solidAt(100,30) regressed');
+
+                // Call all accumulation helpers on scratch canvases
+                var cvs = document.createElement('canvas');
+                cvs.width = 200; cvs.height = 200;
+                var cx = cvs.getContext('2d');
+                cx.fillStyle = '#556677';
+                cx.fillRect(0, 0, 200, 200);
+                var pts    = [[10, 100], [190, 100]];
+                var bounds = { sx: 10, sy: 10, sw: 180, sh: 180 };
+                api.drawSedimentCap(cx, pts, { intensity: 0.8, thicknessM: 0.25, mpp: 0.05, worldSeed: 100 });
+                api.drawContactAccumulation(cx, pts, { intensity: 0.8, mpp: 0.05, worldSeed: 200, side: 'above' });
+                api.drawVerticalStreaks(cx, bounds, { intensity: 0.8, worldSeed: 300, variant: 'rust', exterior: false });
+
+                // Re-check that physics values are unchanged
+                api.diveSite = 'shore';
+                assert(Math.abs(api.floorAt(0) - 3) < 1e-9,   'shore floorAt(0) changed after helpers: ' + api.floorAt(0));
+                assert(api.solidAt(105, 20) === true,           'shore solidAt(105,20) changed after helpers');
+
+                api.diveSite = 'reef';
+                assert(Math.abs(api.floorAt(0) - 5) < 1e-9,   'reef floorAt(0) changed after helpers: ' + api.floorAt(0));
+
+                api.diveSite = 'wreck';
+                assert(Math.abs(api.floorAt(50) - 66) < 1e-9, 'wreck floorAt(50) changed after helpers: ' + api.floorAt(50));
+
+                api.diveSite = 'cave';
+                assert(Math.abs(api.floorAt(0) - 10) < 1e-9,  'cave floorAt(0) changed after helpers: ' + api.floorAt(0));
+
+                return 'PASS — 8 pinned floorAt/ceilingAt/solidAt values unchanged before and after calling accumulation helpers';
+            } finally {
+                api.diveSite = savedSite;
+            }
+        }
+    },
+    {
+        id: 'TC-56-NO-GAMEPLAY-LEAK',
+        name: 'Issue #56 — surface accumulation helpers leave gameplay state untouched',
+        fn: function() {
+            var savedSite = api.diveSite;
+            try {
+                api.diveSite = 'reef';
+                var featuresLenBefore = api.DIVE_SITES.reef.features.length;
+                var tissuesBefore     = api.tissues.slice();
+                var tissuesHeBefore   = api.tissuesHe.slice();
+                var tanksLenBefore    = api.tanks.length;
+
+                // Call all helpers on a scratch canvas — even at high intensity
+                // they must not touch gameplay state.
+                var cvs = document.createElement('canvas');
+                cvs.width = 200; cvs.height = 200;
+                var cx = cvs.getContext('2d');
+                cx.fillStyle = '#556677';
+                cx.fillRect(0, 0, 200, 200);
+                var pts    = [[10, 100], [190, 100]];
+                var bounds = { sx: 0, sy: 0, sw: 200, sh: 200 };
+                api.drawSedimentCap(cx, pts, { intensity: 0.9, thicknessM: 0.30, mpp: 0.05, worldSeed: 11 });
+                api.drawContactAccumulation(cx, pts, { intensity: 0.9, mpp: 0.05, worldSeed: 22, side: 'above' });
+                api.drawVerticalStreaks(cx, bounds, { intensity: 0.9, worldSeed: 33, variant: 'rust', exterior: false });
+
+                assert(api.DIVE_SITES.reef.features.length === featuresLenBefore, 'features.length changed');
+                assert(api.tissues.length === tissuesBefore.length, 'tissues length changed');
+                for (var i = 0; i < tissuesBefore.length; i++) {
+                    assert(api.tissues[i] === tissuesBefore[i], 'tissues[' + i + '] changed');
+                }
+                assert(api.tissuesHe.length === tissuesHeBefore.length, 'tissuesHe length changed');
+                for (var j = 0; j < tissuesHeBefore.length; j++) {
+                    assert(api.tissuesHe[j] === tissuesHeBefore[j], 'tissuesHe[' + j + '] changed');
+                }
+                assert(api.tanks.length === tanksLenBefore, 'tanks.length changed');
+
+                return 'PASS — drawSedimentCap/drawContactAccumulation/drawVerticalStreaks left features/tissues/tanks untouched';
+            } finally {
+                api.diveSite = savedSite;
+            }
+        }
+    },
+    {
+        id: 'TC-56-DATA-ALL-ZONES-COVERED-OR-DEFAULTED',
+        name: 'Issue #56 — accumulationProfileFor resolves every visual zone to a valid [0,1] profile',
+        fn: function() {
+            var siteIds = ['shore', 'reef', 'wreck', 'cave'];
+            var totalZones = 0;
+            var explicitCount = 0;
+            var profiles = api.ACCUMULATION_PROFILES;
+            for (var si = 0; si < siteIds.length; si++) {
+                var siteId = siteIds[si];
+                var zones = api.DIVE_SITES[siteId].visualZones;
+                for (var zi = 0; zi < zones.length; zi++) {
+                    var zoneId = zones[zi].id;
+                    var p = api.accumulationProfileFor(siteId, zoneId);
+                    assert(typeof p.sediment      === 'number', siteId + '/' + zoneId + ' sediment not number');
+                    assert(typeof p.contactDebris === 'number', siteId + '/' + zoneId + ' contactDebris not number');
+                    assert(typeof p.streaks       === 'number', siteId + '/' + zoneId + ' streaks not number');
+                    assert(typeof p.growth        === 'number', siteId + '/' + zoneId + ' growth not number');
+                    assert(p.sediment >= 0 && p.sediment <= 1,
+                        siteId + '/' + zoneId + ' sediment out of [0,1]: ' + p.sediment);
+                    assert(p.contactDebris >= 0 && p.contactDebris <= 1,
+                        siteId + '/' + zoneId + ' contactDebris out of [0,1]: ' + p.contactDebris);
+                    assert(p.streaks >= 0 && p.streaks <= 1,
+                        siteId + '/' + zoneId + ' streaks out of [0,1]: ' + p.streaks);
+                    assert(p.growth >= 0 && p.growth <= 1,
+                        siteId + '/' + zoneId + ' growth out of [0,1]: ' + p.growth);
+                    if (profiles[zoneId]) explicitCount++;
+                    totalZones++;
+                }
+            }
+            assert(explicitCount >= 15,
+                'Expected >= 15 zones with explicit ACCUMULATION_PROFILES entries, got ' + explicitCount +
+                ' (soft guard against accidental deletion — expected ~22)');
+            return 'PASS — ' + totalZones + ' visual zones across 4 sites all resolve cleanly; ' +
+                   explicitCount + ' have explicit profiles, rest use site/neutral defaults';
+        }
     }
 ];
 

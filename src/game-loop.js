@@ -993,5 +993,16 @@ window.gameAPI = {
             JITTER_SEED_MULT: SET_DRESSING_JITTER_SEED_MULT,
             PROP_SEED_MULT:   SET_DRESSING_PROP_SEED_MULT
         };
-    }
+    },
+    // Issue #56: Surface accumulation (render-only, decorative)
+    drawSedimentCap: drawSedimentCap,
+    drawContactAccumulation: drawContactAccumulation,
+    drawVerticalStreaks: drawVerticalStreaks,
+    drawGrowthEdge: drawGrowthEdge,
+    accumulationProfileFor: accumulationProfileFor,
+    get ACCUMULATION_PROFILES() { return ACCUMULATION_PROFILES; },
+    get ACCUMULATION_SITE_DEFAULTS() { return ACCUMULATION_SITE_DEFAULTS; },
+    get ACCUMULATION_NEUTRAL_DEFAULT() { return ACCUMULATION_NEUTRAL_DEFAULT; },
+    get ACCUMULATION_PAL() { return ACCUMULATION_PAL; },
+    get ACCUM_SEED() { return ACCUM_SEED; }
 };

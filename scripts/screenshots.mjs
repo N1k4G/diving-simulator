@@ -94,6 +94,11 @@ async function run() {
     { site: 'Wreck', x: 60, depth: 24, name: 'desktop-dive-wreck' },
     { site: 'Wreck', x: 92, depth: 36, name: 'desktop-dive-wreck-wide' },
     { site: 'Cave',  x: 90, depth: 24, name: 'desktop-dive-cave' },
+    { site: 'Shore', x: 85, depth: 28, name: 'desktop-dive-shore-floor' },
+    { site: 'Reef',  x: 0,  depth: 6,  name: 'desktop-dive-reef-plateau' },
+    { site: 'Wreck', x: 92, depth: 32, name: 'desktop-dive-wreck-vehicle-deck' },
+    { site: 'Wreck', x: 92, depth: 57, name: 'desktop-dive-wreck-engine-room' },
+    { site: 'Cave',  x: 90, depth: 16, name: 'desktop-dive-cave-upper-tunnel' },
   ];
 
   for (const diveShot of desktopDiveShots) {
