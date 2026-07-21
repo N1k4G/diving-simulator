@@ -115,8 +115,11 @@ async function run() {
     { site: 'Shore', x: 100, depth: 14, name: 'desktop-dive-shore-parallax-b' },
     { site: 'Reef',  x: 14,  depth: 20, name: 'desktop-dive-reef-parallax-a' },
     { site: 'Reef',  x: 22,  depth: 20, name: 'desktop-dive-reef-parallax-b' },
-    { site: 'Wreck', x: 40,  depth: 30, name: 'desktop-dive-wreck-parallax-a' },
-    { site: 'Wreck', x: 60,  depth: 30, name: 'desktop-dive-wreck-parallax-b' },
+    // Exterior, clear of the hull (x=210..400 is where the distant hull
+    // mass / debris band anchor) so the new layers are actually on camera
+    // instead of the ship's own interior deck geometry.
+    { site: 'Wreck', x: 220, depth: 40, name: 'desktop-dive-wreck-parallax-a' },
+    { site: 'Wreck', x: 240, depth: 40, name: 'desktop-dive-wreck-parallax-b' },
     // Cave cathedral is where the depth-layered speleothem silhouettes
     // are meant to trigger — sample there specifically.
     { site: 'Cave',  x: 90,  depth: 70, name: 'desktop-dive-cave-cathedral-parallax-a' },

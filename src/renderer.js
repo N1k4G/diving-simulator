@@ -2892,14 +2892,19 @@ function drawSiteAtmosphere() {
 function drawShoreParallaxLayers(cx, W, H, dsx, dsy, mpp) {
     cx.save();
     // ── Layer A: far sand ridge silhouette (parallax 0.28). ──
-    // A low, tapered rock/sand ridge sitting well below the visible
-    // seabed so it reads as "somewhere out there" rather than a
-    // duplicate of the shore floor. Low contrast; kept warm to fit
-    // the shore palette. Sampled at fixed integer world-x strides
-    // (world-anchored) across the visible viewport → shifts under
-    // the camera at exactly (Δx / mpp * factor), not screen-locked.
+    // Shore's terrain fill is opaque from the local floor curve all the
+    // way to the bottom of the canvas (unlike Reef/Wreck/Cave, which have
+    // open water beyond/around their structures) — so a "distant ridge"
+    // anchored DEEPER than the real local floor is always painted over
+    // by drawTerrain() and never actually visible. Anchor it SHALLOWER
+    // than the real floor instead (a low crest poking up into the open
+    // water above the sand line, like a further headland glimpsed down
+    // the coast), guaranteeing it lands in the one region that stays
+    // open water: above floorAt(x). Sampled at fixed integer world-x
+    // strides (world-anchored) across the visible viewport → shifts
+    // under the camera at exactly (Δx / mpp * factor), not screen-locked.
     var pA = PARALLAX_FACTORS.shore.sandRidge;
-    var baseA = Math.max(20, depth + 6);
+    var ridgeMargin = 9; // metres shallower than the real local floor
     var xLeftA = diverX + (0 - dsx) * mpp / pA - 4;
     var xRightA = diverX + (W - dsx) * mpp / pA + 4;
     var strideA = 4;
@@ -2910,9 +2915,13 @@ function drawShoreParallaxLayers(cx, W, H, dsx, dsy, mpp) {
     for (var kA = Math.floor(xLeftA / strideA); kA <= Math.ceil(xRightA / strideA); kA++) {
         var wxA = kA * strideA;
         var sxA = dsx + (wxA - diverX) / mpp * pA;
-        var ridgeD = baseA + 8 + Math.sin(wxA * 0.08) * 4.5
-                             + Math.sin(wxA * 0.21 + 1.7) * 2
-                             + Math.sin(wxA * 0.045) * 3;
+        // Wave amplitude tops out around ±9.5; halving it keeps the crest's
+        // shallowest excursion (center + 4.75) safely below
+        // floorAt(wxA) - ridgeMargin, so it never reaches the real sand line.
+        var wave = Math.sin(wxA * 0.08) * 4.5
+                 + Math.sin(wxA * 0.21 + 1.7) * 2
+                 + Math.sin(wxA * 0.045) * 3;
+        var ridgeD = Math.max(1, floorAt(wxA) - ridgeMargin + wave * 0.5);
         var syA = dsy + (ridgeD - depth) / mpp;
         cx.lineTo(sxA, syA);
     }
@@ -2924,18 +2933,18 @@ function drawShoreParallaxLayers(cx, W, H, dsx, dsy, mpp) {
     // ── Layer B: distant seagrass band (parallax 0.42). ──
     // Simple tapered strokes — NOT the detailed set-dressing plants
     // from #55. Very low density/alpha so it reads as a distant
-    // suggestion, not another prop layer.
+    // suggestion, not another prop layer. Same visibility constraint as
+    // Layer A: anchor each blade above the REAL local floor at that
+    // world-x (not a fixed world-depth), so it always sits in open
+    // water instead of being painted over by the opaque sand fill.
     var pB = PARALLAX_FACTORS.shore.seagrassBand;
+    var grassMargin = 5; // metres shallower than the real local floor
     var xLeftM = diverX + (0 - dsx) * mpp / pB - 4;
     var xRightM = diverX + (W - dsx) * mpp / pB + 4;
     cx.globalAlpha = 0.18;
     cx.strokeStyle = '#1c3722';
     cx.lineCap = 'round';
     cx.lineWidth = 1.4;
-    // Anchor the band at a fixed world-depth (~24 m) so it always
-    // sits below the near seabed silhouette on the flat part of the
-    // shore. Skip when the ridge would fall entirely below screen.
-    var bandD = 24;
     for (var k = Math.floor(xLeftM / 2.4); k <= Math.ceil(xRightM / 2.4); k++) {
         var wxB = k * 2.4;
         if (sRand(wxB + 43) > 0.45) continue;
@@ -2943,6 +2952,7 @@ function drawShoreParallaxLayers(cx, W, H, dsx, dsy, mpp) {
         // Blade height and lean derived deterministically from wxB.
         var bh = 10 + sRand(wxB + 1) * 14;
         var lean = (sRand(wxB + 2) - 0.5) * 6;
+        var bandD = Math.max(1, floorAt(wxB) - grassMargin);
         var syBase = dsy + (bandD - depth) / mpp;
         if (sxB < -12 || sxB > W + 12) continue;
         if (syBase < -30 || syBase > H + 30) continue;
@@ -3010,28 +3020,37 @@ function drawWreckParallaxLayers(cx, W, H, dsx, dsy, mpp) {
     var deckD = 30;         // main deck
     var bridgeD = 20;
     var funnelD = 14;
+    var hullAnchorD = (keelD + funnelD) / 2; // mid-height reference depth
     // Place the distant hull along the +x direction (offset by 210 m
     // in world space) so it stays behind the playable ship without
-    // overlapping it. Parallax remaps that to a small screen shift
-    // as the diver moves.
+    // overlapping it. The ANCHOR point pans at pA's near-background
+    // parallax rate (~17 px/world-m) — but the hull is ~190 m long, so
+    // drawing its own shape at that same per-metre rate would span
+    // several screen widths and never read as a ship, just a soft edge.
+    // Decouple shape size from position speed: the anchor still pans at
+    // pA, but the silhouette itself is drawn at a small, fixed visual
+    // span so the whole ship fits legibly in frame regardless of pA.
     var wx0 = 210;
     var hullLenM = 190;
-    var scaleX = 1 / mpp * pA;
-    var sxStern = dsx + (wx0 - diverX) * scaleX;
-    var sxBow = dsx + (wx0 + hullLenM - diverX) * scaleX;
+    var HULL_VISUAL_SPAN_PX = 480; // full hull length on screen, tuned for legibility
+    var posScaleX = 1 / mpp * pA;
+    var sizeScale = HULL_VISUAL_SPAN_PX / hullLenM; // px per world-metre, shape-only
+    var sxStern = dsx + (wx0 - diverX) * posScaleX;
+    var sxBow = sxStern + hullLenM * sizeScale;
     // Early-out if the whole silhouette is offscreen (both sides).
     if (sxBow < -40 || sxStern > W + 40) {
         // Try the -x mirror side.
         wx0 = -210 - hullLenM;
-        sxStern = dsx + (wx0 - diverX) * scaleX;
-        sxBow = dsx + (wx0 + hullLenM - diverX) * scaleX;
+        sxStern = dsx + (wx0 - diverX) * posScaleX;
+        sxBow = sxStern + hullLenM * sizeScale;
         if (sxBow < -40 || sxStern > W + 40) { cx.restore(); return; }
     }
-    var syKeel = dsy + (keelD - depth) / mpp;
-    var syDeck = dsy + (deckD - depth) / mpp;
-    var syBridge = dsy + (bridgeD - depth) / mpp;
-    var syFunnel = dsy + (funnelD - depth) / mpp;
-    cx.globalAlpha = 0.11;
+    var syAnchor = dsy + (hullAnchorD - depth) / mpp;
+    var syKeel   = syAnchor + (keelD   - hullAnchorD) * sizeScale;
+    var syDeck   = syAnchor + (deckD   - hullAnchorD) * sizeScale;
+    var syBridge = syAnchor + (bridgeD - hullAnchorD) * sizeScale;
+    var syFunnel = syAnchor + (funnelD - hullAnchorD) * sizeScale;
+    cx.globalAlpha = 0.16;
     cx.fillStyle = '#0a1013';
     cx.beginPath();
     // hull trapezoid
