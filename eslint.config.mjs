@@ -212,6 +212,12 @@ const gameGlobals = {
   ENV_SWAY_BASE_FREQ: "readonly", ENV_SWAY_BASE_AMP: "readonly",
   ENV_SWAY_DETAIL_FREQ: "readonly", ENV_SWAY_DETAIL_AMP: "readonly",
   ENV_SWAY_PHASE_MULT: "readonly", ENV_SWAY_DETAIL_PHASE: "readonly",
+  // Issue #58: Shared near-surface optics (renderer.js)
+  nearSurfaceLightFactor: "readonly", drawCausticsOnVisibleFloor: "readonly",
+  drawNearSurfaceAtmosphere: "readonly", drawSurfaceCaustics: "readonly",
+  _nearSurfaceSiteMultiplier: "readonly",
+  _drawSurfaceUnderside: "readonly", _drawGodRays: "readonly",
+  _drawBoatShadow: "readonly",
   // Phase C renderer helpers
   drawTerrain: "readonly", drawStructures: "readonly",
   drawFeatures: "readonly", drawSeagrass: "readonly",

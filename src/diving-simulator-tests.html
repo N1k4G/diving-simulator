@@ -4694,6 +4694,178 @@ tests = [
             assert(currentNow === currentSnap, 'current mutated');
             return 'PASS — 800 calls left profile + current untouched';
         }
+    },
+    // ────────────────────────────────────────────────────────────────
+    //  Issue #58 — Shared near-surface optics pass
+    // ────────────────────────────────────────────────────────────────
+    {
+        id: 'TC-58-API',
+        name: 'Issue #58 — near-surface optics helpers surface on gameAPI',
+        fn: function() {
+            assert(typeof api.nearSurfaceLightFactor === 'function',
+                'nearSurfaceLightFactor not exposed');
+            assert(typeof api.drawCausticsOnVisibleFloor === 'function',
+                'drawCausticsOnVisibleFloor not exposed');
+            assert(typeof api.drawNearSurfaceAtmosphere === 'function',
+                'drawNearSurfaceAtmosphere not exposed');
+            assert(typeof api.drawSurfaceCaustics === 'function',
+                'drawSurfaceCaustics not exposed');
+            return 'PASS — 4 near-surface-optics symbols exposed';
+        }
+    },
+    {
+        id: 'TC-58-FACTOR-MONOTONIC',
+        name: 'Issue #58 — nearSurfaceLightFactor is monotonically non-increasing with depth',
+        fn: function() {
+            var f = api.nearSurfaceLightFactor;
+            var prev = f(0, true);
+            var violations = 0;
+            var firstViolation = null;
+            for (var d = 0; d <= 30; d += 0.25) {
+                var v = f(d, true);
+                if (v > prev + 1e-9) {
+                    violations++;
+                    if (firstViolation == null) firstViolation = { d: d, prev: prev, v: v };
+                }
+                prev = v;
+            }
+            assert(violations === 0, 'non-monotonic: ' + violations +
+                ' violations, first at d=' + (firstViolation && firstViolation.d) +
+                ' prev=' + (firstViolation && firstViolation.prev.toFixed(4)) +
+                ' v=' + (firstViolation && firstViolation.v.toFixed(4)));
+            return 'PASS — 121 depth samples strictly non-increasing';
+        }
+    },
+    {
+        id: 'TC-58-FACTOR-RANGE',
+        name: 'Issue #58 — nearSurfaceLightFactor always in [0,1]',
+        fn: function() {
+            var f = api.nearSurfaceLightFactor;
+            var violations = 0;
+            for (var d = -5; d <= 40; d += 0.1) {
+                var v1 = f(d, true);
+                var v2 = f(d, false);
+                if (!(v1 >= 0 && v1 <= 1)) violations++;
+                if (!(v2 >= 0 && v2 <= 1)) violations++;
+            }
+            assert(violations === 0, violations + ' out-of-range samples');
+            // Explicit endpoint anchors.
+            assert(Math.abs(f(0,  true) - 1) < 1e-9, 'f(0,true) should be 1, got ' + f(0, true));
+            assert(f(5,  true) > 0.95,  'f(5,true) should be ~1, got ' + f(5, true));
+            assert(f(30, true) === 0, 'f(30,true) should be 0, got ' + f(30, true));
+            assert(f(10, false) === 0, 'surfaceVisible=false must zero out, got ' + f(10, false));
+            return 'PASS — 902 samples in [0,1]; endpoints match spec';
+        }
+    },
+    {
+        id: 'TC-58-FACTOR-DEEP-ZERO',
+        name: 'Issue #58 — nearSurfaceLightFactor is exactly 0 beyond ~20 m',
+        fn: function() {
+            var f = api.nearSurfaceLightFactor;
+            var nonzero = 0;
+            for (var d = 20; d <= 60; d += 0.5) {
+                if (f(d, true) !== 0) nonzero++;
+            }
+            assert(nonzero === 0, nonzero + ' non-zero samples in [20, 60] m');
+            // And the tail approaching 20 m must be tiny, not a cliff.
+            var near = f(19.5, true);
+            assert(near < 0.05,
+                'tail at 19.5 m should be tiny; got ' + near.toFixed(4));
+            return 'PASS — 81 samples ≥20 m all exactly 0; tail at 19.5 m = ' + near.toFixed(4);
+        }
+    },
+    {
+        id: 'TC-58-NOOP-OUTSIDE-DIVE',
+        name: 'Issue #58 — draw passes are no-ops outside gameState="diving"',
+        fn: function() {
+            // Guard: neither draw pass may throw or emit ANY canvas ops
+            // when the game is in a non-dive screen (post-dive/gas-setup/
+            // game-over/surface). We can't reliably pixel-probe the
+            // hidden test iframe (cssWidth/cssHeight ~ 0), so instead we
+            // stub the CanvasRenderingContext2D methods the pass uses
+            // and assert nothing is called.
+            var iw = iframe.contentWindow;
+            var C = iw.CanvasRenderingContext2D && iw.CanvasRenderingContext2D.prototype;
+            assert(C, 'CanvasRenderingContext2D not accessible on iframe');
+            var methods = [
+                'fillRect', 'stroke', 'fill', 'beginPath',
+                'moveTo', 'lineTo', 'ellipse', 'arc',
+                'createLinearGradient', 'createRadialGradient'
+            ];
+            var savedState = api.gameState;
+            var savedFns = {};
+            var callCount = 0;
+            for (var i = 0; i < methods.length; i++) {
+                savedFns[methods[i]] = C[methods[i]];
+            }
+            function wrap() {
+                for (var j = 0; j < methods.length; j++) {
+                    (function(m, orig) {
+                        C[m] = function() {
+                            callCount++;
+                            return orig.apply(this, arguments);
+                        };
+                    })(methods[j], savedFns[methods[j]]);
+                }
+            }
+            function unwrap() {
+                for (var j = 0; j < methods.length; j++) C[methods[j]] = savedFns[methods[j]];
+            }
+            var states = ['gas-setup', 'post-dive', 'game-over', 'surface'];
+            var threw = null;
+            try {
+                wrap();
+                for (var si = 0; si < states.length; si++) {
+                    api.gameState = states[si];
+                    callCount = 0;
+                    api.drawNearSurfaceAtmosphere();
+                    api.drawSurfaceCaustics();
+                    if (callCount !== 0) {
+                        throw new Error('state "' + states[si] + '": ' +
+                            callCount + ' canvas ops emitted');
+                    }
+                }
+            } catch (e) {
+                threw = e;
+            } finally {
+                unwrap();
+                api.gameState = savedState;
+            }
+            if (threw) throw threw;
+            return 'PASS — 4 non-dive states emitted zero canvas ops';
+        }
+    },
+    {
+        id: 'TC-58-CAUSTICS-EARLY-RETURN',
+        name: 'Issue #58 — drawCausticsOnVisibleFloor early-returns for tiny lightFactor',
+        fn: function() {
+            var iw = iframe.contentWindow;
+            var C = iw.CanvasRenderingContext2D && iw.CanvasRenderingContext2D.prototype;
+            assert(C, 'CanvasRenderingContext2D not accessible on iframe');
+            var callCount = 0;
+            var savedBeginPath = C.beginPath;
+            var savedStroke    = C.stroke;
+            var savedFill      = C.fill;
+            C.beginPath = function() { callCount++; return savedBeginPath.apply(this, arguments); };
+            C.stroke    = function() { callCount++; return savedStroke.apply(this, arguments); };
+            C.fill      = function() { callCount++; return savedFill.apply(this, arguments); };
+            var savedState = api.gameState;
+            api.gameState = 'diving';
+            try {
+                var s = api.activeSite();
+                api.drawCausticsOnVisibleFloor(s, 0);
+                api.drawCausticsOnVisibleFloor(s, 0.005);
+                api.drawCausticsOnVisibleFloor(s, -1);
+            } finally {
+                C.beginPath = savedBeginPath;
+                C.stroke    = savedStroke;
+                C.fill      = savedFill;
+                api.gameState = savedState;
+            }
+            assert(callCount === 0,
+                'tiny/negative lightFactor still hit ' + callCount + ' canvas ops');
+            return 'PASS — three tiny-factor calls emitted zero canvas ops';
+        }
     }
 ];
 

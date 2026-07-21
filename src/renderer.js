@@ -681,10 +681,18 @@ function drawScene() {
 
     // Site-specific atmosphere is cheap gradient/line work behind terrain.
     drawSiteAtmosphere();
+    // Issue #58: shared near-surface optics — water underside highlight,
+    // godrays and boat shadow. Runs at the same slot as drawSiteAtmosphere
+    // (behind terrain) so it's part of the water/background layer.
+    drawNearSurfaceAtmosphere();
 
     // Phase C: Site terrain (floor + ceiling) drawn before entities
     drawTerrain();
     drawSiteDetailPass();
+    // Issue #58: caustics belong ON the terrain, so they run AFTER
+    // drawTerrain()/drawSiteDetailPass() and BEFORE set-dressing so
+    // decoration props sit on top of the light pattern.
+    drawSurfaceCaustics();
     // Issue #55: deterministic set dressing (small cosmetic filler between
     // hand-placed features). Runs AFTER terrain/material passes so props sit
     // on top of the surface, and BEFORE structures/features so hand-placed
@@ -2477,6 +2485,282 @@ function drawSetDressing(site, visibleWorldLeft, visibleWorldRight, mpp) {
     });
 }
 
+// ── Near-surface optics (issue #58) ────────────────────────────────
+// Shared, stylised 2D pass covering the light effects that live in the
+// upper ~20 m of the water column: moving caustics on shallow floor,
+// soft godrays, a slightly richer water underside, and a soft boat
+// shadow. Consolidates code that used to live in per-site branches and
+// gives future sites (issue #35 reef polish, #43 shore godrays) a
+// single call site instead of a fresh copy each time.
+//
+// Not physically accurate — no refraction, no Snell's window, no
+// depth colour absorption (that's issue #36). Depth colour, water-
+// volume fog and torch cones are still owned by their own passes.
+
+// Depth curve. 1 near the surface, 0 by ~20 m. Composed of two
+// non-decreasing smoothsteps so the character matches the design brief:
+//   0–5 m:   strong (~1)
+//   5–12 m:  drops markedly
+//   12–20 m: only a very subtle tail
+//   >20 m:   0
+// Also 0 when the surface is not visible (deep overhead, etc.).
+function nearSurfaceLightFactor(depth, surfaceVisible) {
+    if (surfaceVisible === false) return 0;
+    if (!(depth > 0)) return 1;         // NaN / negative / at-surface → full
+    if (depth >= 20) return 0;
+    // 85% weight on the 5→12 m knee, 15% on the 12→20 m tail.
+    var t1 = 1 - smoothstep(5,  12, depth);
+    var t2 = 1 - smoothstep(12, 20, depth);
+    var v = t1 * 0.85 + t2 * 0.15;
+    if (v < 0) v = 0;
+    if (v > 1) v = 1;
+    return v;
+}
+
+// Per-site multiplier on top of the base depth factor. Shore is the
+// baseline (sunlit sand). Reef is a hair more (bright plateau water).
+// Cave Entry is conservative (open water only visible through pond
+// shafts). Wreck exterior is very subtle (murky, north-Atlantic feel).
+function _nearSurfaceSiteMultiplier(siteId) {
+    if (siteId === 'shore') return 1.0;
+    if (siteId === 'reef')  return 1.1;
+    if (siteId === 'cave')  return 0.6;
+    if (siteId === 'wreck') return 0.4;
+    return 1.0;
+}
+
+// Shared caustic renderer. Draws slow horizontal sine-wavy stroke
+// bands over the visible floor area, phase-locked to WORLD coordinates
+// so the pattern does not swim with the camera when the diver moves
+// horizontally. Extracted from the pre-#58 Shore atmosphere branch —
+// visuals are near-unchanged for Shore, and Reef now shares the exact
+// same helper (previously had no caustics at all).
+function drawCausticsOnVisibleFloor(site, lightFactor) {
+    if (lightFactor <= 0.01) return;
+    var W = cssWidth, H = cssHeight;
+    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var surfaceY = dsy - depth / mpp;
+    var cx = ctx;
+    cx.save();
+    var alpha = (0.16 * lightFactor).toFixed(3);
+    cx.strokeStyle = 'rgba(245,238,188,' + alpha + ')';
+    cx.lineWidth = 1.2;
+    // World-anchored horizontal wavelength ≈ 2π/0.6 ≈ 10.5 m (matches
+    // the original 0.03/pixel * 0.05 mpp period, just in world units).
+    var kx = 0.6;
+    for (var cy = Math.max(surfaceY + 36, -30); cy < H; cy += 44) {
+        cx.beginPath();
+        for (var sx = -20; sx <= W + 20; sx += 18) {
+            var worldX = diverX + (sx - dsx) * mpp;
+            var y = cy + Math.sin(worldX * kx + waveTime * 1.7 + cy * 0.02) * 5;
+            if (sx === -20) cx.moveTo(sx, y); else cx.lineTo(sx, y);
+        }
+        cx.stroke();
+    }
+    cx.restore();
+}
+
+// Water underside: a bright moving highlight just below the surface
+// line plus a couple of faint offset wave bands so the surface line
+// isn't a single flat stroke when viewed from below.
+function _drawSurfaceUnderside(surfaceY, W, H, lightFactor) {
+    if (lightFactor <= 0.01) return;
+    if (surfaceY <= -50 || surfaceY >= H + 50) return;
+    var cx = ctx;
+    cx.save();
+    // Thin bright moving highlight line just under the surface.
+    var hiAlpha = (0.35 * lightFactor).toFixed(3);
+    cx.strokeStyle = 'rgba(230,248,255,' + hiAlpha + ')';
+    cx.lineWidth = 1;
+    cx.beginPath();
+    for (var x = 0; x <= W; x += 6) {
+        var worldX = diverX + (x - W * 0.25) * 0.05;
+        var y = surfaceY + 2 + Math.sin(worldX * 0.45 + waveTime * 2.2) * 1.4 +
+                Math.sin(worldX * 0.9 + waveTime * 1.4) * 0.6;
+        if (x === 0) cx.moveTo(x, y); else cx.lineTo(x, y);
+    }
+    cx.stroke();
+    // 1-2 wider offset wave bands, low alpha.
+    var bands = [
+        { off: 6,  a: 0.10, kx: 0.35, w: 3, spd: 1.6 },
+        { off: 14, a: 0.06, kx: 0.28, w: 4, spd: 1.1 }
+    ];
+    for (var bi = 0; bi < bands.length; bi++) {
+        var b = bands[bi];
+        cx.fillStyle = 'rgba(180,220,235,' + (b.a * lightFactor).toFixed(3) + ')';
+        cx.beginPath();
+        for (var bx = 0; bx <= W; bx += 6) {
+            var bwx = diverX + (bx - W * 0.25) * 0.05;
+            var by = surfaceY + b.off + Math.sin(bwx * b.kx + waveTime * b.spd) * 2;
+            if (bx === 0) cx.moveTo(bx, by); else cx.lineTo(bx, by);
+        }
+        for (var bx2 = W; bx2 >= 0; bx2 -= 6) {
+            var bwx2 = diverX + (bx2 - W * 0.25) * 0.05;
+            var by2 = surfaceY + b.off + b.w + Math.sin(bwx2 * b.kx + waveTime * b.spd + 0.9) * 2;
+            cx.lineTo(bx2, by2);
+        }
+        cx.closePath();
+        cx.fill();
+    }
+    cx.restore();
+}
+
+// Godrays: 4 wide, soft translucent wedges dropping from the surface.
+// World-anchored origin x (rounded to a 15 m grid) so they don't swim
+// with the camera when the diver moves horizontally. Additive-blend
+// gradient wedges, no hard edges. Fades hard with depth.
+function _drawGodRays(surfaceY, W, H, lightFactor, siteMult) {
+    var eff = lightFactor * siteMult;
+    if (eff <= 0.02) return;
+    if (surfaceY >= H + 20) return;         // no rays below floor of screen
+    var cx = ctx;
+    cx.save();
+    cx.globalCompositeOperation = 'lighter';
+    var mpp = 0.05, dsx = W * 0.25;
+    // Visible world-x range → snap to a 15 m grid to anchor rays.
+    var worldXLeft  = diverX + (0 - dsx) * mpp - 8;
+    var worldXRight = diverX + (W - dsx) * mpp + 8;
+    var spacing = 15;
+    var xStart = Math.floor(worldXLeft / spacing) * spacing;
+    var beamTopY = Math.max(-40, surfaceY - 20);
+    var beamBotY = Math.min(H + 20, surfaceY + 220);
+    if (beamBotY <= beamTopY + 20) { cx.restore(); return; }
+    for (var wx = xStart; wx <= worldXRight; wx += spacing) {
+        var seed = wx * 0.171 + 3.7;
+        var jitter = (sRand(seed) - 0.5) * 6;
+        var rayWorldX = wx + jitter + Math.sin(waveTime * 0.25 + seed) * 1.5;
+        var topScreenX = dsx + (rayWorldX - diverX) / mpp;
+        if (topScreenX < -80 || topScreenX > W + 80) continue;
+        // Wedge widens as it descends (fan). Slight angle variance per ray.
+        var angle = (sRand(seed + 1.1) - 0.5) * 0.35;
+        var topHalf = 14 + sRand(seed + 2.3) * 8;
+        var botHalf = 46 + sRand(seed + 3.3) * 22;
+        var xTopL = topScreenX - topHalf;
+        var xTopR = topScreenX + topHalf;
+        var xBotL = topScreenX - botHalf + angle * 40;
+        var xBotR = topScreenX + botHalf + angle * 40;
+        // Vertical gradient — bright near surface, transparent at tip.
+        var g = cx.createLinearGradient(0, beamTopY, 0, beamBotY);
+        var aTop = 0.11 * eff;
+        g.addColorStop(0,    'rgba(255,248,220,' + aTop.toFixed(3) + ')');
+        g.addColorStop(0.55, 'rgba(200,230,235,' + (aTop * 0.45).toFixed(3) + ')');
+        g.addColorStop(1,    'rgba(160,205,215,0)');
+        cx.fillStyle = g;
+        cx.beginPath();
+        cx.moveTo(xTopL, beamTopY);
+        cx.lineTo(xTopR, beamTopY);
+        cx.lineTo(xBotR, beamBotY);
+        cx.lineTo(xBotL, beamBotY);
+        cx.closePath();
+        cx.fill();
+    }
+    cx.restore();
+}
+
+// Boat shadow / surface silhouette: a soft dark elongated blob
+// hanging under the surface at the boat's screen-x. Uses the SAME
+// derivation as the boat sprite (drawScene line ~663) so the shadow
+// tracks the boat exactly. No effect if boat is far offscreen.
+function _drawBoatShadow(surfaceY, W, H, lightFactor, siteMult) {
+    var s = activeSite();
+    if (!s || s.boatX == null) return;
+    var eff = lightFactor * siteMult;
+    if (eff <= 0.02) return;
+    if (surfaceY <= -20 || surfaceY >= H + 20) return;
+    var mpp = 0.05;
+    var boatWorldX = s.boatX;
+    var shipX = W * 0.25 + (boatWorldX - diverX) / mpp;
+    // Fallback: skip work for boats far outside the visible world-x range.
+    if (shipX < -180 || shipX > W + 180) return;
+    var cx = ctx;
+    cx.save();
+    // Slight lateral sway with waveTime — the boat drifts on wavelets.
+    var sway = Math.sin(waveTime * 0.9) * 1.4;
+    var cxPos = shipX + sway;
+    var cyPos = surfaceY + 6;
+    // Two-stop soft radial "shadow" — no hard edges.
+    var g = cx.createRadialGradient(cxPos, cyPos, 6, cxPos, cyPos, 90);
+    var aCore = 0.22 * eff;
+    g.addColorStop(0,   'rgba(4,10,16,' + aCore.toFixed(3) + ')');
+    g.addColorStop(0.5, 'rgba(4,10,16,' + (aCore * 0.35).toFixed(3) + ')');
+    g.addColorStop(1,   'rgba(4,10,16,0)');
+    cx.fillStyle = g;
+    // Elliptical footprint (wider than tall) to hint at hull silhouette.
+    cx.beginPath();
+    cx.ellipse(cxPos, cyPos, 80, 14, 0, 0, Math.PI * 2);
+    cx.fill();
+    cx.restore();
+}
+
+// Public: near-surface atmosphere layer. Runs BEFORE terrain — this
+// is the background/water side of the pass (godrays, boat shadow,
+// water-underside). The caustics on the floor are painted AFTER
+// terrain by drawSurfaceCaustics().
+function drawNearSurfaceAtmosphere() {
+    // No-op outside the live dive scene — no work in setup/post-dive/
+    // game-over/surface screens.
+    if (gameState !== 'diving') return;
+    var s = activeSite();
+    if (!s) return;
+    // No near-surface work if the diver is inside overhead (interior).
+    if (inOverhead) return;
+    var W = cssWidth, H = cssHeight;
+    var mpp = 0.05, dsy = H * 0.45;
+    var surfaceY = dsy - depth / mpp;
+    var surfaceVisible = (surfaceY > -50 && surfaceY < H + 50);
+    var base = nearSurfaceLightFactor(depth, surfaceVisible);
+    var siteMult = _nearSurfaceSiteMultiplier(s.id);
+    // Optional local-atmosphere modulation — sample once at the diver's
+    // position and use visibility to dampen, ambient to nudge brightness.
+    // Small effect only; #54 owns the real tint / fog work.
+    var atmo = null;
+    try { atmo = sampleLocalAtmosphere(s, diverX, depth); } catch { atmo = null; }
+    var atmoK = 1;
+    if (atmo) {
+        atmoK = (atmo.ambient || 1) * (0.6 + 0.4 * (atmo.visibility || 1));
+        if (atmoK < 0.3) atmoK = 0.3;
+        if (atmoK > 1.6) atmoK = 1.6;
+    }
+    var lightFactor = base * atmoK;
+    if (lightFactor <= 0.01) return;
+    _drawSurfaceUnderside(surfaceY, W, H, lightFactor);
+    _drawGodRays(surfaceY, W, H, lightFactor, siteMult);
+    _drawBoatShadow(surfaceY, W, H, lightFactor, siteMult);
+}
+
+// Public: caustics on the visible floor. Runs AFTER terrain +
+// site detail pass and BEFORE set-dressing — matches the render-order
+// constraint in issue #58. Currently just Shore + Reef; Cave uses its
+// own pond sunbeam and Wreck exterior is deep enough that the depth
+// curve already zeroes this out.
+function drawSurfaceCaustics() {
+    if (gameState !== 'diving') return;
+    var s = activeSite();
+    if (!s) return;
+    if (inOverhead) return;                 // no floor caustics inside overhead
+    var H = cssHeight;
+    var mpp = 0.05, dsy = H * 0.45;
+    var surfaceY = dsy - depth / mpp;
+    var surfaceVisible = (surfaceY > -50 && surfaceY < H + 50);
+    var base = nearSurfaceLightFactor(depth, surfaceVisible);
+    var siteMult = _nearSurfaceSiteMultiplier(s.id);
+    var atmo = null;
+    try { atmo = sampleLocalAtmosphere(s, diverX, depth); } catch { atmo = null; }
+    var atmoK = atmo ? Math.max(0.3, Math.min(1.6,
+        (atmo.ambient || 1) * (0.6 + 0.4 * (atmo.visibility || 1))
+    )) : 1;
+    var lightFactor = base * siteMult * atmoK;
+    if (lightFactor <= 0.01) return;
+    // Shore + Reef always eligible. Cave gets caustics only in the very
+    // shallow entry zone where an open pond surface is visible — the
+    // depth curve + 0.6 site multiplier keep that conservative. Wreck
+    // exterior is 0.4 site + rapid depth falloff → naturally silent
+    // below ~10 m. No new zone-specific branches needed.
+    if (s.id === 'shore' || s.id === 'reef' || s.id === 'cave' || s.id === 'wreck') {
+        drawCausticsOnVisibleFloor(s, lightFactor);
+    }
+}
+
 function drawSiteAtmosphere() {
     var s = activeSite();
     if (!s) return;
@@ -2487,20 +2771,10 @@ function drawSiteAtmosphere() {
     cx.save();
 
     if (s.id === 'shore') {
-        // Shallow caustics and a warm surface veil make the sandy descent feel sunlit.
-        var causticAlpha = Math.max(0, 1 - depth / 24);
-        if (causticAlpha > 0.02) {
-            cx.strokeStyle = 'rgba(245,238,188,' + (0.16 * causticAlpha).toFixed(3) + ')';
-            cx.lineWidth = 1.2;
-            for (var cy = Math.max(surfaceY + 36, -30); cy < H; cy += 44) {
-                cx.beginPath();
-                for (var x = -20; x <= W + 20; x += 18) {
-                    var y = cy + Math.sin(x * 0.03 + waveTime * 1.7 + cy * 0.02) * 5;
-                    if (x === -20) cx.moveTo(x, y); else cx.lineTo(x, y);
-                }
-                cx.stroke();
-            }
-        }
+        // Caustics moved to the shared near-surface-optics pass (issue #58,
+        // drawSurfaceCaustics → drawCausticsOnVisibleFloor). Keep the warm
+        // surface veil here since it belongs to the site atmosphere, not the
+        // near-surface optics layer.
         var shoreGlow = cx.createLinearGradient(0, Math.max(0, surfaceY), 0, H);
         shoreGlow.addColorStop(0, 'rgba(235,218,160,0.08)');
         shoreGlow.addColorStop(1, 'rgba(75,42,16,0)');

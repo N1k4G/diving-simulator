@@ -99,6 +99,14 @@ async function run() {
     { site: 'Wreck', x: 92, depth: 32, name: 'desktop-dive-wreck-vehicle-deck' },
     { site: 'Wreck', x: 92, depth: 57, name: 'desktop-dive-wreck-engine-room' },
     { site: 'Cave',  x: 90, depth: 16, name: 'desktop-dive-cave-upper-tunnel' },
+    // Issue #58: shared near-surface optics — sanity shots for the
+    // shallow-water light effects (caustics + godrays + water underside
+    // + boat shadow). Deep companions confirm the pass has faded to 0.
+    { site: 'Shore', x: 85, depth: 4,  name: 'desktop-dive-shore-shallow-optics' },
+    { site: 'Shore', x: 85, depth: 22, name: 'desktop-dive-shore-deep-no-optics' },
+    { site: 'Reef',  x: 0,  depth: 5,  name: 'desktop-dive-reef-plateau-caustics' },
+    { site: 'Reef',  x: 12, depth: 30, name: 'desktop-dive-reef-wall-no-optics' },
+    { site: 'Cave',  x: 90, depth: 6,  name: 'desktop-dive-cave-entry-optics' },
   ];
 
   for (const diveShot of desktopDiveShots) {

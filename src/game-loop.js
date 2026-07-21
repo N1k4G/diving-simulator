@@ -1009,5 +1009,11 @@ window.gameAPI = {
     sampleEnvironmentSway: sampleEnvironmentSway,
     get SWAY_PROFILES() { return SWAY_PROFILES; },
     get waveTime() { return waveTime; },
-    set waveTime(v) { waveTime = v; }
+    set waveTime(v) { waveTime = v; },
+    // Issue #58: Shared near-surface optics — caustics, godrays, water
+    // underside, boat shadow. Pure depth curve + three render helpers.
+    nearSurfaceLightFactor: nearSurfaceLightFactor,
+    drawCausticsOnVisibleFloor: drawCausticsOnVisibleFloor,
+    drawNearSurfaceAtmosphere: drawNearSurfaceAtmosphere,
+    drawSurfaceCaustics: drawSurfaceCaustics
 };
