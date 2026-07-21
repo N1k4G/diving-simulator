@@ -206,6 +206,12 @@ const gameGlobals = {
   accumulationProfileFor: "readonly",
   drawSedimentCap: "readonly", drawContactAccumulation: "readonly",
   drawVerticalStreaks: "readonly", drawGrowthEdge: "readonly",
+  // Issue #57: Environment micro-motion (renderer.js)
+  SWAY_PROFILES: "readonly", sampleEnvironmentSway: "readonly",
+  ENV_SWAY_CURRENT_BIAS_GAIN: "readonly", ENV_SWAY_ANGLE_GAIN: "readonly",
+  ENV_SWAY_BASE_FREQ: "readonly", ENV_SWAY_BASE_AMP: "readonly",
+  ENV_SWAY_DETAIL_FREQ: "readonly", ENV_SWAY_DETAIL_AMP: "readonly",
+  ENV_SWAY_PHASE_MULT: "readonly", ENV_SWAY_DETAIL_PHASE: "readonly",
   // Phase C renderer helpers
   drawTerrain: "readonly", drawStructures: "readonly",
   drawFeatures: "readonly", drawSeagrass: "readonly",

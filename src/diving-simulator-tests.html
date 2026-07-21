@@ -4398,6 +4398,302 @@ tests = [
             return 'PASS — ' + totalZones + ' visual zones across 4 sites all resolve cleanly; ' +
                    explicitCount + ' have explicit profiles, rest use site/neutral defaults';
         }
+    },
+    // ────────────────────────────────────────────────────────────────
+    //  Issue #57 — Environment micro-motion (renderer-only, decorative)
+    // ────────────────────────────────────────────────────────────────
+    {
+        id: 'TC-57-API',
+        name: 'Issue #57 — sampleEnvironmentSway + SWAY_PROFILES surface on gameAPI',
+        fn: function() {
+            assert(typeof api.sampleEnvironmentSway === 'function',
+                'sampleEnvironmentSway not exposed');
+            var P = api.SWAY_PROFILES;
+            assert(P && typeof P === 'object', 'SWAY_PROFILES missing');
+            var required = ['seagrass', 'softCoral', 'gorgonian', 'hangingLine', 'net'];
+            for (var i = 0; i < required.length; i++) {
+                var k = required[i];
+                assert(P[k] && typeof P[k].flexibility === 'number' && typeof P[k].amplitudePx === 'number',
+                    'SWAY_PROFILES.' + k + ' missing or malformed');
+                assert(P[k].flexibility >= 0 && P[k].flexibility <= 1,
+                    'flexibility out of [0,1] for ' + k + ': ' + P[k].flexibility);
+                assert(P[k].amplitudePx > 0, 'amplitudePx must be positive for ' + k);
+            }
+            // Gorgonian must be visibly stiffer than seagrass — the whole
+            // point of profiles is that the drawer doesn't invent numbers.
+            assert(P.gorgonian.flexibility < P.seagrass.flexibility,
+                'gorgonian.flexibility must be < seagrass.flexibility');
+            assert(P.gorgonian.amplitudePx  < P.seagrass.amplitudePx,
+                'gorgonian.amplitudePx must be < seagrass.amplitudePx');
+            var s = api.sampleEnvironmentSway(1.0, P.seagrass, 1.0);
+            assert(s && typeof s.x === 'number' && typeof s.y === 'number' && typeof s.angle === 'number',
+                'sampleEnvironmentSway must return {x,y,angle}');
+            return 'PASS — API + 5 profiles surfaced';
+        }
+    },
+    {
+        id: 'TC-57-ZERO-FLEXIBILITY-STAYS-STILL',
+        name: 'Issue #57 — flexibility=0 → sway is exactly zero',
+        fn: function() {
+            api.waveTime = 12.345;
+            var maxAbs = 0;
+            for (var i = 0; i < 200; i++) {
+                var seed = i * 3.7 + 1.1;
+                for (var h = 0; h <= 1; h += 0.1) {
+                    var s = api.sampleEnvironmentSway(seed, { flexibility: 0, amplitudePx: 8 }, h);
+                    if (Math.abs(s.x) > maxAbs) maxAbs = Math.abs(s.x);
+                    if (Math.abs(s.y) > maxAbs) maxAbs = Math.abs(s.y);
+                    if (Math.abs(s.angle) > maxAbs) maxAbs = Math.abs(s.angle);
+                }
+            }
+            assert(maxAbs === 0, 'flexibility 0 produced non-zero sway; max |v|=' + maxAbs);
+            return 'PASS — 2200 samples at flex=0 all exactly zero';
+        }
+    },
+    {
+        id: 'TC-57-FOOT-STAYS-PIXEL-FIXED',
+        name: 'Issue #57 — heightFactor=0 → foot pixel-fixed regardless of anything else',
+        fn: function() {
+            var P = api.SWAY_PROFILES;
+            var kinds = ['seagrass', 'softCoral', 'gorgonian', 'hangingLine', 'net'];
+            var savedActive = api.current.active;
+            var savedDir    = api.current.direction;
+            var savedLevel  = api.current.level;
+            try {
+                // Include a strong active current — foot must still not move.
+                api.current.active = true;
+                api.current.direction = 1;
+                api.current.level = 0.55;
+                var maxAbs = 0;
+                for (var t = 0; t < 20; t++) {
+                    api.waveTime = t * 0.37;
+                    for (var k = 0; k < kinds.length; k++) {
+                        for (var i = 0; i < 100; i++) {
+                            var seed = i * 2.3 + k * 17;
+                            var s = api.sampleEnvironmentSway(seed, P[kinds[k]], 0);
+                            if (Math.abs(s.x)     > maxAbs) maxAbs = Math.abs(s.x);
+                            if (Math.abs(s.y)     > maxAbs) maxAbs = Math.abs(s.y);
+                            if (Math.abs(s.angle) > maxAbs) maxAbs = Math.abs(s.angle);
+                        }
+                    }
+                }
+                assert(maxAbs === 0, 'foot moved: max |v|=' + maxAbs);
+            } finally {
+                api.current.active = savedActive;
+                api.current.direction = savedDir;
+                api.current.level = savedLevel;
+            }
+            return 'PASS — 10000 foot samples across 5 profiles × 20 times all exactly zero';
+        }
+    },
+    {
+        id: 'TC-57-DETERMINISM',
+        name: 'Issue #57 — same seed + same waveTime → identical sway',
+        fn: function() {
+            var P = api.SWAY_PROFILES;
+            var mismatches = 0;
+            for (var t = 0; t < 30; t++) {
+                api.waveTime = t * 0.911 - 3.7;
+                for (var i = 0; i < 50; i++) {
+                    var seed = i * 1.31 + 0.7;
+                    var a = api.sampleEnvironmentSway(seed, P.seagrass, 0.7);
+                    var b = api.sampleEnvironmentSway(seed, P.seagrass, 0.7);
+                    var c = api.sampleEnvironmentSway(seed, P.seagrass, 0.7);
+                    if (a.x !== b.x || a.y !== b.y || a.angle !== b.angle) mismatches++;
+                    if (b.x !== c.x || b.y !== c.y || b.angle !== c.angle) mismatches++;
+                }
+            }
+            assert(mismatches === 0, mismatches + ' non-deterministic samples');
+            return 'PASS — 1500 (seed, waveTime) samples all deterministic';
+        }
+    },
+    {
+        id: 'TC-57-NEIGHBOURS-DESYNC',
+        name: 'Issue #57 — different seeds → different phases (neighbours never in sync)',
+        fn: function() {
+            var P = api.SWAY_PROFILES;
+            api.waveTime = 4.2;
+            var identical = 0;
+            var tested = 0;
+            // Sweep pairs of nearby seeds and confirm they diverge somewhere
+            // across a range of waveTimes — a single instant can coincidentally
+            // hit zero for either, so we check whether ANY of a few sample
+            // times shows a difference (the desync should hold for most times).
+            for (var i = 0; i < 30; i++) {
+                var seedA = i * 0.31;
+                var seedB = seedA + 0.71;  // typical neighbour spacing in drawSeagrass
+                var anyDiff = false;
+                for (var t = 0; t < 8; t++) {
+                    api.waveTime = t * 0.6;
+                    var a = api.sampleEnvironmentSway(seedA, P.seagrass, 1.0);
+                    var b = api.sampleEnvironmentSway(seedB, P.seagrass, 1.0);
+                    if (Math.abs(a.x - b.x) > 0.01) { anyDiff = true; break; }
+                }
+                tested++;
+                if (!anyDiff) identical++;
+            }
+            assert(identical === 0,
+                identical + '/' + tested + ' neighbour seed pairs remained synchronised across all sample times');
+            return 'PASS — all ' + tested + ' neighbour pairs desynchronise';
+        }
+    },
+    {
+        id: 'TC-57-CURRENT-BIAS-DIRECTION',
+        name: 'Issue #57 — current bias flips sign with current.direction',
+        fn: function() {
+            var P = api.SWAY_PROFILES;
+            var savedActive = api.current.active;
+            var savedDir    = api.current.direction;
+            var savedLevel  = api.current.level;
+            try {
+                // Average sway across many phases and many waveTimes with an
+                // active current — mean should carry the sign of the current
+                // direction. Averaging washes out the oscillatory base/detail
+                // terms and isolates the persistent bias term.
+                function meanSwayX(dir) {
+                    api.current.active = true;
+                    api.current.direction = dir;
+                    api.current.level = 0.55;   // full strength
+                    var sum = 0;
+                    var n = 0;
+                    for (var t = 0; t < 40; t++) {
+                        api.waveTime = t * 0.17;
+                        for (var i = 0; i < 40; i++) {
+                            var seed = i * 0.91 + 0.13;
+                            sum += api.sampleEnvironmentSway(seed, P.seagrass, 1.0).x;
+                            n++;
+                        }
+                    }
+                    return sum / n;
+                }
+                var mPos = meanSwayX(+1);
+                var mNeg = meanSwayX(-1);
+                // Active current: bias is present in both signs
+                assert(mPos > 0, 'positive current.direction should bias sway.x positive; got mean ' + mPos.toFixed(4));
+                assert(mNeg < 0, 'negative current.direction should bias sway.x negative; got mean ' + mNeg.toFixed(4));
+                // And the two means should be ~equal-and-opposite (formula symmetry)
+                assert(Math.abs(mPos + mNeg) < Math.max(Math.abs(mPos), Math.abs(mNeg)) * 0.15,
+                    'bias not symmetric under direction flip: +dir mean=' + mPos.toFixed(4) + ' -dir mean=' + mNeg.toFixed(4));
+                // Inactive current: mean should be near-zero (only oscillation)
+                api.current.active = false;
+                api.current.level  = 0;
+                var sum = 0;
+                var n = 0;
+                for (var t2 = 0; t2 < 40; t2++) {
+                    api.waveTime = t2 * 0.17;
+                    for (var i2 = 0; i2 < 40; i2++) {
+                        sum += api.sampleEnvironmentSway(i2 * 0.91 + 0.13, P.seagrass, 1.0).x;
+                        n++;
+                    }
+                }
+                var mOff = sum / n;
+                assert(Math.abs(mOff) < Math.abs(mPos) * 0.4,
+                    'inactive current still shows bias: mean=' + mOff.toFixed(4) + ' (with current +dir mean=' + mPos.toFixed(4) + ')');
+                return 'PASS — bias: +' + mPos.toFixed(3) + ' / -' + Math.abs(mNeg).toFixed(3) + ' px, off ' + mOff.toFixed(3);
+            } finally {
+                api.current.active    = savedActive;
+                api.current.direction = savedDir;
+                api.current.level     = savedLevel;
+            }
+        }
+    },
+    {
+        id: 'TC-57-CURRENT-BIAS-SCALES-WITH-LEVEL',
+        name: 'Issue #57 — bias magnitude scales with current.level',
+        fn: function() {
+            var P = api.SWAY_PROFILES;
+            var savedActive = api.current.active;
+            var savedDir    = api.current.direction;
+            var savedLevel  = api.current.level;
+            try {
+                function meanSway(level) {
+                    api.current.active = true;
+                    api.current.direction = 1;
+                    api.current.level = level;
+                    var sum = 0, n = 0;
+                    for (var t = 0; t < 30; t++) {
+                        api.waveTime = t * 0.19;
+                        for (var i = 0; i < 30; i++) {
+                            sum += api.sampleEnvironmentSway(i * 0.83 + 0.29, P.seagrass, 1.0).x;
+                            n++;
+                        }
+                    }
+                    return sum / n;
+                }
+                var mLow  = meanSway(0.10);
+                var mHigh = meanSway(0.55);
+                assert(mHigh > mLow * 2,
+                    'level 0.55 should bias >> 2× level 0.10; got low=' + mLow.toFixed(4) + ' high=' + mHigh.toFixed(4));
+                return 'PASS — level 0.10 mean=' + mLow.toFixed(3) + ' vs level 0.55 mean=' + mHigh.toFixed(3);
+            } finally {
+                api.current.active    = savedActive;
+                api.current.direction = savedDir;
+                api.current.level     = savedLevel;
+            }
+        }
+    },
+    {
+        id: 'TC-57-AMPLITUDE-BOUNDED',
+        name: 'Issue #57 — sway.x magnitude stays within a sensible multiple of amplitudePx',
+        fn: function() {
+            // (base 0.6 + detail 0.25 + bias 0.5) × flex 1 × heightFactor 1 = 1.35 max
+            // With flex=1, sway.x can reach 1.35 × amplitudePx. We use flex=0.95 (seagrass)
+            // so bound = 1.35 * 0.95 = 1.2825. Give a small numerical margin.
+            var P = api.SWAY_PROFILES;
+            var savedActive = api.current.active;
+            var savedDir    = api.current.direction;
+            var savedLevel  = api.current.level;
+            try {
+                api.current.active = true;
+                api.current.direction = 1;
+                api.current.level = 0.55;
+                var maxAbs = 0;
+                var amp = P.seagrass.amplitudePx;
+                var flex = P.seagrass.flexibility;
+                var bound = amp * flex * (0.6 + 0.25 + 0.5) + 1e-6;
+                for (var t = 0; t < 200; t++) {
+                    api.waveTime = t * 0.061;
+                    for (var i = 0; i < 40; i++) {
+                        var s = api.sampleEnvironmentSway(i * 1.7 + 0.3, P.seagrass, 1.0);
+                        if (Math.abs(s.x) > maxAbs) maxAbs = Math.abs(s.x);
+                        assert(Math.abs(s.x) <= bound,
+                            '|sway.x|=' + Math.abs(s.x).toFixed(3) + ' exceeded bound=' + bound.toFixed(3));
+                    }
+                }
+                return 'PASS — max |sway.x|=' + maxAbs.toFixed(3) + ' px within bound ' + bound.toFixed(3);
+            } finally {
+                api.current.active    = savedActive;
+                api.current.direction = savedDir;
+                api.current.level     = savedLevel;
+            }
+        }
+    },
+    {
+        id: 'TC-57-NO-STATE-MUTATION',
+        name: 'Issue #57 — sampleEnvironmentSway does not mutate current or profile',
+        fn: function() {
+            var P = api.SWAY_PROFILES;
+            var profileSnap = JSON.stringify(P.seagrass);
+            var currentSnap = JSON.stringify({
+                active: api.current.active,
+                direction: api.current.direction,
+                level: api.current.level
+            });
+            for (var t = 0; t < 20; t++) {
+                api.waveTime = t * 0.29 + 1;
+                for (var i = 0; i < 40; i++) {
+                    api.sampleEnvironmentSway(i * 0.71, P.seagrass, 0.5);
+                }
+            }
+            assert(JSON.stringify(P.seagrass) === profileSnap, 'profile mutated');
+            var currentNow = JSON.stringify({
+                active: api.current.active,
+                direction: api.current.direction,
+                level: api.current.level
+            });
+            assert(currentNow === currentSnap, 'current mutated');
+            return 'PASS — 800 calls left profile + current untouched';
+        }
     }
 ];
 

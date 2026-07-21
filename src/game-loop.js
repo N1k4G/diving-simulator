@@ -1004,5 +1004,10 @@ window.gameAPI = {
     get ACCUMULATION_SITE_DEFAULTS() { return ACCUMULATION_SITE_DEFAULTS; },
     get ACCUMULATION_NEUTRAL_DEFAULT() { return ACCUMULATION_NEUTRAL_DEFAULT; },
     get ACCUMULATION_PAL() { return ACCUMULATION_PAL; },
-    get ACCUM_SEED() { return ACCUM_SEED; }
+    get ACCUM_SEED() { return ACCUM_SEED; },
+    // Issue #57: Environment micro-motion (renderer-only, decorative)
+    sampleEnvironmentSway: sampleEnvironmentSway,
+    get SWAY_PROFILES() { return SWAY_PROFILES; },
+    get waveTime() { return waveTime; },
+    set waveTime(v) { waveTime = v; }
 };

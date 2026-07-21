@@ -1788,6 +1788,78 @@ function sRand(n) {
     return (Math.abs(Math.sin(n * 127.1 + 311.7) * 43758.5453)) % 1;
 }
 
+// ── Environment micro-motion (issue #57) ──────────────────────────
+// Shared, deterministic passive sway/surge for flexible environment
+// objects (seagrass, soft corals, gorgonians, and later hanging lines
+// / nets from #33). One helper so every flexible drawer has identical
+// motion character — no per-drawer ad-hoc Math.sin() formulas, no
+// per-object timers, no state mutation.
+//
+// Contract (pure function of its inputs each frame):
+//   sampleEnvironmentSway(seed, profile, heightFactor) → {x, y, angle}
+//     seed:         stable per-object identity, derived from world-x —
+//                   MUST NOT depend on screen-x / camera / draw order.
+//     profile:      one of SWAY_PROFILES (flexibility 0..1, amplitudePx).
+//                   Drawers must NOT invent their own numbers.
+//     heightFactor: 0 at the fixed foot, 1 at the free tip.
+//   x, y:  pixel offsets to add to a control point or tip.
+//   angle: small local angle (radians), for consumers that want to
+//          rotate a rope segment rather than translate its endpoints
+//          (reserved for #33's hangingLine / net drawers).
+//
+// Reads waveTime, current and CURRENT_PARAMS from outer scope. Time
+// advances only through waveTime → fast-forward stays smooth, no jumps.
+
+var SWAY_PROFILES = {
+    seagrass:    { flexibility: 0.95, amplitudePx: 8 },
+    softCoral:   { flexibility: 0.70, amplitudePx: 5 },
+    gorgonian:   { flexibility: 0.25, amplitudePx: 2 },
+    hangingLine: { flexibility: 0.80, amplitudePx: 6 },
+    net:         { flexibility: 0.45, amplitudePx: 3 }
+};
+
+// Persistent current lean is capped at a fraction of the free oscillation
+// so even a full-strength current bends things visibly without pinning
+// them at a hard limit (avoids the whole reef looking clamped).
+var ENV_SWAY_CURRENT_BIAS_GAIN = 0.5;
+// Normalised sway → radians. Kept small so consumers that map angle to
+// a rotation don't get rubbery whole-object spin.
+var ENV_SWAY_ANGLE_GAIN = 0.15;
+// Base / detail frequency + amplitude coefficients — the issue's model.
+var ENV_SWAY_BASE_FREQ    = 0.7;
+var ENV_SWAY_BASE_AMP     = 0.6;
+var ENV_SWAY_DETAIL_FREQ  = 1.15;
+var ENV_SWAY_DETAIL_AMP   = 0.25;
+var ENV_SWAY_PHASE_MULT   = 13.37;   // seed → phase multiplier
+var ENV_SWAY_DETAIL_PHASE = 1.73;    // detail phase decorrelation
+
+function sampleEnvironmentSway(seed, profile, heightFactor) {
+    if (!profile) return { x: 0, y: 0, angle: 0 };
+    var flex = profile.flexibility || 0;
+    var amp  = profile.amplitudePx || 0;
+    // Fixed foot: heightFactor 0 → zero offset regardless of anything else.
+    // Rigid object (flex 0) or zero amplitude → zero offset too. Early-out
+    // both avoids trig work and guarantees the "foot pixel-fixed" invariant.
+    if (flex <= 0 || heightFactor <= 0 || amp <= 0) {
+        return { x: 0, y: 0, angle: 0 };
+    }
+    var phase = sRand(seed * ENV_SWAY_PHASE_MULT) * Math.PI * 2;
+    var base   = Math.sin(waveTime * ENV_SWAY_BASE_FREQ   + phase)                          * ENV_SWAY_BASE_AMP;
+    var detail = Math.sin(waveTime * ENV_SWAY_DETAIL_FREQ + phase * ENV_SWAY_DETAIL_PHASE)  * ENV_SWAY_DETAIL_AMP;
+    var currentBias = 0;
+    if (current && current.active && current.level > 0) {
+        var maxS = (typeof CURRENT_PARAMS !== 'undefined' && CURRENT_PARAMS.maxStrength) || 1;
+        var norm = Math.min(1, current.level / maxS);
+        currentBias = current.direction * norm * ENV_SWAY_CURRENT_BIAS_GAIN;
+    }
+    var swayN = (base + detail + currentBias) * flex * heightFactor;
+    return {
+        x: swayN * amp,
+        y: 0,
+        angle: swayN * ENV_SWAY_ANGLE_GAIN
+    };
+}
+
 // ── Visual Surface Layer (issue #52) ─────────────────────────────
 // Deterministic, world-anchored contour noise added ON TOP OF the
 // unchanged collision profile (floorAt / ceilingAt). The safety
@@ -4319,7 +4391,7 @@ function drawFeatures() {
         if (ffx < -200 || ffx > W + 200) continue;
         if (f.kind === 'seagrass') {
             var fgy = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (fgy > -20 && fgy < H + 20) drawSeagrass(cx, ffx, fgy);
+            if (fgy > -20 && fgy < H + 20) drawSeagrass(cx, ffx, fgy, (f.x || 0));
         } else if (f.kind === 'warningSign') {
             // Anchor the sign's base to the cave floor so it stands on the rock
             // instead of floating in the water column.
@@ -4364,10 +4436,10 @@ function drawFeatures() {
             if (sy > -40 && sy < H + 40) { drawContactShadow(cx, ffx, sy, 48, 7, 0.16); drawStaghorn(cx, ffx, sy, (f.x || 0)); }
         } else if (f.kind === 'softCoral') {
             var scy = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (scy > -90 && scy < H + 40) { drawContactShadow(cx, ffx, scy, 42, 8, 0.14); drawSoftCoral(cx, ffx, scy, f.color); }
+            if (scy > -90 && scy < H + 40) { drawContactShadow(cx, ffx, scy, 42, 8, 0.14); drawSoftCoral(cx, ffx, scy, f.color, (f.x || 0)); }
         } else if (f.kind === 'gorgonian') {
             var gy = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (gy > -160 && gy < H + 160) { drawContactShadow(cx, ffx, gy, 44, 9, 0.15); drawGorgonian(cx, ffx, gy, f.side, f.color); }
+            if (gy > -160 && gy < H + 160) { drawContactShadow(cx, ffx, gy, 44, 9, 0.15); drawGorgonian(cx, ffx, gy, f.side, f.color, (f.x || 0)); }
         } else if (f.kind === 'barrelSponge') {
             var bsy = diverScreenY + ((f.d || 0) - depth) / mpp;
             if (bsy > -80 && bsy < H + 40) { drawContactShadow(cx, ffx, bsy, 42, 9, 0.17); drawBarrelSponge(cx, ffx, bsy, f.color); }
@@ -4756,15 +4828,29 @@ function drawUmbrella(cx, x, y) {
     cx.restore();
 }
 
-function drawSeagrass(cx, x, y) {
+function drawSeagrass(cx, x, y, worldX) {
     cx.save();
     cx.strokeStyle = '#2d6a2d';
     cx.lineWidth = 2;
+    // Seed from the feature's world-x so the same tuft has the same
+    // phase across camera movement. Fall back to screen-x only if the
+    // caller has not been updated (defensive; every current call site
+    // passes worldX).
+    var seedBase = (worldX == null ? x : worldX);
+    var profile = SWAY_PROFILES.seagrass;
     for (var i = -2; i <= 2; i++) {
         var bx = x + i * 6;
+        // Per-blade phase from world-x + blade index → neighbouring
+        // tufts at different world positions never move in unison.
+        var seed = seedBase * 0.31 + i * 0.71;
+        var swMid = sampleEnvironmentSway(seed, profile, 0.5);
+        var swTip = sampleEnvironmentSway(seed, profile, 1.0);
         cx.beginPath();
-        cx.moveTo(bx, y);
-        cx.quadraticCurveTo(bx + 3, y - 12, bx + (i % 2 === 0 ? 2 : -2), y - 22);
+        cx.moveTo(bx, y);  // foot pixel-fixed (heightFactor 0 → zero sway)
+        cx.quadraticCurveTo(
+            bx + 3 + swMid.x, y - 12 + swMid.y,
+            bx + (i % 2 === 0 ? 2 : -2) + swTip.x, y - 22 + swTip.y
+        );
         cx.stroke();
     }
     cx.restore();
@@ -4972,28 +5058,41 @@ function drawStaghorn(cx, x, y, seed) {
     cx.restore();
 }
 
-function drawSoftCoral(cx, x, y, color) {
+function drawSoftCoral(cx, x, y, color, worldX) {
     cx.save();
     cx.translate(x, y);
     cx.lineCap = 'round';
     var col = color || REEF_PAL.softPink;
     var h = 70;
     var stalks = [-12, -2, 8, 16];
+    // World-x seed keeps phase stable across camera; per-stalk offset
+    // keeps the 4 stalks of one coral from moving as one plane.
+    var seedBase = (worldX == null ? x : worldX);
+    var profile = SWAY_PROFILES.softCoral;
     for (var i = 0; i < stalks.length; i++) {
         var ox = stalks[i];
+        var seed = seedBase * 0.19 + i * 1.13;
+        var swMid = sampleEnvironmentSway(seed, profile, 0.5);
+        var swTip = sampleEnvironmentSway(seed, profile, 1.0);
         cx.strokeStyle = col; cx.lineWidth = 5; cx.globalAlpha = 0.85;
-        cx.beginPath(); cx.moveTo(ox, 0);
-        cx.quadraticCurveTo(ox - 2, -h*0.5, ox, -h);
+        cx.beginPath(); cx.moveTo(ox, 0);  // foot pixel-fixed
+        cx.quadraticCurveTo(
+            ox - 2 + swMid.x, -h * 0.5 + swMid.y,
+            ox     + swTip.x, -h       + swTip.y
+        );
         cx.stroke();
         cx.globalAlpha = 1;
-        // polyps
+        // Polyps sit on the stalk — sample the sway at each polyp's
+        // height with the SAME per-stalk seed so they track the stalk
+        // rather than drift off it.
         var polyps = [0.3, 0.55, 0.8];
         for (var j = 0; j < polyps.length; j++) {
             var t = polyps[j];
-            var py = -h * t;
+            var swP = sampleEnvironmentSway(seed, profile, t);
+            var py = -h * t + swP.y;
             var pr = 2.2 + (1 - t) * 1.2;
             cx.fillStyle = col;
-            cx.beginPath(); cx.arc(ox - 1, py, pr, 0, Math.PI*2); cx.fill();
+            cx.beginPath(); cx.arc(ox - 1 + swP.x, py, pr, 0, Math.PI * 2); cx.fill();
             cx.strokeStyle = '#fff'; cx.lineWidth = 0.4; cx.globalAlpha = 0.6;
             cx.stroke();
             cx.globalAlpha = 1;
@@ -5002,22 +5101,36 @@ function drawSoftCoral(cx, x, y, color) {
     cx.restore();
 }
 
-function drawGorgonian(cx, x, y, side, color) {
+function drawGorgonian(cx, x, y, side, color, worldX) {
     cx.save();
     cx.translate(x, y);
     cx.lineCap = 'round';
     var col = color || REEF_PAL.gorgBright;
     var sign = (side === 'right') ? 1 : -1;
     var h = 140;
-    // trunk — rises from wall anchor and curves outward
+    // Gorgonian is deliberately near-rigid: profile flex 0.25, amp 2px.
+    // Base at (0,0) stays fixed; only outer tips move minimally. No
+    // whole-object rotation — every segment anchors at (0,0) directly.
+    var seedBase = (worldX == null ? x : worldX);
+    var profile = SWAY_PROFILES.gorgonian;
+    // trunk — base fixed; mid + outer control points get tiny sway
+    var trunkSeed = seedBase * 0.27 + 0.53;
+    var swTrunkMid = sampleEnvironmentSway(trunkSeed, profile, 0.5);
+    var swTrunkTip = sampleEnvironmentSway(trunkSeed, profile, 1.0);
     cx.strokeStyle = col; cx.lineWidth = 4; cx.globalAlpha = 0.7;
     cx.beginPath(); cx.moveTo(0, 0);
-    cx.quadraticCurveTo(sign * 18, -h * 0.35, sign * 28, -h * 0.65);
+    cx.quadraticCurveTo(
+        sign * 18 + swTrunkMid.x, -h * 0.35 + swTrunkMid.y,
+        sign * 28 + swTrunkTip.x, -h * 0.65 + swTrunkTip.y
+    );
     cx.stroke();
     cx.globalAlpha = 1;
     // branches — fan from straight-up (t=0) to horizontal outward (t=1).
     // All branches point into open water (away from the wall) so they never
     // cross the rock face and appear to change shape as the camera scrolls.
+    // Each branch has its own per-index phase → the fan does NOT move as
+    // one flat plane; the whole fan looks alive without any single object
+    // rotating.
     for (var i = 0; i < 14; i++) {
         var t = i / 13;
         // ang: 0 = vertical up, PI/2 = horizontal outward
@@ -5025,14 +5138,29 @@ function drawGorgonian(cx, x, y, side, color) {
         var len = h * (0.55 + Math.sin(t * Math.PI) * 0.3);
         var x2 = sign * Math.sin(ang) * len * 0.75;
         var y2 = -Math.cos(ang) * len;
+        var branchSeed = seedBase * 0.27 + i * 0.53;
+        var swBrMid = sampleEnvironmentSway(branchSeed, profile, 0.5);
+        var swBrTip = sampleEnvironmentSway(branchSeed, profile, 1.0);
         cx.strokeStyle = col; cx.lineWidth = 2.2; cx.globalAlpha = 0.92;
-        cx.beginPath(); cx.moveTo(0, 0);
-        cx.quadraticCurveTo(sign * Math.sin(ang) * len * 0.25, -len * 0.5, x2, y2);
+        cx.beginPath(); cx.moveTo(0, 0);  // branch base pixel-fixed
+        cx.quadraticCurveTo(
+            sign * Math.sin(ang) * len * 0.25 + swBrMid.x, -len * 0.5 + swBrMid.y,
+            x2 + swBrTip.x, y2 + swBrTip.y
+        );
         cx.stroke();
-        // twig
+        // twig — a stiff extension attached 70% out along the branch.
+        // Same seed as its parent branch → moves as a rigid extension,
+        // stays visibly connected to the branch geometry.
+        var swTwigBase = sampleEnvironmentSway(branchSeed, profile, 0.7);
+        var swTwigMid  = sampleEnvironmentSway(branchSeed, profile, 0.85);
+        var swTwigTip  = sampleEnvironmentSway(branchSeed, profile, 1.0);
         cx.lineWidth = 1.1; cx.globalAlpha = 0.8;
-        cx.beginPath(); cx.moveTo(x2 * 0.7, y2 * 0.7);
-        cx.quadraticCurveTo(x2 * 0.7 + sign * 6, y2 * 0.7 - 4, x2 * 0.7 + sign * 14, y2 * 0.7 - 8);
+        cx.beginPath();
+        cx.moveTo(x2 * 0.7 + swTwigBase.x, y2 * 0.7 + swTwigBase.y);
+        cx.quadraticCurveTo(
+            x2 * 0.7 + sign * 6  + swTwigMid.x, y2 * 0.7 - 4 + swTwigMid.y,
+            x2 * 0.7 + sign * 14 + swTwigTip.x, y2 * 0.7 - 8 + swTwigTip.y
+        );
         cx.stroke();
         cx.globalAlpha = 1;
     }
