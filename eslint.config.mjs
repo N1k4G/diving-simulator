@@ -218,6 +218,11 @@ const gameGlobals = {
   _nearSurfaceSiteMultiplier: "readonly",
   _drawSurfaceUnderside: "readonly", _drawGodRays: "readonly",
   _drawBoatShadow: "readonly",
+  // Issue #43: World-anchored parallax layers (renderer.js)
+  PARALLAX_FACTORS: "readonly",
+  drawSiteAtmosphere: "readonly",
+  drawShoreParallaxLayers: "readonly", drawReefParallaxLayers: "readonly",
+  drawWreckParallaxLayers: "readonly", drawCaveParallaxLayers: "readonly",
   // Phase C renderer helpers
   drawTerrain: "readonly", drawStructures: "readonly",
   drawFeatures: "readonly", drawSeagrass: "readonly",

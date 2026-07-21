@@ -2761,7 +2761,45 @@ function drawSurfaceCaustics() {
     }
 }
 
+// ────────────────────────────────────────────────────────────────
+// Issue #43 — depth staggering / parallax factors.
+//
+// One entry per named layer per site so all magic-number choices
+// live in ONE table (no per-function inline literals). Values MUST
+// stay constant per layer — moving them by frame or by camera would
+// break the spatial illusion.
+//
+//   Far background : 0.15 – 0.25
+//   Midground      : 0.30 – 0.55
+//   Near background: 0.70 – 0.90
+//
+// Foreground layers (>1) are owned by drawForegroundLayer() and its
+// per-site helpers; this table only covers background/midground.
+// ────────────────────────────────────────────────────────────────
+const PARALLAX_FACTORS = Object.freeze({
+    shore: {
+        sandRidge:    0.28,   // far background
+        seagrassBand: 0.42    // midground
+    },
+    reef: {
+        farRidge:     0.18,   // existing far background (kept as-is)
+        midRidge:     0.35    // NEW midground ridge
+    },
+    wreck: {
+        debrisBand:   0.55,   // midground seabed debris silhouettes
+        hullMass:     0.85    // near background — distant hull silhouette
+    },
+    cave: {
+        cathedralColumn: 0.50, // midground speleothem/column silhouettes
+        passageMouth:    0.40  // midground negative-space cues
+    }
+});
+
 function drawSiteAtmosphere() {
+    // Skip cleanly outside the live dive scene — matches the guard on
+    // drawNearSurfaceAtmosphere/drawSurfaceCaustics so this pass emits
+    // zero canvas ops in gas-setup / post-dive / game-over / surface.
+    if (gameState !== 'diving') return;
     var s = activeSite();
     if (!s) return;
     var W = cssWidth, H = cssHeight;
@@ -2780,23 +2818,36 @@ function drawSiteAtmosphere() {
         shoreGlow.addColorStop(1, 'rgba(75,42,16,0)');
         cx.fillStyle = shoreGlow;
         cx.fillRect(0, Math.max(0, surfaceY), W, H);
+        // Issue #43: spatial depth behind the diver. Runs INSIDE cx.save
+        // so alpha bleed can't leak into later passes.
+        drawShoreParallaxLayers(cx, W, H, dsx, dsy, mpp);
     } else if (s.id === 'reef') {
         // Distant reef silhouettes behind the playable wall: a low-cost parallax layer.
+        // World-anchored: iterate over fixed integer world-x strides across
+        // the visible viewport so a given ridge peak stays pinned to its
+        // world position instead of sliding with the sample window.
         cx.globalAlpha = 0.12;
         cx.fillStyle = '#142a32';
+        var pFar = PARALLAX_FACTORS.reef.farRidge;
         var baseD = Math.max(18, depth + 8);
+        var xLeftFar = diverX + (0 - dsx) * mpp / pFar - 5;
+        var xRightFar = diverX + (W - dsx) * mpp / pFar + 5;
+        var strideFar = 5;
         cx.beginPath();
         cx.moveTo(0, H);
-        for (var wx = diverX - 80; wx <= diverX + 80; wx += 5) {
-            var sx = dsx + (wx - diverX) / mpp * 0.18;
+        for (var kFar = Math.floor(xLeftFar / strideFar); kFar <= Math.ceil(xRightFar / strideFar); kFar++) {
+            var wx = kFar * strideFar;
+            var sx = dsx + (wx - diverX) / mpp * pFar;
             var ridgeD = baseD + 14 + Math.sin(wx * 0.12) * 7 + Math.sin(wx * 0.29) * 2;
             var sy = dsy + (ridgeD - depth) / mpp;
-            if (wx === diverX - 80) cx.lineTo(sx, sy); else cx.lineTo(sx, sy);
+            cx.lineTo(sx, sy);
         }
         cx.lineTo(W, H);
         cx.closePath();
         cx.fill();
         cx.globalAlpha = 1;
+        // Issue #43: second, closer ridge layer at a different parallax rate.
+        drawReefParallaxLayers(cx, W, H, dsx, dsy, mpp);
     } else if (s.id === 'wreck') {
         // Slight murk and searchlight falloff around the wreck exterior/interior.
         var murk = cx.createRadialGradient(dsx, dsy, 80, dsx, dsy, Math.max(W, H) * 0.75);
@@ -2804,6 +2855,9 @@ function drawSiteAtmosphere() {
         murk.addColorStop(1, 'rgba(12,22,26,0.18)');
         cx.fillStyle = murk;
         cx.fillRect(0, 0, W, H);
+        // Issue #43: distant hull mass + seabed debris band. Both are
+        // decorative silhouettes and MUST NOT read as navigable structure.
+        drawWreckParallaxLayers(cx, W, H, dsx, dsy, mpp);
     } else if (s.id === 'cave') {
         // Subtle limestone dust in the water before the torch overlay darkens it.
         cx.fillStyle = 'rgba(188,178,148,0.08)';
@@ -2814,6 +2868,303 @@ function drawSiteAtmosphere() {
             var pr = 0.7 + sRand(seed + 4.2) * 1.8;
             cx.beginPath(); cx.arc(px, py, pr, 0, Math.PI * 2); cx.fill();
         }
+        // Issue #43: cathedral speleothem silhouettes + passage-mouth cues.
+        // Purely decorative; collision/geometry unaffected.
+        drawCaveParallaxLayers(cx, W, H, dsx, dsy, mpp);
+    }
+    cx.restore();
+}
+
+// ────────────────────────────────────────────────────────────────
+// Issue #43 — per-site parallax helpers.
+//
+// Shared rules (see issue for the full contract):
+//   • World-anchored — sample by world-x, not screen-x.
+//   • Deterministic — sRand only; no Math.random().
+//   • Cosmetic-only — never touches floorAt/ceilingAt/collision.
+//   • Behind the diver, guideline, features, HUD.
+//   • Respect visible-range window (xLeftM/xRightM) so we do not
+//     iterate the whole world every frame.
+// ────────────────────────────────────────────────────────────────
+
+// Shore: distant sand ridge + simplified seagrass band. Adds spatial
+// depth behind the diver where before there was only open water.
+function drawShoreParallaxLayers(cx, W, H, dsx, dsy, mpp) {
+    cx.save();
+    // ── Layer A: far sand ridge silhouette (parallax 0.28). ──
+    // A low, tapered rock/sand ridge sitting well below the visible
+    // seabed so it reads as "somewhere out there" rather than a
+    // duplicate of the shore floor. Low contrast; kept warm to fit
+    // the shore palette. Sampled at fixed integer world-x strides
+    // (world-anchored) across the visible viewport → shifts under
+    // the camera at exactly (Δx / mpp * factor), not screen-locked.
+    var pA = PARALLAX_FACTORS.shore.sandRidge;
+    var baseA = Math.max(20, depth + 6);
+    var xLeftA = diverX + (0 - dsx) * mpp / pA - 4;
+    var xRightA = diverX + (W - dsx) * mpp / pA + 4;
+    var strideA = 4;
+    cx.globalAlpha = 0.14;
+    cx.fillStyle = '#3a2c1c';
+    cx.beginPath();
+    cx.moveTo(0, H);
+    for (var kA = Math.floor(xLeftA / strideA); kA <= Math.ceil(xRightA / strideA); kA++) {
+        var wxA = kA * strideA;
+        var sxA = dsx + (wxA - diverX) / mpp * pA;
+        var ridgeD = baseA + 8 + Math.sin(wxA * 0.08) * 4.5
+                             + Math.sin(wxA * 0.21 + 1.7) * 2
+                             + Math.sin(wxA * 0.045) * 3;
+        var syA = dsy + (ridgeD - depth) / mpp;
+        cx.lineTo(sxA, syA);
+    }
+    cx.lineTo(W, H);
+    cx.closePath();
+    cx.fill();
+    cx.globalAlpha = 1;
+
+    // ── Layer B: distant seagrass band (parallax 0.42). ──
+    // Simple tapered strokes — NOT the detailed set-dressing plants
+    // from #55. Very low density/alpha so it reads as a distant
+    // suggestion, not another prop layer.
+    var pB = PARALLAX_FACTORS.shore.seagrassBand;
+    var xLeftM = diverX + (0 - dsx) * mpp / pB - 4;
+    var xRightM = diverX + (W - dsx) * mpp / pB + 4;
+    cx.globalAlpha = 0.18;
+    cx.strokeStyle = '#1c3722';
+    cx.lineCap = 'round';
+    cx.lineWidth = 1.4;
+    // Anchor the band at a fixed world-depth (~24 m) so it always
+    // sits below the near seabed silhouette on the flat part of the
+    // shore. Skip when the ridge would fall entirely below screen.
+    var bandD = 24;
+    for (var k = Math.floor(xLeftM / 2.4); k <= Math.ceil(xRightM / 2.4); k++) {
+        var wxB = k * 2.4;
+        if (sRand(wxB + 43) > 0.45) continue;
+        var sxB = dsx + (wxB - diverX) / mpp * pB;
+        // Blade height and lean derived deterministically from wxB.
+        var bh = 10 + sRand(wxB + 1) * 14;
+        var lean = (sRand(wxB + 2) - 0.5) * 6;
+        var syBase = dsy + (bandD - depth) / mpp;
+        if (sxB < -12 || sxB > W + 12) continue;
+        if (syBase < -30 || syBase > H + 30) continue;
+        cx.beginPath();
+        cx.moveTo(sxB, syBase);
+        cx.quadraticCurveTo(sxB + lean * 0.5, syBase - bh * 0.55,
+                            sxB + lean, syBase - bh);
+        cx.stroke();
+    }
+    cx.globalAlpha = 1;
+    cx.restore();
+}
+
+// Reef: second (closer) ridge silhouette. The existing 0.18-parallax
+// ridge is untouched above; this layer sits between it and the wall
+// so the reef reads as two depth planes instead of one.
+function drawReefParallaxLayers(cx, W, H, dsx, dsy, mpp) {
+    cx.save();
+    var p = PARALLAX_FACTORS.reef.midRidge;
+    // Warmer, higher-alpha ridge than the far one, and closer to the
+    // diver's depth so it clearly reads as the nearer plane.
+    var baseD = Math.max(14, depth + 4);
+    var xLeft = diverX + (0 - dsx) * mpp / p - 5;
+    var xRight = diverX + (W - dsx) * mpp / p + 5;
+    var stride = 5;
+    cx.globalAlpha = 0.18;
+    cx.fillStyle = '#0f2028';
+    cx.beginPath();
+    cx.moveTo(0, H);
+    for (var k = Math.floor(xLeft / stride); k <= Math.ceil(xRight / stride); k++) {
+        var wx = k * stride;
+        var sx = dsx + (wx - diverX) / mpp * p;
+        // Distinct wave signature from the far ridge so the two layers
+        // don't lock-step visually.
+        var ridgeD = baseD + 10 + Math.sin(wx * 0.19 + 0.8) * 5
+                              + Math.sin(wx * 0.41) * 1.6;
+        var sy = dsy + (ridgeD - depth) / mpp;
+        cx.lineTo(sx, sy);
+    }
+    cx.lineTo(W, H);
+    cx.closePath();
+    cx.fill();
+    cx.globalAlpha = 1;
+    cx.restore();
+}
+
+// Wreck: a near-background dark hull mass silhouette PLUS a distant
+// debris field band along the seabed. Both are decorative — the diver
+// never collides with them, and the hull mass is drawn very low alpha
+// so it never reads as a real navigable ship.
+function drawWreckParallaxLayers(cx, W, H, dsx, dsy, mpp) {
+    cx.save();
+
+    // ── Layer A: distant hull mass (parallax 0.85). ──
+    // A very simple ship-bulk silhouette: a long low trapezoid with
+    // a superstructure and a funnel bump. It reuses the recognisable
+    // silhouette proportions of the main wreck (long hull, one funnel
+    // between bridge and stern) so the ship's bulk stays "somewhere
+    // out there" even when the diver is off-axis. Alpha kept very low.
+    var pA = PARALLAX_FACTORS.wreck.hullMass;
+    // Anchor at ~62 m in world depth so the keel line sits below the
+    // diver at typical wreck depths. Kept constant so the silhouette
+    // doesn't wander vertically as the diver ascends/descends.
+    var keelD = 62;
+    var deckD = 30;         // main deck
+    var bridgeD = 20;
+    var funnelD = 14;
+    // Place the distant hull along the +x direction (offset by 210 m
+    // in world space) so it stays behind the playable ship without
+    // overlapping it. Parallax remaps that to a small screen shift
+    // as the diver moves.
+    var wx0 = 210;
+    var hullLenM = 190;
+    var scaleX = 1 / mpp * pA;
+    var sxStern = dsx + (wx0 - diverX) * scaleX;
+    var sxBow = dsx + (wx0 + hullLenM - diverX) * scaleX;
+    // Early-out if the whole silhouette is offscreen (both sides).
+    if (sxBow < -40 || sxStern > W + 40) {
+        // Try the -x mirror side.
+        wx0 = -210 - hullLenM;
+        sxStern = dsx + (wx0 - diverX) * scaleX;
+        sxBow = dsx + (wx0 + hullLenM - diverX) * scaleX;
+        if (sxBow < -40 || sxStern > W + 40) { cx.restore(); return; }
+    }
+    var syKeel = dsy + (keelD - depth) / mpp;
+    var syDeck = dsy + (deckD - depth) / mpp;
+    var syBridge = dsy + (bridgeD - depth) / mpp;
+    var syFunnel = dsy + (funnelD - depth) / mpp;
+    cx.globalAlpha = 0.11;
+    cx.fillStyle = '#0a1013';
+    cx.beginPath();
+    // hull trapezoid
+    cx.moveTo(sxStern, syKeel);
+    cx.lineTo(sxBow, syKeel);
+    cx.lineTo(sxBow - 40, syDeck);
+    // superstructure block (bridge)
+    var sbxL = sxStern + (sxBow - sxStern) * 0.45;
+    var sbxR = sxStern + (sxBow - sxStern) * 0.62;
+    cx.lineTo(sbxR, syDeck);
+    cx.lineTo(sbxR, syBridge);
+    cx.lineTo(sbxL, syBridge);
+    cx.lineTo(sbxL, syDeck);
+    // funnel bump
+    var fnxL = sxStern + (sxBow - sxStern) * 0.50;
+    var fnxR = sxStern + (sxBow - sxStern) * 0.55;
+    cx.lineTo(fnxL, syDeck);
+    cx.lineTo(fnxL, syFunnel);
+    cx.lineTo(fnxR, syFunnel);
+    cx.lineTo(fnxR, syDeck);
+    // remaining deck to stern
+    cx.lineTo(sxStern + 30, syDeck);
+    cx.closePath();
+    cx.fill();
+    cx.globalAlpha = 1;
+
+    // ── Layer B: distant debris field band (parallax 0.55). ──
+    // A handful of low-contrast dark shapes sitting on the seabed
+    // depth so a diver at typical wreck depths sees a "junk on the
+    // ocean floor" hint receding to either side. Simple ellipses;
+    // NOT the detailed set-dressing props from #55.
+    var pB = PARALLAX_FACTORS.wreck.debrisBand;
+    var xLeftM = diverX + (0 - dsx) * mpp / pB - 6;
+    var xRightM = diverX + (W - dsx) * mpp / pB + 6;
+    var seabedD = 64;
+    var syBed = dsy + (seabedD - depth) / mpp;
+    if (syBed > -20 && syBed < H + 60) {
+        cx.globalAlpha = 0.16;
+        cx.fillStyle = '#0d1418';
+        for (var k = Math.floor(xLeftM / 6); k <= Math.ceil(xRightM / 6); k++) {
+            var wxB = k * 6;
+            if (sRand(wxB + 71) > 0.55) continue;
+            var sxB = dsx + (wxB - diverX) / mpp * pB;
+            var wid = 10 + sRand(wxB + 3) * 26;
+            var hgt = 2.4 + sRand(wxB + 5) * 3.6;
+            var jy = (sRand(wxB + 7) - 0.5) * 3;
+            if (sxB < -60 || sxB > W + 60) continue;
+            cx.beginPath();
+            cx.ellipse(sxB, syBed + jy, wid, hgt, 0, 0, Math.PI * 2);
+            cx.fill();
+        }
+        cx.globalAlpha = 1;
+    }
+    cx.restore();
+}
+
+// Cave: distant speleothem/column silhouettes inside the deep
+// cathedral chamber, and darker "passage-mouth" negative-space
+// shapes near the shaft edges to reinforce room scale.
+function drawCaveParallaxLayers(cx, W, H, dsx, dsy, mpp) {
+    // Only paint when the diver is anywhere near the cathedral —
+    // outside that vertical band, the tunnels are too tight for
+    // depth layering to make sense.
+    var CATHEDRAL_D_MIN = 42;
+    var CATHEDRAL_D_MAX = 106;
+    if (depth < CATHEDRAL_D_MIN || depth > CATHEDRAL_D_MAX) return;
+    cx.save();
+
+    // ── Layer A: distant speleothem columns (parallax 0.50). ──
+    // Large, simple tapered rock silhouettes anchored at fixed world
+    // positions inside the cathedral (x=60..134, per sites.js zone
+    // bounds). Deterministic — same layout every dive.
+    var pA = PARALLAX_FACTORS.cave.cathedralColumn;
+    var scaleA = 1 / mpp * pA;
+    // Hand-picked column anchors inside the cathedral zone (world
+    // metres). Two columns are enough for the required "1-2 distant
+    // silhouettes" — more would clutter the space.
+    var columns = [
+        { wx:  78, topD: 52, botD: 100, w: 12 },
+        { wx: 118, topD: 55, botD: 100, w: 14 }
+    ];
+    cx.globalAlpha = 0.13;
+    for (var ci = 0; ci < columns.length; ci++) {
+        var c = columns[ci];
+        var csx = dsx + (c.wx - diverX) * scaleA;
+        if (csx < -60 || csx > W + 60) continue;
+        var cyTop = dsy + (c.topD - depth) / mpp;
+        var cyBot = dsy + (c.botD - depth) / mpp;
+        if (cyBot < -40 || cyTop > H + 40) continue;
+        var g = cx.createLinearGradient(csx, cyTop, csx, cyBot);
+        g.addColorStop(0, 'rgba(30,26,20,0.85)');
+        g.addColorStop(0.5, 'rgba(46,42,36,0.55)');
+        g.addColorStop(1, 'rgba(20,18,14,0.85)');
+        cx.fillStyle = g;
+        cx.beginPath();
+        cx.moveTo(csx - c.w * 0.35, cyTop);
+        cx.quadraticCurveTo(csx - c.w * 0.9, (cyTop + cyBot) * 0.5,
+                            csx - c.w * 0.55, cyBot);
+        cx.lineTo(csx + c.w * 0.55, cyBot);
+        cx.quadraticCurveTo(csx + c.w * 0.9, (cyTop + cyBot) * 0.5,
+                            csx + c.w * 0.35, cyTop);
+        cx.closePath();
+        cx.fill();
+    }
+    cx.globalAlpha = 1;
+
+    // ── Layer B: passage-mouth cues (parallax 0.40). ──
+    // Two darker vertical negative-space blobs near the edges of the
+    // cathedral, one on each side, to hint at continuing passages
+    // and reinforce the room scale. Purely graphical — never affects
+    // collision or the guideline.
+    var pB = PARALLAX_FACTORS.cave.passageMouth;
+    var scaleB = 1 / mpp * pB;
+    var mouths = [
+        { wx:  62, cxd: 90, w: 26, h: 28 },  // low-left mouth
+        { wx: 132, cxd: 88, w: 24, h: 26 }   // low-right mouth
+    ];
+    for (var mi = 0; mi < mouths.length; mi++) {
+        var m = mouths[mi];
+        var msx = dsx + (m.wx - diverX) * scaleB;
+        if (msx < -80 || msx > W + 80) continue;
+        var msy = dsy + (m.cxd - depth) / mpp;
+        if (msy < -40 || msy > H + 40) continue;
+        var wpx = m.w / mpp * 0.35;
+        var hpx = m.h / mpp * 0.35;
+        var rg = cx.createRadialGradient(msx, msy, 4, msx, msy, Math.max(wpx, hpx));
+        rg.addColorStop(0, 'rgba(0,0,0,0.42)');
+        rg.addColorStop(0.6, 'rgba(0,0,0,0.18)');
+        rg.addColorStop(1, 'rgba(0,0,0,0)');
+        cx.fillStyle = rg;
+        cx.beginPath();
+        cx.ellipse(msx, msy, wpx, hpx, 0, 0, Math.PI * 2);
+        cx.fill();
     }
     cx.restore();
 }

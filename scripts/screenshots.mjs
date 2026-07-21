@@ -107,6 +107,20 @@ async function run() {
     { site: 'Reef',  x: 0,  depth: 5,  name: 'desktop-dive-reef-plateau-caustics' },
     { site: 'Reef',  x: 12, depth: 30, name: 'desktop-dive-reef-wall-no-optics' },
     { site: 'Cave',  x: 90, depth: 6,  name: 'desktop-dive-cave-entry-optics' },
+    // Issue #43: parallax depth staggering — each site gets two shots at
+    // different x-positions so the reviewer can compare the background/
+    // midground silhouette offsets and confirm the layers move at
+    // visibly different rates from the near geometry.
+    { site: 'Shore', x: 70,  depth: 14, name: 'desktop-dive-shore-parallax-a' },
+    { site: 'Shore', x: 100, depth: 14, name: 'desktop-dive-shore-parallax-b' },
+    { site: 'Reef',  x: 14,  depth: 20, name: 'desktop-dive-reef-parallax-a' },
+    { site: 'Reef',  x: 22,  depth: 20, name: 'desktop-dive-reef-parallax-b' },
+    { site: 'Wreck', x: 40,  depth: 30, name: 'desktop-dive-wreck-parallax-a' },
+    { site: 'Wreck', x: 60,  depth: 30, name: 'desktop-dive-wreck-parallax-b' },
+    // Cave cathedral is where the depth-layered speleothem silhouettes
+    // are meant to trigger — sample there specifically.
+    { site: 'Cave',  x: 90,  depth: 70, name: 'desktop-dive-cave-cathedral-parallax-a' },
+    { site: 'Cave',  x: 108, depth: 70, name: 'desktop-dive-cave-cathedral-parallax-b' },
   ];
 
   for (const diveShot of desktopDiveShots) {

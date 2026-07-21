@@ -1015,5 +1015,22 @@ window.gameAPI = {
     nearSurfaceLightFactor: nearSurfaceLightFactor,
     drawCausticsOnVisibleFloor: drawCausticsOnVisibleFloor,
     drawNearSurfaceAtmosphere: drawNearSurfaceAtmosphere,
-    drawSurfaceCaustics: drawSurfaceCaustics
+    drawSurfaceCaustics: drawSurfaceCaustics,
+    // Issue #43: World-anchored background/midground parallax layers per
+    // site. drawSiteAtmosphere() dispatches to these; they are also
+    // exposed individually so tests can stub CanvasRenderingContext2D
+    // methods and assert the guards behave (world-anchored, no-op
+    // outside diving, deterministic).
+    drawSiteAtmosphere: drawSiteAtmosphere,
+    drawShoreParallaxLayers: drawShoreParallaxLayers,
+    drawReefParallaxLayers: drawReefParallaxLayers,
+    drawWreckParallaxLayers: drawWreckParallaxLayers,
+    drawCaveParallaxLayers: drawCaveParallaxLayers,
+    get PARALLAX_FACTORS() { return PARALLAX_FACTORS; },
+    // Renderer test hook: `ctx` and `canvas` are const in state.js so they
+    // are NOT properties of `window` (only `var` declarations are). Expose
+    // them here so tests can pass the same context the render pipeline
+    // draws into.
+    get ctx() { return ctx; },
+    get canvas() { return canvas; }
 };

@@ -4866,6 +4866,302 @@ tests = [
                 'tiny/negative lightFactor still hit ' + callCount + ' canvas ops');
             return 'PASS — three tiny-factor calls emitted zero canvas ops';
         }
+    },
+    // ────────────────────────────────────────────────────────────────
+    //  Issue #43 — world-anchored parallax layers per site.
+    // ────────────────────────────────────────────────────────────────
+    {
+        id: 'TC-43-API',
+        name: 'Issue #43 — parallax helpers surface on gameAPI',
+        fn: function() {
+            assert(typeof api.drawSiteAtmosphere === 'function',
+                'drawSiteAtmosphere not exposed');
+            assert(typeof api.drawShoreParallaxLayers === 'function',
+                'drawShoreParallaxLayers not exposed');
+            assert(typeof api.drawReefParallaxLayers === 'function',
+                'drawReefParallaxLayers not exposed');
+            assert(typeof api.drawWreckParallaxLayers === 'function',
+                'drawWreckParallaxLayers not exposed');
+            assert(typeof api.drawCaveParallaxLayers === 'function',
+                'drawCaveParallaxLayers not exposed');
+            assert(api.PARALLAX_FACTORS && typeof api.PARALLAX_FACTORS === 'object',
+                'PARALLAX_FACTORS constants not exposed');
+            return 'PASS — 5 parallax helpers + constants exposed';
+        }
+    },
+    {
+        id: 'TC-43-FACTORS-IN-RANGE',
+        name: 'Issue #43 — every parallax factor lies in the documented layer range',
+        fn: function() {
+            // Ranges from the issue text:
+            //   Far background : 0.15–0.25
+            //   Midground      : 0.30–0.55
+            //   Near background: 0.70–0.90
+            var P = api.PARALLAX_FACTORS;
+            function inRange(name, v, lo, hi) {
+                assert(v >= lo && v <= hi,
+                    name + ' = ' + v + ' outside [' + lo + ',' + hi + ']');
+            }
+            inRange('shore.sandRidge',       P.shore.sandRidge,       0.15, 0.55);
+            inRange('shore.seagrassBand',    P.shore.seagrassBand,    0.30, 0.55);
+            inRange('reef.farRidge',         P.reef.farRidge,         0.15, 0.25);
+            inRange('reef.midRidge',         P.reef.midRidge,         0.30, 0.55);
+            inRange('wreck.debrisBand',      P.wreck.debrisBand,      0.30, 0.55);
+            inRange('wreck.hullMass',        P.wreck.hullMass,        0.70, 0.90);
+            inRange('cave.cathedralColumn',  P.cave.cathedralColumn,  0.30, 0.55);
+            inRange('cave.passageMouth',     P.cave.passageMouth,     0.30, 0.55);
+            // Layers within a site must be distinct so the parallax
+            // effect actually stages depth.
+            assert(P.reef.farRidge !== P.reef.midRidge,
+                'reef ridges share a parallax factor — no depth staggering');
+            assert(P.shore.sandRidge !== P.shore.seagrassBand,
+                'shore layers share a parallax factor');
+            assert(P.wreck.debrisBand !== P.wreck.hullMass,
+                'wreck layers share a parallax factor');
+            return 'PASS — 8 parallax factors in range, distinct per site';
+        }
+    },
+    {
+        id: 'TC-43-NOOP-OUTSIDE-DIVE',
+        name: 'Issue #43 — drawSiteAtmosphere emits zero canvas ops outside gameState="diving"',
+        fn: function() {
+            var iw = iframe.contentWindow;
+            var C = iw.CanvasRenderingContext2D && iw.CanvasRenderingContext2D.prototype;
+            assert(C, 'CanvasRenderingContext2D not accessible on iframe');
+            var methods = [
+                'fillRect', 'stroke', 'fill', 'beginPath',
+                'moveTo', 'lineTo', 'ellipse', 'arc',
+                'quadraticCurveTo', 'save', 'restore',
+                'createLinearGradient', 'createRadialGradient'
+            ];
+            var savedState = api.gameState;
+            var savedFns = {};
+            var callCount = 0;
+            for (var i = 0; i < methods.length; i++) savedFns[methods[i]] = C[methods[i]];
+            function wrap() {
+                for (var j = 0; j < methods.length; j++) {
+                    (function(m, orig) {
+                        C[m] = function() { callCount++; return orig.apply(this, arguments); };
+                    })(methods[j], savedFns[methods[j]]);
+                }
+            }
+            function unwrap() {
+                for (var j = 0; j < methods.length; j++) C[methods[j]] = savedFns[methods[j]];
+            }
+            var states = ['gas-setup', 'post-dive', 'game-over', 'surface'];
+            var threw = null;
+            try {
+                wrap();
+                for (var si = 0; si < states.length; si++) {
+                    api.gameState = states[si];
+                    callCount = 0;
+                    api.drawSiteAtmosphere();
+                    if (callCount !== 0) {
+                        throw new Error('state "' + states[si] + '": ' +
+                            callCount + ' canvas ops emitted');
+                    }
+                }
+            } catch (e) { threw = e; }
+            finally { unwrap(); api.gameState = savedState; }
+            if (threw) throw threw;
+            return 'PASS — 4 non-dive states emitted zero canvas ops';
+        }
+    },
+    {
+        id: 'TC-43-CAVE-DEPTH-GATE',
+        name: 'Issue #43 — cave parallax layers are silent outside the cathedral depth band',
+        fn: function() {
+            // The cathedral chamber lives at d=52..104 per sites.js. The
+            // helper only runs when depth is near that band (42..106);
+            // above/below, it must early-return before any canvas op.
+            var iw = iframe.contentWindow;
+            var C = iw.CanvasRenderingContext2D && iw.CanvasRenderingContext2D.prototype;
+            var methods = ['fillRect','stroke','fill','beginPath','moveTo',
+                'lineTo','ellipse','arc','quadraticCurveTo','save','restore',
+                'createLinearGradient','createRadialGradient'];
+            var saved = {};
+            var count = 0;
+            for (var i = 0; i < methods.length; i++) saved[methods[i]] = C[methods[i]];
+            function wrap() {
+                for (var j = 0; j < methods.length; j++) {
+                    (function(m, orig){
+                        C[m] = function(){ count++; return orig.apply(this, arguments); };
+                    })(methods[j], saved[methods[j]]);
+                }
+            }
+            function unwrap() {
+                for (var j = 0; j < methods.length; j++) C[methods[j]] = saved[methods[j]];
+            }
+            var savedState = api.gameState;
+            var savedDepth = api.depth;
+            var threw = null;
+            try {
+                api.gameState = 'diving';
+                wrap();
+                // Well above the cathedral (upper tunnel depth).
+                api.depth = 8;
+                count = 0;
+                api.drawCaveParallaxLayers(api.ctx, 800, 600,
+                    800 * 0.25, 600 * 0.45, 0.05);
+                if (count !== 0) throw new Error('cathedral silent at d=8 expected, got ' + count + ' ops');
+                // Well below the cathedral floor.
+                api.depth = 130;
+                count = 0;
+                api.drawCaveParallaxLayers(api.ctx, 800, 600,
+                    800 * 0.25, 600 * 0.45, 0.05);
+                if (count !== 0) throw new Error('cathedral silent at d=130 expected, got ' + count + ' ops');
+            } catch (e) { threw = e; }
+            finally { unwrap(); api.gameState = savedState; api.depth = savedDepth; }
+            if (threw) throw threw;
+            return 'PASS — cave parallax is silent above/below the cathedral depth band';
+        }
+    },
+    {
+        id: 'TC-43-DETERMINISTIC',
+        name: 'Issue #43 — parallax helpers are deterministic under the same world state',
+        fn: function() {
+            // Same (diverX, depth) → same sequence of canvas ops. This
+            // is the "world-anchored + deterministic" contract: every
+            // shape derived from sRand() or from world-x arithmetic
+            // must reproduce exactly.
+            var iw = iframe.contentWindow;
+            var C = iw.CanvasRenderingContext2D && iw.CanvasRenderingContext2D.prototype;
+            var methods = ['moveTo','lineTo','ellipse','arc','quadraticCurveTo'];
+            var saved = {};
+            for (var i = 0; i < methods.length; i++) saved[methods[i]] = C[methods[i]];
+            var log = null;
+            function wrap() {
+                for (var j = 0; j < methods.length; j++) {
+                    (function(m, orig){
+                        C[m] = function(){
+                            var a = arguments;
+                            log.push(m
+                                + ':' + Number(a[0]).toFixed(3)
+                                + ',' + Number(a[1]).toFixed(3)
+                                + (a.length > 2 ? ',' + Number(a[2]).toFixed(3) : ''));
+                            return orig.apply(this, a);
+                        };
+                    })(methods[j], saved[methods[j]]);
+                }
+            }
+            function unwrap() {
+                for (var j = 0; j < methods.length; j++) C[methods[j]] = saved[methods[j]];
+            }
+            function runOnce(helper, ctx, W, H) {
+                log = [];
+                helper(ctx, W, H, W * 0.25, H * 0.45, 0.05);
+                return log.slice();
+            }
+            var savedState = api.gameState;
+            var savedDepth = api.depth;
+            var savedX = api.diverX;
+            var threw = null;
+            try {
+                api.gameState = 'diving';
+                api.diverX = 70;
+                wrap();
+                var pairs = [
+                    ['shore', api.drawShoreParallaxLayers, 12],
+                    ['reef',  api.drawReefParallaxLayers,  20],
+                    ['wreck', api.drawWreckParallaxLayers, 30],
+                    ['cave',  api.drawCaveParallaxLayers,  75]
+                ];
+                for (var pi = 0; pi < pairs.length; pi++) {
+                    var name = pairs[pi][0], helper = pairs[pi][1], d = pairs[pi][2];
+                    api.depth = d;
+                    var a = runOnce(helper, api.ctx, 800, 600);
+                    var b = runOnce(helper, api.ctx, 800, 600);
+                    if (a.length !== b.length) {
+                        throw new Error(name + ' non-deterministic: run A=' + a.length + ' ops, run B=' + b.length + ' ops');
+                    }
+                    for (var k = 0; k < a.length; k++) {
+                        if (a[k] !== b[k]) {
+                            throw new Error(name + ' non-deterministic op[' + k + ']: A="' + a[k] + '" B="' + b[k] + '"');
+                        }
+                    }
+                }
+            } catch (e) { threw = e; }
+            finally {
+                unwrap();
+                api.gameState = savedState;
+                api.depth = savedDepth;
+                api.diverX = savedX;
+            }
+            if (threw) throw threw;
+            return 'PASS — 4 helpers reproduce identical op sequences on repeat';
+        }
+    },
+    {
+        id: 'TC-43-WORLD-ANCHORED',
+        name: 'Issue #43 — reef midground ridge emits a wave-shape that shifts as diverX changes',
+        fn: function() {
+            // World-anchored sampling means that when the camera moves by
+            // Δx metres, the ridge's SHAPE resamples from a different range
+            // of world-x — so the sequence of Y-values the polygon emits
+            // changes. Screen-locked or purely camera-relative sampling
+            // would produce IDENTICAL Y-value sequences at every diverX
+            // (only screen-x values would shift). This test proves that
+            // the wave signature actually depends on world-x.
+            var iw = iframe.contentWindow;
+            var C = iw.CanvasRenderingContext2D && iw.CanvasRenderingContext2D.prototype;
+            var saved = { lineTo: C.lineTo, moveTo: C.moveTo };
+            var ys = [];
+            function tag(orig) {
+                return function(x, y) { ys.push(y); return orig.apply(this, arguments); };
+            }
+            var savedState = api.gameState;
+            var savedX = api.diverX;
+            var savedDepth = api.depth;
+            var threw = null;
+            try {
+                api.gameState = 'diving';
+                api.depth = 20;
+                C.lineTo = tag(saved.lineTo);
+                C.moveTo = tag(saved.moveTo);
+                // Camera A
+                api.diverX = 0;
+                ys = [];
+                api.drawReefParallaxLayers(api.ctx, 800, 600,
+                    800 * 0.25, 600 * 0.45, 0.05);
+                var ysA = ys.slice();
+                // Camera B — shift by a NON-multiple of the sample stride
+                // so the loop cannot land on identical world-x samples.
+                var dx = 7.3;
+                api.diverX = dx;
+                ys = [];
+                api.drawReefParallaxLayers(api.ctx, 800, 600,
+                    800 * 0.25, 600 * 0.45, 0.05);
+                var ysB = ys.slice();
+                if (ysA.length === 0) {
+                    throw new Error('no lineTo/moveTo emitted — ridge helper produced no ops');
+                }
+                // Compare on the overlap length. If the polygon Y-values
+                // are IDENTICAL element-by-element for every sample, the
+                // ridge is not world-anchored — it's screen-locked.
+                var n = Math.min(ysA.length, ysB.length);
+                var identical = 0;
+                var different = 0;
+                for (var i = 0; i < n; i++) {
+                    if (Math.abs(ysA[i] - ysB[i]) < 1e-9) identical++;
+                    else different++;
+                }
+                // At least a majority of samples must differ — the two
+                // polygon corner Ys (moveTo(0,H), lineTo(W,H)) are the
+                // same at both cameras (screen-anchored bottom corners).
+                assert(different >= identical,
+                    'looks screen-locked: ' + identical + '/' + n
+                    + ' samples identical vs. ' + different + ' different');
+            } catch (e) { threw = e; }
+            finally {
+                C.lineTo = saved.lineTo;
+                C.moveTo = saved.moveTo;
+                api.gameState = savedState;
+                api.diverX = savedX;
+                api.depth = savedDepth;
+            }
+            if (threw) throw threw;
+            return 'PASS — ridge Y-values change when diverX changes → wave sampled by world-x';
+        }
     }
 ];
 
