@@ -98,7 +98,19 @@ var DIVE_SITES = {
       shore_grass: { visibility: 0.95, tint: [0.98, 1.02, 0.98], particleDensity: 1.25, particleBrightness: 1.00, ambient: 1.00 },
       shore_slope: { visibility: 1.00, tint: [1.00, 1.00, 1.00], particleDensity: 1.00, particleBrightness: 1.00, ambient: 0.95 },
       shore_deep:  { visibility: 0.85, tint: [0.90, 0.95, 1.00], particleDensity: 0.90, particleBrightness: 0.80, ambient: 0.80 }
-    }
+    },
+    // Issue #55 — decorationRules: deterministic micro set-dressing (shells,
+    // pebbles, small rocks, grass tufts, sand-ripple accents) scattered
+    // within the visualZones above. Purely cosmetic filler between the
+    // hand-placed features array; never touches physics/collision/gameplay.
+    decorationRules: [
+      { id: 'shore_entry_shells', zone: 'shore_entry', spacing: 2.2, density: 0.5, seed: 1101, surface: 'floor',
+        props: [{kind:'shell',weight:2},{kind:'pebble',weight:3},{kind:'smallRock',weight:1}] },
+      { id: 'shore_grass_micro', zone: 'shore_grass', spacing: 1.8, density: 0.6, seed: 1102, surface: 'floor',
+        props: [{kind:'grassTuft',weight:3},{kind:'pebble',weight:4},{kind:'sandRippleAccent',weight:2}] },
+      { id: 'shore_deep_debris', zone: 'shore_deep', spacing: 3.0, density: 0.35, seed: 1103, surface: 'floor',
+        props: [{kind:'smallRock',weight:3},{kind:'pebble',weight:2},{kind:'debrisSpeck',weight:2}] }
+    ]
   },
   reef: {
     id: 'reef',
@@ -182,7 +194,19 @@ var DIVE_SITES = {
       reef_mid_wall:   { visibility: 0.95, tint: [0.92, 0.96, 1.02], particleDensity: 0.85, particleBrightness: 0.90, ambient: 0.85 },
       reef_deep_wall:  { visibility: 0.85, tint: [0.82, 0.92, 1.05], particleDensity: 0.55, particleBrightness: 0.75, ambient: 0.75 },
       reef_blue_water: { visibility: 1.20, tint: [0.95, 0.98, 1.05], particleDensity: 0.35, particleBrightness: 0.90, ambient: 1.00 }
-    }
+    },
+    // Issue #55 — decorationRules: deterministic micro set-dressing (reef
+    // crust, tiny sponges, small coral branches, loose rock/debris) scattered
+    // within the visualZones above. Purely cosmetic filler between the
+    // hand-placed features array; never touches physics/collision/gameplay.
+    decorationRules: [
+      { id: 'reef_plateau_crust', zone: 'reef_plateau', spacing: 1.6, density: 0.7, seed: 2101, surface: 'floor',
+        props: [{kind:'reefCrustBlob',weight:4},{kind:'tinySponge',weight:1},{kind:'pebble',weight:2}] },
+      { id: 'reef_upper_wall_micro', zone: 'reef_upper_wall', spacing: 2.5, density: 0.45, seed: 2102, surface: 'floor',
+        props: [{kind:'reefCrustBlob',weight:2},{kind:'smallCoralBranch',weight:1},{kind:'debrisSpeck',weight:2}] },
+      { id: 'reef_deep_wall_sparse', zone: 'reef_deep_wall', spacing: 4.0, density: 0.3, seed: 2103, surface: 'floor',
+        props: [{kind:'smallRock',weight:3},{kind:'debrisSpeck',weight:2}] }
+    ]
   },
   wreck: {
     id: 'wreck',
@@ -459,7 +483,21 @@ var DIVE_SITES = {
       wreck_cargo_hold:    { visibility: 0.78, tint: [1.02, 0.94, 0.86], particleDensity: 1.35, particleBrightness: 0.80, ambient: 0.75 },
       wreck_engine_room:   { visibility: 0.70, tint: [1.08, 0.92, 0.80], particleDensity: 1.20, particleBrightness: 0.75, ambient: 0.65 },
       wreck_bilge:         { visibility: 0.60, tint: [1.05, 0.90, 0.78], particleDensity: 1.50, particleBrightness: 0.70, ambient: 0.55 }
-    }
+    },
+    // Issue #55 — decorationRules: deterministic micro set-dressing (rust
+    // flakes, metal debris, sediment clumps, cable scraps) scattered within
+    // the visualZones above. Purely cosmetic filler between the hand-placed
+    // features array; never touches physics/collision/gameplay. The exterior
+    // rule carries minDepth so scraps only appear near/below the hull rather
+    // than floating in open water above the wreck.
+    decorationRules: [
+      { id: 'wreck_vehicle_deck_debris', zone: 'wreck_vehicle_deck', spacing: 2.2, density: 0.55, seed: 3101, surface: 'floor',
+        props: [{kind:'rustFlake',weight:3},{kind:'smallMetalDebris',weight:2},{kind:'sedimentClump',weight:2},{kind:'cableScrap',weight:1}] },
+      { id: 'wreck_engine_room_debris', zone: 'wreck_engine_room', spacing: 2.4, density: 0.5, seed: 3102, surface: 'floor',
+        props: [{kind:'rustFlake',weight:3},{kind:'smallMetalDebris',weight:3},{kind:'debrisSpeck',weight:1}] },
+      { id: 'wreck_exterior_scraps', zone: 'wreck_exterior', spacing: 4.5, density: 0.25, seed: 3103, surface: 'floor', minDepth: 20,
+        props: [{kind:'rustFlake',weight:2},{kind:'smallMetalDebris',weight:1},{kind:'sedimentClump',weight:2}] }
+    ]
   },
   cave: {
     id: 'cave',
@@ -537,7 +575,22 @@ var DIVE_SITES = {
       cave_cathedral:    { visibility: 1.10, tint: [0.88, 0.94, 1.08], particleDensity: 0.45, particleBrightness: 0.70, ambient: 0.60 },
       cave_up_shaft:     { visibility: 0.85, tint: [0.92, 0.96, 1.05], particleDensity: 0.85, particleBrightness: 0.80, ambient: 0.75 },
       cave_exit:         { visibility: 1.05, tint: [0.96, 1.04, 0.94], particleDensity: 1.00, particleBrightness: 1.00, ambient: 1.05 }
-    }
+    },
+    // Issue #55 — decorationRules: deterministic micro set-dressing (calcite
+    // chips, rock fragments, small stalagmites/stalactites) scattered within
+    // the visualZones above. Purely cosmetic filler between the hand-placed
+    // features array; never touches physics/collision/gameplay. Cathedral
+    // gets both a floor rule and a ceiling rule since it is tall and open.
+    decorationRules: [
+      { id: 'cave_entrance_chips', zone: 'cave_entrance', spacing: 2.0, density: 0.5, seed: 4101, surface: 'floor',
+        props: [{kind:'calciteChip',weight:3},{kind:'rockFragment',weight:2},{kind:'pebble',weight:2}] },
+      { id: 'cave_cathedral_floor', zone: 'cave_cathedral', spacing: 3.5, density: 0.4, seed: 4102, surface: 'floor',
+        props: [{kind:'smallStalagmite',weight:2},{kind:'rockFragment',weight:3},{kind:'calciteChip',weight:2}] },
+      { id: 'cave_cathedral_ceiling', zone: 'cave_cathedral', spacing: 4.0, density: 0.35, seed: 4103, surface: 'ceiling',
+        props: [{kind:'smallStalactite',weight:3},{kind:'calciteChip',weight:1}] },
+      { id: 'cave_upper_tunnel_sparse', zone: 'cave_upper_tunnel', spacing: 3.5, density: 0.3, seed: 4104, surface: 'floor',
+        props: [{kind:'pebble',weight:3},{kind:'rockFragment',weight:2},{kind:'calciteChip',weight:1}] }
+    ]
   }
 };
 

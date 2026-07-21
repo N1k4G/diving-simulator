@@ -977,5 +977,21 @@ window.gameAPI = {
     // Issue #54: Local water volumes — atmosphere sampler + clamps
     sampleLocalAtmosphere: sampleLocalAtmosphere,
     get LOCAL_ATMO_DEFAULT() { return LOCAL_ATMO_DEFAULT; },
-    get LOCAL_ATMO_CLAMP() { return LOCAL_ATMO_CLAMP; }
+    get LOCAL_ATMO_CLAMP() { return LOCAL_ATMO_CLAMP; },
+    // Issue #55: Set-dressing (render-only)
+    drawSetDressing: drawSetDressing,
+    drawDecorationProp: drawDecorationProp,
+    pickDecorationProp: pickProp,       // renamed for public clarity
+    sampleSetDressingCandidates: sampleSetDressingCandidates,
+    get setDressingLastFrameCount() { return _setDressingLastFrameCount; },
+    get SET_DRESSING_CONSTANTS() {
+        return {
+            MAX_MARGIN_CELLS: SET_DRESSING_MAX_MARGIN_CELLS,
+            MIN_SCREEN_PX:    SET_DRESSING_MIN_SCREEN_PX,
+            JITTER_FRACTION:  SET_DRESSING_JITTER_FRACTION,
+            CELL_SEED_MULT:   SET_DRESSING_CELL_SEED_MULT,
+            JITTER_SEED_MULT: SET_DRESSING_JITTER_SEED_MULT,
+            PROP_SEED_MULT:   SET_DRESSING_PROP_SEED_MULT
+        };
+    }
 };

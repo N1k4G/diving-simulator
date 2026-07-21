@@ -131,6 +131,15 @@ const gameGlobals = {
   // Issue #54: Local atmosphere profiles + sampler (sites.js)
   sampleLocalAtmosphere: "readonly",
   LOCAL_ATMO_DEFAULT: "readonly", LOCAL_ATMO_CLAMP: "readonly",
+  // Issue #55: Deterministic set dressing / micro-decoration (renderer.js)
+  drawSetDressing: "readonly", drawDecorationProp: "readonly",
+  pickProp: "readonly", sampleSetDressingCandidates: "readonly",
+  SET_DRESSING_MAX_MARGIN_CELLS: "readonly", SET_DRESSING_MIN_SCREEN_PX: "readonly",
+  SET_DRESSING_JITTER_FRACTION: "readonly", SET_DRESSING_CELL_SEED_MULT: "readonly",
+  SET_DRESSING_JITTER_SEED_MULT: "readonly", SET_DRESSING_PROP_SEED_MULT: "readonly",
+  SET_DRESSING_SCALE_SEED_MULT: "readonly", SET_DRESSING_ROT_SEED_MULT: "readonly",
+  SET_DRESSING_DEFAULT_MIN_SCALE: "readonly", SET_DRESSING_DEFAULT_MAX_SCALE: "readonly",
+  SET_DRESSING_UNKNOWN_KIND_WARN_CAP: "readonly", SET_DRESSING_PAL: "readonly",
 
   // Physics functions (physics.js)
   ambientPressure: "readonly", updateTissues: "readonly",
@@ -186,6 +195,8 @@ const gameGlobals = {
   _matTiles: "writable",
   // Issue #34: AO contact band (renderer.js)
   CONTACT_AO: "readonly", drawContactBand: "readonly",
+  // Issue #55: Set-dressing internal state (renderer.js)
+  _setDressingLastFrameCount: "writable", _setDressingUnknownWarned: "writable",
   // Phase C renderer helpers
   drawTerrain: "readonly", drawStructures: "readonly",
   drawFeatures: "readonly", drawSeagrass: "readonly",

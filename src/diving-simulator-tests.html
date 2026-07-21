@@ -3623,6 +3623,385 @@ tests = [
                 'reef_deep_wall → ambient should be < 1.0 (darker), got ' + atmo.ambient);
             return 'PASS — reef_deep_wall tintB=' + atmo.tintB.toFixed(3) + ', ambient=' + atmo.ambient.toFixed(3);
         }
+    },
+    // ----------------------------------------------------------
+    // Issue #55 — Deterministic set dressing (micro-decoration)
+    // These tests cover:
+    //   • API surface (drawSetDressing / drawDecorationProp /
+    //     sampleSetDressingCandidates / setDressingLastFrameCount /
+    //     SET_DRESSING_CONSTANTS exist)
+    //   • decorationRules data validity across all 4 sites (>=2 rules,
+    //     required fields, zone ids resolve against visualZones,
+    //     surface/spacing/density/prop weight sanity)
+    //   • determinism: repeat calls, swim-away-and-back, no time input
+    //   • density gate: 0 -> nothing, 1 -> every iterated cell
+    //   • zone containment: candidates never leave the rule's own zone
+    //   • unknown prop kind is a rate-limited warn + safe no-op (never throws)
+    //   • pinned floorAt/ceilingAt/solidAt reference values prove this
+    //     purely-visual feature never touched collision geometry
+    //   • drawSetDressing never mutates gameplay state (features/tissues/tanks)
+    // ----------------------------------------------------------
+    {
+        id: 'TC-55-API',
+        name: 'Issue #55 — gameAPI exposes set-dressing functions/constants',
+        fn: function() {
+            assert(typeof api.drawSetDressing === 'function', 'drawSetDressing not exposed');
+            assert(typeof api.drawDecorationProp === 'function', 'drawDecorationProp not exposed');
+            assert(typeof api.sampleSetDressingCandidates === 'function', 'sampleSetDressingCandidates not exposed');
+            assert(typeof api.setDressingLastFrameCount === 'number', 'setDressingLastFrameCount not exposed as a number');
+            var c = api.SET_DRESSING_CONSTANTS;
+            assert(c && typeof c === 'object', 'SET_DRESSING_CONSTANTS missing');
+            assert(typeof c.MAX_MARGIN_CELLS === 'number', 'SET_DRESSING_CONSTANTS.MAX_MARGIN_CELLS missing');
+            assert(typeof c.MIN_SCREEN_PX === 'number', 'SET_DRESSING_CONSTANTS.MIN_SCREEN_PX missing');
+            assert(typeof c.JITTER_FRACTION === 'number', 'SET_DRESSING_CONSTANTS.JITTER_FRACTION missing');
+            assert(typeof c.CELL_SEED_MULT === 'number', 'SET_DRESSING_CONSTANTS.CELL_SEED_MULT missing');
+            assert(typeof c.JITTER_SEED_MULT === 'number', 'SET_DRESSING_CONSTANTS.JITTER_SEED_MULT missing');
+            assert(typeof c.PROP_SEED_MULT === 'number', 'SET_DRESSING_CONSTANTS.PROP_SEED_MULT missing');
+            return 'PASS — API surface intact: drawSetDressing, drawDecorationProp, sampleSetDressingCandidates, setDressingLastFrameCount, SET_DRESSING_CONSTANTS';
+        }
+    },
+    {
+        id: 'TC-55-DATA',
+        name: 'Issue #55 — decorationRules data is well-formed and references real visualZones',
+        fn: function() {
+            var siteIds = ['shore', 'reef', 'wreck', 'cave'];
+            var count = 0;
+            for (var si = 0; si < siteIds.length; si++) {
+                var s = api.DIVE_SITES[siteIds[si]];
+                assert(s.decorationRules, siteIds[si] + ' is missing decorationRules');
+                assert(s.decorationRules.length >= 2, siteIds[si] + ' has fewer than 2 decorationRules');
+                var zoneIds = {};
+                for (var zi = 0; zi < s.visualZones.length; zi++) zoneIds[s.visualZones[zi].id] = true;
+                for (var ri = 0; ri < s.decorationRules.length; ri++) {
+                    var r = s.decorationRules[ri];
+                    var label = siteIds[si] + '/' + (r.id || '(no id)');
+                    assert(typeof r.id === 'string' && r.id.length > 0, label + ': missing id');
+                    assert(typeof r.zone === 'string', label + ': missing zone');
+                    assert(zoneIds[r.zone], label + ': references unknown zone "' + r.zone + '"');
+                    assert(typeof r.spacing === 'number' && r.spacing > 0, label + ': spacing must be > 0');
+                    assert(typeof r.density === 'number' && r.density >= 0 && r.density <= 1, label + ': density must be in [0,1]');
+                    assert(typeof r.seed === 'number', label + ': missing seed');
+                    assert(r.surface === 'floor' || r.surface === 'ceiling', label + ': surface must be "floor" or "ceiling"');
+                    assert(Array.isArray(r.props) && r.props.length > 0, label + ': props must be a non-empty array');
+                    for (var pi = 0; pi < r.props.length; pi++) {
+                        assert(typeof r.props[pi].kind === 'string' && r.props[pi].kind.length > 0, label + ': prop missing kind');
+                        assert(r.props[pi].weight > 0, label + ': prop weight must be > 0');
+                    }
+                    count++;
+                }
+            }
+            return 'PASS — ' + count + ' decorationRules validated across 4 sites (shore/reef/wreck/cave)';
+        }
+    },
+    {
+        id: 'TC-55-DETERMINISM-REPEAT',
+        name: 'Issue #55 — sampleSetDressingCandidates is deterministic on repeat calls (all 4 sites)',
+        fn: function() {
+            // floorAt/ceilingAt/solidAt (used internally as the zone-probe and
+            // solid-safety-net) are bound to the currently ACTIVE site, not to
+            // whatever `site` object is passed in — so diveSite must match the
+            // site under test for the sampled candidates to reflect its real
+            // geometry (mirrors how drawScene() always calls
+            // drawSetDressing(activeSite(), ...) in production).
+            var savedSite = api.diveSite;
+            var siteIds = ['shore', 'reef', 'wreck', 'cave'];
+            var totalChecked = 0;
+            var totalCandidates = 0;
+            try {
+                for (var si = 0; si < siteIds.length; si++) {
+                    api.diveSite = siteIds[si];
+                    var s = api.DIVE_SITES[siteIds[si]];
+                    var a1 = api.sampleSetDressingCandidates(s, -10, 80);
+                    var a2 = api.sampleSetDressingCandidates(s, -10, 80);
+                    assert(a1.length === a2.length,
+                        siteIds[si] + ': candidate count differs between repeat calls (' + a1.length + ' vs ' + a2.length + ')');
+                    for (var i = 0; i < a1.length; i++) {
+                        assert(a1[i].ruleId === a2[i].ruleId && a1[i].cell === a2[i].cell &&
+                            a1[i].wx === a2[i].wx && a1[i].kind === a2[i].kind &&
+                            a1[i].scale === a2[i].scale && a1[i].orientation === a2[i].orientation,
+                            siteIds[si] + ': candidate ' + i + ' differs between repeat calls');
+                        totalChecked++;
+                    }
+                    totalCandidates += a1.length;
+                }
+                assert(totalCandidates > 0, 'expected at least one real candidate across all 4 sites, got 0 — check is not exercising real geometry');
+                return 'PASS — repeat calls identical for all 4 sites (' + totalChecked + ' candidates compared, ' + totalCandidates + ' total)';
+            } finally {
+                api.diveSite = savedSite;
+            }
+        }
+    },
+    {
+        id: 'TC-55-DETERMINISM-SWIM-AWAY-AND-BACK',
+        name: 'Issue #55 — sampling elsewhere and back gives identical first/third results',
+        fn: function() {
+            var savedSite = api.diveSite;
+            api.diveSite = 'wreck';
+            try {
+                var s = api.DIVE_SITES.wreck;
+                var L = -10, R = 80;
+                var a1 = api.sampleSetDressingCandidates(s, L, R);
+                api.sampleSetDressingCandidates(s, L + 50, R + 50);
+                var a3 = api.sampleSetDressingCandidates(s, L, R);
+                assert(a1.length > 0, 'expected at least one real wreck candidate in [' + L + ',' + R + '] — check is not exercising real geometry');
+                assert(a1.length === a3.length,
+                    'candidate count differs after swimming away and back (' + a1.length + ' vs ' + a3.length + ')');
+                for (var i = 0; i < a1.length; i++) {
+                    assert(a1[i].ruleId === a3[i].ruleId && a1[i].cell === a3[i].cell &&
+                        a1[i].wx === a3[i].wx && a1[i].kind === a3[i].kind,
+                        'candidate ' + i + ' differs after swimming away and back');
+                }
+                return 'PASS — swim-away-and-back samples are identical (n=' + a1.length + ')';
+            } finally {
+                api.diveSite = savedSite;
+            }
+        }
+    },
+    {
+        id: 'TC-55-DETERMINISM-NO-TIME',
+        name: 'Issue #55 — sampleSetDressingCandidates takes no time parameter and ignores elapsed diveTime',
+        fn: function() {
+            assert(api.sampleSetDressingCandidates.length === 3,
+                'sampleSetDressingCandidates should take exactly 3 params (site, left, right), got ' + api.sampleSetDressingCandidates.length);
+            var savedSite = api.diveSite;
+            api.diveSite = 'reef';
+            try {
+                var s = api.DIVE_SITES.reef;
+                var before = api.sampleSetDressingCandidates(s, -10, 80);
+                assert(before.length > 0, 'expected at least one real reef candidate — check is not exercising real geometry');
+                // Advance the dive clock — decoration must not depend on elapsed time.
+                setupDive([[0.21, 0, 200]]);
+                runFrames(30, 0.033, 20);
+                api.diveSite = 'reef'; // setupDive/resetDive doesn't touch diveSite, but be explicit
+                var after = api.sampleSetDressingCandidates(s, -10, 80);
+                assert(before.length === after.length, 'candidate count changed after advancing diveTime');
+                for (var i = 0; i < before.length; i++) {
+                    assert(before[i].wx === after[i].wx && before[i].kind === after[i].kind,
+                        'candidate ' + i + ' changed after advancing diveTime');
+                }
+                return 'PASS — set dressing unaffected by elapsed dive time (n=' + before.length + ', diveTime now ' + api.diveTime.toFixed(2) + ')';
+            } finally {
+                api.diveSite = savedSite;
+            }
+        }
+    },
+    {
+        id: 'TC-55-DENSITY-ZERO',
+        name: 'Issue #55 — density 0 produces zero candidates',
+        fn: function() {
+            var scratch = {
+                id: 'scratch-density-zero',
+                visualZones: [
+                    { id: 'zone_a', x1: -100, x2: 100, d1: 0, d2: 1000, priority: 0, blend: 0 }
+                ],
+                decorationRules: [
+                    { id: 'never', zone: 'zone_a', spacing: 2, density: 0, seed: 1, surface: 'floor',
+                      props: [{ kind: 'pebble', weight: 1 }] }
+                ]
+            };
+            var out = api.sampleSetDressingCandidates(scratch, -20, 20);
+            assert(Array.isArray(out) && out.length === 0, 'density 0 should produce zero candidates, got ' + out.length);
+            return 'PASS — density 0 -> empty candidate list';
+        }
+    },
+    {
+        id: 'TC-55-DENSITY-ONE-CELL-COUNT',
+        name: 'Issue #55 — density 1 with a full-coverage zone produces one candidate per iterated cell',
+        fn: function() {
+            var savedSite = api.diveSite;
+            // 'open' -> activeSite() is null -> floorAt()=MAX_DEPTH always,
+            // solidAt()=false always. Gives a clean, obstruction-free probe
+            // baseline so the scratch zone/rule below is the only thing
+            // gating candidates.
+            api.diveSite = 'open';
+            try {
+                var scratch = {
+                    id: 'scratch-density-one',
+                    visualZones: [
+                        { id: 'zone_full', x1: -1000, x2: 1000, d1: 0, d2: 1000, priority: 0, blend: 0 }
+                    ],
+                    decorationRules: [
+                        { id: 'always', zone: 'zone_full', spacing: 2, density: 1, seed: 3, surface: 'floor',
+                          props: [{ kind: 'pebble', weight: 1 }] }
+                    ]
+                };
+                var L = -10, R = 10;
+                var out = api.sampleSetDressingCandidates(scratch, L, R);
+                var m = api.SET_DRESSING_CONSTANTS.MAX_MARGIN_CELLS;
+                var startCell = Math.floor(L / 2) - m;
+                var endCell = Math.ceil(R / 2) + m;
+                var expected = endCell - startCell + 1;
+                assert(out.length === expected,
+                    'expected ' + expected + ' candidates (one per iterated cell) at density 1, got ' + out.length);
+                return 'PASS — density 1 over a full-coverage zone produced ' + out.length + ' candidates (= ' + expected + ' iterated cells)';
+            } finally {
+                api.diveSite = savedSite;
+            }
+        }
+    },
+    {
+        id: 'TC-55-ZONE-CONTAINMENT',
+        name: 'Issue #55 — candidates only land inside the rule\'s own target zone rectangle',
+        fn: function() {
+            var savedSite = api.diveSite;
+            api.diveSite = 'open';
+            try {
+                var scratch = {
+                    id: 'scratch-zone-containment',
+                    visualZones: [
+                        { id: 'zone_a', x1: -50, x2: -1, d1: 0, d2: 1000, priority: 0, blend: 0 },
+                        { id: 'zone_b', x1: 0,   x2: 50, d1: 0, d2: 1000, priority: 0, blend: 0 }
+                    ],
+                    decorationRules: [
+                        { id: 'only_a', zone: 'zone_a', spacing: 2, density: 1, seed: 7, surface: 'floor',
+                          props: [{ kind: 'pebble', weight: 1 }] }
+                    ]
+                };
+                var out = api.sampleSetDressingCandidates(scratch, -50, 50);
+                assert(out.length > 0, 'expected some candidates inside zone_a');
+                for (var i = 0; i < out.length; i++) {
+                    assert(out[i].wx >= -50 && out[i].wx <= -1,
+                        'candidate wx=' + out[i].wx + ' falls outside zone_a bounds [-50,-1]');
+                }
+                return 'PASS — all ' + out.length + ' candidates land inside zone_a; none leaked into zone_b';
+            } finally {
+                api.diveSite = savedSite;
+            }
+        }
+    },
+    {
+        id: 'TC-55-UNKNOWN-KIND-DOES-NOT-THROW',
+        name: 'Issue #55 — drawDecorationProp on an unknown kind warns (rate-limited) and never throws',
+        fn: function() {
+            var win = document.getElementById('gameFrame').contentWindow;
+            var cvs = document.createElement('canvas');
+            cvs.width = 20; cvs.height = 20;
+            var cx = cvs.getContext('2d');
+            var originalWarn = win.console.warn;
+            var warnCount = 0;
+            win.console.warn = function() { warnCount++; };
+            // Unique per run so re-running "Run All Tests" in the same page
+            // session doesn't hit an already-exhausted rate-limit bucket.
+            var bogusKind = 'nonexistentPropKind_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+            try {
+                for (var i = 0; i < 20; i++) {
+                    api.drawDecorationProp(cx, bogusKind, 10, 10, 1, 1, 0);
+                }
+            } finally {
+                win.console.warn = originalWarn;
+            }
+            assert(warnCount > 0, 'expected at least one console.warn call for an unknown kind');
+            assert(warnCount <= 4, 'console.warn should be rate-limited (cap=4 per kind), got ' + warnCount + ' calls for 20 draws');
+            return 'PASS — 20 calls with an unknown kind never threw; console.warn rate-limited to ' + warnCount + ' call(s)';
+        }
+    },
+    {
+        id: 'TC-55-REGRESSION-COLLISION-UNCHANGED',
+        name: 'Issue #55 — pinned floorAt/ceilingAt/solidAt reference values are unchanged by this feature',
+        fn: function() {
+            var savedSite = api.diveSite;
+            try {
+                api.diveSite = 'shore';
+                assert(Math.abs(api.floorAt(0) - 3) < 1e-9, 'shore floorAt(0) regressed: ' + api.floorAt(0));
+                assert(api.solidAt(105, 20) === true, 'shore solidAt(105,20) regressed: ' + api.solidAt(105, 20));
+
+                api.diveSite = 'reef';
+                assert(Math.abs(api.floorAt(0) - 5) < 1e-9, 'reef floorAt(0) regressed: ' + api.floorAt(0));
+                assert(api.ceilingAt(50) === 0, 'reef ceilingAt(50) regressed: ' + api.ceilingAt(50));
+
+                api.diveSite = 'wreck';
+                assert(Math.abs(api.floorAt(50) - 66) < 1e-9, 'wreck floorAt(50) regressed: ' + api.floorAt(50));
+                assert(api.solidAt(85, 16) === true, 'wreck solidAt(85,16) [funnel] regressed: ' + api.solidAt(85, 16));
+                assert(api.solidAt(50, 10) === false, 'wreck solidAt(50,10) [open water] regressed: ' + api.solidAt(50, 10));
+
+                api.diveSite = 'cave';
+                assert(Math.abs(api.floorAt(0) - 10) < 1e-9, 'cave floorAt(0) regressed: ' + api.floorAt(0));
+                assert(api.ceilingAt(0) === 0, 'cave ceilingAt(0) regressed: ' + api.ceilingAt(0));
+                assert(api.solidAt(100, 30) === true, 'cave solidAt(100,30) [bedrock] regressed: ' + api.solidAt(100, 30));
+
+                return 'PASS — 10 pinned floorAt/ceilingAt/solidAt reference values unchanged across all 4 sites';
+            } finally {
+                api.diveSite = savedSite;
+            }
+        }
+    },
+    {
+        id: 'TC-55-ALL-KINDS-RENDER-WITHOUT-THROW',
+        name: 'Issue #55 — every declared prop kind renders without throwing and paints pixels',
+        fn: function() {
+            // Collect every kind actually referenced across all 4 sites'
+            // decorationRules — what ships, not an arbitrary hand-picked
+            // sample — and drive each one directly through the dispatcher
+            // on a small scratch canvas (same pattern as TC-34's
+            // drawContactBand pixel tests) so this is independent of the
+            // hidden test-iframe's near-zero screen size.
+            var siteIds = ['shore', 'reef', 'wreck', 'cave'];
+            var kinds = {};
+            for (var si = 0; si < siteIds.length; si++) {
+                var rules = api.DIVE_SITES[siteIds[si]].decorationRules;
+                for (var ri = 0; ri < rules.length; ri++) {
+                    for (var pi = 0; pi < rules[ri].props.length; pi++) {
+                        kinds[rules[ri].props[pi].kind] = true;
+                    }
+                }
+            }
+            var kindList = Object.keys(kinds);
+            assert(kindList.length > 0, 'no prop kinds found across decorationRules');
+            for (var ki = 0; ki < kindList.length; ki++) {
+                var cvs = document.createElement('canvas');
+                cvs.width = 40; cvs.height = 40;
+                var cx = cvs.getContext('2d');
+                cx.fillStyle = '#000000';
+                cx.fillRect(0, 0, 40, 40);
+                var before = cx.getImageData(0, 0, 40, 40).data;
+                api.drawDecorationProp(cx, kindList[ki], 20, 20, 5, 1, 1.2);
+                var after = cx.getImageData(0, 0, 40, 40).data;
+                var changed = false;
+                for (var b = 0; b < before.length; b++) {
+                    if (before[b] !== after[b]) { changed = true; break; }
+                }
+                assert(changed, 'prop kind "' + kindList[ki] + '" did not paint any pixels');
+            }
+            return 'PASS — all ' + kindList.length + ' declared prop kinds rendered without throwing and painted pixels: ' + kindList.join(', ');
+        }
+    },
+    {
+        id: 'TC-55-NO-GAMEPLAY-LEAK',
+        name: 'Issue #55 — drawSetDressing on the real canvas leaves gameplay state untouched',
+        fn: function() {
+            var savedSite = api.diveSite;
+            try {
+                api.diveSite = 'reef';
+                var featuresLenBefore = api.DIVE_SITES.reef.features.length;
+                var tissuesBefore = api.tissues.slice();
+                var tissuesHeBefore = api.tissuesHe.slice();
+                var tanksLenBefore = api.tanks.length;
+
+                // Note: the test harness runs the game in a display:none
+                // iframe (see TC-20's comment — cssWidth/cssHeight are ~0
+                // there), so this call may draw zero props once screen
+                // culling applies; that's fine — this test's purpose is
+                // purely to prove drawSetDressing() never mutates gameplay
+                // state, not to prove it paints pixels (see
+                // TC-55-ALL-KINDS-RENDER-WITHOUT-THROW for that).
+                api.drawSetDressing(api.DIVE_SITES.reef, -50, 50, 0.05);
+
+                assert(api.DIVE_SITES.reef.features.length === featuresLenBefore, 'features.length changed');
+                assert(api.tissues.length === tissuesBefore.length, 'tissues length changed');
+                for (var i = 0; i < tissuesBefore.length; i++) {
+                    assert(api.tissues[i] === tissuesBefore[i], 'tissues[' + i + '] changed');
+                }
+                assert(api.tissuesHe.length === tissuesHeBefore.length, 'tissuesHe length changed');
+                for (var j = 0; j < tissuesHeBefore.length; j++) {
+                    assert(api.tissuesHe[j] === tissuesHeBefore[j], 'tissuesHe[' + j + '] changed');
+                }
+                assert(api.tanks.length === tanksLenBefore, 'tanks.length changed');
+
+                return 'PASS — drawSetDressing left features/tissues/tanks untouched (drew ' + api.setDressingLastFrameCount + ' props)';
+            } finally {
+                api.diveSite = savedSite;
+            }
+        }
     }
 ];
 

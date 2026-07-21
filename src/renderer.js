@@ -579,6 +579,13 @@ function drawScene() {
     // Phase C: Site terrain (floor + ceiling) drawn before entities
     drawTerrain();
     drawSiteDetailPass();
+    // Issue #55: deterministic set dressing (small cosmetic filler between
+    // hand-placed features). Runs AFTER terrain/material passes so props sit
+    // on top of the surface, and BEFORE structures/features so hand-placed
+    // landmarks visually dominate.
+    var _visLeftM  = (0 - W * 0.25) * metersPerPixel + diverX;
+    var _visRightM = (W - W * 0.25) * metersPerPixel + diverX;
+    drawSetDressing(activeSite(), _visLeftM, _visRightM, metersPerPixel);
     // Cenote-only: refractive halocline band at ~7 m
     if (_isCave) drawHalocline(cx, W, H, diverScreenY, metersPerPixel);
     // Wreck: steel hull skin BEHIND the interior objects (so behind cars/decks
@@ -1693,6 +1700,515 @@ function visualProfileDepth(siteId, surfaceKind, worldX, collisionDepth) {
     // ceiling: visualD must be ≥ collisionDepth  → offset ∈ [0, amp]
     var ceilCand = collisionDepth + 0.5 * amp * (1 - n);
     return Math.max(collisionDepth, ceilCand);
+}
+
+// ============================================================
+//  ISSUE #55 — DETERMINISTIC SET DRESSING (MICRO-DECORATION)
+//
+//  Small, deterministic cosmetic filler props (pebbles, shells, rust
+//  flakes, calcite chips, …) scattered across each site's visualZones
+//  per a declarative `decorationRules` list (see sites.js). Purely
+//  render-only: no physics, collision, gas, or wildlife-spawn effect.
+//  Every prop's position/kind/scale/orientation is a pure function of
+//  (rule, cell) via sRand() — no Math.random(), no per-frame state
+//  beyond a draw-count counter kept for perf inspection/tests.
+//
+//  Anchoring reuses the issue #52 visual-surface helper directly
+//  (visualProfileDepth) — there is NO fallback path to plain
+//  floorAt()/ceilingAt() for the final prop depth. floorAt/ceilingAt
+//  are only called to (a) get the raw collision depth fed into
+//  visualProfileDepth, and (b) act as the zone-probe depth used to
+//  test which visualZone a candidate cell actually belongs to (so a
+//  rule targeting an interior deck doesn't spawn a floor prop floating
+//  where the real substrate is actually far below/above).
+// ============================================================
+
+var SET_DRESSING_MAX_MARGIN_CELLS      = 1;
+var SET_DRESSING_MIN_SCREEN_PX         = 1.0;
+var SET_DRESSING_JITTER_FRACTION       = 0.7;
+var SET_DRESSING_CELL_SEED_MULT        = 1009;
+var SET_DRESSING_JITTER_SEED_MULT      = 9176;
+var SET_DRESSING_PROP_SEED_MULT        = 5273;
+var SET_DRESSING_SCALE_SEED_MULT       = 3391;
+var SET_DRESSING_ROT_SEED_MULT         = 7717;
+var SET_DRESSING_DEFAULT_MIN_SCALE     = 0.8;
+var SET_DRESSING_DEFAULT_MAX_SCALE     = 1.15;
+var SET_DRESSING_UNKNOWN_KIND_WARN_CAP = 4;
+
+// Rate-limits the "unknown prop kind" console.warn per kind, and surfaces
+// the last frame's accepted-candidate count for perf inspection/tests.
+var _setDressingUnknownWarned = Object.create(null);
+var _setDressingLastFrameCount = 0;
+
+// Small palette dedicated to micro set-dressing props. Deliberately muted /
+// desaturated relative to the hand-placed feature drawers (REEF_PAL,
+// CAVE_PAL) so filler never competes with landmark features for attention.
+var SET_DRESSING_PAL = {
+    pebble1: '#9c9284', pebble2: '#7d7466',
+    rockGrey1: '#6a6258',
+    debris: '#5a5248',
+    shell: '#e8dcc4', shellShade: '#c8b896',
+    grass: '#3a6a3a',
+    sandRipple: 'rgba(90,74,46,0.35)',
+    crust: '#c9895a', crustLite: '#e0a878',
+    sponge: '#9c5a3a', spongeLite: '#c07850',
+    coralBranch: '#c8839a',
+    rust1: '#b5501f', rust2: '#8a3814',
+    cable: '#2a2a28',
+    metal: '#5a6068', metalHi: '#8a929a',
+    sediment: '#6a5a48',
+    calcite: '#e8dcc0', calciteShade: '#b89a72',
+    rockCave: '#6b5a40'
+};
+
+// Weighted prop-kind selection over rule.props ([{kind,weight}]).
+// Deterministic in r (r ∈ [0,1)) — same r always yields the same kind.
+function pickProp(rule, r) {
+    var props = rule.props;
+    var total = 0;
+    for (var i = 0; i < props.length; i++) {
+        total += (props[i].weight > 0 ? props[i].weight : 0);
+    }
+    if (total <= 0) return props[0].kind;
+    var target = r * total;
+    var acc = 0;
+    for (var j = 0; j < props.length; j++) {
+        acc += (props[j].weight > 0 ? props[j].weight : 0);
+        if (target < acc) return props[j].kind;
+    }
+    return props[props.length - 1].kind;
+}
+
+// Shared iteration core used by both drawSetDressing() (real canvas draw)
+// and sampleSetDressingCandidates() (pure, test-friendly candidate list).
+// Keeps the density/zone/depth/solid filter logic in exactly one place so
+// tests and rendering can never drift apart. `cb` is called once per
+// accepted candidate with {ruleId, rule, cell, wx, depth, kind, scale,
+// orientation}. No canvas / screen-space work happens here.
+function _forEachDecorationCandidate(site, visibleWorldLeft, visibleWorldRight, cb) {
+    if (!site || !site.decorationRules) return;
+    var rules = site.decorationRules;
+    for (var ri = 0; ri < rules.length; ri++) {
+        var rule = rules[ri];
+        var startCell = Math.floor(visibleWorldLeft / rule.spacing) - SET_DRESSING_MAX_MARGIN_CELLS;
+        var endCell = Math.ceil(visibleWorldRight / rule.spacing) + SET_DRESSING_MAX_MARGIN_CELLS;
+        var maxPerScreen = (rule.maxPerScreen != null) ? rule.maxPerScreen : Infinity;
+        var acceptedCount = 0;
+        for (var cell = startCell; cell <= endCell; cell++) {
+            if (acceptedCount >= maxPerScreen) break;
+
+            var r0 = sRand(cell * SET_DRESSING_CELL_SEED_MULT + rule.seed);
+            if (r0 > rule.density) continue; // density gate
+
+            var jitter = (sRand(cell * SET_DRESSING_JITTER_SEED_MULT + rule.seed) - 0.5)
+                       * rule.spacing * SET_DRESSING_JITTER_FRACTION;
+            var wx = cell * rule.spacing + jitter;
+
+            // Zone-probe: sample the zone AT the real collision surface the
+            // prop would sit on, so a rule targeting a specific deck/zone
+            // doesn't fire where that surface isn't actually present.
+            var probeD = (rule.surface === 'ceiling') ? ceilingAt(wx) : floorAt(wx);
+            var zone = visualZoneAt(wx, probeD, site);
+            if (!zone || zone.id !== rule.zone) continue;
+
+            // Anchor to the issue #52 VISUAL surface — no fallback to the
+            // raw collision depth.
+            var visualD = visualProfileDepth(site.id, rule.surface === 'ceiling' ? 'ceiling' : 'floor', wx, probeD);
+
+            if (rule.minDepth != null && visualD < rule.minDepth) continue;
+            if (rule.maxDepth != null && visualD > rule.maxDepth) continue;
+
+            // Safety net for wreck/cave interiors: never place a prop inside solid rock/hull.
+            if (solidAt(wx, visualD)) continue;
+
+            var minScale = (rule.minScale != null) ? rule.minScale : SET_DRESSING_DEFAULT_MIN_SCALE;
+            var maxScale = (rule.maxScale != null) ? rule.maxScale : SET_DRESSING_DEFAULT_MAX_SCALE;
+            var scale = minScale + sRand(cell * SET_DRESSING_SCALE_SEED_MULT + rule.seed) * (maxScale - minScale);
+
+            var rotJitter = (rule.rotationJitter != null) ? rule.rotationJitter : 1;
+            var orientation = sRand(cell * SET_DRESSING_ROT_SEED_MULT + rule.seed) * Math.PI * 2 * rotJitter;
+
+            var kind = pickProp(rule, sRand(cell * SET_DRESSING_PROP_SEED_MULT + rule.seed));
+
+            acceptedCount++;
+            cb({
+                ruleId: rule.id,
+                rule: rule,
+                cell: cell,
+                wx: wx,
+                depth: visualD,
+                kind: kind,
+                scale: scale,
+                orientation: orientation
+            });
+        }
+    }
+}
+
+// Pure, canvas-free candidate list — same deterministic filter/anchoring
+// logic as drawSetDressing(), used by tests to assert determinism without
+// touching a canvas context.
+function sampleSetDressingCandidates(site, visibleWorldLeft, visibleWorldRight) {
+    var out = [];
+    _forEachDecorationCandidate(site, visibleWorldLeft, visibleWorldRight, function(cand) {
+        out.push({
+            ruleId: cand.ruleId,
+            cell: cand.cell,
+            wx: cand.wx,
+            depth: cand.depth,
+            kind: cand.kind,
+            scale: cand.scale,
+            orientation: cand.orientation
+        });
+    });
+    return out;
+}
+
+// Dispatcher: draws one small decoration prop at screen (sx, sy). All
+// shapes are small (max ~6 screen px at scale 1) and cheap (no canvas
+// creation, no gradients beyond a couple of fills/strokes). `seed` drives
+// any internal per-prop variation via sRand(); `orientation` is a scalar
+// in [0, 2π) used for rotation where it reads naturally (grass, coral
+// branches, stalagmites, cable scraps, angular rock/debris chips).
+function drawDecorationProp(cx, kind, sx, sy, seed, scale, orientation) {
+    switch (kind) {
+        // ---- Shared -------------------------------------------------
+        case 'pebble': {
+            cx.save();
+            var pebN = 1 + Math.floor(sRand(seed) * 3); // 1-3
+            for (var pi = 0; pi < pebN; pi++) {
+                var pr = (0.5 + sRand(seed + pi * 1.7) * 0.7) * scale;
+                var pox = (sRand(seed + pi * 2.3) - 0.5) * 4 * scale;
+                var poy = (sRand(seed + pi * 3.1) - 0.5) * 1.5 * scale;
+                cx.fillStyle = sRand(seed + pi * 4.1) > 0.5 ? SET_DRESSING_PAL.pebble1 : SET_DRESSING_PAL.pebble2;
+                cx.beginPath();
+                cx.ellipse(sx + pox, sy + poy, pr, pr * 0.6, 0, 0, Math.PI * 2);
+                cx.fill();
+            }
+            cx.restore();
+            break;
+        }
+        case 'smallRock': {
+            cx.save();
+            cx.translate(sx, sy);
+            cx.rotate(orientation);
+            var rkBase = 2.2 * scale;
+            cx.fillStyle = SET_DRESSING_PAL.rockGrey1;
+            cx.beginPath();
+            for (var vi = 0; vi < 5; vi++) {
+                var vAng = (vi / 5) * Math.PI * 2;
+                var vr = rkBase * (0.7 + sRand(seed + vi) * 0.5);
+                var vx = Math.cos(vAng) * vr, vy = Math.sin(vAng) * vr * 0.6;
+                if (vi === 0) cx.moveTo(vx, vy); else cx.lineTo(vx, vy);
+            }
+            cx.closePath();
+            cx.fill();
+            cx.strokeStyle = 'rgba(0,0,0,0.25)';
+            cx.lineWidth = 0.4;
+            cx.stroke();
+            cx.restore();
+            break;
+        }
+        case 'debrisSpeck': {
+            cx.save();
+            cx.fillStyle = SET_DRESSING_PAL.debris;
+            var dsR = (0.4 + sRand(seed) * 0.6) * scale;
+            cx.beginPath();
+            cx.ellipse(sx, sy, dsR, dsR * 0.7, 0, 0, Math.PI * 2);
+            cx.fill();
+            cx.restore();
+            break;
+        }
+
+        // ---- Shore ----------------------------------------------------
+        case 'shell': {
+            cx.save();
+            cx.translate(sx, sy);
+            cx.rotate(orientation * 0.3);
+            var shR = 2 * scale;
+            cx.fillStyle = SET_DRESSING_PAL.shell;
+            cx.beginPath();
+            cx.arc(0, shR * 0.2, shR, Math.PI, 0, false);
+            cx.closePath();
+            cx.fill();
+            cx.strokeStyle = SET_DRESSING_PAL.shellShade;
+            cx.lineWidth = 0.35;
+            for (var ribI = -2; ribI <= 2; ribI++) {
+                cx.beginPath();
+                cx.moveTo(0, shR * 0.2);
+                cx.lineTo(ribI * shR * 0.35, shR * 0.2 - shR * 0.85);
+                cx.stroke();
+            }
+            cx.restore();
+            break;
+        }
+        case 'grassTuft': {
+            cx.save();
+            cx.translate(sx, sy);
+            var bladeN = 2 + Math.floor(sRand(seed) * 2); // 2-3
+            var bladeH = 3.5 * scale;
+            cx.strokeStyle = SET_DRESSING_PAL.grass;
+            cx.lineWidth = 0.5;
+            cx.lineCap = 'round';
+            for (var bi = 0; bi < bladeN; bi++) {
+                var lean = (sRand(seed + bi * 1.3) - 0.5) * 0.9 + Math.sin(orientation) * 0.3;
+                var baseX = (bi - bladeN / 2) * 0.8 * scale;
+                cx.beginPath();
+                cx.moveTo(baseX, 0);
+                cx.quadraticCurveTo(baseX + lean * bladeH * 0.5, -bladeH * 0.6,
+                                     baseX + lean * bladeH, -bladeH);
+                cx.stroke();
+            }
+            cx.restore();
+            break;
+        }
+        case 'sandRippleAccent': {
+            cx.save();
+            cx.strokeStyle = SET_DRESSING_PAL.sandRipple;
+            cx.lineWidth = 0.6 * scale;
+            var rippleW = 4 * scale;
+            cx.beginPath();
+            cx.moveTo(sx - rippleW / 2, sy);
+            cx.lineTo(sx + rippleW / 2, sy);
+            cx.stroke();
+            cx.restore();
+            break;
+        }
+
+        // ---- Reef -------------------------------------------------
+        case 'reefCrustBlob': {
+            cx.save();
+            cx.translate(sx, sy);
+            var crBase = 2 * scale;
+            cx.fillStyle = SET_DRESSING_PAL.crust;
+            cx.beginPath();
+            for (var ci = 0; ci < 6; ci++) {
+                var cAng = (ci / 6) * Math.PI * 2;
+                var cr = crBase * (0.7 + sRand(seed + ci) * 0.5);
+                var cvx = Math.cos(cAng) * cr, cvy = Math.sin(cAng) * cr * 0.55;
+                if (ci === 0) cx.moveTo(cvx, cvy); else cx.lineTo(cvx, cvy);
+            }
+            cx.closePath();
+            cx.fill();
+            cx.fillStyle = SET_DRESSING_PAL.crustLite;
+            cx.globalAlpha = 0.4;
+            cx.beginPath();
+            cx.ellipse(-crBase * 0.2, -crBase * 0.15, crBase * 0.35, crBase * 0.2, 0, 0, Math.PI * 2);
+            cx.fill();
+            cx.restore();
+            break;
+        }
+        case 'tinySponge': {
+            cx.save();
+            var spW = 1.4 * scale, spH = 2.6 * scale;
+            cx.fillStyle = SET_DRESSING_PAL.sponge;
+            cx.beginPath();
+            cx.ellipse(sx, sy - spH * 0.5, spW * 0.5, spH * 0.5, 0, 0, Math.PI * 2);
+            cx.fill();
+            cx.fillStyle = SET_DRESSING_PAL.spongeLite;
+            cx.globalAlpha = 0.5;
+            cx.beginPath();
+            cx.ellipse(sx, sy - spH * 0.75, spW * 0.3, spH * 0.25, 0, 0, Math.PI * 2);
+            cx.fill();
+            cx.restore();
+            break;
+        }
+        case 'smallCoralBranch': {
+            cx.save();
+            cx.translate(sx, sy);
+            cx.rotate(orientation * 0.4);
+            var brH = 3 * scale;
+            cx.strokeStyle = SET_DRESSING_PAL.coralBranch;
+            cx.lineWidth = 0.5 * scale;
+            cx.lineCap = 'round';
+            cx.beginPath();
+            cx.moveTo(0, 0);
+            cx.lineTo(0, -brH * 0.55);
+            cx.moveTo(0, -brH * 0.55);
+            cx.lineTo(-brH * 0.35, -brH);
+            cx.moveTo(0, -brH * 0.55);
+            cx.lineTo(brH * 0.35, -brH);
+            cx.stroke();
+            cx.restore();
+            break;
+        }
+
+        // ---- Wreck ------------------------------------------------
+        case 'rustFlake': {
+            cx.save();
+            cx.translate(sx, sy);
+            cx.rotate(orientation);
+            var rfBase = 1.8 * scale;
+            cx.fillStyle = sRand(seed) > 0.5 ? SET_DRESSING_PAL.rust1 : SET_DRESSING_PAL.rust2;
+            cx.beginPath();
+            for (var fi = 0; fi < 5; fi++) {
+                var fAng = (fi / 5) * Math.PI * 2;
+                var fr = rfBase * (0.6 + sRand(seed + fi) * 0.6);
+                var fx = Math.cos(fAng) * fr, fy = Math.sin(fAng) * fr * 0.6;
+                if (fi === 0) cx.moveTo(fx, fy); else cx.lineTo(fx, fy);
+            }
+            cx.closePath();
+            cx.fill();
+            cx.restore();
+            break;
+        }
+        case 'cableScrap': {
+            cx.save();
+            cx.translate(sx, sy);
+            cx.rotate(orientation);
+            var cabL = 4 * scale;
+            cx.strokeStyle = SET_DRESSING_PAL.cable;
+            cx.lineWidth = 0.5 * scale;
+            cx.lineCap = 'round';
+            cx.beginPath();
+            cx.moveTo(-cabL * 0.5, 0);
+            cx.quadraticCurveTo(0, cabL * 0.4, cabL * 0.5, -0.2 * cabL);
+            cx.stroke();
+            cx.restore();
+            break;
+        }
+        case 'smallMetalDebris': {
+            cx.save();
+            cx.translate(sx, sy);
+            cx.rotate(orientation);
+            var mdW = 3 * scale, mdH = 1.4 * scale;
+            cx.fillStyle = SET_DRESSING_PAL.metal;
+            cx.fillRect(-mdW / 2, -mdH / 2, mdW, mdH);
+            cx.strokeStyle = SET_DRESSING_PAL.metalHi;
+            cx.globalAlpha = 0.5;
+            cx.lineWidth = 0.3;
+            cx.strokeRect(-mdW / 2, -mdH / 2, mdW, mdH);
+            cx.restore();
+            break;
+        }
+        case 'sedimentClump': {
+            cx.save();
+            var sedN = 2 + Math.floor(sRand(seed) * 2);
+            cx.fillStyle = SET_DRESSING_PAL.sediment;
+            cx.globalAlpha = 0.7;
+            for (var si = 0; si < sedN; si++) {
+                var sedR = (0.8 + sRand(seed + si * 1.9) * 0.8) * scale;
+                var sedX = sx + (sRand(seed + si * 2.7) - 0.5) * 3 * scale;
+                var sedY = sy + (sRand(seed + si * 3.3) - 0.5) * scale;
+                cx.beginPath();
+                cx.ellipse(sedX, sedY, sedR, sedR * 0.55, 0, 0, Math.PI * 2);
+                cx.fill();
+            }
+            cx.restore();
+            break;
+        }
+
+        // ---- Cave ---------------------------------------------------
+        case 'calciteChip': {
+            cx.save();
+            cx.translate(sx, sy);
+            cx.rotate(orientation);
+            var ccBase = 1.6 * scale;
+            cx.fillStyle = SET_DRESSING_PAL.calcite;
+            cx.beginPath();
+            for (var chi = 0; chi < 5; chi++) {
+                var chAng = (chi / 5) * Math.PI * 2;
+                var chr = ccBase * (0.6 + sRand(seed + chi) * 0.6);
+                var chx = Math.cos(chAng) * chr, chy = Math.sin(chAng) * chr * 0.65;
+                if (chi === 0) cx.moveTo(chx, chy); else cx.lineTo(chx, chy);
+            }
+            cx.closePath();
+            cx.fill();
+            cx.restore();
+            break;
+        }
+        case 'smallStalagmite': {
+            cx.save();
+            var stgW = 1.6 * scale, stgH = 4 * scale;
+            cx.fillStyle = SET_DRESSING_PAL.calciteShade;
+            cx.beginPath();
+            cx.moveTo(sx - stgW / 2, sy);
+            cx.lineTo(sx + stgW / 2, sy);
+            cx.lineTo(sx, sy - stgH);
+            cx.closePath();
+            cx.fill();
+            cx.restore();
+            break;
+        }
+        case 'smallStalactite': {
+            cx.save();
+            var sttW = 1.4 * scale, sttH = 3.4 * scale;
+            cx.fillStyle = SET_DRESSING_PAL.calcite;
+            cx.beginPath();
+            cx.moveTo(sx - sttW / 2, sy);
+            cx.lineTo(sx + sttW / 2, sy);
+            cx.lineTo(sx, sy + sttH);
+            cx.closePath();
+            cx.fill();
+            cx.restore();
+            break;
+        }
+        case 'rockFragment': {
+            cx.save();
+            cx.translate(sx, sy);
+            cx.rotate(orientation);
+            var rgBase = 2 * scale;
+            cx.fillStyle = SET_DRESSING_PAL.rockCave;
+            cx.beginPath();
+            for (var rgi = 0; rgi < 5; rgi++) {
+                var rgAng = (rgi / 5) * Math.PI * 2;
+                var rgr = rgBase * (0.65 + sRand(seed + rgi) * 0.55);
+                var rgx = Math.cos(rgAng) * rgr, rgy = Math.sin(rgAng) * rgr * 0.6;
+                if (rgi === 0) cx.moveTo(rgx, rgy); else cx.lineTo(rgx, rgy);
+            }
+            cx.closePath();
+            cx.fill();
+            cx.restore();
+            break;
+        }
+
+        default: {
+            var warnCount = _setDressingUnknownWarned[kind] || 0;
+            if (warnCount < SET_DRESSING_UNKNOWN_KIND_WARN_CAP) {
+                console.warn('drawDecorationProp: unknown prop kind "' + kind + '"');
+                _setDressingUnknownWarned[kind] = warnCount + 1;
+            }
+            return;
+        }
+    }
+}
+
+// Central entry point, called once per frame from drawScene(). Iterates
+// every rule's visible cells via the shared candidate helper, culls to the
+// screen, applies a minimum-drawn-size cutoff, and dispatches each accepted
+// prop to drawDecorationProp(). `site`/`visibleWorldLeft`/`visibleWorldRight`
+// /`mpp` are the only inputs — diver position, canvas size and context are
+// read from outer-scope module state (same convention as drawStructures()/
+// drawFeatures()) rather than threaded through the signature.
+function drawSetDressing(site, visibleWorldLeft, visibleWorldRight, mpp) {
+    if (!site || !site.decorationRules) return;
+    _setDressingLastFrameCount = 0;
+
+    var W = cssWidth, H = cssHeight;
+    var diverScreenX = W * 0.25, diverScreenY = H * 0.45;
+    var cx = ctx;
+
+    _forEachDecorationCandidate(site, visibleWorldLeft, visibleWorldRight, function(cand) {
+        var sx = diverScreenX + (cand.wx - diverX) / mpp;
+        var sy = diverScreenY + (cand.depth - depth) / mpp;
+        if (sx < -8 || sx > W + 8 || sy < -8 || sy > H + 8) return;
+
+        // Minimum drawn-size cutoff: a ~1 m baseline prop scaled by `scale`
+        // and projected through mpp must exceed SET_DRESSING_MIN_SCREEN_PX
+        // on screen, otherwise it's not worth a draw call.
+        if (cand.scale * (1 / mpp) * 0.05 < SET_DRESSING_MIN_SCREEN_PX / 20) return;
+
+        var rule = cand.rule;
+        var wrapAlpha = rule.alpha != null;
+        if (wrapAlpha) {
+            cx.save();
+            cx.globalAlpha *= rule.alpha;
+        }
+        drawDecorationProp(cx, cand.kind, sx, sy, cand.cell + rule.seed, cand.scale, cand.orientation);
+        if (wrapAlpha) cx.restore();
+
+        _setDressingLastFrameCount++;
+    });
 }
 
 function drawSiteAtmosphere() {
