@@ -835,7 +835,13 @@ window.gameAPI = {
     get gameState() { return gameState; },
     set gameState(v) { gameState = v; },
     get cssWidth() { return cssWidth; },
+    // Test hook (issue #32): the test harness runs in a hidden iframe
+    // whose innerWidth/Height is 0, so cssWidth/cssHeight stay 0 unless
+    // pinned. Any renderer-facing test that maps world→screen has to
+    // set these first so screen bounds aren't [-20, 20].
+    set cssWidth(v) { cssWidth = v; },
     get cssHeight() { return cssHeight; },
+    set cssHeight(v) { cssHeight = v; },
     get gameOverReason() { return gameOverReason; },
     get tissues() { return tissues; },
     get tissuesHe() { return tissuesHe; },
@@ -1106,6 +1112,24 @@ window.gameAPI = {
     get DEPTH_COLOR_G_NEAR() { return DEPTH_COLOR_G_NEAR; },
     get DEPTH_COLOR_G_FAR() { return DEPTH_COLOR_G_FAR; },
     get DEPTH_COLOR_CAVE_STRENGTH() { return DEPTH_COLOR_CAVE_STRENGTH; },
+    // Issue #32: Cave visual polish — bad-air lens, exit light staging,
+    // silt cloud, speleothem columns/flowstone. Renderer-only, decorative.
+    // No effect on floorAt/ceilingAt/solidAt/badAirAt/badAirWarning (see
+    // TC-32-COLLISION-UNCHANGED and TC-32-BAD-AIR-TRIGGER-UNCHANGED).
+    drawCaveSiltCloud: drawCaveSiltCloud,
+    drawCaveExitLightShaft: drawCaveExitLightShaft,
+    drawCaveSpeleothems: drawCaveSpeleothems,
+    get COLUMN_MERGE_TOL_M() { return COLUMN_MERGE_TOL_M; },
+    get FLOWSTONE_PROBABILITY() { return FLOWSTONE_PROBABILITY; },
+    get FLOWSTONE_STEEP_GRADIENT() { return FLOWSTONE_STEEP_GRADIENT; },
+    get BAD_AIR_LENS_THICKNESS_M() { return BAD_AIR_LENS_THICKNESS_M; },
+    get SILT_CLOUD_HEIGHT_M() { return SILT_CLOUD_HEIGHT_M; },
+    get SILT_CLOUD_STEP_M() { return SILT_CLOUD_STEP_M; },
+    get SILT_CLOUD_MAX_ALPHA() { return SILT_CLOUD_MAX_ALPHA; },
+    get SILT_CLOUD_MIN_VIS() { return SILT_CLOUD_MIN_VIS; },
+    get EXIT_LIGHT_NEAR_M() { return EXIT_LIGHT_NEAR_M; },
+    get EXIT_LIGHT_FAR_M() { return EXIT_LIGHT_FAR_M; },
+    get EXIT_LIGHT_BASE_ALPHA() { return EXIT_LIGHT_BASE_ALPHA; },
     // Renderer test hook: `ctx` and `canvas` are const in state.js so they
     // are NOT properties of `window` (only `var` declarations are). Expose
     // them here so tests can pass the same context the render pipeline

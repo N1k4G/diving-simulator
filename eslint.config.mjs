@@ -250,6 +250,15 @@ const gameGlobals = {
   _wreckSilhouetteRects: "readonly", _wreckSilhouettePolygon: "readonly",
   _buildWreckSilhouette: "readonly",
   drawHangingLine: "readonly", drawNet: "readonly",
+  // Issue #32: Cave visual polish (renderer.js)
+  drawCaveSiltCloud: "readonly", drawCaveExitLightShaft: "readonly",
+  drawCaveSpeleothems: "readonly",
+  COLUMN_MERGE_TOL_M: "readonly", FLOWSTONE_PROBABILITY: "readonly",
+  FLOWSTONE_STEEP_GRADIENT: "readonly", BAD_AIR_LENS_THICKNESS_M: "readonly",
+  SILT_CLOUD_HEIGHT_M: "readonly", SILT_CLOUD_STEP_M: "readonly",
+  SILT_CLOUD_MAX_ALPHA: "readonly", SILT_CLOUD_MIN_VIS: "readonly",
+  EXIT_LIGHT_NEAR_M: "readonly", EXIT_LIGHT_FAR_M: "readonly",
+  EXIT_LIGHT_BASE_ALPHA: "readonly", EXIT_LIGHT_TORCH_BOOST_ALPHA: "readonly",
   // Issue #36: depth-dependent color absorption (renderer.js)
   depthColorFactors: "readonly", drawDepthColorAbsorption: "readonly",
   DEPTH_COLOR_R_NEAR: "readonly", DEPTH_COLOR_R_FAR: "readonly", DEPTH_COLOR_R_LOSS: "readonly",

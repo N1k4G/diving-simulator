@@ -1120,12 +1120,27 @@ function drawScene() {
     // already-tinted scene, matching the ordering the issue calls for.
     drawDepthColorAbsorption();
 
+    // Issue #32: cave-only turbidity cloud from stirred silt. Reads
+    // ONLY the existing `visibility` state (no second reservoir), no-op
+    // above SILT_CLOUD_MIN_VIS. Drawn BEFORE the silt/torch overlay so
+    // the cave darkness pass tints/dims the cloud consistently with
+    // everything else, and the torch adds a soft brightening on top via
+    // sampleTorchLightAtWorldPoint().
+    drawCaveSiltCloud();
+
     // Phase C: Silt-out + torch overlay — dims the environment + guideline.
     // Drawn BEFORE the diver so the diver is never shadowed by its own torch.
     drawSiltAndTorch();
 
     // Light shafts punch down through the gloom to mark navigable passages.
     drawLightShafts();
+
+    // Issue #32: additive light streaming through the cenote's REAR exit
+    // opening. Uses the same wedge/gradient recipe as _drawGodRays but
+    // origin-anchored to the cave_exit visualZone (open-to-surface at
+    // x=146..200), not to the main surfaceScreenY — the diver is inside
+    // overhead here, so drawNearSurfaceAtmosphere has already returned.
+    drawCaveExitLightShaft();
 
     // Issue #54: local water volumes — tint + distance fog composite
     // pass. Sits AFTER all world entities, silt, and torch so it reads
@@ -1944,6 +1959,11 @@ function drawTerrain() {
 
 // ── Cenote bedding speleothems: stalactites + stalagmites ──
 // Procedural calcite formations drawn along the ceiling/floor profiles.
+// Issue #32: when a stalactite tip and a stalagmite tip at the same
+// world-x end up within COLUMN_MERGE_TOL_M of one another, they're
+// drawn as a continuous column instead of two disconnected drips.
+// Also seeds flowstone drapes on a few standout STEEP wall sections
+// (never everywhere — a handful of formations, not a texture).
 function drawCaveSpeleothems(cx, xLeftM, xRightM, dsx, dsy, mpp) {
     var stepM = 0.9;
     // Iterate an ABSOLUTE integer grid index (not a camera-relative float start)
@@ -1951,27 +1971,120 @@ function drawCaveSpeleothems(cx, xLeftM, xRightM, dsx, dsy, mpp) {
     for (var k = Math.floor(xLeftM / stepM); k <= Math.ceil(xRightM / stepM); k++) {
         var x = k * stepM;
         var seed = x * 11.7 + 3.1;
-        // ---- stalactites (hanging from ceiling) ----
         var cd = ceilingAt(x);
-        if (cd > 1 && sRand(seed) < 0.55) {
-            var px = dsx + (x - diverX) / mpp;
-            var py = dsy + (cd - depth) / mpp;
-            var sH = (0.4 + sRand(seed + 1.3) * 1.8) / mpp;       // 8–44 px
-            var sW = (0.18 + sRand(seed + 2.7) * 0.42) / mpp;      // 4–12 px
-            drawStalactite(cx, px, py, sH, sW);
-        }
-        // ---- stalagmites (rising from floor) ----
         var fd = floorAt(x);
-        // Only draw stalagmites where there IS an overhead (so we're inside the
-        // cave proper, not in a pond). Skip if floor is shallow (sinkhole bowl).
-        if (cd > 1 && fd > 12 && sRand(seed + 5.1) < 0.4) {
-            var fpx = dsx + (x - diverX) / mpp;
-            var fpy = dsy + (fd - depth) / mpp;
-            var gH = (0.4 + sRand(seed + 6.3) * 1.4) / mpp;
-            var gW = (0.22 + sRand(seed + 7.1) * 0.46) / mpp;
-            drawStalagmite(cx, fpx, fpy, gH, gW);
+        // Decide independently whether each end rolls a formation, exactly
+        // as before — the merge below just changes how they're painted.
+        var haveStalac = cd > 1 && sRand(seed) < 0.55;
+        var haveStalag = cd > 1 && fd > 12 && sRand(seed + 5.1) < 0.4;
+        // Pre-compute geometry using the same formulas as before.
+        var sH = (0.4 + sRand(seed + 1.3) * 1.8) / mpp;
+        var sW = (0.18 + sRand(seed + 2.7) * 0.42) / mpp;
+        var gH = (0.4 + sRand(seed + 6.3) * 1.4) / mpp;
+        var gW = (0.22 + sRand(seed + 7.1) * 0.46) / mpp;
+
+        // ---- column merge check (issue #32) ----
+        // Convert screen heights back to world metres to test the tip gap.
+        var stalacTipD = haveStalac ? cd + sH * mpp : null;
+        var stalagTipD = haveStalag ? fd - gH * mpp : null;
+        var mergeGap = null;
+        if (stalacTipD != null && stalagTipD != null) {
+            mergeGap = stalagTipD - stalacTipD;   // positive = still separated
+        }
+        var shouldMerge = (mergeGap != null && mergeGap <= COLUMN_MERGE_TOL_M);
+        if (shouldMerge) {
+            var colPx = dsx + (x - diverX) / mpp;
+            var colTopY = dsy + (cd - depth) / mpp;
+            var colBotY = dsy + (fd - depth) / mpp;
+            _drawSpeleothemColumn(cx, colPx, colTopY, colBotY,
+                Math.max(sW, gW), Math.min(sW, gW), seed);
+        } else {
+            if (haveStalac) {
+                var px = dsx + (x - diverX) / mpp;
+                var py = dsy + (cd - depth) / mpp;
+                drawStalactite(cx, px, py, sH, sW);
+            }
+            if (haveStalag) {
+                var fpx = dsx + (x - diverX) / mpp;
+                var fpy = dsy + (fd - depth) / mpp;
+                drawStalagmite(cx, fpx, fpy, gH, gW);
+            }
+        }
+
+        // ---- flowstone drape on steep wall sections (issue #32) ----
+        // Sample the local ceiling/floor gradients; only steep spots roll.
+        // Kept infrequent (FLOWSTONE_PROBABILITY) so this reads as a
+        // handful of standout drapes across the cave, not a uniform skin.
+        var cdL = ceilingAt(x - stepM), cdR = ceilingAt(x + stepM);
+        var fdL = floorAt(x - stepM),   fdR = floorAt(x + stepM);
+        var ceilGrad = Math.abs((cdR - cdL) / (2 * stepM));
+        var floorGrad = Math.abs((fdR - fdL) / (2 * stepM));
+        // Ceiling flowstone — hangs on a steep ceiling section (going up
+        // fast means the wall behind us is sheer). Requires cave overhead.
+        if (haveStalac === false && cd > 4 && ceilGrad > FLOWSTONE_STEEP_GRADIENT &&
+            sRand(seed + 13.7) < FLOWSTONE_PROBABILITY) {
+            var fpxC = dsx + (x - diverX) / mpp;
+            var fpyC = dsy + (cd - depth) / mpp;
+            var wC = (1.4 + sRand(seed + 14.1) * 1.2) / mpp;
+            var hC = (0.9 + sRand(seed + 14.3) * 1.4) / mpp;
+            _drawFlowstoneDrape(cx, fpxC, fpyC, wC, hC, seed + 14);
+        }
+        // Floor flowstone — on a steep floor drop (down-shaft/up-shaft).
+        // Draw the drape above the floor point so it reads as a curtain
+        // draped from the wall down to the deck.
+        if (haveStalag === false && fd > 20 && floorGrad > FLOWSTONE_STEEP_GRADIENT &&
+            sRand(seed + 17.7) < FLOWSTONE_PROBABILITY) {
+            var fpxF = dsx + (x - diverX) / mpp;
+            var wF = (1.4 + sRand(seed + 18.1) * 1.2) / mpp;
+            var hF = (1.2 + sRand(seed + 18.3) * 1.6) / mpp;
+            var fpyF = dsy + (fd - depth) / mpp - hF;
+            _drawFlowstoneDrape(cx, fpxF, fpyF, wF, hF, seed + 18);
         }
     }
+}
+
+// Draw a continuous stalactite→stalagmite column. Purely visual — the
+// pair still carries no collision (see TC-32-COLLISION-UNCHANGED).
+function _drawSpeleothemColumn(cx, x, topY, botY, wTop, wBot, seed) {
+    cx.save();
+    var g = cx.createLinearGradient(x, topY, x, botY);
+    g.addColorStop(0,    CAVE_PAL.calciteLite);
+    g.addColorStop(0.5,  CAVE_PAL.calciteMid);
+    g.addColorStop(1,    CAVE_PAL.calciteLite);
+    cx.fillStyle = g;
+    // Slight waist: narrower in the middle where the two drips met.
+    var midY = (topY + botY) * 0.5;
+    var waist = Math.min(wTop, wBot) * 0.7 + (sRand(seed + 19.1) - 0.5) * 2;
+    if (waist < 2) waist = 2;
+    cx.beginPath();
+    cx.moveTo(x - wTop * 0.5, topY);
+    cx.lineTo(x + wTop * 0.5, topY);
+    cx.quadraticCurveTo(x + wTop * 0.55, topY + (midY - topY) * 0.4, x + waist * 0.5, midY);
+    cx.quadraticCurveTo(x + wBot * 0.55, midY + (botY - midY) * 0.6, x + wBot * 0.5, botY);
+    cx.lineTo(x - wBot * 0.5, botY);
+    cx.quadraticCurveTo(x - wBot * 0.55, midY + (botY - midY) * 0.6, x - waist * 0.5, midY);
+    cx.quadraticCurveTo(x - wTop * 0.55, topY + (midY - topY) * 0.4, x - wTop * 0.5, topY);
+    cx.closePath();
+    cx.fill();
+    // Central highlight rib
+    cx.strokeStyle = 'rgba(232,220,192,0.5)';
+    cx.lineWidth = 1;
+    cx.beginPath();
+    cx.moveTo(x, topY + 2);
+    cx.lineTo(x, botY - 2);
+    cx.stroke();
+    // Layered horizontal rings — 2-3 pale ribbons hinting at growth bands.
+    var bands = 2 + Math.floor(sRand(seed + 19.3) * 2);
+    cx.strokeStyle = 'rgba(232,220,192,0.32)';
+    cx.lineWidth = 0.8;
+    for (var bi = 1; bi <= bands; bi++) {
+        var by = topY + (botY - topY) * (bi / (bands + 1));
+        cx.beginPath();
+        cx.moveTo(x - waist * 0.6, by);
+        cx.quadraticCurveTo(x, by + 0.8, x + waist * 0.6, by);
+        cx.stroke();
+    }
+    cx.restore();
 }
 
 function drawStalactite(cx, x, y, h, w) {
@@ -3840,26 +3953,336 @@ function drawCaveMineralDetails() {
                             sx + (sRand(wx + 5) - 0.5) * 8, sy + h);
         cx.stroke();
     }
-    var s = activeSite();
-    if (s && s.badAir && s.badAir.length) {
-        cx.save();
-        cx.globalCompositeOperation = 'lighter';
-        for (var i = 0; i < s.badAir.length; i++) {
-            var pocket = s.badAir[i];
-            var x1 = dsx + (pocket.x1 - diverX) / mpp;
-            var x2 = dsx + (pocket.x2 - diverX) / mpp;
-            var y = dsy + (pocket.d - depth) / mpp;
-            if (x2 < -30 || x1 > W + 30 || y < -40 || y > H + 40) continue;
-            cx.strokeStyle = 'rgba(210,185,110,0.22)';
-            cx.lineWidth = 1.4;
-            cx.beginPath();
-            for (sx = x1; sx <= x2; sx += 6) {
-                sy = y + Math.sin((sx + waveTime * 36) * 0.08) * 2.2;
-                if (sx === x1) cx.moveTo(sx, sy); else cx.lineTo(sx, sy);
-            }
-            cx.stroke();
+    // Bad-air lens — moved to _drawCaveBadAirLens (issue #32). Reads
+    // position from activeSite().badAir. See below for the full formation.
+    _drawCaveBadAirLens(cx, activeSite(), dsx, dsy, mpp, W, H);
+    cx.restore();
+}
+
+// ── Issue #32: cave visual polish ─────────────────────────────────
+// All four pieces (bad-air lens, exit light staging, silt cloud,
+// speleothem columns/flowstone) share these guardrails:
+//   • NEVER change gameplay geometry — collisions and warning triggers
+//     stay on the physics side. These are read-only from `activeSite()`
+//     / `visibility` / `torchOn`.
+//   • Position data is read from source-of-truth structures:
+//       - bad-air lens ← activeSite().badAir[]  (no hardcoded coords)
+//       - exit shaft   ← activeSite().visualZones (cave_exit) + ceilingAt()
+//     So if sites.js ever moves them, the visuals track.
+//   • Deterministic — every stochastic value is `sRand(worldSeed)`;
+//     never `Math.random()` per frame.
+
+// Speleothem-column merge tolerance: when a stalactite tip and a
+// stalagmite tip end up within COLUMN_MERGE_TOL_M metres of each other
+// at the same world-x, they read as one continuous column instead of
+// two independent drips. Purely visual; the underlying pair still
+// carries no collision.
+const COLUMN_MERGE_TOL_M = 0.6;
+// Flowstone: spawn probability per candidate wall segment. Kept low so
+// only a handful of standout drapes appear, not a uniform texture.
+const FLOWSTONE_PROBABILITY = 0.18;
+// Wall gradient (rise in floor or ceiling depth over a small horizontal
+// step) above which the segment counts as "steep" and eligible for
+// flowstone. Metres of depth change per metre of x.
+const FLOWSTONE_STEEP_GRADIENT = 1.6;
+// Bad-air lens visual thickness — the lens hugs the ceiling underside;
+// this is how tall the air pocket is drawn (metres). Purely cosmetic.
+const BAD_AIR_LENS_THICKNESS_M = 1.1;
+// Silt cloud parameters. Sits near the floor where kicks stir sediment.
+const SILT_CLOUD_HEIGHT_M     = 1.6;   // vertical thickness of the cloud band above floor
+const SILT_CLOUD_STEP_M       = 0.5;   // world-x sample spacing for particles
+const SILT_CLOUD_MAX_ALPHA    = 0.55;  // alpha at full silt-out (visibility = 0)
+const SILT_CLOUD_MIN_VIS      = 0.02;  // early-out threshold — cloud is invisible above this
+// Exit light shaft — how many world metres from the exit opening the
+// approach brightening starts to ramp up.
+const EXIT_LIGHT_NEAR_M       = 6;
+const EXIT_LIGHT_FAR_M        = 40;
+const EXIT_LIGHT_BASE_ALPHA   = 0.10;
+const EXIT_LIGHT_TORCH_BOOST_ALPHA = 0.06;
+
+// Bad-air pocket: a silvery air lens along the ceiling underside. Reads
+// as a physical air pocket BEFORE the diver would swim into it. Position
+// is derived exactly from activeSite().badAir[] — never hardcoded here.
+function _drawCaveBadAirLens(cx, s, dsx, dsy, mpp, W, H) {
+    if (!s || !s.badAir || !s.badAir.length) return;
+    cx.save();
+    for (var i = 0; i < s.badAir.length; i++) {
+        var pocket = s.badAir[i];
+        var x1 = dsx + (pocket.x1 - diverX) / mpp;
+        var x2 = dsx + (pocket.x2 - diverX) / mpp;
+        // Sample the actual ceiling profile across the pocket so the
+        // lens hugs whatever cave ceiling sits above the pocket span.
+        // We use ceilingAt() rather than pocket.d directly — pocket.d is
+        // the depth at which the pocket _starts_, i.e. its bottom edge;
+        // the ceiling above it may be higher/lower depending on profile.
+        var topY = dsy + (pocket.d - depth) / mpp;
+        var lensBotY = topY;
+        var lensTopY = topY - BAD_AIR_LENS_THICKNESS_M / mpp;
+        if (x2 < -60 || x1 > W + 60) continue;
+        if (lensBotY < -40 && lensTopY < -40) continue;
+        if (lensTopY > H + 40 && lensBotY > H + 40) continue;
+
+        // ---- underside mirror gradient — brighter at top (rock/air
+        // interface), fading down into the water. Standard source-over
+        // so it reads as reflective surface, not additive glow.
+        var lensGrad = cx.createLinearGradient(0, lensTopY, 0, lensBotY);
+        lensGrad.addColorStop(0,    'rgba(232,240,248,0.72)');
+        lensGrad.addColorStop(0.55, 'rgba(190,210,225,0.48)');
+        lensGrad.addColorStop(1,    'rgba(50,64,80,0.18)');
+        cx.fillStyle = lensGrad;
+        cx.beginPath();
+        // Gently wavering top edge (against ceiling).
+        cx.moveTo(x1, lensTopY);
+        for (var sxT = x1; sxT <= x2; sxT += 5) {
+            var yT = lensTopY + Math.sin((sxT + waveTime * 22) * 0.06) * 0.7;
+            cx.lineTo(sxT, yT);
         }
-        cx.restore();
+        // Wavering bottom edge — this is the visible boundary line.
+        for (var sxB = x2; sxB >= x1; sxB -= 5) {
+            var yB = lensBotY + Math.sin((sxB + waveTime * 30) * 0.09) * 1.6;
+            cx.lineTo(sxB, yB);
+        }
+        cx.closePath();
+        cx.fill();
+
+        // ---- soft mirror-highlight band right along the ceiling.
+        var hlGrad = cx.createLinearGradient(0, lensTopY, 0, lensTopY + 6);
+        hlGrad.addColorStop(0, 'rgba(248,252,255,0.85)');
+        hlGrad.addColorStop(1, 'rgba(248,252,255,0)');
+        cx.fillStyle = hlGrad;
+        cx.fillRect(Math.max(-40, x1 - 2), lensTopY - 1, Math.min(W + 40, x2) - x1 + 4, 7);
+
+        // ---- gently wavering boundary line at the water/air interface.
+        cx.strokeStyle = 'rgba(240,246,252,0.85)';
+        cx.lineWidth = 1.6;
+        cx.beginPath();
+        for (var sxL = x1; sxL <= x2; sxL += 4) {
+            var yL = lensBotY + Math.sin((sxL + waveTime * 30) * 0.09) * 1.6;
+            if (sxL === x1) cx.moveTo(sxL, yL); else cx.lineTo(sxL, yL);
+        }
+        cx.stroke();
+
+        // ---- faint darker underline just below the interface — makes
+        // the lens read as sitting ABOVE the water, not floating in it.
+        cx.strokeStyle = 'rgba(15,20,26,0.50)';
+        cx.lineWidth = 1.0;
+        cx.beginPath();
+        for (var sxU = x1; sxU <= x2; sxU += 4) {
+            var yU = lensBotY + 2 + Math.sin((sxU + waveTime * 30) * 0.09) * 1.6;
+            if (sxU === x1) cx.moveTo(sxU, yU); else cx.lineTo(sxU, yU);
+        }
+        cx.stroke();
+    }
+    cx.restore();
+}
+
+// Silt turbidity cloud. Deterministic (seeded by world-x) — no per-frame
+// Math.random(). Intensity is driven by the EXISTING `visibility` state
+// (1 = clear, 0 = full silt-out) so we don't invent a second reservoir.
+// Slightly brighter where the torch cone hits, using #33's
+// sampleTorchLightAtWorldPoint(). Runs BEFORE the torch/silt pass so it
+// composites naturally into the scene alongside plankton.
+function drawCaveSiltCloud() {
+    if (gameState !== 'diving') return;
+    var s = activeSite();
+    if (!s || s.id !== 'cave') return;
+    if (!(visibility < 1 - SILT_CLOUD_MIN_VIS)) return;   // essentially clear → cheap early-out
+    var W = cssWidth, H = cssHeight;
+    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var xLeftM = diverX + (0 - dsx) * mpp - 2;
+    var xRightM = diverX + (W - dsx) * mpp + 2;
+    var cx = ctx;
+    cx.save();
+    var siltT = 1 - visibility;                          // 0 clear → 1 full silt-out
+    if (siltT < 0) siltT = 0;
+    if (siltT > 1) siltT = 1;
+    var globalAlpha = SILT_CLOUD_MAX_ALPHA * siltT;
+    for (var kx = Math.floor(xLeftM / SILT_CLOUD_STEP_M); kx <= Math.ceil(xRightM / SILT_CLOUD_STEP_M); kx++) {
+        var wx = kx * SILT_CLOUD_STEP_M;
+        var seed = wx * 13.31 + 4.7;
+        // Roll a per-cell "particle exists" flag, biased by silt intensity so
+        // heavier silt-outs paint noticeably denser cloud (not just brighter).
+        if (sRand(seed + 1.1) > 0.4 + 0.5 * siltT) continue;
+        var fd = floorAt(wx);
+        if (!(fd > 1)) continue;
+        // Distribute particles vertically in the near-floor band.
+        var vFrac = sRand(seed + 2.3);                    // 0..1 → floor band
+        var wd = fd - vFrac * SILT_CLOUD_HEIGHT_M;
+        if (wd < depth - 12) continue;                    // don't draw far above the diver's viewport
+        // Very slow world-anchored drift so the cloud reads as suspended
+        // sediment, not a static texture. Deterministic sine of waveTime.
+        var driftX = Math.sin(waveTime * 0.35 + seed) * 0.4;
+        var driftY = Math.sin(waveTime * 0.28 + seed * 1.7) * 0.25;
+        var px = dsx + (wx + driftX - diverX) / mpp;
+        var py = dsy + (wd + driftY - depth) / mpp;
+        if (px < -20 || px > W + 20 || py < -20 || py > H + 20) continue;
+        var radius = 3 + sRand(seed + 5.1) * 6;           // 3..9 px puff
+        // Brownish-gray body, low base alpha, brightened where torch reaches.
+        var torchLight = sampleTorchLightAtWorldPoint(wx, wd);
+        var baseA = globalAlpha * (0.4 + 0.6 * sRand(seed + 7.9));
+        var litA = Math.min(0.85, baseA * (1 + torchLight * 1.6));
+        var g = cx.createRadialGradient(px, py, 0, px, py, radius);
+        // Warm brown → cool gray core so different puffs feel like
+        // different silt densities without a per-frame color roll.
+        var warmR = 130 + Math.floor(sRand(seed + 9.1) * 20);
+        var warmG = 118 + Math.floor(sRand(seed + 9.3) * 16);
+        var warmB = 100 + Math.floor(sRand(seed + 9.5) * 14);
+        g.addColorStop(0,   'rgba(' + warmR + ',' + warmG + ',' + warmB + ',' + litA.toFixed(3) + ')');
+        g.addColorStop(0.6, 'rgba(' + warmR + ',' + warmG + ',' + warmB + ',' + (litA * 0.35).toFixed(3) + ')');
+        g.addColorStop(1,   'rgba(' + warmR + ',' + warmG + ',' + warmB + ',0)');
+        cx.fillStyle = g;
+        cx.beginPath();
+        cx.arc(px, py, radius, 0, Math.PI * 2);
+        cx.fill();
+    }
+    cx.restore();
+}
+
+// Rear-exit light staging. Uses the SAME wedge math as _drawGodRays but
+// origin-anchored to the cave_exit visualZone opening (where the ceiling
+// meets the surface at ~x=200), NOT to the global surfaceScreenY — the
+// diver is inside overhead so the general near-surface pass has
+// early-returned. Alpha ramps with the diver's approach distance so the
+// exit reads as an inviting light target from deep inside the tunnel.
+function drawCaveExitLightShaft() {
+    if (gameState !== 'diving') return;
+    var s = activeSite();
+    if (!s || s.id !== 'cave') return;
+    if (!s.visualZones) return;
+    var exitZone = null;
+    for (var i = 0; i < s.visualZones.length; i++) {
+        if (s.visualZones[i].id === 'cave_exit') { exitZone = s.visualZones[i]; break; }
+    }
+    if (!exitZone) return;
+    var W = cssWidth, H = cssHeight;
+    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    // Approach factor: 1 when diver is right at/inside the exit opening,
+    // fading to a base intensity at EXIT_LIGHT_FAR_M metres away.
+    var approachDx;
+    if (diverX < exitZone.x1) approachDx = exitZone.x1 - diverX;
+    else if (diverX > exitZone.x2) approachDx = diverX - exitZone.x2;
+    else approachDx = 0;
+    var approach;
+    if (approachDx <= EXIT_LIGHT_NEAR_M) approach = 1;
+    else if (approachDx >= EXIT_LIGHT_FAR_M) approach = 0.25;
+    else {
+        var tA = (EXIT_LIGHT_FAR_M - approachDx) / (EXIT_LIGHT_FAR_M - EXIT_LIGHT_NEAR_M);
+        approach = 0.25 + 0.75 * tA * tA * (3 - 2 * tA);
+    }
+    // Wedges anchored on a 6 m world grid inside the exit opening. Only
+    // where the ceiling has actually risen (cd small) so the wedge origin
+    // is a real opening, not a spot still enclosed by rock.
+    var cx = ctx;
+    cx.save();
+    cx.globalCompositeOperation = 'lighter';
+    var spacing = 6;
+    var xStart = Math.floor(exitZone.x1 / spacing) * spacing;
+    var xEnd = Math.ceil(exitZone.x2 / spacing) * spacing;
+    var anyDrawn = false;
+    for (var wx = xStart; wx <= xEnd; wx += spacing) {
+        if (wx < exitZone.x1 - 2 || wx > exitZone.x2 + 2) continue;
+        var cd = ceilingAt(wx);
+        // Only draw where the ceiling is essentially open (near-surface).
+        // The exit ceiling rises from d≈16 at x1 to d=0 at x2 — we want
+        // the shaft only where light could plausibly enter.
+        if (cd > 8) continue;
+        var seed = wx * 0.171 + 3.7;
+        var jitter = (sRand(seed) - 0.5) * 4;
+        var rayWorldX = wx + jitter + Math.sin(waveTime * 0.25 + seed) * 1;
+        var topScreenX = dsx + (rayWorldX - diverX) / mpp;
+        if (topScreenX < -80 || topScreenX > W + 80) continue;
+        // Wedge origin sits at the ceiling profile above the exit.
+        var beamTopY = dsy + (cd - depth) / mpp - 6;
+        // Descends into the cave interior. Cap at 22 m below the origin
+        // so the shaft fades before it would clip through the far floor.
+        var beamBotY = beamTopY + 22 / mpp;
+        beamTopY = Math.max(-40, beamTopY);
+        beamBotY = Math.min(H + 20, beamBotY);
+        if (beamBotY <= beamTopY + 20) continue;
+        var angle = (sRand(seed + 1.1) - 0.5) * 0.35;
+        var topHalf = 10 + sRand(seed + 2.3) * 6;
+        var botHalf = 34 + sRand(seed + 3.3) * 14;
+        var xTopL = topScreenX - topHalf;
+        var xTopR = topScreenX + topHalf;
+        var xBotL = topScreenX - botHalf + angle * 30;
+        var xBotR = topScreenX + botHalf + angle * 30;
+        // Small extra brightening when the torch is on and pointed near
+        // this shaft — not "torch creates the light", but "torch reveals
+        // the medium/scatter within it".
+        var torchAt = sampleTorchLightAtWorldPoint(rayWorldX, cd + 2);
+        var aTop = (EXIT_LIGHT_BASE_ALPHA + EXIT_LIGHT_TORCH_BOOST_ALPHA * torchAt) * approach;
+        var g = cx.createLinearGradient(0, beamTopY, 0, beamBotY);
+        // Match drawPond's warm sunbeam palette so the exit reads as
+        // the same open-water light source as the entrance pond.
+        g.addColorStop(0,    'rgba(255,245,216,' + aTop.toFixed(3) + ')');
+        g.addColorStop(0.55, 'rgba(200,230,220,' + (aTop * 0.45).toFixed(3) + ')');
+        g.addColorStop(1,    'rgba(160,200,205,0)');
+        cx.fillStyle = g;
+        cx.beginPath();
+        cx.moveTo(xTopL, beamTopY);
+        cx.lineTo(xTopR, beamTopY);
+        cx.lineTo(xBotR, beamBotY);
+        cx.lineTo(xBotL, beamBotY);
+        cx.closePath();
+        cx.fill();
+        anyDrawn = true;
+    }
+    // A small overall glow blob at the brightest opening spot (right end
+    // of the exit, where ceilingAt is smallest) so the reader can pick
+    // the exit out even from far away when individual wedges are dim.
+    if (anyDrawn) {
+        var brightX = exitZone.x2 - 4;
+        var brightCd = ceilingAt(brightX);
+        var glowY = dsy + (brightCd - depth) / mpp;
+        var glowSX = dsx + (brightX - diverX) / mpp;
+        if (glowSX > -100 && glowSX < W + 100 && glowY > -40 && glowY < H + 40) {
+            var glowA = 0.14 * approach;
+            var glowGrad = cx.createRadialGradient(glowSX, glowY, 0, glowSX, glowY, 70);
+            glowGrad.addColorStop(0,   'rgba(255,245,216,' + glowA.toFixed(3) + ')');
+            glowGrad.addColorStop(0.4, 'rgba(220,235,220,' + (glowA * 0.5).toFixed(3) + ')');
+            glowGrad.addColorStop(1,   'rgba(160,200,205,0)');
+            cx.fillStyle = glowGrad;
+            cx.beginPath();
+            cx.arc(glowSX, glowY, 70, 0, Math.PI * 2);
+            cx.fill();
+        }
+    }
+    cx.restore();
+}
+
+// Flowstone: wide, layered calcite curtain on a steep wall section. Runs
+// beside stalactite/stalagmite generation, sharing its deterministic
+// seed-by-world-x pattern.
+function _drawFlowstoneDrape(cx, x, y, wPx, hPx, seed) {
+    cx.save();
+    var g = cx.createLinearGradient(x, y, x, y + hPx);
+    g.addColorStop(0,    CAVE_PAL.calciteLite);
+    g.addColorStop(0.35, CAVE_PAL.calciteMid);
+    g.addColorStop(1,    CAVE_PAL.calciteDark);
+    cx.fillStyle = g;
+    cx.beginPath();
+    cx.moveTo(x - wPx * 0.5, y);
+    // Layered scalloped bottom edge — 4-6 lobes.
+    var lobes = 4 + Math.floor(sRand(seed + 1.3) * 3);
+    var lobeStep = wPx / lobes;
+    for (var li = 0; li <= lobes; li++) {
+        var lx = x - wPx * 0.5 + li * lobeStep;
+        var lyOff = (li % 2 === 0 ? 0.85 : 1.0);
+        cx.lineTo(lx, y + hPx * lyOff);
+    }
+    cx.lineTo(x + wPx * 0.5, y);
+    cx.closePath();
+    cx.fill();
+    // Two or three horizontal deposition bands — pale ribbons.
+    var bands = 2 + Math.floor(sRand(seed + 2.7) * 2);
+    cx.strokeStyle = 'rgba(232,220,192,0.35)';
+    cx.lineWidth = 1;
+    for (var bi = 1; bi <= bands; bi++) {
+        var by = y + hPx * (bi / (bands + 1));
+        cx.beginPath();
+        cx.moveTo(x - wPx * 0.45, by);
+        cx.quadraticCurveTo(x, by + 1.2, x + wPx * 0.45, by);
+        cx.stroke();
     }
     cx.restore();
 }

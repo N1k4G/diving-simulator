@@ -32,7 +32,7 @@ const DESKTOP = { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 }
 
 // Drive the gas-setup screen to an in-dive scene at a fixed camera so the
 // shot is deterministic regardless of timing.
-async function startDive(page, { site, x, depth, torch, facing }) {
+async function startDive(page, { site, x, depth, torch, facing, pinVisibility }) {
   // The HTML gas-setup overlay is the active setup UI on both phone and
   // desktop, so drive it the same way in both: pick the site, hit Start Dive.
   try {
@@ -48,7 +48,7 @@ async function startDive(page, { site, x, depth, torch, facing }) {
   // diverX / depth are top-level bindings, assignable from page scope.
   // torch/facing are optional overrides used by issue #31 shots so we can
   // capture the directional cone reorienting with the diver's facing.
-  await page.evaluate(({ x, d, torch, facing }) => {
+  await page.evaluate(({ x, d, torch, facing, pinVisibility }) => {
     try { diverX = x; } catch {}
     try { depth = d; } catch {}
     try { verticalVelocity = 0; horizontalVelocity = 0; } catch {}
@@ -58,7 +58,10 @@ async function startDive(page, { site, x, depth, torch, facing }) {
     if (facing === 1 || facing === -1) {
       try { window.gameAPI.diverFacing = facing; } catch {}
     }
-  }, { x, d: depth, torch, facing });
+    if (pinVisibility != null) {
+      try { window.gameAPI.visibility = pinVisibility; } catch {}
+    }
+  }, { x, d: depth, torch, facing, pinVisibility });
   // Let the render loop settle. For overhead sites the darkness ramp
   // (_torchDark) and wreck-metal ramp (_wreckMetal) ease in over ~50
   // frames; force them AND `inOverhead` to fully-in every frame for a
@@ -69,12 +72,18 @@ async function startDive(page, { site, x, depth, torch, facing }) {
   await page.waitForTimeout(400);
   const wantInside = site.toLowerCase() === 'wreck' || site.toLowerCase() === 'cave';
   if (wantInside) {
-    await page.evaluate(async () => {
+    await page.evaluate(async (pv) => {
       const pin = () => {
         try {
           inOverhead = true;
           if (typeof _torchDark !== 'undefined')  _torchDark  = 1;
           if (typeof _wreckMetal !== 'undefined') _wreckMetal = 1;
+          if (pv != null) {
+            // Physics ticks between our render calls will nudge visibility
+            // back toward 1 via SILT_RECOVER; re-pin every frame so the
+            // heavy-silt screenshot is representative.
+            try { window.gameAPI.visibility = pv; } catch {}
+          }
         } catch {}
       };
       // Pump ~6 frames so any interleaved physics/render updates settle.
@@ -83,9 +92,17 @@ async function startDive(page, { site, x, depth, torch, facing }) {
         await new Promise(r => requestAnimationFrame(r));
       }
       pin();  // one more just before returning control
-    });
+    }, pinVisibility);
   }
   await page.waitForTimeout(150);
+  // Final re-pin of pinVisibility right before the screenshot so the
+  // 150 ms wait above hasn't let SILT_RECOVER creep it back to clear.
+  if (pinVisibility != null) {
+    await page.evaluate((pv) => {
+      try { window.gameAPI.visibility = pv; } catch {}
+    }, pinVisibility);
+    await page.waitForTimeout(30);   // one render frame to reflect the pin
+  }
 }
 
 async function shot(page, name) {
@@ -216,6 +233,38 @@ async function run() {
     // crew-deck net + line cluster near port aft (~x=118 d=41).
     { site: 'Wreck', x: 100, depth: 32, torch: true,  facing:  1, name: 'desktop-dive-wreck-33-vehicle-deck-net' },
     { site: 'Wreck', x: 118, depth: 41, torch: true,  facing:  1, name: 'desktop-dive-wreck-33-crew-deck-net-line' },
+    // Issue #32: cave visual polish.
+    //   • BAD-AIR LENS: pocket is at x=103..109, d=12 (see src/sites.js).
+    //     Frame from a safe distance in the upper tunnel with the torch on
+    //     so the silvery lens catches the light before the diver would
+    //     swim into it.
+    //   • SILT: two frames on the cathedral floor — one at near-clear
+    //     visibility (light silt state) and one at heavy silt (visibility
+    //     driven low via the setter) so the brown/gray turbidity cloud
+    //     is visible.
+    //   • EXIT: framed from deep inside the tunnel at x=125 looking
+    //     toward the rear exit at x=200 so the light-target reads as
+    //     inviting from a distance.
+    //   • FORMATIONS: cathedral chamber at x=90..108 where the
+    //     stalactite/stalagmite pair grid is dense enough for a merged
+    //     column or two, plus steep wall gradients for flowstone drapes.
+    { site: 'Cave', x: 106, depth: 15, torch: true,  facing:  1, name: 'desktop-dive-cave-32-bad-air-lens' },
+    { site: 'Cave', x: 90,  depth: 100, torch: true,  facing:  1, name: 'desktop-dive-cave-32-silt-clear',
+      pinVisibility: 1.0 },
+    { site: 'Cave', x: 90,  depth: 100, torch: true,  facing:  1, name: 'desktop-dive-cave-32-silt-heavy',
+      pinVisibility: 0.15 },
+    { site: 'Cave', x: 125, depth: 15,  torch: true,  facing:  1, name: 'desktop-dive-cave-32-exit-from-tunnel' },
+    { site: 'Cave', x: 175, depth: 12,  torch: true,  facing:  1, name: 'desktop-dive-cave-32-exit-near' },
+    // Formations: columns need narrow ceiling-floor gaps (near the
+    // sinkhole rim at x~18-22 where floor≈16 and ceiling≈14), and
+    // flowstone needs steep wall gradients (down-shaft at x~56-68,
+    // up-shaft at x~132-140). Cathedral centre has a wide bedrock roof
+    // so drawCaveSpeleothems (anchored to the cave-envelope ceiling)
+    // draws its stalactites far offscreen — those shots wouldn't show
+    // any new formations. These framings target the narrow sections.
+    { site: 'Cave', x: 22, depth: 15, torch: true,  facing:  1, name: 'desktop-dive-cave-32-column-narrow-tunnel' },
+    { site: 'Cave', x: 62, depth: 55, torch: true,  facing:  1, name: 'desktop-dive-cave-32-flowstone-down-shaft' },
+    { site: 'Cave', x: 138, depth: 55, torch: true,  facing:  1, name: 'desktop-dive-cave-32-flowstone-up-shaft' },
   ];
 
   for (const diveShot of desktopDiveShots) {

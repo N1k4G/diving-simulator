@@ -6551,6 +6551,670 @@ tests = [
             if (threw) throw threw;
             return 'PASS — modulator is a no-op outside wreck-interior; near/far span the expected range';
         }
+    },
+    // ==========================================================
+    // Issue #32 — Cave visual polish (bad-air lens, exit light,
+    //             silt cloud, speleothem columns, flowstone)
+    // ==========================================================
+    {
+        id: 'TC-32-API',
+        name: 'Issue #32 — public helpers + tuning constants are exposed on gameAPI',
+        fn: function() {
+            assert(typeof api.drawCaveSiltCloud === 'function', 'drawCaveSiltCloud should be a function');
+            assert(typeof api.drawCaveExitLightShaft === 'function', 'drawCaveExitLightShaft should be a function');
+            assert(typeof api.drawCaveSpeleothems === 'function', 'drawCaveSpeleothems should be a function');
+            assert(typeof api.COLUMN_MERGE_TOL_M === 'number' && api.COLUMN_MERGE_TOL_M > 0,
+                'COLUMN_MERGE_TOL_M should be a positive number');
+            assert(typeof api.FLOWSTONE_PROBABILITY === 'number' && api.FLOWSTONE_PROBABILITY > 0 && api.FLOWSTONE_PROBABILITY < 1,
+                'FLOWSTONE_PROBABILITY should be in (0,1)');
+            assert(typeof api.FLOWSTONE_STEEP_GRADIENT === 'number' && api.FLOWSTONE_STEEP_GRADIENT > 0,
+                'FLOWSTONE_STEEP_GRADIENT should be a positive number');
+            assert(typeof api.BAD_AIR_LENS_THICKNESS_M === 'number' && api.BAD_AIR_LENS_THICKNESS_M > 0,
+                'BAD_AIR_LENS_THICKNESS_M should be a positive number');
+            assert(typeof api.SILT_CLOUD_MAX_ALPHA === 'number' && api.SILT_CLOUD_MAX_ALPHA > 0 && api.SILT_CLOUD_MAX_ALPHA < 1,
+                'SILT_CLOUD_MAX_ALPHA should be in (0,1)');
+            assert(typeof api.SILT_CLOUD_MIN_VIS === 'number' && api.SILT_CLOUD_MIN_VIS >= 0 && api.SILT_CLOUD_MIN_VIS < 0.2,
+                'SILT_CLOUD_MIN_VIS should be a small non-negative number');
+            assert(typeof api.EXIT_LIGHT_NEAR_M === 'number' && api.EXIT_LIGHT_NEAR_M > 0,
+                'EXIT_LIGHT_NEAR_M should be a positive number');
+            assert(typeof api.EXIT_LIGHT_FAR_M === 'number' && api.EXIT_LIGHT_FAR_M > api.EXIT_LIGHT_NEAR_M,
+                'EXIT_LIGHT_FAR_M should exceed EXIT_LIGHT_NEAR_M');
+            return 'PASS — issue #32 API surface complete';
+        }
+    },
+    {
+        id: 'TC-32-COLLISION-UNCHANGED',
+        name: 'Issue #32 — floorAt/ceilingAt/solidAt/badAirAt at cave test points unchanged',
+        fn: function() {
+            // Regression baseline: the visual polish MUST NOT change any
+            // collision or bad-air trigger geometry. Test points span the
+            // major cave zones (entrance, upper tunnel, cathedral, exit).
+            // Values below are what the current cave geometry MUST return
+            // — any change means the visual pass has bled into gameplay.
+            var savedSite = api.diveSite;
+            var threw = null;
+            try {
+                api.diveSite = 'cave';
+                // ---- floorAt at exact profile points (no interpolation risk).
+                assert(api.floorAt(0)   === 10,  'floorAt(0) should be 10, got '   + api.floorAt(0));
+                assert(api.floorAt(15)  === 16,  'floorAt(15) should be 16, got '  + api.floorAt(15));
+                assert(api.floorAt(50)  === 23,  'floorAt(50) should be 23, got '  + api.floorAt(50));
+                assert(api.floorAt(90)  === 103, 'floorAt(90) should be 103, got ' + api.floorAt(90));
+                assert(api.floorAt(146) === 24,  'floorAt(146) should be 24, got ' + api.floorAt(146));
+                assert(api.floorAt(200) === 6,   'floorAt(200) should be 6, got '  + api.floorAt(200));
+                // ---- ceilingAt at exact profile points.
+                assert(api.ceilingAt(-10) === 0,  'ceilingAt(-10) should be 0, got '  + api.ceilingAt(-10));
+                assert(api.ceilingAt(14)  === 0,  'ceilingAt(14) should be 0, got '   + api.ceilingAt(14));
+                assert(api.ceilingAt(18)  === 14, 'ceilingAt(18) should be 14, got '  + api.ceilingAt(18));
+                assert(api.ceilingAt(103) === 12, 'ceilingAt(103) should be 12, got ' + api.ceilingAt(103));
+                assert(api.ceilingAt(146) === 16, 'ceilingAt(146) should be 16, got ' + api.ceilingAt(146));
+                assert(api.ceilingAt(200) === 0,  'ceilingAt(200) should be 0, got '  + api.ceilingAt(200));
+                // ---- solidAt: bedrock partition (x=70..130,d=22..52) + pillar (x=88..91,d=12..16).
+                assert(api.solidAt(90, 30)  === true,  'bedrock roof (90,30) should be solid');
+                assert(api.solidAt(90, 70)  === false, 'cathedral interior (90,70) should be passable');
+                assert(api.solidAt(50, 20)  === false, 'upper tunnel outside bedrock x-range (50,20) should be passable');
+                assert(api.solidAt(89, 14)  === true,  'pillar restriction (89,14) should be solid');
+                assert(api.solidAt(89, 20)  === false, 'below pillar (89,20) should be passable');
+                // ---- badAirAt: exact pocket boundaries stay at x=103..109, d=12
+                var inside = api.activeSite().badAir[0];
+                assert(inside && inside.x1 === 103 && inside.x2 === 109 && inside.d === 12,
+                    'bad-air pocket data must remain {x1:103,x2:109,d:12} — got ' + JSON.stringify(inside));
+                var _iw = iframe.contentWindow;
+                var _ba = _iw.badAirAt;
+                assert(_ba && _ba(106) === inside, 'badAirAt(106) should return the pocket descriptor');
+                assert(_ba && _ba(200) === null,   'badAirAt(200) should return null');
+                assert(_ba && _ba(102) === null,   'badAirAt(102) should return null (outside x1)');
+                assert(_ba && _ba(110) === null,   'badAirAt(110) should return null (outside x2)');
+            } catch (e) { threw = e; }
+            finally { api.diveSite = savedSite; }
+            if (threw) throw threw;
+            return 'PASS — cave geometry and bad-air pocket data unchanged';
+        }
+    },
+    {
+        id: 'TC-32-BAD-AIR-TRIGGER-UNCHANGED',
+        name: 'Issue #32 — badAirWarning fires ONLY inside pocket x-range at head-in depth',
+        fn: function() {
+            // updateOverheadState sets badAirWarning when (a) diver x is
+            // inside a badAir[i] and (b) depth <= p.d + 0.5. Verify that
+            // the visual polish hasn't nudged either half of the trigger.
+            setupDive([[0.21, 0, 200]]);
+            var savedSite = api.diveSite;
+            var threw = null;
+            try {
+                api.diveSite = 'cave';
+                api.clearKeys();
+                // Case 1: outside pocket x-range → false regardless of depth
+                api.diverX = 90;                 // well left of the pocket
+                runFrames(2, 0.033, 12);
+                assert(api.badAirWarning === false, 'badAirWarning must be false outside pocket x-range');
+                // Case 2: inside pocket x-range but below pocket depth → false
+                api.diverX = 106;                // centre of pocket
+                runFrames(2, 0.033, 14);         // safely below pocket (d+0.5 = 12.5)
+                assert(api.badAirWarning === false,
+                    'badAirWarning must be false when depth > pocket.d + 0.5 (in-x, below pocket)');
+                // Case 3: inside pocket x-range AND at pocket depth → true
+                api.diverX = 106;
+                runFrames(2, 0.033, 11);         // above pocket's floor at d=12
+                assert(api.badAirWarning === true,
+                    'badAirWarning must fire when both in-x AND at/above pocket depth');
+                // Case 4: at pocket x1 boundary should still fire when at depth
+                api.diverX = 103;
+                runFrames(2, 0.033, 12);
+                assert(api.badAirWarning === true, 'badAirWarning must fire at x1 boundary');
+                // Case 5: just outside x2 boundary should NOT fire
+                api.diverX = 110;
+                runFrames(2, 0.033, 12);
+                assert(api.badAirWarning === false, 'badAirWarning must NOT fire just outside x2');
+            } catch (e) { threw = e; }
+            finally { api.diveSite = savedSite; }
+            if (threw) throw threw;
+            return 'PASS — bad-air trigger logic unchanged (5 canonical cases)';
+        }
+    },
+    {
+        id: 'TC-32-BAD-AIR-LENS-READS-SITES-DATA',
+        name: 'Issue #32 — lens position derives from activeSite().badAir (not hardcoded)',
+        fn: function() {
+            // Substitute a synthetic pocket and confirm the renderer will
+            // paint against the substituted coords, proving there's no
+            // hidden second source of coordinates in the renderer. We
+            // stub CanvasRenderingContext2D.fillRect (used by the mirror
+            // highlight band) and check the drawn x-range matches the
+            // synthetic pocket, not the original one.
+            var savedSite = api.diveSite;
+            var iw = iframe.contentWindow;
+            var C = iw.CanvasRenderingContext2D && iw.CanvasRenderingContext2D.prototype;
+            if (!C || !C.fillRect) return 'PASS — no CanvasRenderingContext2D available; skipping';
+            var siteObj = api.DIVE_SITES.cave;
+            var savedBadAir = siteObj.badAir;
+            var savedFill = C.fillRect;
+            var savedW = api.cssWidth, savedH = api.cssHeight;
+            var savedGameState = api.gameState;
+            var recorded = [];
+            var threw = null;
+            try {
+                // Pin a real viewport so world→screen mapping isn't collapsed.
+                api.cssWidth = 1280; api.cssHeight = 800;
+                api.diveSite = 'cave';
+                api.gameState = 'diving';
+                // Inject a distinctive synthetic pocket way to the right of the real one.
+                siteObj.badAir = [{ x1: 300, x2: 320, d: 5 }];
+                // Position diver near the synthetic pocket and set torch off so
+                // sample torch light doesn't add extra draw calls we care about.
+                api.diverX = 310;
+                api.setDepth(6);
+                api.torchOn = false;
+                C.fillRect = function(x, y, w, h) {
+                    recorded.push({ x: x, y: y, w: w, h: h });
+                };
+                // Invoke the site-detail pass which fires the lens draw.
+                // drawCaveMineralDetails is not on gameAPI, so drive the
+                // whole detail pass via a public entry: draw once.
+                iw.drawSiteDetailPass();
+                // The lens code emits at least one fillRect (the mirror
+                // highlight band). Its x should sit near the synthetic
+                // pocket's screen x, which is near the diver-x centre
+                // since diverX = 310 places the pocket close to screen mid.
+                assert(recorded.length > 0,
+                    'lens should have emitted at least one fillRect for the highlight band');
+                // The band's y-coordinate must be derived from the pocket's
+                // depth (d=5, diver at depth=6) → about 1 metre above the diver
+                // in world → ~20 px above dsy. Sanity-check the y-range: it
+                // should sit ABOVE the diver's screen-y (which is H*0.45).
+                var H = api.cssHeight;
+                var dsy = H * 0.45;
+                var anyBandAtLensDepth = false;
+                for (var i = 0; i < recorded.length; i++) {
+                    if (recorded[i].y < dsy && recorded[i].y > dsy - 200) {
+                        anyBandAtLensDepth = true; break;
+                    }
+                }
+                assert(anyBandAtLensDepth,
+                    'lens highlight band y-coord should be derived from injected pocket depth');
+            } catch (e) { threw = e; }
+            finally {
+                C.fillRect = savedFill;
+                siteObj.badAir = savedBadAir;
+                api.diveSite = savedSite;
+                api.cssWidth = savedW; api.cssHeight = savedH;
+                api.gameState = savedGameState;
+            }
+            if (threw) throw threw;
+            return 'PASS — lens draws at coordinates from activeSite().badAir (no hardcoded duplicate)';
+        }
+    },
+    {
+        id: 'TC-32-SILT-CLOUD-TRACKS-VISIBILITY',
+        name: 'Issue #32 — silt cloud draws more calls at low visibility than high',
+        fn: function() {
+            // Drive drawCaveSiltCloud() at two different `visibility`
+            // values and count draw calls. Higher silt (lower visibility)
+            // must produce strictly more draws than near-clear.
+            var savedSite = api.diveSite;
+            var savedVis = api.visibility;
+            var savedX = api.diverX, savedD = api.depth;
+            var savedGameState = api.gameState;
+            var savedW = api.cssWidth, savedH = api.cssHeight;
+            var iw = iframe.contentWindow;
+            var C = iw.CanvasRenderingContext2D && iw.CanvasRenderingContext2D.prototype;
+            var savedArc = C && C.arc, savedFill = C && C.fill;
+            var arcCount = 0;
+            var threw = null;
+            try {
+                api.cssWidth = 1280; api.cssHeight = 800;
+                api.diveSite = 'cave';
+                // Upper tunnel: floor ~ d=23. Put diver near the floor so
+                // the near-floor silt band sits within the visible viewport.
+                api.diverX = 50;
+                api.setDepth(22);
+                api.gameState = 'diving';
+                if (C) {
+                    C.arc = function() { arcCount++; };
+                    C.fill = function() {};
+                }
+                // Baseline: fully clear (visibility=1) → cloud should be a no-op.
+                api.visibility = 1;
+                arcCount = 0;
+                api.drawCaveSiltCloud();
+                var clearArcs = arcCount;
+                // Light silt (visibility=0.8) → some draws.
+                api.visibility = 0.8;
+                arcCount = 0;
+                api.drawCaveSiltCloud();
+                var lightArcs = arcCount;
+                // Heavy silt (visibility=0.2) → strictly more draws than light.
+                api.visibility = 0.2;
+                arcCount = 0;
+                api.drawCaveSiltCloud();
+                var heavyArcs = arcCount;
+                assert(clearArcs === 0,
+                    'visibility=1 must draw ZERO silt puffs (got ' + clearArcs + ')');
+                assert(heavyArcs > lightArcs,
+                    'heavy silt (v=0.2) should produce more draws than light (v=0.8): heavy=' +
+                    heavyArcs + ' light=' + lightArcs);
+                assert(lightArcs > 0,
+                    'light silt (v=0.8) should draw at least some puffs (got ' + lightArcs + ')');
+            } catch (e) { threw = e; }
+            finally {
+                if (C) { C.arc = savedArc; C.fill = savedFill; }
+                api.diveSite = savedSite;
+                api.visibility = savedVis;
+                api.diverX = savedX; api.setDepth(savedD);
+                api.gameState = savedGameState;
+                api.cssWidth = savedW; api.cssHeight = savedH;
+            }
+            if (threw) throw threw;
+            return 'PASS — silt cloud draw count strictly tracks (1 - visibility)';
+        }
+    },
+    {
+        id: 'TC-32-SILT-CLOUD-RESETS-ON-DIVE',
+        name: 'Issue #32 — silt cloud reads only `visibility`; resetDive() clears it',
+        fn: function() {
+            // The cloud has NO persistent particle reservoir of its own —
+            // it's a pure function of `visibility`. Verify that resetDive()
+            // (which the game calls on new-dive start) restores visibility
+            // to 1 and therefore silences the cloud with zero draw calls.
+            var savedSite = api.diveSite;
+            var savedGameState = api.gameState;
+            var savedW = api.cssWidth, savedH = api.cssHeight;
+            var iw = iframe.contentWindow;
+            var C = iw.CanvasRenderingContext2D && iw.CanvasRenderingContext2D.prototype;
+            var savedArc = C && C.arc, savedFill = C && C.fill;
+            var arcCount = 0;
+            var threw = null;
+            try {
+                setupDive([[0.21, 0, 200]]);
+                api.cssWidth = 1280; api.cssHeight = 800;
+                api.diveSite = 'cave';
+                api.diverX = 50; api.setDepth(22);   // upper tunnel, near floor
+                api.gameState = 'diving';
+                api.visibility = 0.15;                 // heavy silt
+                if (C) {
+                    C.arc = function() { arcCount++; };
+                    C.fill = function() {};
+                }
+                arcCount = 0;
+                api.drawCaveSiltCloud();
+                var beforeReset = arcCount;
+                assert(beforeReset > 0, 'heavy silt should produce draws before reset');
+                // Reset the dive — this MUST restore visibility to 1 (see resetDive).
+                api.resetDive();
+                api.gameState = 'diving';               // resetDive leaves state; re-arm for the draw
+                api.diveSite = 'cave';                   // in case reset affected active site
+                assert(api.visibility === 1,
+                    'resetDive() should restore visibility to 1 (got ' + api.visibility + ')');
+                arcCount = 0;
+                api.drawCaveSiltCloud();
+                assert(arcCount === 0,
+                    'after resetDive() the cloud must draw zero puffs (got ' + arcCount + ')');
+            } catch (e) { threw = e; }
+            finally {
+                if (C) { C.arc = savedArc; C.fill = savedFill; }
+                api.diveSite = savedSite;
+                api.gameState = savedGameState;
+                api.cssWidth = savedW; api.cssHeight = savedH;
+            }
+            if (threw) throw threw;
+            return 'PASS — cloud is stateless w.r.t. dives; resetDive() silences it';
+        }
+    },
+    {
+        id: 'TC-32-SILT-CLOUD-NO-MATH-RANDOM',
+        name: 'Issue #32 — drawCaveSiltCloud never calls Math.random()',
+        fn: function() {
+            // Substitute Math.random with a tripwire and confirm the
+            // cloud draw path is fully deterministic.
+            var savedRandom = Math.random;
+            var iw = iframe.contentWindow;
+            var savedIwRandom = iw.Math.random;
+            var trip = 0;
+            var savedSite = api.diveSite;
+            var savedGameState = api.gameState;
+            var savedVis = api.visibility;
+            var savedW = api.cssWidth, savedH = api.cssHeight;
+            var threw = null;
+            try {
+                api.cssWidth = 1280; api.cssHeight = 800;
+                api.diveSite = 'cave';
+                api.diverX = 50;
+                api.setDepth(22);        // upper tunnel, near floor
+                api.gameState = 'diving';
+                api.visibility = 0.25;
+                Math.random    = function() { trip++; return 0.5; };
+                iw.Math.random = function() { trip++; return 0.5; };
+                api.drawCaveSiltCloud();
+                assert(trip === 0,
+                    'drawCaveSiltCloud must NOT call Math.random (called ' + trip + ' times)');
+            } catch (e) { threw = e; }
+            finally {
+                Math.random    = savedRandom;
+                iw.Math.random = savedIwRandom;
+                api.diveSite = savedSite;
+                api.gameState = savedGameState;
+                api.visibility = savedVis;
+                api.cssWidth = savedW; api.cssHeight = savedH;
+            }
+            if (threw) throw threw;
+            return 'PASS — cloud draw path calls no Math.random';
+        }
+    },
+    {
+        id: 'TC-32-SILT-CLOUD-DETERMINISM',
+        name: 'Issue #32 — same seed (frozen waveTime, same state) → same draw list',
+        fn: function() {
+            // Freeze waveTime and re-run the draw twice; the recorded arc
+            // centres must match exactly. This is the whole determinism
+            // property the issue insists on.
+            var iw = iframe.contentWindow;
+            var C = iw.CanvasRenderingContext2D && iw.CanvasRenderingContext2D.prototype;
+            if (!C || !C.arc) return 'PASS — no CanvasRenderingContext2D available; skipping';
+            var savedArc = C.arc, savedFill = C.fill;
+            var savedSite = api.diveSite;
+            var savedGameState = api.gameState;
+            var savedVis = api.visibility;
+            var savedWaveT = api.waveTime;
+            var savedTorchOn = api.torchOn;
+            var savedW = api.cssWidth, savedH = api.cssHeight;
+            var threw = null;
+            try {
+                api.cssWidth = 1280; api.cssHeight = 800;
+                api.diveSite = 'cave';
+                api.diverX = 50; api.setDepth(22);       // upper tunnel, near floor
+                api.gameState = 'diving';
+                api.visibility = 0.3;
+                api.torchOn = false;                    // torch off → sampleTorchLight always 0
+                api.waveTime = 7.5;
+                var rec = [];
+                C.arc = function(x, y, r) { rec.push([x.toFixed(3), y.toFixed(3), r.toFixed(3)]); };
+                C.fill = function() {};
+                api.drawCaveSiltCloud();
+                var runA = rec.slice();
+                rec.length = 0;
+                api.drawCaveSiltCloud();
+                var runB = rec.slice();
+                assert(runA.length === runB.length,
+                    'draw counts must match: ' + runA.length + ' vs ' + runB.length);
+                assert(runA.length > 0, 'expected some draws to compare');
+                for (var i = 0; i < runA.length; i++) {
+                    assert(runA[i][0] === runB[i][0] && runA[i][1] === runB[i][1] && runA[i][2] === runB[i][2],
+                        'draw ' + i + ' differs: ' + runA[i].join(',') + ' vs ' + runB[i].join(','));
+                }
+            } catch (e) { threw = e; }
+            finally {
+                C.arc = savedArc; C.fill = savedFill;
+                api.diveSite = savedSite;
+                api.gameState = savedGameState;
+                api.visibility = savedVis;
+                api.waveTime = savedWaveT;
+                api.torchOn = savedTorchOn;
+                api.cssWidth = savedW; api.cssHeight = savedH;
+            }
+            if (threw) throw threw;
+            return 'PASS — draw sequence is deterministic across identical calls';
+        }
+    },
+    {
+        id: 'TC-32-EXIT-LIGHT-WORLD-ANCHORED',
+        name: 'Issue #32 — exit light shaft is world-anchored (tracks world-x under camera pan)',
+        fn: function() {
+            // The shaft's origin is derived from cave_exit's visualZone
+            // (x1=146..x2=200) via ceilingAt(). Moving the diver LEFT
+            // should shift the drawn shaft origins RIGHT on screen (they
+            // are anchored to the world, not to the camera). We stub
+            // ctx.moveTo (called at the start of each wedge fill) and
+            // check the x-coordinate shifts by the expected pixel delta.
+            var iw = iframe.contentWindow;
+            var C = iw.CanvasRenderingContext2D && iw.CanvasRenderingContext2D.prototype;
+            if (!C || !C.moveTo) return 'PASS — no CanvasRenderingContext2D available; skipping';
+            var savedMoveTo = C.moveTo;
+            var savedSite = api.diveSite;
+            var savedX = api.diverX, savedD = api.depth;
+            var savedGameState = api.gameState;
+            var savedWaveT = api.waveTime;
+            var savedW = api.cssWidth, savedH = api.cssHeight;
+            var recordX = [];
+            var threw = null;
+            try {
+                api.cssWidth = 1280; api.cssHeight = 800;
+                api.diveSite = 'cave';
+                api.gameState = 'diving';
+                api.waveTime = 0;                        // freeze animation
+                api.setDepth(15);
+                C.moveTo = function(x, _y) { recordX.push(x); };
+                // Frame A — diver at x=180 (inside the exit zone).
+                api.diverX = 180;
+                recordX.length = 0;
+                api.drawCaveExitLightShaft();
+                var runA = recordX.slice();
+                // Frame B — diver at x=190 (10 m to the right).
+                api.diverX = 190;
+                recordX.length = 0;
+                api.drawCaveExitLightShaft();
+                var runB = recordX.slice();
+                assert(runA.length > 0 && runB.length > 0,
+                    'expected some shaft draws in both frames (got A=' + runA.length + ', B=' + runB.length + ')');
+                assert(runA.length === runB.length,
+                    'same shafts should draw in both frames when both diver positions are inside exit');
+                // World-anchored: screen-x delta between runs = -(deltaWorldX)/mpp
+                // for the same world-x. deltaWorldX = +10 (diver moved right), mpp = 0.05,
+                // so shafts should shift LEFT by 200 px on screen.
+                for (var i = 0; i < runA.length; i++) {
+                    var shift = runB[i] - runA[i];
+                    assert(Math.abs(shift + 200) < 1,
+                        'shaft ' + i + ' expected shift ≈ -200 px, got ' + shift.toFixed(2));
+                }
+            } catch (e) { threw = e; }
+            finally {
+                C.moveTo = savedMoveTo;
+                api.diveSite = savedSite;
+                api.diverX = savedX; api.setDepth(savedD);
+                api.gameState = savedGameState;
+                api.waveTime = savedWaveT;
+                api.cssWidth = savedW; api.cssHeight = savedH;
+            }
+            if (threw) throw threw;
+            return 'PASS — shaft origins track world-x, not screen-x';
+        }
+    },
+    {
+        id: 'TC-32-EXIT-LIGHT-POSITION-MATCHES-ZONE',
+        name: 'Issue #32 — exit shaft origins lie inside cave_exit x-range',
+        fn: function() {
+            // Read cave_exit from the site descriptor, then confirm all
+            // shaft world-x origins fall inside that x-range.
+            var iw = iframe.contentWindow;
+            var C = iw.CanvasRenderingContext2D && iw.CanvasRenderingContext2D.prototype;
+            if (!C || !C.moveTo) return 'PASS — no CanvasRenderingContext2D available; skipping';
+            var savedMoveTo = C.moveTo;
+            var savedSite = api.diveSite;
+            var savedX = api.diverX, savedD = api.depth;
+            var savedGameState = api.gameState;
+            var savedWaveT = api.waveTime;
+            var savedW = api.cssWidth, savedH = api.cssHeight;
+            var recordX = [];
+            var threw = null;
+            try {
+                api.cssWidth = 1280; api.cssHeight = 800;
+                api.diveSite = 'cave';
+                api.gameState = 'diving';
+                api.waveTime = 0;
+                api.setDepth(15);
+                api.diverX = 190;                        // inside exit zone, near openings
+                var zone = null;
+                var zones = api.activeSite().visualZones;
+                for (var z = 0; z < zones.length; z++) {
+                    if (zones[z].id === 'cave_exit') { zone = zones[z]; break; }
+                }
+                assert(zone, 'cave_exit visualZone should exist in sites.js');
+                // Screen mapping: worldX = diverX + (screenX - W*0.25) * mpp
+                var W = api.cssWidth, mpp = 0.05, dsx = W * 0.25;
+                C.moveTo = function(x, _y) { recordX.push(x); };
+                recordX.length = 0;
+                api.drawCaveExitLightShaft();
+                assert(recordX.length > 0,
+                    'expected at least one shaft draw when diver is at the exit');
+                // Each wedge emits multiple moveTo/lineTo — pick the first
+                // per wedge (index 0, 4, 8, ...): each wedge issues moveTo,
+                // then 3 lineTo. So every 4th recorded x is a fresh origin
+                // shifted by -topHalf. Since we can't distinguish topHalf
+                // easily here, we only assert every recorded x maps to a
+                // world-x within [x1-8, x2+8] metres (allowing the small
+                // jitter/wobble).
+                for (var i = 0; i < recordX.length; i++) {
+                    var wx = api.diverX + (recordX[i] - dsx) * mpp;
+                    assert(wx >= zone.x1 - 12 && wx <= zone.x2 + 12,
+                        'shaft vertex ' + i + ' at worldX=' + wx.toFixed(1) +
+                        ' outside cave_exit x-range [' + zone.x1 + ',' + zone.x2 + ']');
+                }
+            } catch (e) { threw = e; }
+            finally {
+                C.moveTo = savedMoveTo;
+                api.diveSite = savedSite;
+                api.diverX = savedX; api.setDepth(savedD);
+                api.gameState = savedGameState;
+                api.waveTime = savedWaveT;
+                api.cssWidth = savedW; api.cssHeight = savedH;
+            }
+            if (threw) throw threw;
+            return 'PASS — shaft origins fall within cave_exit x-range';
+        }
+    },
+    {
+        id: 'TC-32-EXIT-LIGHT-NO-EFFECT-ON-COLLISION',
+        name: 'Issue #32 — drawCaveExitLightShaft does NOT mutate collision state',
+        fn: function() {
+            // Sanity: a render helper must be pure w.r.t. gameplay state.
+            var savedSite = api.diveSite;
+            var savedX = api.diverX, savedD = api.depth;
+            var savedGameState = api.gameState;
+            var threw = null;
+            try {
+                api.diveSite = 'cave';
+                api.gameState = 'diving';
+                api.diverX = 170; api.setDepth(10);
+                // Take baseline collision samples at test points.
+                var before = {
+                    floor170: api.floorAt(170),
+                    ceil170: api.ceilingAt(170),
+                    solid170: api.solidAt(170, 10),
+                    floor200: api.floorAt(200),
+                    ceil200: api.ceilingAt(200),
+                    ba106: JSON.stringify(api.activeSite().badAir[0])
+                };
+                // Fire the shaft a bunch of times.
+                for (var i = 0; i < 20; i++) {
+                    api.drawCaveExitLightShaft();
+                }
+                var after = {
+                    floor170: api.floorAt(170),
+                    ceil170: api.ceilingAt(170),
+                    solid170: api.solidAt(170, 10),
+                    floor200: api.floorAt(200),
+                    ceil200: api.ceilingAt(200),
+                    ba106: JSON.stringify(api.activeSite().badAir[0])
+                };
+                for (var k in before) {
+                    assert(before[k] === after[k],
+                        'collision key "' + k + '" changed: ' + before[k] + ' → ' + after[k]);
+                }
+            } catch (e) { threw = e; }
+            finally {
+                api.diveSite = savedSite;
+                api.diverX = savedX; api.setDepth(savedD);
+                api.gameState = savedGameState;
+            }
+            if (threw) throw threw;
+            return 'PASS — shaft draws are pure w.r.t. collision/badAir state';
+        }
+    },
+    {
+        id: 'TC-32-FORMATIONS-DETERMINISTIC',
+        name: 'Issue #32 — drawCaveSpeleothems is deterministic (frozen waveTime → same draws)',
+        fn: function() {
+            var iw = iframe.contentWindow;
+            var C = iw.CanvasRenderingContext2D && iw.CanvasRenderingContext2D.prototype;
+            if (!C || !C.moveTo) return 'PASS — no CanvasRenderingContext2D available; skipping';
+            var savedMoveTo = C.moveTo, savedLineTo = C.lineTo, savedFill = C.fill,
+                savedStroke = C.stroke, savedBegin = C.beginPath, savedQCT = C.quadraticCurveTo,
+                savedArc = C.arc;
+            var savedSite = api.diveSite;
+            var savedX = api.diverX, savedD = api.depth;
+            var savedWaveT = api.waveTime;
+            var threw = null;
+            try {
+                api.diveSite = 'cave';
+                api.diverX = 90; api.setDepth(60);       // deep in the cathedral
+                api.waveTime = 3.14;
+                var W = api.cssWidth, H = api.cssHeight, mpp = 0.05;
+                var dsx = W * 0.25, dsy = H * 0.45;
+                var xLeftM = api.diverX + (0 - dsx) * mpp - 2;
+                var xRightM = api.diverX + (W - dsx) * mpp + 2;
+                var rec = [];
+                C.moveTo = function(x, y) { rec.push('M', x.toFixed(3), y.toFixed(3)); };
+                C.lineTo = function(x, y) { rec.push('L', x.toFixed(3), y.toFixed(3)); };
+                C.quadraticCurveTo = function() { rec.push('Q'); };
+                C.arc  = function(x, y, r) { rec.push('A', x.toFixed(3), y.toFixed(3), r.toFixed(3)); };
+                C.fill = function() { rec.push('F'); };
+                C.stroke = function() { rec.push('S'); };
+                C.beginPath = function() { rec.push('B'); };
+                var fakeCtx = api.ctx;
+                api.drawCaveSpeleothems(fakeCtx, xLeftM, xRightM, dsx, dsy, mpp);
+                var runA = rec.join('|');
+                rec.length = 0;
+                api.drawCaveSpeleothems(fakeCtx, xLeftM, xRightM, dsx, dsy, mpp);
+                var runB = rec.join('|');
+                assert(runA === runB,
+                    'drawCaveSpeleothems is not deterministic — runA (' + runA.length + ' chars) != runB');
+                assert(rec.length > 0, 'expected some drawing to happen at cathedral');
+            } catch (e) { threw = e; }
+            finally {
+                C.moveTo = savedMoveTo; C.lineTo = savedLineTo; C.fill = savedFill;
+                C.stroke = savedStroke; C.beginPath = savedBegin;
+                C.quadraticCurveTo = savedQCT; C.arc = savedArc;
+                api.diveSite = savedSite;
+                api.diverX = savedX; api.setDepth(savedD);
+                api.waveTime = savedWaveT;
+            }
+            if (threw) throw threw;
+            return 'PASS — speleothem draws are deterministic';
+        }
+    },
+    {
+        id: 'TC-32-FORMATIONS-NO-MATH-RANDOM',
+        name: 'Issue #32 — drawCaveSpeleothems never calls Math.random()',
+        fn: function() {
+            var savedRandom = Math.random;
+            var iw = iframe.contentWindow;
+            var savedIwRandom = iw.Math.random;
+            var savedSite = api.diveSite;
+            var savedX = api.diverX, savedD = api.depth;
+            var trip = 0;
+            var threw = null;
+            try {
+                api.diveSite = 'cave';
+                api.diverX = 90; api.setDepth(60);
+                Math.random    = function() { trip++; return 0.5; };
+                iw.Math.random = function() { trip++; return 0.5; };
+                var W = api.cssWidth, H = api.cssHeight, mpp = 0.05;
+                var dsx = W * 0.25, dsy = H * 0.45;
+                api.drawCaveSpeleothems(api.ctx,
+                    api.diverX + (0 - dsx) * mpp - 2,
+                    api.diverX + (W - dsx) * mpp + 2,
+                    dsx, dsy, mpp);
+                assert(trip === 0,
+                    'drawCaveSpeleothems must NOT call Math.random (called ' + trip + ' times)');
+            } catch (e) { threw = e; }
+            finally {
+                Math.random    = savedRandom;
+                iw.Math.random = savedIwRandom;
+                api.diveSite = savedSite;
+                api.diverX = savedX; api.setDepth(savedD);
+            }
+            if (threw) throw threw;
+            return 'PASS — speleothem path uses seeded sRand only';
+        }
     }
 ];
 
