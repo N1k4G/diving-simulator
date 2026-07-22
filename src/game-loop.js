@@ -1040,6 +1040,14 @@ window.gameAPI = {
     drawTorchGlowAndSparkles: drawTorchGlowAndSparkles,
     get diverFacing() { return _diverFacing; },
     set diverFacing(v) { _diverFacing = (v === -1) ? -1 : 1; },
+    // Issue #36: depth-dependent color absorption.
+    depthColorFactors: depthColorFactors,
+    drawDepthColorAbsorption: drawDepthColorAbsorption,
+    get DEPTH_COLOR_R_NEAR() { return DEPTH_COLOR_R_NEAR; },
+    get DEPTH_COLOR_R_FAR() { return DEPTH_COLOR_R_FAR; },
+    get DEPTH_COLOR_G_NEAR() { return DEPTH_COLOR_G_NEAR; },
+    get DEPTH_COLOR_G_FAR() { return DEPTH_COLOR_G_FAR; },
+    get DEPTH_COLOR_CAVE_STRENGTH() { return DEPTH_COLOR_CAVE_STRENGTH; },
     // Renderer test hook: `ctx` and `canvas` are const in state.js so they
     // are NOT properties of `window` (only `var` declarations are). Expose
     // them here so tests can pass the same context the render pipeline

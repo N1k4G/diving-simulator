@@ -171,6 +171,16 @@ async function run() {
     { site: 'Wreck', x: 92, depth: 32, torch: true,  facing:  1, name: 'desktop-dive-wreck-torch-cone-right' },
     { site: 'Wreck', x: 92, depth: 32, torch: true,  facing: -1, name: 'desktop-dive-wreck-torch-cone-left' },
     { site: 'Wreck', x: 92, depth: 32, torch: false, facing:  1, name: 'desktop-dive-wreck-torch-off-baseline' },
+    // Issue #36: depth-dependent color absorption. Reef x=16,d=60 puts a
+    // hand-placed red gorgonian (src/sites.js, exactly the feature the
+    // issue text calls out) in frame. Shallow shot is the full-saturation
+    // baseline; deep-no-torch should read blue-grey; deep-with-torch
+    // should restore red near the diver.
+    { site: 'Reef',  x: 0,  depth: 5,  torch: false, name: 'desktop-dive-reef-colors-shallow-baseline' },
+    { site: 'Reef',  x: 10, depth: 60, torch: false, name: 'desktop-dive-reef-colors-deep-no-torch' },
+    { site: 'Reef',  x: 10, depth: 60, torch: true,  name: 'desktop-dive-reef-colors-deep-torch-restore' },
+    { site: 'Wreck', x: 92, depth: 32, torch: false, facing: 1, name: 'desktop-dive-wreck-colors-no-torch' },
+    { site: 'Wreck', x: 92, depth: 32, torch: true,  facing: 1, name: 'desktop-dive-wreck-colors-torch-restore' },
   ];
 
   for (const diveShot of desktopDiveShots) {

@@ -158,6 +158,138 @@ function torchBeamAngle(facing) {
     return (f === 1) ? TORCH_BEAM_TILT_RAD : (Math.PI - TORCH_BEAM_TILT_RAD);
 }
 
+// ── Issue #36: depth-dependent color absorption ────────────────────
+// Red is the first wavelength absorbed by water — gone by ~10-15 m —
+// followed by orange/yellow; by ~25 m without a light source everything
+// reads blue-grey. Only the water gradient itself (waterColor()) darkens
+// with depth today; objects in the scene (features, fish, wildlife) stay
+// at full saturation regardless of depth. This is the single most
+// iconic visual of real diving and is currently entirely missing.
+//
+// depthColorFactors() is a pure function: r/g/b multiply-tint factors,
+// monotonically non-increasing (r, g) as depth increases, smoothstep-
+// composed so the transition never pops while ascending/descending.
+const DEPTH_COLOR_R_NEAR = 5,  DEPTH_COLOR_R_FAR = 25, DEPTH_COLOR_R_LOSS = 0.75;
+const DEPTH_COLOR_G_NEAR = 15, DEPTH_COLOR_G_FAR = 60, DEPTH_COLOR_G_LOSS = 0.45;
+// Cave's torch-darkness overlay (drawSiltAndTorch) already dominates the
+// mood there; a full-strength tint on top of that reads as double-
+// darkening rather than color loss, so soften it in caves specifically.
+const DEPTH_COLOR_CAVE_STRENGTH = 0.6;
+
+function depthColorFactors(d, siteId) {
+    var strength = (siteId === 'cave') ? DEPTH_COLOR_CAVE_STRENGTH : 1;
+    var rLoss = smoothstep(DEPTH_COLOR_R_NEAR, DEPTH_COLOR_R_FAR, d) * DEPTH_COLOR_R_LOSS * strength;
+    var gLoss = smoothstep(DEPTH_COLOR_G_NEAR, DEPTH_COLOR_G_FAR, d) * DEPTH_COLOR_G_LOSS * strength;
+    var r = 1 - rLoss, g = 1 - gLoss;
+    if (r < 0) r = 0; if (r > 1) r = 1;
+    if (g < 0) g = 0; if (g > 1) g = 1;
+    return { r: r, g: g, b: 1 };
+}
+
+// Cached offscreen buffers for the torch color-restore composite (built
+// once, resized only if the viewport itself changes — never allocated
+// per frame). _restore holds a snapshot of the scene BEFORE the tint is
+// applied; _mask holds a soft alpha shape (near-field circle + directional
+// cone, reusing #31's exact beam geometry) used to punch _restore down to
+// only the torch-lit area before compositing it back on top of the tint.
+var _depthColorRestoreCanvas = null, _depthColorRestoreCtx = null;
+var _depthColorMaskCanvas = null, _depthColorMaskCtx = null;
+
+function _ensureDepthColorBuffers(W, H) {
+    if (_depthColorRestoreCanvas && _depthColorRestoreCanvas.width === W && _depthColorRestoreCanvas.height === H) return;
+    _depthColorRestoreCanvas = document.createElement('canvas');
+    _depthColorRestoreCanvas.width = W; _depthColorRestoreCanvas.height = H;
+    _depthColorRestoreCtx = _depthColorRestoreCanvas.getContext('2d');
+    _depthColorMaskCanvas = document.createElement('canvas');
+    _depthColorMaskCanvas.width = W; _depthColorMaskCanvas.height = H;
+    _depthColorMaskCtx = _depthColorMaskCanvas.getContext('2d');
+}
+
+// Full-screen depth-color tint, applied AFTER every world object (terrain,
+// structures, features, particles, fish, wildlife, bubbles) but BEFORE the
+// cave darkness/torch-cone punch and #54's local-atmosphere pass — so both
+// of those layer on top of an already-tinted scene, and the diver (drawn
+// later still) stays untouched/crisp. Clipped to below the surface line so
+// sky/HUD are structurally unreachable (HUD is a separate DOM layer above
+// the canvas regardless — this clip is defence in depth, not the only guard).
+function drawDepthColorAbsorption() {
+    if (gameState !== 'diving') return;
+    var s = activeSite();
+    var f = depthColorFactors(depth, s ? s.id : null);
+    if (f.r > 0.995 && f.g > 0.995) return; // negligible — skip the fill entirely
+
+    var W = cssWidth, H = cssHeight, mpp = 0.05;
+    var diverScreenX = W * 0.25, diverScreenY = H * 0.45;
+    var surfaceScreenY = diverScreenY - depth / mpp;
+    var top = Math.max(0, surfaceScreenY);
+    if (top >= H) return; // nothing below the surface is on screen
+
+    var cx = ctx;
+    var restoring = !!torchOn;
+    var beamAngle, halfA, exceptionR;
+    if (restoring) {
+        beamAngle = torchBeamAngle(_diverFacing);
+        halfA = TORCH_BEAM_HALF_ANGLE_RAD;
+        var torchPx = TORCH_RADIUS_M / mpp;
+        exceptionR = torchPx * 1.7 * Math.max(0.3, visibility);
+    }
+
+    cx.save();
+    cx.beginPath();
+    cx.rect(0, top, W, H - top);
+    cx.clip();
+
+    if (restoring) {
+        _ensureDepthColorBuffers(W, H);
+        // 1. Snapshot the scene exactly as it looks BEFORE the tint.
+        _depthColorRestoreCtx.clearRect(0, 0, W, H);
+        _depthColorRestoreCtx.drawImage(cx.canvas, 0, 0, W, H);
+        // 2. Build the soft union mask (near-field circle ∪ directional
+        //    cone) by drawing both gradients with plain source-over —
+        //    alpha-over-transparent compositing sums correctly (never
+        //    exceeds 1), so this is a proper soft union, not a hack.
+        _depthColorMaskCtx.clearRect(0, 0, W, H);
+        var nearR = exceptionR * TORCH_NEAR_FIELD_FRACTION;
+        var nearGrad = _depthColorMaskCtx.createRadialGradient(diverScreenX, diverScreenY, 0, diverScreenX, diverScreenY, nearR);
+        nearGrad.addColorStop(0, 'rgba(0,0,0,0.7)');
+        nearGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        _depthColorMaskCtx.fillStyle = nearGrad;
+        _depthColorMaskCtx.fillRect(0, 0, W, H);
+        _depthColorMaskCtx.save();
+        _depthColorMaskCtx.beginPath();
+        _depthColorMaskCtx.moveTo(diverScreenX, diverScreenY);
+        _depthColorMaskCtx.arc(diverScreenX, diverScreenY, exceptionR * 1.05, beamAngle - halfA, beamAngle + halfA);
+        _depthColorMaskCtx.closePath();
+        _depthColorMaskCtx.clip();
+        var wedgeGrad = _depthColorMaskCtx.createRadialGradient(diverScreenX, diverScreenY, 0, diverScreenX, diverScreenY, exceptionR);
+        wedgeGrad.addColorStop(0,    'rgba(0,0,0,1)');
+        wedgeGrad.addColorStop(0.7,  'rgba(0,0,0,0.85)');
+        wedgeGrad.addColorStop(1,    'rgba(0,0,0,0)');
+        _depthColorMaskCtx.fillStyle = wedgeGrad;
+        _depthColorMaskCtx.fillRect(0, 0, W, H);
+        _depthColorMaskCtx.restore();
+        // 3. Punch the snapshot down to only the masked (torch-lit) area.
+        _depthColorRestoreCtx.globalCompositeOperation = 'destination-in';
+        _depthColorRestoreCtx.drawImage(_depthColorMaskCanvas, 0, 0);
+        _depthColorRestoreCtx.globalCompositeOperation = 'source-over';
+    }
+
+    // 4. Apply the tint over the whole (clipped) underwater area.
+    cx.globalCompositeOperation = 'multiply';
+    cx.fillStyle = 'rgb(' + Math.round(255 * f.r) + ',' + Math.round(255 * f.g) + ',' + Math.round(255 * f.b) + ')';
+    cx.fillRect(0, top, W, H - top);
+    cx.globalCompositeOperation = 'source-over';
+
+    // 5. Composite the pre-tint, masked snapshot back on top — colors
+    //    survive smoothly within the torch's reach, fade back to fully
+    //    tinted at the mask's soft edge.
+    if (restoring) {
+        cx.drawImage(_depthColorRestoreCanvas, 0, 0);
+    }
+
+    cx.restore();
+}
+
 // ── Material texture tiles (issue #41) ─────────────────────────────
 // Offscreen-canvas patterns generated once at first-render, applied as a
 // semi-transparent overlay pass on top of each site's base gradient fills.
@@ -896,6 +1028,14 @@ function drawScene() {
 
     // Phase C: Guideline rope (drawn before diver so diver sits on top)
     drawGuideline();
+
+    // Issue #36: depth-dependent color absorption — tints every world
+    // object drawn so far (terrain, structures, features, particles, fish,
+    // wildlife, bubbles, guideline) toward blue-grey with depth, restoring
+    // true color within torch range. Runs BEFORE the cave/wreck darkness
+    // passes and #54's local-atmosphere pass so those layer on top of an
+    // already-tinted scene, matching the ordering the issue calls for.
+    drawDepthColorAbsorption();
 
     // Phase C: Silt-out + torch overlay — dims the environment + guideline.
     // Drawn BEFORE the diver so the diver is never shadowed by its own torch.

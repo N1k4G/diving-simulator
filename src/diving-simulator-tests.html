@@ -5350,6 +5350,169 @@ tests = [
                 'cave torch ON emitted 0 arc() calls — cone wedge not built');
             return 'PASS — torch OFF: 0 arcs; torch ON: ' + onCount + ' arcs';
         }
+    },
+    {
+        id: 'TC-36-API',
+        name: 'Issue #36 — depth-color-absorption helpers surface on gameAPI',
+        fn: function() {
+            assert(typeof api.depthColorFactors === 'function', 'depthColorFactors not exposed');
+            assert(typeof api.drawDepthColorAbsorption === 'function', 'drawDepthColorAbsorption not exposed');
+            assert(typeof api.DEPTH_COLOR_R_NEAR === 'number', 'DEPTH_COLOR_R_NEAR not exposed');
+            assert(typeof api.DEPTH_COLOR_R_FAR === 'number', 'DEPTH_COLOR_R_FAR not exposed');
+            assert(typeof api.DEPTH_COLOR_G_NEAR === 'number', 'DEPTH_COLOR_G_NEAR not exposed');
+            assert(typeof api.DEPTH_COLOR_G_FAR === 'number', 'DEPTH_COLOR_G_FAR not exposed');
+            assert(typeof api.DEPTH_COLOR_CAVE_STRENGTH === 'number', 'DEPTH_COLOR_CAVE_STRENGTH not exposed');
+            return 'PASS — 7 depth-color symbols exposed';
+        }
+    },
+    {
+        id: 'TC-36-FACTOR-MONOTONIC',
+        name: 'Issue #36 — depthColorFactors r/g are monotonically non-increasing with depth',
+        fn: function() {
+            var f = api.depthColorFactors;
+            var prevR = f(0, 'reef').r, prevG = f(0, 'reef').g;
+            var violations = 0;
+            for (var d = 0.5; d <= 80; d += 0.5) {
+                var v = f(d, 'reef');
+                if (v.r > prevR + 1e-9 || v.g > prevG + 1e-9) violations++;
+                prevR = v.r; prevG = v.g;
+            }
+            assert(violations === 0, violations + ' monotonicity violations across 0..80m');
+            return 'PASS — 160 depth samples, r and g strictly non-increasing';
+        }
+    },
+    {
+        id: 'TC-36-FACTOR-RANGE',
+        name: 'Issue #36 — depthColorFactors always returns r/g/b in [0,1], b pinned to 1',
+        fn: function() {
+            var f = api.depthColorFactors;
+            var violations = 0;
+            for (var d = -10; d <= 120; d += 1) {
+                var v = f(d, 'reef');
+                if (!(v.r >= 0 && v.r <= 1)) violations++;
+                if (!(v.g >= 0 && v.g <= 1)) violations++;
+                if (v.b !== 1) violations++;
+            }
+            assert(violations === 0, violations + ' out-of-range/incorrect samples');
+            // Explicit anchors matching the issue's own formula.
+            assert(Math.abs(f(0, 'reef').r - 1) < 1e-9, 'r at 0m should be 1 (no loss), got ' + f(0,'reef').r);
+            assert(f(25, 'reef').r < 0.3, 'r at 25m should be heavily lost, got ' + f(25,'reef').r);
+            assert(f(60, 'reef').g < 0.6, 'g at 60m should be substantially lost, got ' + f(60,'reef').g);
+            return 'PASS — 131 samples in range, b always 1, anchors match spec';
+        }
+    },
+    {
+        id: 'TC-36-FACTOR-CONTINUOUS',
+        name: 'Issue #36 — depthColorFactors has no popping (bounded step size)',
+        fn: function() {
+            var f = api.depthColorFactors;
+            var step = 0.1;
+            var maxStepDelta = 0;
+            var prev = f(0, 'reef');
+            for (var d = step; d <= 80; d += step) {
+                var v = f(d, 'reef');
+                maxStepDelta = Math.max(maxStepDelta, Math.abs(v.r - prev.r), Math.abs(v.g - prev.g));
+                prev = v;
+            }
+            // smoothstep is continuous; over an 0.1m step the factor should
+            // never jump more than a tiny fraction — a real "pop" would be
+            // orders of magnitude larger than this bound.
+            assert(maxStepDelta < 0.02,
+                'largest single-step (0.1m) change was ' + maxStepDelta.toFixed(4) + ' — looks like a pop, not a smooth ramp');
+            return 'PASS — max 0.1m-step delta ' + maxStepDelta.toFixed(5) + ', no popping';
+        }
+    },
+    {
+        id: 'TC-36-CAVE-SOFTER',
+        name: 'Issue #36 — cave color loss is softened vs. open-water sites at the same depth',
+        fn: function() {
+            var f = api.depthColorFactors;
+            var d = 40;
+            var cave = f(d, 'cave');
+            var reef = f(d, 'reef');
+            // Cave loses LESS color than reef at the same depth (higher r/g,
+            // i.e. closer to 1 = less desaturated) because torch darkness
+            // already dominates the mood there.
+            assert(cave.r >= reef.r - 1e-9 && cave.g >= reef.g - 1e-9,
+                'cave should retain MORE color than reef at ' + d + 'm; cave=' + JSON.stringify(cave) + ' reef=' + JSON.stringify(reef));
+            assert(cave.r < 1 || cave.g < 1, 'cave should still show SOME loss at ' + d + 'm, not zero');
+            return 'PASS — cave retains more color than reef at the same depth, but still loses some';
+        }
+    },
+    {
+        id: 'TC-36-NOOP-OUTSIDE-DIVE',
+        name: 'Issue #36 — drawDepthColorAbsorption emits zero canvas ops outside gameState="diving"',
+        fn: function() {
+            var iw = iframe.contentWindow;
+            var C = iw.CanvasRenderingContext2D && iw.CanvasRenderingContext2D.prototype;
+            assert(C, 'CanvasRenderingContext2D not accessible on iframe');
+            var methods = [
+                'fillRect', 'fill', 'beginPath', 'moveTo', 'lineTo', 'arc', 'closePath',
+                'clip', 'save', 'restore', 'drawImage', 'clearRect',
+                'createLinearGradient', 'createRadialGradient'
+            ];
+            var savedState = api.gameState;
+            var savedFns = {};
+            var callCount = 0;
+            for (var i = 0; i < methods.length; i++) savedFns[methods[i]] = C[methods[i]];
+            function wrap() {
+                for (var j = 0; j < methods.length; j++) {
+                    (function(m, orig) {
+                        C[m] = function() { callCount++; return orig.apply(this, arguments); };
+                    })(methods[j], savedFns[methods[j]]);
+                }
+            }
+            function unwrap() {
+                for (var j = 0; j < methods.length; j++) C[methods[j]] = savedFns[methods[j]];
+            }
+            var states = ['gas-setup', 'post-dive', 'game-over', 'surface'];
+            var threw = null;
+            try {
+                wrap();
+                for (var si = 0; si < states.length; si++) {
+                    api.gameState = states[si];
+                    callCount = 0;
+                    api.drawDepthColorAbsorption();
+                    if (callCount !== 0) {
+                        throw new Error('state "' + states[si] + '": ' + callCount + ' canvas ops emitted');
+                    }
+                }
+            } catch (e) { threw = e; }
+            finally { unwrap(); api.gameState = savedState; }
+            if (threw) throw threw;
+            return 'PASS — 4 non-dive states emitted zero canvas ops';
+        }
+    },
+    {
+        id: 'TC-36-TORCH-OFF-NO-RESTORE-BLIT',
+        name: 'Issue #36 — with torch OFF, drawDepthColorAbsorption never touches the restore offscreen buffers',
+        fn: function() {
+            var iw = iframe.contentWindow;
+            var C = iw.CanvasRenderingContext2D && iw.CanvasRenderingContext2D.prototype;
+            assert(C, 'CanvasRenderingContext2D not accessible on iframe');
+            var savedDrawImage = C.drawImage;
+            var drawImageCount = 0;
+            C.drawImage = function() { drawImageCount++; return savedDrawImage.apply(this, arguments); };
+            var savedState = api.gameState, savedTorch = api.torchOn, savedSite = api.diveSite, savedDepth = api.depth;
+            var threw = null;
+            try {
+                api.gameState = 'diving';
+                api.diveSite = 'reef';
+                api.depth = 40; // deep enough that the tint itself definitely runs
+                api.torchOn = false;
+                drawImageCount = 0;
+                api.drawDepthColorAbsorption();
+            } catch (e) { threw = e; }
+            finally {
+                C.drawImage = savedDrawImage;
+                api.gameState = savedState; api.torchOn = savedTorch;
+                api.diveSite = savedSite; api.depth = savedDepth;
+            }
+            if (threw) throw threw;
+            assert(drawImageCount === 0,
+                'torch OFF still triggered ' + drawImageCount + ' drawImage() calls — restore/snapshot logic should be fully skipped');
+            return 'PASS — torch OFF emits 0 drawImage() calls (no restore compositing)';
+        }
     }
 ];
 

@@ -229,6 +229,13 @@ const gameGlobals = {
   TORCH_NEAR_FIELD_FRACTION: "readonly",
   drawWreckHullSkin: "readonly", drawTorchGlowAndSparkles: "readonly",
   _diverFacing: "writable", _torchDark: "writable", _wreckMetal: "writable",
+  // Issue #36: depth-dependent color absorption (renderer.js)
+  depthColorFactors: "readonly", drawDepthColorAbsorption: "readonly",
+  DEPTH_COLOR_R_NEAR: "readonly", DEPTH_COLOR_R_FAR: "readonly", DEPTH_COLOR_R_LOSS: "readonly",
+  DEPTH_COLOR_G_NEAR: "readonly", DEPTH_COLOR_G_FAR: "readonly", DEPTH_COLOR_G_LOSS: "readonly",
+  DEPTH_COLOR_CAVE_STRENGTH: "readonly",
+  _depthColorRestoreCanvas: "writable", _depthColorRestoreCtx: "writable",
+  _depthColorMaskCanvas: "writable", _depthColorMaskCtx: "writable",
   // Phase C renderer helpers
   drawTerrain: "readonly", drawStructures: "readonly",
   drawFeatures: "readonly", drawSeagrass: "readonly",
