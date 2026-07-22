@@ -304,6 +304,11 @@ function drawFish(cx, x, y, fish) {
     // fish). Default 1 when unset so pre-existing entities are unchanged.
     var _fishAlpha = (fish.alpha != null) ? fish.alpha : 1;
     if (_fishAlpha < 1) cx.globalAlpha = cx.globalAlpha * Math.max(0, _fishAlpha);
+    // Base alpha AFTER the fade multiply above — the stripe below temporarily
+    // overrides globalAlpha for its own translucency, so anything drawn after
+    // it must be rebased off this (not a bare 1) or a fading fish would snap
+    // back to full opacity for its fin/tail/eye while only the body fades.
+    var _baseAlpha = cx.globalAlpha;
     var s = fish.type.size;
     // Issue #42: subtle tail-beat y-undulation. Each fish rolls a
     // phaseSeed once at spawn so different fish don't beat in lockstep.
@@ -363,9 +368,9 @@ function drawFish(cx, x, y, fish) {
     cx.fill();
     // Stripe
     cx.fillStyle = fish.type.stripe;
-    cx.globalAlpha = 0.7;
+    cx.globalAlpha = 0.7 * _baseAlpha;
     cx.fillRect(-s * 0.1, -s * 0.38, s * 0.15, s * 0.76);
-    cx.globalAlpha = 1;
+    cx.globalAlpha = _baseAlpha;
     // Dorsal fin
     cx.fillStyle = fish.type.color;
     cx.beginPath();
@@ -462,6 +467,12 @@ function drawWildlife(cx, x, y, w) {
     // Issue #42: honour per-entity alpha for fade-out on despawn.
     var _wAlpha = (w.alpha != null) ? w.alpha : 1;
     if (_wAlpha < 1) cx.globalAlpha = cx.globalAlpha * Math.max(0, _wAlpha);
+    // Base alpha AFTER the fade multiply above — the shark-gills and dolphin-
+    // belly branches below temporarily override globalAlpha for their own
+    // translucency; anything drawn after must be rebased off this (not a
+    // bare 1) or a fading whale/shark/dolphin would snap back to full
+    // opacity for the rest of its body while only one detail fades.
+    var _baseAlpha = cx.globalAlpha;
     cx.translate(x, y + Math.sin(w.phase) * 3);
     var sz = w.type.size;
     
@@ -611,10 +622,10 @@ function drawWildlife(cx, x, y, w) {
         cx.strokeStyle = '#1a232e'; cx.lineWidth = 1;
         var gillTs = [0.18, 0.22, 0.26];
         for (var gi = 0; gi < gillTs.length; gi++) {
-            cx.globalAlpha = 0.65;
+            cx.globalAlpha = 0.65 * _baseAlpha;
             cx.beginPath(); cx.moveTo(L*gillTs[gi], -L*0.08); cx.quadraticCurveTo(L*gillTs[gi]-2, 0, L*gillTs[gi], L*0.14); cx.stroke();
         }
-        cx.globalAlpha = 1;
+        cx.globalAlpha = _baseAlpha;
     } else if (w.type.name === 'hammerhead') {
         if (w.direction < 0) cx.scale(-1, 1);
         var Lh = sz * 2;
@@ -656,7 +667,7 @@ function drawWildlife(cx, x, y, w) {
         cx.quadraticCurveTo(-Ld*0.4, Ld*0.12, -Ld*0.5, 0);
         cx.closePath(); cx.fill();
         // belly
-        cx.fillStyle = '#9aa7b3'; cx.globalAlpha = 0.7;
+        cx.fillStyle = '#9aa7b3'; cx.globalAlpha = 0.7 * _baseAlpha;
         cx.beginPath();
         cx.moveTo(-Ld*0.5, 0);
         cx.quadraticCurveTo(-Ld*0.4, Ld*0.08, -Ld*0.1, Ld*0.12);
@@ -665,7 +676,7 @@ function drawWildlife(cx, x, y, w) {
         cx.quadraticCurveTo(Ld*0.18, Ld*0.14, -Ld*0.1, Ld*0.14);
         cx.quadraticCurveTo(-Ld*0.4, Ld*0.12, -Ld*0.5, 0);
         cx.closePath(); cx.fill();
-        cx.globalAlpha = 1;
+        cx.globalAlpha = _baseAlpha;
         // dorsal
         cx.fillStyle = '#2c3744';
         cx.beginPath(); cx.moveTo(-Ld*0.05, -Ld*0.16+bob); cx.quadraticCurveTo(Ld*0.02, -Ld*0.32+bob, Ld*0.1, -Ld*0.14+bob); cx.closePath(); cx.fill();

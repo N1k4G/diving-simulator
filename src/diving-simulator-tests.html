@@ -5729,13 +5729,25 @@ tests = [
             assert(bluefish, 'bluefish type not found');
 
             // With alpha=0.3 present, the log must contain a value ≤ 0.3
-            // (the fade multiplication itself).
+            // (the fade multiplication itself) — AND, just as importantly,
+            // no LATER write may exceed 0.3 either. drawFish's stripe detail
+            // temporarily sets an absolute globalAlpha (0.7) then resets to
+            // a base value; if that reset used a bare 1 instead of the
+            // fish's own fade fraction, everything drawn after the stripe
+            // (dorsal fin, tail, eye) would snap back to full opacity while
+            // only the body actually faded — a real regression this test
+            // must catch, not just "did alpha dip low at some point".
             var faded = { type: bluefish, direction: 1, alpha: 0.3, phaseSeed: 0 };
             var cxFade = makeCtx();
             api.drawFish(cxFade, 0, 0, faded);
             var minFade = Math.min.apply(null, cxFade._alphaLog);
+            var maxFade = Math.max.apply(null, cxFade._alphaLog);
             assert(cxFade._alphaLog.length > 0, 'alpha=0.3 produced no globalAlpha writes');
             assert(minFade <= 0.3 + 1e-6, 'alpha=0.3 fish never dropped globalAlpha to ≤0.3 (min=' + minFade + ')');
+            assert(maxFade <= 0.3 + 1e-6,
+                'alpha=0.3 fish let globalAlpha rise back to ' + maxFade + ' after the fade — ' +
+                'a detail drawn after the stripe (fin/tail/eye) is snapping back to full opacity ' +
+                'instead of staying faded');
 
             // Without alpha (default = 1), drawFish must NOT dip globalAlpha
             // below the stripe temporary (0.7). Any dip below that would
@@ -5800,7 +5812,29 @@ tests = [
             // should be either empty or contain only values ≥ 1.
             var minNormal = cxNormal._alphaLog.length ? Math.min.apply(null, cxNormal._alphaLog) : 1;
             assert(minNormal >= 1 - 1e-6, 'default-alpha wildlife dropped globalAlpha to ' + minNormal);
-            return 'PASS — drawWildlife honours alpha (min alpha=0.25 → ' + minFade.toFixed(2) + ', default → ' + minNormal.toFixed(2) + ')';
+
+            // Dolphin and greyReefShark both set an ABSOLUTE globalAlpha for
+            // one internal detail (belly / gills) and reset afterward — the
+            // exact pattern that can silently snap a fading entity back to
+            // full opacity for everything drawn after that reset (fin, tail,
+            // beak, eye). jellyfish never exercises this code path, so it
+            // alone cannot catch this regression class.
+            var dolphin = api.WILDLIFE_TYPES.filter(function(t){ return t.name === 'dolphin'; })[0];
+            var shark    = api.WILDLIFE_TYPES.filter(function(t){ return t.name === 'greyReefShark'; })[0];
+            assert(dolphin, 'dolphin type not found');
+            assert(shark, 'greyReefShark type not found');
+            [['dolphin', dolphin], ['greyReefShark', shark]].forEach(function(pair) {
+                var label = pair[0], type = pair[1];
+                var fadedEntity = { type: type, direction: 1, phase: 0, alpha: 0.4 };
+                var cx2 = makeCtx();
+                api.drawWildlife(cx2, 0, 0, fadedEntity);
+                assert(cx2._alphaLog.length > 0, label + ' alpha=0.4 produced no globalAlpha writes');
+                var max2 = Math.max.apply(null, cx2._alphaLog);
+                assert(max2 <= 0.4 + 1e-6,
+                    label + ' alpha=0.4 let globalAlpha rise back to ' + max2 + ' after its internal ' +
+                    'belly/gills detail — a body part drawn afterward is snapping back to full opacity');
+            });
+            return 'PASS — drawWildlife honours alpha (min alpha=0.25 → ' + minFade.toFixed(2) + ', default → ' + minNormal.toFixed(2) + '; dolphin/shark internal resets stay faded too)';
         }
     },
     {
