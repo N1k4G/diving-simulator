@@ -130,6 +130,16 @@ async function run() {
     { site: 'Cave',  x: 90, depth: 24, name: 'desktop-dive-cave' },
     { site: 'Shore', x: 85, depth: 28, name: 'desktop-dive-shore-floor' },
     { site: 'Reef',  x: 0,  depth: 6,  name: 'desktop-dive-reef-plateau' },
+    // Issue #35: reef coral individualization — proof shots. The pair
+    // shots frame two same-species corals close together (staghorn at
+    // x=-2 & x=1; tableCoral at x=-4 & x=2) so a reviewer can eyeball
+    // that the two visibly differ. Density/mid/deep shots show the
+    // depth-zone staggering (plateau densest → deep sparsest).
+    { site: 'Reef',  x: -2, depth: 5,  name: 'desktop-dive-reef-plateau-pair-staghorn' },
+    { site: 'Reef',  x: -4, depth: 5,  name: 'desktop-dive-reef-plateau-pair-table' },
+    { site: 'Reef',  x: 0,  depth: 5,  name: 'desktop-dive-reef-plateau-density' },
+    { site: 'Reef',  x: 13, depth: 37, name: 'desktop-dive-reef-mid-wall' },
+    { site: 'Reef',  x: 16, depth: 60, name: 'desktop-dive-reef-deep-sentinel' },
     { site: 'Wreck', x: 92, depth: 32, name: 'desktop-dive-wreck-vehicle-deck' },
     { site: 'Wreck', x: 92, depth: 57, name: 'desktop-dive-wreck-engine-room' },
     { site: 'Cave',  x: 90, depth: 16, name: 'desktop-dive-cave-upper-tunnel' },

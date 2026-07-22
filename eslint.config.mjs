@@ -257,6 +257,10 @@ const gameGlobals = {
   drawTableCoral: "readonly", drawBrainCoral: "readonly", drawStaghorn: "readonly",
   drawSoftCoral: "readonly", drawGorgonian: "readonly", drawBarrelSponge: "readonly",
   drawAnthiasCloud: "readonly", drawBlueHaze: "readonly",
+  // Issue #35: coral variation helpers
+  coralVariation: "readonly", tintCoralColor: "readonly",
+  CORAL_SCALE_MIN: "readonly", CORAL_SCALE_MAX: "readonly",
+  CORAL_BRIGHTNESS_RANGE: "readonly", CORAL_HUE_SHIFT_DEG: "readonly",
 
   // UI functions (ui.js)
   showHtmlHelp: "readonly", hideHtmlHelp: "readonly",

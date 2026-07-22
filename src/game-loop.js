@@ -1031,6 +1031,23 @@ window.gameAPI = {
     get SWAY_PROFILES() { return SWAY_PROFILES; },
     get waveTime() { return waveTime; },
     set waveTime(v) { waveTime = v; },
+    // Issue #35: Per-instance coral variation (renderer-only, decorative)
+    coralVariation: coralVariation,
+    tintCoralColor: tintCoralColor,
+    get CORAL_VARIATION_CONSTANTS() {
+        return {
+            SCALE_MIN: CORAL_SCALE_MIN,
+            SCALE_MAX: CORAL_SCALE_MAX,
+            BRIGHTNESS_RANGE: CORAL_BRIGHTNESS_RANGE,
+            HUE_SHIFT_DEG: CORAL_HUE_SHIFT_DEG
+        };
+    },
+    drawTableCoral: drawTableCoral,
+    drawBrainCoral: drawBrainCoral,
+    drawStaghorn: drawStaghorn,
+    drawSoftCoral: drawSoftCoral,
+    drawGorgonian: drawGorgonian,
+    drawBarrelSponge: drawBarrelSponge,
     // Issue #58: Shared near-surface optics — caustics, godrays, water
     // underside, boat shadow. Pure depth curve + three render helpers.
     nearSurfaceLightFactor: nearSurfaceLightFactor,

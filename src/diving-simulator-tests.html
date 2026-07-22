@@ -5915,6 +5915,162 @@ tests = [
             if (threw) throw threw;
             return 'PASS — a fish forced below the floor steers upward on the next check';
         }
+    },
+    // ----------------------------------------------------------
+    // Issue #35 — Reef coral individualization
+    // ----------------------------------------------------------
+    {
+        id: 'TC-35-API',
+        name: 'Issue #35 — coralVariation + tintCoralColor exposed',
+        fn: function() {
+            assert(typeof api.coralVariation === 'function', 'coralVariation missing');
+            assert(typeof api.tintCoralColor === 'function', 'tintCoralColor missing');
+            var c = api.CORAL_VARIATION_CONSTANTS;
+            assert(c && typeof c.SCALE_MIN === 'number', 'SCALE_MIN missing');
+            assert(c.SCALE_MAX > c.SCALE_MIN, 'SCALE_MAX must exceed SCALE_MIN');
+            assert(c.BRIGHTNESS_RANGE > 0 && c.HUE_SHIFT_DEG > 0, 'bad constants');
+            return 'PASS — helpers and constants exposed';
+        }
+    },
+    {
+        id: 'TC-35-DETERMINISM',
+        name: 'Issue #35 — coralVariation is deterministic for same seed',
+        fn: function() {
+            var seeds = [-16, -6, -4, -2, 0, 1, 2, 5, 7, 11, 12, 13, 16, 100.5];
+            for (var i = 0; i < seeds.length; i++) {
+                var a = api.coralVariation(seeds[i]);
+                var b = api.coralVariation(seeds[i]);
+                assert(a.scale === b.scale && a.mirror === b.mirror &&
+                       a.brightness === b.brightness && a.hueShift === b.hueShift &&
+                       a.shape === b.shape,
+                       'variation not deterministic for seed=' + seeds[i]);
+            }
+            return 'PASS — deterministic across ' + seeds.length + ' seeds';
+        }
+    },
+    {
+        id: 'TC-35-SCALE-BOUNDED',
+        name: 'Issue #35 — scale stays inside [SCALE_MIN, SCALE_MAX]',
+        fn: function() {
+            var c = api.CORAL_VARIATION_CONSTANTS;
+            var min = Infinity, max = -Infinity;
+            for (var s = -30; s <= 30; s += 0.13) {
+                var v = api.coralVariation(s);
+                if (v.scale < min) min = v.scale;
+                if (v.scale > max) max = v.scale;
+                assert(v.scale >= c.SCALE_MIN - 1e-9 && v.scale <= c.SCALE_MAX + 1e-9,
+                       'scale=' + v.scale + ' out of bounds at seed=' + s);
+            }
+            // And ensure the sample actually varies — not stuck on one value.
+            assert((max - min) > 0.1, 'scale barely varied across sample (min=' + min + ', max=' + max + ')');
+            return 'PASS — scale in ['+min.toFixed(3)+', '+max.toFixed(3)+']';
+        }
+    },
+    {
+        id: 'TC-35-MIRROR-BOTH-SIDES',
+        name: 'Issue #35 — mirror hits both -1 and +1 across seeds',
+        fn: function() {
+            var neg = 0, pos = 0;
+            for (var s = 0; s < 200; s++) {
+                var m = api.coralVariation(s).mirror;
+                assert(m === -1 || m === 1, 'mirror not ±1 at seed=' + s + ': ' + m);
+                if (m === -1) neg++; else pos++;
+            }
+            assert(neg > 20 && pos > 20, 'mirror stuck on one side (neg=' + neg + ', pos=' + pos + ')');
+            return 'PASS — mirror balanced (neg=' + neg + ', pos=' + pos + ')';
+        }
+    },
+    {
+        id: 'TC-35-DIFFERENT-SEEDS-DIFFER',
+        name: 'Issue #35 — nearby seeds produce visibly different variation',
+        fn: function() {
+            // Reef feature pairs of same species that must look different:
+            var pairs = [
+                { name: 'staghorn',  a: -2, b: 1   },
+                { name: 'tableCoral',a: -4, b: 2   },
+                { name: 'softCoral', a: -6, b: 7   }
+            ];
+            for (var i = 0; i < pairs.length; i++) {
+                var va = api.coralVariation(pairs[i].a);
+                var vb = api.coralVariation(pairs[i].b);
+                // At least one of scale/mirror/brightness/hue must differ meaningfully.
+                var diff = (Math.abs(va.scale - vb.scale) > 0.02)
+                        || (va.mirror !== vb.mirror)
+                        || (Math.abs(va.brightness - vb.brightness) > 0.02)
+                        || (Math.abs(va.hueShift - vb.hueShift) > 1);
+                assert(diff, pairs[i].name + ' pair (' + pairs[i].a + ',' + pairs[i].b + ') looks identical');
+            }
+            return 'PASS — same-species reef pairs get distinct variation';
+        }
+    },
+    {
+        id: 'TC-35-TINT-VALID-HEX',
+        name: 'Issue #35 — tintCoralColor returns a valid #rrggbb hex',
+        fn: function() {
+            var samples = ['#c84a8a', '#e8839a', '#c83a5a', '#9c5a3a', '#7a4a8a', '#c89860'];
+            for (var i = 0; i < samples.length; i++) {
+                var out = api.tintCoralColor(samples[i], 1.05, 6);
+                assert(typeof out === 'string' && /^#[0-9a-f]{6}$/i.test(out),
+                       'invalid hex out for ' + samples[i] + ': ' + out);
+            }
+            // Zero-shift with brightness 1 returns the same channel values (round-trip).
+            var neutral = api.tintCoralColor('#c84a8a', 1, 0);
+            assert(neutral && neutral.toLowerCase() === '#c84a8a', 'neutral round-trip failed: ' + neutral);
+            // Non-hex input returns null (drawer falls back to original color).
+            assert(api.tintCoralColor('red', 1, 0) === null, 'non-hex input should return null');
+            return 'PASS — tint output well-formed on ' + samples.length + ' palette samples';
+        }
+    },
+    {
+        id: 'TC-35-DRAWERS-DETERMINISTIC',
+        name: 'Issue #35 — same seed produces identical draw-op sequence',
+        fn: function() {
+            // Record every canvas method invocation into a string. Two calls
+            // with the same seed must produce the identical trace; different
+            // seeds must produce a different trace.
+            function traceCtx() {
+                var log = [];
+                var stub = new Proxy({}, {
+                    get: function(t, k) {
+                        // Expose the log array directly so callers can read stub.__log
+                        if (k === '__log') return log;
+                        // properties whose value is read back (fillStyle, etc.)
+                        if (k === 'canvas') return { width: 100, height: 100 };
+                        // Return a function that logs the call for methods.
+                        return function() {
+                            var args = Array.prototype.slice.call(arguments);
+                            log.push(String(k) + '(' + args.join(',') + ')');
+                            return undefined;
+                        };
+                    },
+                    set: function(t, k, v) {
+                        log.push(String(k) + '=' + v);
+                        return true;
+                    }
+                });
+                return stub;
+            }
+            var drawers = [
+                { fn: 'drawTableCoral',  args: function(cx,s){ return [cx, 0, 0, s]; } },
+                { fn: 'drawBrainCoral',  args: function(cx,s){ return [cx, 0, 0, s]; } },
+                { fn: 'drawStaghorn',    args: function(cx,s){ return [cx, 0, 0, s]; } },
+                { fn: 'drawBarrelSponge',args: function(cx,s){ return [cx, 0, 0, '#9c5a3a', s]; } }
+            ];
+            for (var i = 0; i < drawers.length; i++) {
+                var d = drawers[i];
+                var f = api[d.fn];
+                if (typeof f !== 'function') continue; // drawer not exposed via api; skip silently
+                var c1 = traceCtx(); f.apply(null, d.args(c1, 7.5));
+                var c2 = traceCtx(); f.apply(null, d.args(c2, 7.5));
+                var c3 = traceCtx(); f.apply(null, d.args(c3, 13.25));
+                var t1 = c1.__log.join('|');
+                var t2 = c2.__log.join('|');
+                var t3 = c3.__log.join('|');
+                assert(t1 === t2, d.fn + ' non-deterministic for seed 7.5');
+                assert(t1 !== t3, d.fn + ' produced identical trace for different seeds');
+            }
+            return 'PASS — drawer op sequences deterministic and seed-sensitive';
+        }
     }
 ];
 

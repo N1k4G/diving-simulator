@@ -147,6 +147,7 @@ var DIVE_SITES = {
       {kind:'tableCoral', x:-4, d:5},
       {kind:'tableCoral', x:2,  d:5},
       {kind:'brainCoral', x:5,  d:5},
+      {kind:'brainCoral', x:6,  d:5},
       {kind:'staghorn',   x:-2, d:5},
       {kind:'staghorn',   x:1,  d:5},
       {kind:'softCoral',  x:-6, d:5, color:'#c84a8a'},

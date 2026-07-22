@@ -5288,7 +5288,7 @@ function drawFeatures() {
             if (fpY > -60 && fpY < H + 20) drawPond(cx, ffx, fpY);
         } else if (f.kind === 'tableCoral') {
             var ty = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (ty > -40 && ty < H + 40) { drawContactShadow(cx, ffx, ty, 72, 9, 0.18); drawTableCoral(cx, ffx, ty); }
+            if (ty > -40 && ty < H + 40) { drawContactShadow(cx, ffx, ty, 72, 9, 0.18); drawTableCoral(cx, ffx, ty, (f.x || 0)); }
         } else if (f.kind === 'brainCoral') {
             var by2 = diverScreenY + ((f.d || 0) - depth) / mpp;
             if (by2 > -40 && by2 < H + 40) { drawContactShadow(cx, ffx, by2, 56, 8, 0.18); drawBrainCoral(cx, ffx, by2, (f.x || 0)); }
@@ -5303,7 +5303,7 @@ function drawFeatures() {
             if (gy > -160 && gy < H + 160) { drawContactShadow(cx, ffx, gy, 44, 9, 0.15); drawGorgonian(cx, ffx, gy, f.side, f.color, (f.x || 0)); }
         } else if (f.kind === 'barrelSponge') {
             var bsy = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (bsy > -80 && bsy < H + 40) { drawContactShadow(cx, ffx, bsy, 42, 9, 0.17); drawBarrelSponge(cx, ffx, bsy, f.color); }
+            if (bsy > -80 && bsy < H + 40) { drawContactShadow(cx, ffx, bsy, 42, 9, 0.17); drawBarrelSponge(cx, ffx, bsy, f.color, (f.x || 0)); }
         } else if (f.kind === 'anthiasCloud') {
             var acy = diverScreenY + ((f.d || 0) - depth) / mpp;
             if (acy > -200 && acy < H + 200) drawAnthiasCloud(cx, ffx, acy, f);
@@ -5848,22 +5848,106 @@ function drawThermocline(cx, thd) {
 // ── Reef redesign: dedicated coral / sponge / cloud drawers ──
 // All read REEF_PAL (constants.js) and waveTime (state.js) from outer scope.
 
-function drawTableCoral(cx, x, y) {
+// ── Issue #35: per-instance coral variation ──────────────────────
+// Pure, deterministic helpers consumed by drawTableCoral/drawBrainCoral/
+// drawStaghorn/drawSoftCoral/drawGorgonian/drawBarrelSponge so every
+// instance of the same species reads as an individual (different scale,
+// mirrored where geometrically sensible, subtle hue/brightness shift,
+// small shape tweak) without duplicating drawers. Reuses the project-
+// wide sRand() helper — never Math.random(). Sits ON TOP of the #57
+// sway system for softCoral/gorgonian — the sway math itself is
+// untouched, it just draws under the additional cx.scale() transform.
+const CORAL_SCALE_MIN = 0.80;
+const CORAL_SCALE_MAX = 1.25;
+const CORAL_BRIGHTNESS_RANGE = 0.10;   // ±0.10 lightness
+const CORAL_HUE_SHIFT_DEG    = 12;     // ±12°
+
+function coralVariation(seed) {
+    var s = (typeof seed === 'number') ? seed : 0;
+    var r1 = sRand(s * 0.913 + 1.71);
+    var r2 = sRand(s * 1.317 + 3.29);
+    var r3 = sRand(s * 0.427 + 5.71);
+    var r4 = sRand(s * 1.913 + 7.23);
+    var r5 = sRand(s * 2.311 + 9.17);
+    return {
+        seed: s,
+        scale:      CORAL_SCALE_MIN + r1 * (CORAL_SCALE_MAX - CORAL_SCALE_MIN),
+        mirror:     r2 < 0.5 ? -1 : 1,
+        brightness: 1 - CORAL_BRIGHTNESS_RANGE + r3 * (2 * CORAL_BRIGHTNESS_RANGE),
+        hueShift:   (r4 - 0.5) * 2 * CORAL_HUE_SHIFT_DEG,
+        shape:      r5    // 0..1, drawers use this for small extra shape tweaks
+    };
+}
+
+// Hex -> HSL -> tint -> hex. Pure. Handles #rgb and #rrggbb. Returns null
+// for non-hex input so callers can fall back to the untouched color.
+function tintCoralColor(hexColor, brightness, hueShiftDeg) {
+    if (typeof hexColor !== 'string') return null;
+    var hex = hexColor.trim();
+    if (hex[0] !== '#') return null;
+    hex = hex.slice(1);
+    if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+    if (hex.length !== 6) return null;
+    var r = parseInt(hex.slice(0,2), 16) / 255;
+    var g = parseInt(hex.slice(2,4), 16) / 255;
+    var b = parseInt(hex.slice(4,6), 16) / 255;
+    var max = Math.max(r,g,b), min = Math.min(r,g,b);
+    var h = 0, s = 0;
+    var l0 = (max + min) / 2;
+    if (max !== min) {
+        var d = max - min;
+        s = l0 > 0.5 ? d / (2 - max - min) : d / (max + min);
+        if (max === r) { h = ((g - b) / d + (g < b ? 6 : 0)); }
+        else if (max === g) { h = ((b - r) / d + 2); }
+        else { h = ((r - g) / d + 4); }
+        h *= 60;
+    }
+    // apply shifts
+    h = (h + hueShiftDeg + 360) % 360;
+    var l = Math.max(0, Math.min(1, l0 * (brightness || 1)));
+    // HSL -> RGB
+    function hue2rgb(p, q, t) {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1/6) return p + (q - p) * 6 * t;
+        if (t < 1/2) return q;
+        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+        return p;
+    }
+    var R, G, B;
+    if (s === 0) { R = G = B = l; }
+    else {
+        var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        var p = 2 * l - q;
+        R = hue2rgb(p, q, h/360 + 1/3);
+        G = hue2rgb(p, q, h/360);
+        B = hue2rgb(p, q, h/360 - 1/3);
+    }
+    function to2(v) {
+        var n = Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16);
+        return n.length === 1 ? '0' + n : n;
+    }
+    return '#' + to2(R) + to2(G) + to2(B);
+}
+
+function drawTableCoral(cx, x, y, seed) {
+    var v = coralVariation(seed);
     cx.save();
     cx.translate(x, y);
+    cx.scale(v.mirror * v.scale, v.scale);
     cx.lineCap = 'round';
     var w = 90, h = 22;
     // flat cap ellipse
-    cx.fillStyle = REEF_PAL.tableCoral;
+    cx.fillStyle = tintCoralColor(REEF_PAL.tableCoral, v.brightness, v.hueShift) || REEF_PAL.tableCoral;
     cx.beginPath(); cx.ellipse(0, -h, w/2, h/2.2, 0, 0, Math.PI*2); cx.fill();
     // highlight
-    cx.fillStyle = REEF_PAL.tableHi; cx.globalAlpha = 0.6;
+    cx.fillStyle = tintCoralColor(REEF_PAL.tableHi, v.brightness, v.hueShift) || REEF_PAL.tableHi; cx.globalAlpha = 0.6;
     cx.beginPath(); cx.ellipse(0, -h-3, w/2-3, h/2.6, 0, 0, Math.PI*2); cx.fill();
     cx.globalAlpha = 1;
-    // stalk
+    // stalk (structural — untinted)
     cx.fillStyle = '#6a4a26';
     cx.fillRect(-5, -h, 10, h);
-    // foot
+    // foot (structural — untinted)
     cx.globalAlpha = 0.7;
     cx.fillRect(-12, -h*0.4, 24, h*0.3);
     cx.globalAlpha = 1;
@@ -5871,14 +5955,16 @@ function drawTableCoral(cx, x, y) {
 }
 
 function drawBrainCoral(cx, x, y, seed) {
+    var v = coralVariation(seed);
     cx.save();
     cx.translate(x, y);
+    cx.scale(v.mirror * v.scale, v.scale);
     var w = 60;
     // outer ellipse
-    cx.fillStyle = REEF_PAL.brainCoral;
+    cx.fillStyle = tintCoralColor(REEF_PAL.brainCoral, v.brightness, v.hueShift) || REEF_PAL.brainCoral;
     cx.beginPath(); cx.ellipse(0, 0, w/2, w/3.5, 0, 0, Math.PI*2); cx.fill();
     // highlight
-    cx.fillStyle = REEF_PAL.brainHi; cx.globalAlpha = 0.6;
+    cx.fillStyle = tintCoralColor(REEF_PAL.brainHi, v.brightness, v.hueShift) || REEF_PAL.brainHi; cx.globalAlpha = 0.6;
     cx.beginPath(); cx.ellipse(0, -4, w/2-4, w/4, 0, 0, Math.PI*2); cx.fill();
     cx.globalAlpha = 1;
     // gyri lines
@@ -5896,21 +5982,29 @@ function drawBrainCoral(cx, x, y, seed) {
 }
 
 function drawStaghorn(cx, x, y, seed) {
+    var v = coralVariation(seed);
     cx.save();
     cx.translate(x, y);
+    cx.scale(v.mirror * v.scale, v.scale);
     cx.lineCap = 'round';
-    var offsets = [-18, -8, 4, 14, 22];
-    for (var i = 0; i < offsets.length; i++) {
-        var ox = offsets[i];
-        var curl = (i % 2 === 0) ? -4 : 4;
-        var tipX = ox + (i % 2 === 0 ? -2 : 2);
+    var tintedStaghorn = tintCoralColor(REEF_PAL.staghorn, v.brightness, v.hueShift) || REEF_PAL.staghorn;
+    // branch count: 4, 5, or 6 based on shape variation
+    var branchCount = 4 + Math.floor(v.shape * 3);
+    for (var i = 0; i < branchCount; i++) {
+        // even spread across [-20, 20] so coral width stays constant with more branches
+        var ox = Math.round(-20 + (40 / (branchCount - 1)) * i);
+        // per-branch curl direction — use a seed derived from parent seed so
+        // mirroring feels less mechanical than a plain i%2 pattern
+        var curlSeed = sRand(v.seed + i * 0.317 + 2.11);
+        var curl = (curlSeed < 0.5) ? -4 : 4;
+        var tipX = ox + (curlSeed < 0.5 ? -2 : 2);
         // antler branch
-        cx.strokeStyle = REEF_PAL.staghorn; cx.lineWidth = 3;
+        cx.strokeStyle = tintedStaghorn; cx.lineWidth = 3;
         cx.beginPath(); cx.moveTo(ox, 0);
         cx.quadraticCurveTo(ox + curl, -22, tipX, -34);
         cx.stroke();
         // tip circle
-        cx.fillStyle = REEF_PAL.staghorn;
+        cx.fillStyle = tintedStaghorn;
         cx.beginPath(); cx.arc(tipX, -34, 3, 0, Math.PI*2); cx.fill();
         cx.fillStyle = '#fff'; cx.globalAlpha = 0.6;
         cx.beginPath(); cx.arc(tipX, -34, 1.4, 0, Math.PI*2); cx.fill();
@@ -5920,10 +6014,16 @@ function drawStaghorn(cx, x, y, seed) {
 }
 
 function drawSoftCoral(cx, x, y, color, worldX) {
+    // Issue #35: per-instance variation layered ON TOP of #57 sway.
+    // v.scale + v.mirror wrap the whole drawer as a cx transform so
+    // the sway math (unchanged below) draws under it automatically.
+    var v = coralVariation(worldX);
     cx.save();
     cx.translate(x, y);
+    cx.scale(v.mirror * v.scale, v.scale);
     cx.lineCap = 'round';
     var col = color || REEF_PAL.softPink;
+    col = tintCoralColor(col, v.brightness, v.hueShift) || col;
     var h = 70;
     var stalks = [-12, -2, 8, 16];
     // World-x seed keeps phase stable across camera; per-stalk offset
@@ -5963,10 +6063,15 @@ function drawSoftCoral(cx, x, y, color, worldX) {
 }
 
 function drawGorgonian(cx, x, y, side, color, worldX) {
+    // Issue #35: per-instance variation layered ON TOP of #57 sway.
+    // No mirror here — `side` already anchors direction to the wall.
+    var v = coralVariation(worldX);
     cx.save();
     cx.translate(x, y);
+    cx.scale(v.scale, v.scale);
     cx.lineCap = 'round';
     var col = color || REEF_PAL.gorgBright;
+    col = tintCoralColor(col, v.brightness, v.hueShift) || col;
     var sign = (side === 'right') ? 1 : -1;
     var h = 140;
     // Gorgonian is deliberately near-rigid: profile flex 0.25, amp 2px.
@@ -6028,10 +6133,13 @@ function drawGorgonian(cx, x, y, side, color, worldX) {
     cx.restore();
 }
 
-function drawBarrelSponge(cx, x, y, color) {
+function drawBarrelSponge(cx, x, y, color, seed) {
+    var v = coralVariation(seed);
     cx.save();
     cx.translate(x, y);
+    cx.scale(v.mirror * v.scale, v.scale);
     var col = color || REEF_PAL.barrel1;
+    col = tintCoralColor(col, v.brightness, v.hueShift) || col;
     var w = 36, h = 60;
     // tapered barrel body
     cx.fillStyle = col;
