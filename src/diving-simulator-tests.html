@@ -5513,6 +5513,374 @@ tests = [
                 'torch OFF still triggered ' + drawImageCount + ' drawImage() calls — restore/snapshot logic should be fully skipped');
             return 'PASS — torch OFF emits 0 drawImage() calls (no restore compositing)';
         }
+    },
+    // ==========================================================
+    //  Issue #42 — fauna clipping fix (site filters, terrain
+    //  avoidance, alpha fade). These are data / pure-logic tests;
+    //  spawn selection is genuinely randomised by design so we
+    //  never assert on a single random draw.
+    // ==========================================================
+    {
+        id: 'TC-42-DATA-ALL-TYPES-HAVE-SITES',
+        name: 'Issue #42 — every FISH_TYPES / WILDLIFE_TYPES entry has an explicit sites[] filter',
+        fn: function() {
+            var missing = [];
+            api.FISH_TYPES.forEach(function(t) {
+                if (!Array.isArray(t.sites) || !t.sites.length) missing.push('fish:' + t.name);
+            });
+            api.WILDLIFE_TYPES.forEach(function(t) {
+                if (!Array.isArray(t.sites) || !t.sites.length) missing.push('wildlife:' + t.name);
+            });
+            assert(missing.length === 0, 'types without sites[]: ' + missing.join(', '));
+            return 'PASS — all ' + (api.FISH_TYPES.length + api.WILDLIFE_TYPES.length) + ' types have sites[]';
+        }
+    },
+    {
+        id: 'TC-42-DATA-CAVE-FREE-OF-BAD-FAUNA',
+        name: 'Issue #42 — whale/jellyfish/octopus (and all fish) excluded from cave',
+        fn: function() {
+            // Whale is the marquee case from the issue text — a 60m whale in a
+            // cave completely breaks immersion. Jellyfish + octopus similarly.
+            var mustExcludeCave = ['whale', 'jellyfish', 'octopus'];
+            var offenders = [];
+            api.WILDLIFE_TYPES.forEach(function(t) {
+                if (mustExcludeCave.indexOf(t.name) === -1) return;
+                if (!t.sites || t.sites.indexOf('cave') !== -1) offenders.push(t.name);
+            });
+            assert(offenders.length === 0, 'wildlife allowed in cave: ' + offenders.join(', '));
+            // No fish type should list cave either — real caves are near-empty.
+            var fishInCave = api.FISH_TYPES.filter(function(t) {
+                return t.sites && t.sites.indexOf('cave') !== -1;
+            }).map(function(t) { return t.name; });
+            assert(fishInCave.length === 0, 'fish that list cave: ' + fishInCave.join(', '));
+            return 'PASS — cave has no whale/jellyfish/octopus, and no fish types either';
+        }
+    },
+    {
+        id: 'TC-42-ELIGIBLE-CAVE-EMPTY',
+        name: 'Issue #42 — _eligibleTypes() returns empty pool for cave (no fallback to full list)',
+        fn: function() {
+            var savedSite = api.diveSite;
+            var threw = null;
+            try {
+                api.diveSite = 'cave';
+                var fishPool = api.eligibleFishTypes();
+                var wildPool = api.eligibleWildlifeTypes();
+                assert(fishPool.length === 0,
+                    'cave fish pool should be empty; got ' + fishPool.map(function(t){return t.name;}).join(','));
+                // Wildlife pool for cave should also exclude the marquee types
+                // that used to be unfiltered; a small non-empty pool is OK if
+                // some type genuinely lists 'cave', but whale MUST NOT be in it.
+                var whaleLeaked = wildPool.some(function(t) { return t.name === 'whale'; });
+                assert(!whaleLeaked, 'whale slipped into cave eligible pool via the fallback');
+            } catch (e) { threw = e; }
+            finally { api.diveSite = savedSite; }
+            if (threw) throw threw;
+            return 'PASS — cave eligible pool is empty; fallback no longer lets whales in';
+        }
+    },
+    {
+        id: 'TC-42-ELIGIBLE-SITE-FILTERING',
+        name: 'Issue #42 — reef/wreck/shore eligible pools respect declared filters',
+        fn: function() {
+            var savedSite = api.diveSite;
+            var threw = null;
+            try {
+                api.diveSite = 'reef';
+                var reefPool = api.eligibleFishTypes().map(function(t) { return t.name; });
+                assert(reefPool.indexOf('clownfish') !== -1, 'clownfish should be reef-eligible');
+                assert(reefPool.indexOf('flounder') === -1, 'flounder should NOT be reef-eligible (shore only)');
+
+                api.diveSite = 'shore';
+                var shorePool = api.eligibleFishTypes().map(function(t) { return t.name; });
+                assert(shorePool.indexOf('flounder') !== -1, 'flounder should be shore-eligible');
+                assert(shorePool.indexOf('anglerfish') === -1, 'anglerfish should NOT be shore-eligible (reef only)');
+
+                api.diveSite = 'wreck';
+                var wreckPool = api.eligibleFishTypes().map(function(t) { return t.name; });
+                assert(wreckPool.indexOf('grouper') !== -1, 'grouper should be wreck-eligible');
+                assert(wreckPool.indexOf('anthias') === -1, 'anthias should NOT be wreck-eligible (reef only)');
+                var wreckWild = api.eligibleWildlifeTypes().map(function(t) { return t.name; });
+                assert(wreckWild.indexOf('whale') === -1, 'whale should NOT be wreck-eligible (reef only)');
+            } catch (e) { threw = e; }
+            finally { api.diveSite = savedSite; }
+            if (threw) throw threw;
+            return 'PASS — site filters partition types as declared';
+        }
+    },
+    {
+        id: 'TC-42-FAUNA-BLOCKED-FLOOR',
+        name: 'Issue #42 — faunaBlockedAt() flags points at/below the floor',
+        fn: function() {
+            var savedSite = api.diveSite;
+            var threw = null;
+            try {
+                api.diveSite = 'reef';
+                // At x=0 the reef plateau floor sits at d=5. A fish at d=6
+                // (below the plateau surface) must be flagged blocked.
+                assert(api.faunaBlockedAt(0, 6) === true, 'd=6 at reef plateau (floor=5) should be blocked');
+                // Open water above the plateau — clear.
+                assert(api.faunaBlockedAt(0, 2) === false, 'd=2 above reef plateau should be clear');
+            } catch (e) { threw = e; }
+            finally { api.diveSite = savedSite; }
+            if (threw) throw threw;
+            return 'PASS — floor block detection correct at reef plateau';
+        }
+    },
+    {
+        id: 'TC-42-FAUNA-BLOCKED-CEILING',
+        name: 'Issue #42 — faunaBlockedAt() flags points at/above the ceiling',
+        fn: function() {
+            var savedSite = api.diveSite;
+            var threw = null;
+            try {
+                api.diveSite = 'cave';
+                // Cave upper tunnel: at x=50 the ceiling profile is d=14.
+                // A fish at d=13 should read as blocked (above the ceiling).
+                assert(api.faunaBlockedAt(50, 13) === true, 'd=13 at cave upper tunnel (ceiling=14) should be blocked');
+                // Well below the ceiling but above the bedrock — clear.
+                assert(api.faunaBlockedAt(50, 20) === false, 'd=20 at cave x=50 should be clear (in the tunnel)');
+            } catch (e) { threw = e; }
+            finally { api.diveSite = savedSite; }
+            if (threw) throw threw;
+            return 'PASS — ceiling block detection correct in cave upper tunnel';
+        }
+    },
+    {
+        id: 'TC-42-FAUNA-BLOCKED-SOLID',
+        name: 'Issue #42 — faunaBlockedAt() flags points inside a solid AABB (cave bedrock)',
+        fn: function() {
+            var savedSite = api.diveSite;
+            var threw = null;
+            try {
+                api.diveSite = 'cave';
+                // Cave bedrock partition: x1..x2=70..130, dTop..dBottom=22..52.
+                // Dead centre of the mass must be blocked.
+                assert(api.faunaBlockedAt(100, 37) === true, 'centre of cave bedrock should be blocked');
+                // Just above the bedrock top, inside the upper tunnel — the
+                // ceiling profile at x=100 sits around d=12, floor is the top
+                // of the bedrock at d=22. Ceiling margin extends to d≈12.5,
+                // floor margin retreats to d≈21.5. d=17 is squarely in between.
+                assert(api.faunaBlockedAt(100, 17) === false, 'd=17 above cave bedrock (in tunnel) should be clear');
+            } catch (e) { threw = e; }
+            finally { api.diveSite = savedSite; }
+            if (threw) throw threw;
+            return 'PASS — solid AABB block detection correct at cave bedrock';
+        }
+    },
+    {
+        id: 'TC-42-FAUNA-BLOCKED-OPEN-WATER',
+        name: 'Issue #42 — faunaBlockedAt() returns false everywhere in open ocean',
+        fn: function() {
+            var savedSite = api.diveSite;
+            var threw = null;
+            try {
+                api.diveSite = 'open';
+                assert(api.faunaBlockedAt(0, 10) === false, 'open ocean d=10 blocked?');
+                assert(api.faunaBlockedAt(-500, 200) === false, 'open ocean far x, deep d blocked?');
+            } catch (e) { threw = e; }
+            finally { api.diveSite = savedSite; }
+            if (threw) throw threw;
+            return 'PASS — open ocean is never blocked';
+        }
+    },
+    {
+        id: 'TC-42-DRAWFISH-RESPECTS-ALPHA',
+        name: 'Issue #42 — drawFish honours fish.alpha (default 1 = no change)',
+        fn: function() {
+            // Alpha-log stub context: enough of the CanvasRenderingContext2D
+            // surface for drawFish's default branch to run through, with a
+            // setter on globalAlpha that records every assignment. drawFish
+            // must multiply cx.globalAlpha by fish.alpha when it's < 1, and
+            // leave globalAlpha untouched (aside from the drawer's own stripe
+            // temporary) when it's undefined or 1.
+            function makeCtx() {
+                var log = [];
+                var savedStack = [];
+                var stubGrad = { addColorStop: function() {} };
+                var _alpha = 1;
+                var c = {
+                    _alphaLog: log,
+                    globalCompositeOperation: 'source-over',
+                    fillStyle: '#000', strokeStyle: '#000',
+                    lineWidth: 1, lineCap: 'butt',
+                    save: function() { savedStack.push(_alpha); },
+                    restore: function() { if (savedStack.length) _alpha = savedStack.pop(); },
+                    translate: function() {}, scale: function() {}, rotate: function() {},
+                    beginPath: function() {}, closePath: function() {},
+                    moveTo: function() {}, lineTo: function() {},
+                    arc: function() {}, ellipse: function() {},
+                    quadraticCurveTo: function() {}, bezierCurveTo: function() {},
+                    fill: function() {}, stroke: function() {},
+                    fillRect: function() {}, strokeRect: function() {},
+                    clearRect: function() {}, clip: function() {}, rect: function() {},
+                    setTransform: function() {}, transform: function() {},
+                    createLinearGradient: function() { return stubGrad; },
+                    createRadialGradient: function() { return stubGrad; },
+                    createPattern: function() { return null; }
+                };
+                Object.defineProperty(c, 'globalAlpha', {
+                    get: function() { return _alpha; },
+                    set: function(v) { _alpha = v; log.push(v); }
+                });
+                return c;
+            }
+            var bluefish = api.FISH_TYPES.filter(function(t){ return t.name === 'bluefish'; })[0];
+            assert(bluefish, 'bluefish type not found');
+
+            // With alpha=0.3 present, the log must contain a value ≤ 0.3
+            // (the fade multiplication itself).
+            var faded = { type: bluefish, direction: 1, alpha: 0.3, phaseSeed: 0 };
+            var cxFade = makeCtx();
+            api.drawFish(cxFade, 0, 0, faded);
+            var minFade = Math.min.apply(null, cxFade._alphaLog);
+            assert(cxFade._alphaLog.length > 0, 'alpha=0.3 produced no globalAlpha writes');
+            assert(minFade <= 0.3 + 1e-6, 'alpha=0.3 fish never dropped globalAlpha to ≤0.3 (min=' + minFade + ')');
+
+            // Without alpha (default = 1), drawFish must NOT dip globalAlpha
+            // below the stripe temporary (0.7). Any dip below that would
+            // mean the fade path fired when it should not have.
+            var normal = { type: bluefish, direction: 1, phaseSeed: 0 };
+            var cxNormal = makeCtx();
+            api.drawFish(cxNormal, 0, 0, normal);
+            var minNormal = cxNormal._alphaLog.length ? Math.min.apply(null, cxNormal._alphaLog) : 1;
+            assert(minNormal >= 0.7 - 1e-6, 'default-alpha fish dropped globalAlpha to ' + minNormal + ' (< stripe 0.7)');
+            return 'PASS — drawFish honours alpha (min alpha=0.3 → ' + minFade.toFixed(2) + ', default → ' + minNormal.toFixed(2) + ')';
+        }
+    },
+    {
+        id: 'TC-42-DRAWWILDLIFE-RESPECTS-ALPHA',
+        name: 'Issue #42 — drawWildlife honours w.alpha (default 1 = no change)',
+        fn: function() {
+            function makeCtx() {
+                var log = [];
+                var savedStack = [];
+                var stubGrad = { addColorStop: function() {} };
+                var _alpha = 1;
+                var c = {
+                    _alphaLog: log,
+                    globalCompositeOperation: 'source-over',
+                    fillStyle: '#000', strokeStyle: '#000',
+                    lineWidth: 1, lineCap: 'butt',
+                    save: function() { savedStack.push(_alpha); },
+                    restore: function() { if (savedStack.length) _alpha = savedStack.pop(); },
+                    translate: function() {}, scale: function() {}, rotate: function() {},
+                    beginPath: function() {}, closePath: function() {},
+                    moveTo: function() {}, lineTo: function() {},
+                    arc: function() {}, ellipse: function() {},
+                    quadraticCurveTo: function() {}, bezierCurveTo: function() {},
+                    fill: function() {}, stroke: function() {},
+                    fillRect: function() {}, strokeRect: function() {},
+                    clearRect: function() {}, clip: function() {}, rect: function() {},
+                    setTransform: function() {}, transform: function() {},
+                    createLinearGradient: function() { return stubGrad; },
+                    createRadialGradient: function() { return stubGrad; },
+                    createPattern: function() { return null; }
+                };
+                Object.defineProperty(c, 'globalAlpha', {
+                    get: function() { return _alpha; },
+                    set: function(v) { _alpha = v; log.push(v); }
+                });
+                return c;
+            }
+            var jelly = api.WILDLIFE_TYPES.filter(function(t){ return t.name === 'jellyfish'; })[0];
+            assert(jelly, 'jellyfish type not found');
+
+            var faded = { type: jelly, direction: 1, phase: 0, alpha: 0.25 };
+            var cxFade = makeCtx();
+            api.drawWildlife(cxFade, 0, 0, faded);
+            assert(cxFade._alphaLog.length > 0, 'alpha=0.25 produced no globalAlpha writes');
+            var minFade = Math.min.apply(null, cxFade._alphaLog);
+            assert(minFade <= 0.25 + 1e-6, 'alpha=0.25 wildlife did not drop globalAlpha to ≤0.25 (min=' + minFade + ')');
+
+            var normal = { type: jelly, direction: 1, phase: 0 };
+            var cxNormal = makeCtx();
+            api.drawWildlife(cxNormal, 0, 0, normal);
+            // jellyfish drawer does not touch globalAlpha itself — the log
+            // should be either empty or contain only values ≥ 1.
+            var minNormal = cxNormal._alphaLog.length ? Math.min.apply(null, cxNormal._alphaLog) : 1;
+            assert(minNormal >= 1 - 1e-6, 'default-alpha wildlife dropped globalAlpha to ' + minNormal);
+            return 'PASS — drawWildlife honours alpha (min alpha=0.25 → ' + minFade.toFixed(2) + ', default → ' + minNormal.toFixed(2) + ')';
+        }
+    },
+    {
+        id: 'TC-42-SPAWN-REJECTS-INSIDE-BEDROCK',
+        name: 'Issue #42 — spawnFish/spawnWildlife reject start positions that fall inside terrain',
+        fn: function() {
+            // Force diveSite to reef so eligible pools are non-empty, then
+            // move the diver so the pre-computed spawn X sits inside the
+            // reef rock mesa (x≈0, floor d=5). Any fish type deep enough to
+            // spawn below d=5 will fail the terrain test — repeatedly call
+            // spawnFish and confirm the pool size never grows above what
+            // was possible.
+            var savedSite = api.diveSite;
+            var savedX = api.diverX;
+            var savedFishes = api.fishes.slice();
+            var threw = null;
+            try {
+                api.diveSite = 'reef';
+                api.diverX = 0;
+                api.fishes.length = 0;
+                // Directly test the guard: build a mock spawn condition by
+                // calling spawnFish repeatedly and ensuring no fish ends up
+                // inside the mesa (d > floorAt(x) - margin OR solidAt).
+                for (var i = 0; i < 200; i++) api.spawnFish();
+                var bad = api.fishes.filter(function(f) {
+                    return api.faunaBlockedAt(f.x, f.depth);
+                });
+                assert(bad.length === 0,
+                    bad.length + ' fish spawned inside terrain: ' +
+                    bad.map(function(f){ return f.type.name + '@(' + f.x.toFixed(1) + ',' + f.depth.toFixed(1) + ')'; }).join(', '));
+            } catch (e) { threw = e; }
+            finally {
+                api.fishes.length = 0;
+                for (var j = 0; j < savedFishes.length; j++) api.fishes.push(savedFishes[j]);
+                api.diveSite = savedSite;
+                api.diverX = savedX;
+            }
+            if (threw) throw threw;
+            return 'PASS — no fish spawn survives the terrain-block filter (reef, ' + '200 attempts)';
+        }
+    },
+    {
+        id: 'TC-42-UPDATEFISH-STEERS-AWAY-FROM-FLOOR',
+        name: 'Issue #42 — a fish forced below the floor accumulates upward avoidance velocity',
+        fn: function() {
+            // Bypass spawn RNG by pushing a fish object directly into the array,
+            // then call updateFish() with enough dt to trigger a terrain check.
+            var savedSite = api.diveSite;
+            var savedFishes = api.fishes.slice();
+            var savedTimer = api.fishSpawnTimer;
+            var threw = null;
+            try {
+                api.diveSite = 'reef';
+                api.fishSpawnTimer = 1e9; // disable spontaneous spawns
+                api.fishes.length = 0;
+                var ft = api.FISH_TYPES.filter(function(t){return t.name==='bluefish';})[0];
+                // Place the fish INSIDE the reef mesa (x=0, floor d=5, so d=8 is below).
+                api.fishes.push({
+                    type: ft,
+                    depth: 8, spawnDepth: 8, x: 0,
+                    direction: 1, speed: 0, baseSpeed: 0,
+                    phaseSeed: 0, wanderPhase: 0,
+                    avoidTimer: 0, avoidY: 0, trappedTime: 0, alpha: 1, turnRamp: 0
+                });
+                // One update with dt = 0.6s forces the terrain check to fire
+                // (avoidTimer starts at 0). Expect a negative avoidY (upward).
+                api.updateFish(0.6);
+                var f = api.fishes[0];
+                assert(f, 'fish went missing after single update');
+                assert(f.avoidY < 0, 'expected upward avoidance (avoidY<0), got ' + f.avoidY);
+            } catch (e) { threw = e; }
+            finally {
+                api.fishes.length = 0;
+                for (var j = 0; j < savedFishes.length; j++) api.fishes.push(savedFishes[j]);
+                api.diveSite = savedSite;
+                api.fishSpawnTimer = savedTimer;
+            }
+            if (threw) throw threw;
+            return 'PASS — a fish forced below the floor steers upward on the next check';
+        }
     }
 ];
 

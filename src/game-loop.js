@@ -426,6 +426,13 @@ function updateDiving(dtReal) {
         if (Math.abs(depthDiff) > 0.1) {
             shark.depth += Math.sign(depthDiff) * Math.min(depthDrift, Math.abs(depthDiff));
         }
+        // Issue #42: minimal floor guard — the scripted encounter is otherwise
+        // untouched. Prevents the shark from swimming through solid seabed on
+        // shore/wreck floors as it tracks a shallow diver.
+        var _sharkFloor = floorAt(shark.x);
+        if (shark.depth > _sharkFloor - FAUNA_AVOID_MARGIN) {
+            shark.depth = _sharkFloor - FAUNA_AVOID_MARGIN;
+        }
         // Collision check — world-space: 2m radius (≈ 40px). Diver can dodge by swimming away.
         if (!shark.passed && Math.abs(shark.x - diverX) < 2 && Math.abs(shark.depth - depth) < 3) {
             shark.passed = true;
@@ -953,6 +960,20 @@ window.gameAPI = {
     get WILDLIFE_TYPES() { return WILDLIFE_TYPES; },
     eligibleFishTypes: function() { return _eligibleTypes(FISH_TYPES); },
     eligibleWildlifeTypes: function() { return _eligibleTypes(WILDLIFE_TYPES); },
+    // Issue #42: fauna terrain-avoidance test hooks.
+    faunaBlockedAt: faunaBlockedAt,
+    drawFish: drawFish,
+    drawWildlife: drawWildlife,
+    spawnFish: spawnFish,
+    spawnWildlife: spawnWildlife,
+    updateFish: updateFish,
+    updateWildlife: updateWildlife,
+    get fishes() { return fishes; },
+    get wildlife() { return wildlife; },
+    get fishSpawnTimer() { return fishSpawnTimer; },
+    set fishSpawnTimer(v) { fishSpawnTimer = v; },
+    get wildlifeSpawnTimer() { return wildlifeSpawnTimer; },
+    set wildlifeSpawnTimer(v) { wildlifeSpawnTimer = v; },
     // Issue #52: Visual Surface Layer test hooks (renderer-only, decorative)
     visualSurfaceNoise: visualSurfaceNoise,
     visualProfileDepth: visualProfileDepth,

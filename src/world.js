@@ -123,19 +123,52 @@ function bubbleDisplayRadius(b) {
 
 var WORLD_MPS = 0.05 * 60; // metersPerPixel × 60fps — converts old speed unit to m/s
 
-// D10: Build site-eligible candidate list — types with no sites[] pass anywhere;
-//      types with sites[] only pass when diveSite matches. Falls back to all types.
+// Issue #42 — fauna liveliness + terrain awareness constants.
+// All values named so no magic numbers leak into updateFish/updateWildlife.
+var FAUNA_AVOID_INTERVAL   = 0.5;   // seconds between per-entity terrain checks
+var FAUNA_AVOID_MARGIN     = 0.5;   // metres of clearance kept from any surface
+var FAUNA_AVOID_SPEED      = 0.8;   // m/s vertical steering velocity when blocked
+var FAUNA_AVOID_DECAY      = 0.6;   // per-second exponential decay of avoidY
+var FAUNA_TRAPPED_SECONDS  = 3.0;   // sim-seconds trapped before fade begins
+var FAUNA_FADE_RATE        = 1.0;   // alpha units lost per sim-second while trapped
+var FAUNA_TURN_CHANCE      = 0.02;  // probability per sim-second of a direction reversal
+var FAUNA_TURN_TIME        = 0.5;   // seconds to ramp speed down, flip, ramp back up
+var FAUNA_UNDULATION_AMP   = 0.06;  // fish body-size multiplier for tail-beat y-offset
+var FAUNA_UNDULATION_FREQ_BASE  = 3;    // base rad/s
+var FAUNA_UNDULATION_FREQ_SCALE = 0.05; // added per size unit — bigger fish = slower beat
+var FAUNA_SPEED_PULSE_AMP  = 0.15;  // ±15% speed variation in the tail-beat rhythm
+var FAUNA_WANDER_AMP_M     = 1.5;   // depth wander amplitude around spawn depth (m)
+var FAUNA_WANDER_FREQ      = 0.6;   // rad/s — very slow depth drift
+var FAUNA_WANDER_LERP      = 2.0;   // per-second lerp toward wander target depth
+
+// D10 / Issue #42: Build site-eligible candidate list. Every fish/wildlife
+// type now carries an explicit `sites` array (see constants.js), so a type
+// with no filter — should any slip in — is treated as universal. When the
+// filtered pool is empty we return that empty array; callers no-op that
+// spawn tick. Previously the fallback returned the full type array, which
+// let whales spawn in caves via the "no eligible" escape hatch.
 function _eligibleTypes(typeArr) {
     var site = diveSite;
-    var eligible = typeArr.filter(function(t) {
+    return typeArr.filter(function(t) {
         return !t.sites || t.sites.indexOf(site) !== -1;
     });
-    return eligible.length ? eligible : typeArr;
+}
+
+// Cheap terrain-aware block test — combined check used by both spawn
+// validation and per-entity avoidance. Exposed via gameAPI.faunaBlockedAt().
+function faunaBlockedAt(x, d) {
+    var floor = floorAt(x);
+    var ceil  = ceilingAt(x);
+    if (d > floor - FAUNA_AVOID_MARGIN) return true;
+    if (ceil > 0 && d < ceil + FAUNA_AVOID_MARGIN) return true;
+    if (solidAt(x, d)) return true;
+    return false;
 }
 
 function spawnFish() {
     if (fishes.length >= MAX_FISH) return;
     var pool = _eligibleTypes(FISH_TYPES);
+    if (!pool.length) return;
     var ft = pool[Math.floor(Math.random() * pool.length)];
     var fishDepth = ft.depthMin + Math.random() * (ft.depthMax - ft.depthMin);
     var direction = Math.random() < 0.5 ? 1 : -1;
@@ -145,13 +178,101 @@ function spawnFish() {
     var startX = direction > 0
         ? diverX - (W * 0.25 + ft.size * 2) * 0.05
         : diverX + (W * 0.75 + ft.size * 2) * 0.05;
+    // Issue #42: reject spawns that would appear inside terrain — next
+    // spawn timer tick will simply try again.
+    if (faunaBlockedAt(startX, fishDepth)) return;
     fishes.push({
         type: ft,
         depth: fishDepth,
-        x: startX,   // world metres
+        spawnDepth: fishDepth,      // baseline for slow wander
+        x: startX,                  // world metres
         direction: direction,
-        speed: speed  // m/s
+        speed: speed,               // m/s current effective speed (mutated by pulse/turn)
+        baseSpeed: speed,           // m/s constant reference for pulsing
+        phaseSeed: Math.random() * Math.PI * 2,   // per-entity undulation phase
+        wanderPhase: Math.random() * Math.PI * 2, // per-entity depth-wander phase
+        avoidTimer: Math.random() * FAUNA_AVOID_INTERVAL, // stagger initial checks
+        avoidY: 0,                  // active vertical avoidance velocity (m/s)
+        trappedTime: 0,             // consecutive sim-seconds blocked
+        alpha: 1,                   // opacity; fades to 0 when persistently trapped
+        turnRamp: 0                 // 0 = travelling; >0 = mid direction-reversal
     });
+}
+
+// Issue #42: per-entity organic-motion + terrain-avoidance step. Called from
+// updateFish/updateWildlife with the appropriate entity type name for logging.
+// Mutates `f` in place, returns true if the entity should be despawned.
+function _stepFaunaMotion(f, dtReal) {
+    // Direction reversal ramp — flip at midpoint so speed rolls through zero.
+    if (f.turnRamp > 0) {
+        var prev = f.turnRamp;
+        f.turnRamp -= dtReal;
+        var mid = FAUNA_TURN_TIME * 0.5;
+        if (prev > mid && f.turnRamp <= mid) f.direction *= -1;
+        if (f.turnRamp < 0) f.turnRamp = 0;
+    } else if (Math.random() < FAUNA_TURN_CHANCE * dtReal) {
+        f.turnRamp = FAUNA_TURN_TIME;
+    }
+
+    // Speed pulse (tail-beat rhythm), and turn-ramp scaling to 0 at midpoint.
+    var freq = FAUNA_UNDULATION_FREQ_BASE + f.type.size * FAUNA_UNDULATION_FREQ_SCALE;
+    var pulse = 1 + Math.sin(waveTime * freq + f.phaseSeed) * FAUNA_SPEED_PULSE_AMP;
+    var turnScale = 1;
+    if (f.turnRamp > 0) {
+        var t = f.turnRamp / FAUNA_TURN_TIME; // 1..0
+        turnScale = Math.abs(2 * t - 1);      // 1 → 0 → 1
+    }
+    var effSpeed = f.baseSpeed * pulse * turnScale;
+    f.speed = effSpeed;
+    f.x += f.direction * effSpeed * dtReal;
+
+    // Slow depth wander around spawnDepth (visual only — passes floor checks
+    // automatically because the amplitude is much smaller than the safety margin).
+    var wanderTarget = f.spawnDepth + Math.sin(waveTime * FAUNA_WANDER_FREQ + f.wanderPhase) * FAUNA_WANDER_AMP_M;
+    var lerp = Math.min(1, dtReal * FAUNA_WANDER_LERP);
+    f.depth += (wanderTarget - f.depth) * lerp;
+
+    // Apply and decay vertical avoidance velocity.
+    if (f.avoidY !== 0) {
+        f.depth += f.avoidY * dtReal;
+        f.avoidY *= Math.max(0, 1 - FAUNA_AVOID_DECAY * dtReal);
+        if (Math.abs(f.avoidY) < 0.01) f.avoidY = 0;
+    }
+
+    // Periodic terrain-block check. Sets a steering velocity away from the
+    // obstacle; accumulates trappedTime if the block persists across checks.
+    f.avoidTimer -= dtReal;
+    if (f.avoidTimer <= 0) {
+        f.avoidTimer = FAUNA_AVOID_INTERVAL;
+        var floor = floorAt(f.x);
+        var ceil  = ceilingAt(f.x);
+        var bFloor = f.depth > floor - FAUNA_AVOID_MARGIN;
+        var bCeil  = ceil > 0 && f.depth < ceil + FAUNA_AVOID_MARGIN;
+        var bSolid = solidAt(f.x, f.depth);
+        if (bFloor || bCeil || bSolid) {
+            if (bFloor && !bCeil) {
+                f.avoidY = -FAUNA_AVOID_SPEED;      // push up away from floor
+            } else if (bCeil && !bFloor) {
+                f.avoidY = FAUNA_AVOID_SPEED;       // push down away from ceiling
+            } else if (bSolid) {
+                // Inside a solid AABB — steer toward whichever open side is closer.
+                var midSolid = (Math.max(ceil, 0) + Math.min(floor, MAX_DEPTH)) / 2;
+                f.avoidY = f.depth > midSolid ? -FAUNA_AVOID_SPEED : FAUNA_AVOID_SPEED;
+            } else {
+                // Both floor and ceiling too close — split the difference.
+                var midFC = (ceil + floor) / 2;
+                f.avoidY = f.depth > midFC ? -FAUNA_AVOID_SPEED : FAUNA_AVOID_SPEED;
+            }
+            f.trappedTime += FAUNA_AVOID_INTERVAL;
+            if (f.trappedTime >= FAUNA_TRAPPED_SECONDS) {
+                f.alpha -= FAUNA_AVOID_INTERVAL * FAUNA_FADE_RATE;
+            }
+        } else {
+            f.trappedTime = 0;
+        }
+    }
+
+    return f.alpha <= 0;
 }
 
 function updateFish(dtReal) {
@@ -163,7 +284,10 @@ function updateFish(dtReal) {
     var W = cssWidth;
     for (var i = fishes.length - 1; i >= 0; i--) {
         var f = fishes[i];
-        f.x += f.direction * f.speed * dtReal; // world metres
+        if (_stepFaunaMotion(f, dtReal)) {
+            fishes.splice(i, 1);
+            continue;
+        }
         var rightEdge = diverX + (W * 0.75 + f.type.size * 2) * 0.05;
         var leftEdge  = diverX - (W * 0.25 + f.type.size * 2) * 0.05;
         if (f.direction > 0 && f.x > rightEdge) {
@@ -176,9 +300,18 @@ function updateFish(dtReal) {
 
 function drawFish(cx, x, y, fish) {
     cx.save();
-    cx.translate(x, y);
-    if (fish.direction < 0) cx.scale(-1, 1);
+    // Issue #42: honour per-entity alpha (fade-out for trapped/despawning
+    // fish). Default 1 when unset so pre-existing entities are unchanged.
+    var _fishAlpha = (fish.alpha != null) ? fish.alpha : 1;
+    if (_fishAlpha < 1) cx.globalAlpha = cx.globalAlpha * Math.max(0, _fishAlpha);
     var s = fish.type.size;
+    // Issue #42: subtle tail-beat y-undulation. Each fish rolls a
+    // phaseSeed once at spawn so different fish don't beat in lockstep.
+    var _seed = (fish.phaseSeed != null) ? fish.phaseSeed : 0;
+    var _wt = (typeof waveTime !== 'undefined') ? waveTime : 0;
+    var _undY = Math.sin(_wt * (FAUNA_UNDULATION_FREQ_BASE + s * FAUNA_UNDULATION_FREQ_SCALE) + _seed) * s * FAUNA_UNDULATION_AMP;
+    cx.translate(x, y + _undY);
+    if (fish.direction < 0) cx.scale(-1, 1);
     // Reef redesign: dedicated drawers for anthias / bannerfish
     if (fish.type.name === 'anthias') {
         cx.fillStyle = '#ffe1bd';
@@ -264,6 +397,7 @@ function drawFish(cx, x, y, fish) {
 function spawnWildlife() {
     if (wildlife.length >= MAX_WILDLIFE) return;
     var pool = _eligibleTypes(WILDLIFE_TYPES);
+    if (!pool.length) return;
     var wt = pool[Math.floor(Math.random() * pool.length)];
     // Whale and ray are rare — 20% chance when selected
     if ((wt.name === 'whale' || wt.name === 'ray') && Math.random() > 0.2) {
@@ -276,13 +410,24 @@ function spawnWildlife() {
     var startX = direction > 0
         ? diverX - (W * 0.25 + wt.size * 2) * 0.05
         : diverX + (W * 0.75 + wt.size * 2) * 0.05;
+    // Issue #42: reject spawns that would appear inside terrain.
+    if (faunaBlockedAt(startX, wDepth)) return;
     wildlife.push({
         type: wt,
         depth: wDepth,
+        spawnDepth: wDepth,
         x: startX,   // world metres
         direction: direction,
-        speed: speed, // m/s
-        phase: Math.random() * Math.PI * 2
+        speed: speed, // m/s current effective
+        baseSpeed: speed,
+        phase: Math.random() * Math.PI * 2,           // existing tentacle/wing wiggle
+        phaseSeed: Math.random() * Math.PI * 2,       // Issue #42 speed-pulse phase
+        wanderPhase: Math.random() * Math.PI * 2,
+        avoidTimer: Math.random() * FAUNA_AVOID_INTERVAL,
+        avoidY: 0,
+        trappedTime: 0,
+        alpha: 1,
+        turnRamp: 0
     });
 }
 
@@ -295,8 +440,13 @@ function updateWildlife(dtReal) {
     var W = cssWidth;
     for (var i = wildlife.length - 1; i >= 0; i--) {
         var w = wildlife[i];
-        w.x += w.direction * w.speed * dtReal; // world metres
+        // Advance the existing tentacle/wing wiggle phase (preserved from
+        // pre-#42 behaviour — drawWildlife uses w.phase for tentacles etc.).
         w.phase += dtReal * 2;
+        if (_stepFaunaMotion(w, dtReal)) {
+            wildlife.splice(i, 1);
+            continue;
+        }
         var rightEdge = diverX + (W * 0.75 + w.type.size * 3) * 0.05;
         var leftEdge  = diverX - (W * 0.25 + w.type.size * 3) * 0.05;
         if (w.direction > 0 && w.x > rightEdge) {
@@ -309,6 +459,9 @@ function updateWildlife(dtReal) {
 
 function drawWildlife(cx, x, y, w) {
     cx.save();
+    // Issue #42: honour per-entity alpha for fade-out on despawn.
+    var _wAlpha = (w.alpha != null) ? w.alpha : 1;
+    if (_wAlpha < 1) cx.globalAlpha = cx.globalAlpha * Math.max(0, _wAlpha);
     cx.translate(x, y + Math.sin(w.phase) * 3);
     var sz = w.type.size;
     

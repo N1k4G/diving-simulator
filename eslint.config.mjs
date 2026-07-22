@@ -176,6 +176,18 @@ const gameGlobals = {
   spawnWildlife: "readonly", updateWildlife: "readonly",
   updateParticles: "readonly",
   _eligibleTypes: "readonly",
+  // Issue #42: fauna terrain-avoidance + organic-motion constants and helpers
+  faunaBlockedAt: "readonly",
+  _stepFaunaMotion: "readonly",
+  FAUNA_AVOID_INTERVAL: "readonly", FAUNA_AVOID_MARGIN: "readonly",
+  FAUNA_AVOID_SPEED: "readonly", FAUNA_AVOID_DECAY: "readonly",
+  FAUNA_TRAPPED_SECONDS: "readonly", FAUNA_FADE_RATE: "readonly",
+  FAUNA_TURN_CHANCE: "readonly", FAUNA_TURN_TIME: "readonly",
+  FAUNA_UNDULATION_AMP: "readonly",
+  FAUNA_UNDULATION_FREQ_BASE: "readonly", FAUNA_UNDULATION_FREQ_SCALE: "readonly",
+  FAUNA_SPEED_PULSE_AMP: "readonly",
+  FAUNA_WANDER_AMP_M: "readonly", FAUNA_WANDER_FREQ: "readonly",
+  FAUNA_WANDER_LERP: "readonly",
 
   // Renderer functions (renderer.js)
   drawScene: "readonly", drawDiver: "readonly",

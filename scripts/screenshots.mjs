@@ -181,6 +181,15 @@ async function run() {
     { site: 'Reef',  x: 10, depth: 60, torch: true,  name: 'desktop-dive-reef-colors-deep-torch-restore' },
     { site: 'Wreck', x: 92, depth: 32, torch: false, facing: 1, name: 'desktop-dive-wreck-colors-no-torch' },
     { site: 'Wreck', x: 92, depth: 32, torch: true,  facing: 1, name: 'desktop-dive-wreck-colors-torch-restore' },
+    // Issue #42: fauna clipping fix. Fauna positions are randomised by
+    // design, so any single screenshot is inherently weak evidence — the
+    // logic checks in TC-42-* are the real verification. These vantage
+    // points sit near solid terrain (reef rock mesa at x=0, wreck interior,
+    // cave bedrock area) so IF a fish/wildlife happens to be in frame the
+    // reviewer can spot-check that it isn't clipping through geometry.
+    { site: 'Reef',  x: 0,   depth: 8,  name: 'desktop-dive-reef-fauna-near-mesa' },
+    { site: 'Wreck', x: 92,  depth: 40, name: 'desktop-dive-wreck-fauna-interior' },
+    { site: 'Cave',  x: 100, depth: 30, name: 'desktop-dive-cave-fauna-bedrock-area' },
   ];
 
   for (const diveShot of desktopDiveShots) {

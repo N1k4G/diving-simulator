@@ -205,30 +205,39 @@ const ZHL16C_HE = [
     { ht: 240.03, a: 0.5119, b: 0.9267 }
 ];
 
-// TASK-022 / D2: Fish types — optional sites:[] restricts spawning to those diveSite values
+// TASK-022 / D2: Fish types — REQUIRED sites:[] restricts spawning to those
+// diveSite values. Issue #42: every type carries an explicit filter so
+// mismatched fauna (e.g. whales in caves) can no longer slip in via the
+// unfiltered fallback in _eligibleTypes(). Cave is deliberately near-empty —
+// real caves have almost no free-swimming fauna. Leaving a site with an
+// empty eligible pool is fine: spawnFish() / spawnWildlife() just no-op that
+// tick and try again on the next spawn timer.
 const FISH_TYPES = [
     { name: 'clownfish',  color: '#ff8c00', stripe: '#fff',    size: 12, speedMin: 0.3,  speedMax: 0.6,  depthMin: 5,   depthMax: 30,  sites: ['reef'] },
-    { name: 'bluefish',   color: '#4488ff', stripe: '#aaccff', size: 15, speedMin: 0.2,  speedMax: 0.5,  depthMin: 10,  depthMax: 50 },
-    { name: 'anglerfish', color: '#334455', stripe: '#556677', size: 20, speedMin: 0.1,  speedMax: 0.3,  depthMin: 40,  depthMax: 90 },
-    { name: 'tropical',   color: '#ffdd00', stripe: '#ff4444', size: 10, speedMin: 0.4,  speedMax: 0.8,  depthMin: 3,   depthMax: 25 },
-    { name: 'grouper',    color: '#556b2f', stripe: '#6b8e23', size: 25, speedMin: 0.1,  speedMax: 0.3,  depthMin: 15,  depthMax: 60 },
-    { name: 'viperfish',  color: '#1a1a3a', stripe: '#3344aa', size: 14, speedMin: 0.05, speedMax: 0.2,  depthMin: 80,  depthMax: 280 },
-    { name: 'barracuda',  color: '#8899aa', stripe: '#aabbcc', size: 22, speedMin: 0.5,  speedMax: 1.0,  depthMin: 5,   depthMax: 40 },
+    { name: 'bluefish',   color: '#4488ff', stripe: '#aaccff', size: 15, speedMin: 0.2,  speedMax: 0.5,  depthMin: 10,  depthMax: 50,  sites: ['shore','reef','wreck'] },
+    { name: 'anglerfish', color: '#334455', stripe: '#556677', size: 20, speedMin: 0.1,  speedMax: 0.3,  depthMin: 40,  depthMax: 90,  sites: ['reef'] },
+    { name: 'tropical',   color: '#ffdd00', stripe: '#ff4444', size: 10, speedMin: 0.4,  speedMax: 0.8,  depthMin: 3,   depthMax: 25,  sites: ['shore','reef'] },
+    { name: 'grouper',    color: '#556b2f', stripe: '#6b8e23', size: 25, speedMin: 0.1,  speedMax: 0.3,  depthMin: 15,  depthMax: 60,  sites: ['reef','wreck'] },
+    { name: 'viperfish',  color: '#1a1a3a', stripe: '#3344aa', size: 14, speedMin: 0.05, speedMax: 0.2,  depthMin: 80,  depthMax: 280, sites: ['reef'] },
+    { name: 'barracuda',  color: '#8899aa', stripe: '#aabbcc', size: 22, speedMin: 0.5,  speedMax: 1.0,  depthMin: 5,   depthMax: 40,  sites: ['shore','reef','wreck'] },
     { name: 'lionfish',   color: '#cc4422', stripe: '#ffaa66', size: 14, speedMin: 0.1,  speedMax: 0.3,  depthMin: 10,  depthMax: 45,  sites: ['reef'] },
     { name: 'tang',       color: '#1177ff', stripe: '#ffee00', size: 11, speedMin: 0.3,  speedMax: 0.7,  depthMin: 5,   depthMax: 25,  sites: ['reef'] },
     { name: 'parrotfish', color: '#44bb88', stripe: '#ff88aa', size: 18, speedMin: 0.2,  speedMax: 0.5,  depthMin: 5,   depthMax: 30,  sites: ['reef'] },
-    { name: 'snapper',    color: '#dd7722', stripe: '#ffcc66', size: 16, speedMin: 0.2,  speedMax: 0.5,  depthMin: 10,  depthMax: 40 },
-    { name: 'flounder',   color: '#8b7355', stripe: '#a09060', size: 18, speedMin: 0.05, speedMax: 0.2,  depthMin: 15,  depthMax: 50 },
-    { name: 'dragonfish', color: '#0a0a1a', stripe: '#223388', size: 16, speedMin: 0.05, speedMax: 0.15, depthMin: 150, depthMax: 280 },
+    { name: 'snapper',    color: '#dd7722', stripe: '#ffcc66', size: 16, speedMin: 0.2,  speedMax: 0.5,  depthMin: 10,  depthMax: 40,  sites: ['shore','reef','wreck'] },
+    { name: 'flounder',   color: '#8b7355', stripe: '#a09060', size: 18, speedMin: 0.05, speedMax: 0.2,  depthMin: 15,  depthMax: 50,  sites: ['shore'] },
+    { name: 'dragonfish', color: '#0a0a1a', stripe: '#223388', size: 16, speedMin: 0.05, speedMax: 0.15, depthMin: 150, depthMax: 280, sites: ['reef'] },
     { name: 'anthias',    color: '#ff7a3a', stripe: '#ffb18a', size: 6,  speedMin: 0.3,  speedMax: 0.6,  depthMin: 4,   depthMax: 25,  sites: ['reef'] },
     { name: 'bannerfish', color: '#f5f5e8', stripe: '#1a1a1a', size: 14, speedMin: 0.25, speedMax: 0.5,  depthMin: 5,   depthMax: 35,  sites: ['reef'] }
 ];
 
-// D2: Wildlife types — turtle and ray added for reef/shore variety
+// D2: Wildlife types — turtle and ray added for reef/shore variety.
+// Issue #42: whale is now reef-only (a 60-metre whale swimming through a
+// wreck or cave broke immersion completely). jellyfish/octopus keep their
+// broad open-water range but are explicitly excluded from cave.
 const WILDLIFE_TYPES = [
-    { name: 'jellyfish', color: 'rgba(180,220,255,0.6)', size: 18, speedMin: 0.05, speedMax: 0.15, depthMin: 3,  depthMax: 50 },
-    { name: 'octopus',   color: '#8B4513',               size: 22, speedMin: 0.08, speedMax: 0.2,  depthMin: 10, depthMax: 70 },
-    { name: 'whale',     color: '#334455',               size: 60, speedMin: 0.1,  speedMax: 0.2,  depthMin: 20, depthMax: 100 },
+    { name: 'jellyfish', color: 'rgba(180,220,255,0.6)', size: 18, speedMin: 0.05, speedMax: 0.15, depthMin: 3,  depthMax: 50,  sites: ['shore','reef','wreck'] },
+    { name: 'octopus',   color: '#8B4513',               size: 22, speedMin: 0.08, speedMax: 0.2,  depthMin: 10, depthMax: 70,  sites: ['shore','reef','wreck'] },
+    { name: 'whale',     color: '#334455',               size: 60, speedMin: 0.1,  speedMax: 0.2,  depthMin: 20, depthMax: 100, sites: ['reef'] },
     { name: 'turtle',    color: '#4a7a3a',               size: 24, speedMin: 0.1,  speedMax: 0.25, depthMin: 3,  depthMax: 40,  sites: ['reef', 'shore'] },
     { name: 'ray',       color: '#2a3a4a',               size: 30, speedMin: 0.15, speedMax: 0.35, depthMin: 10, depthMax: 60,  sites: ['reef', 'wreck'] },
     { name: 'greyReefShark', color: '#4a5664',           size: 46, speedMin: 0.2,  speedMax: 0.4,  depthMin: 15, depthMax: 80,  sites: ['reef'] },
