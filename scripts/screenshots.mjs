@@ -32,7 +32,7 @@ const DESKTOP = { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 }
 
 // Drive the gas-setup screen to an in-dive scene at a fixed camera so the
 // shot is deterministic regardless of timing.
-async function startDive(page, { site, x, depth }) {
+async function startDive(page, { site, x, depth, torch, facing }) {
   // The HTML gas-setup overlay is the active setup UI on both phone and
   // desktop, so drive it the same way in both: pick the site, hit Start Dive.
   try {
@@ -46,12 +46,46 @@ async function startDive(page, { site, x, depth }) {
   await page.keyboard.up('s');
   // Pin the camera to a flattering spot and let a couple of frames settle.
   // diverX / depth are top-level bindings, assignable from page scope.
-  await page.evaluate(({ x, d }) => {
+  // torch/facing are optional overrides used by issue #31 shots so we can
+  // capture the directional cone reorienting with the diver's facing.
+  await page.evaluate(({ x, d, torch, facing }) => {
     try { diverX = x; } catch {}
     try { depth = d; } catch {}
     try { verticalVelocity = 0; horizontalVelocity = 0; } catch {}
-  }, { x, d: depth });
-  await page.waitForTimeout(600);
+    if (torch != null) {
+      try { window.gameAPI.torchOn = !!torch; } catch {}
+    }
+    if (facing === 1 || facing === -1) {
+      try { window.gameAPI.diverFacing = facing; } catch {}
+    }
+  }, { x, d: depth, torch, facing });
+  // Let the render loop settle. For overhead sites the darkness ramp
+  // (_torchDark) and wreck-metal ramp (_wreckMetal) ease in over ~50
+  // frames; force them AND `inOverhead` to fully-in every frame for a
+  // few animation ticks so the very next screenshot captures the fully-
+  // established torch cone / interior view. (drawScene() re-nudges
+  // _wreckMetal toward `inOverhead ? 1 : 0` every frame, so forcing it
+  // once is not enough — force it via a short rAF pump.)
+  await page.waitForTimeout(400);
+  const wantInside = site.toLowerCase() === 'wreck' || site.toLowerCase() === 'cave';
+  if (wantInside) {
+    await page.evaluate(async () => {
+      const pin = () => {
+        try {
+          inOverhead = true;
+          if (typeof _torchDark !== 'undefined')  _torchDark  = 1;
+          if (typeof _wreckMetal !== 'undefined') _wreckMetal = 1;
+        } catch {}
+      };
+      // Pump ~6 frames so any interleaved physics/render updates settle.
+      for (let i = 0; i < 6; i++) {
+        pin();
+        await new Promise(r => requestAnimationFrame(r));
+      }
+      pin();  // one more just before returning control
+    });
+  }
+  await page.waitForTimeout(150);
 }
 
 async function shot(page, name) {
@@ -124,6 +158,19 @@ async function run() {
     // are meant to trigger — sample there specifically.
     { site: 'Cave',  x: 90,  depth: 70, name: 'desktop-dive-cave-cathedral-parallax-a' },
     { site: 'Cave',  x: 108, depth: 70, name: 'desktop-dive-cave-cathedral-parallax-b' },
+    // Issue #31: Directional torch cone + backscatter. Facing-left vs
+    // facing-right pairs on both cave AND wreck so reviewers can confirm
+    // the cone visibly REORIENTS with _diverFacing (not just a slightly-
+    // offset circle). Also a wreck torch-OFF baseline so the interior
+    // glow/backscatter delta is visible.
+    { site: 'Cave',  x: 90, depth: 24, torch: true,  facing:  1, name: 'desktop-dive-cave-torch-cone-right' },
+    { site: 'Cave',  x: 90, depth: 24, torch: true,  facing: -1, name: 'desktop-dive-cave-torch-cone-left' },
+    // Wreck at vehicle deck (x=92, depth=32) puts the diver INSIDE the
+    // hull so drawWreckHullSkin actually punches the cone. Depth 24 sits
+    // above the deck line in open water and would show no interior.
+    { site: 'Wreck', x: 92, depth: 32, torch: true,  facing:  1, name: 'desktop-dive-wreck-torch-cone-right' },
+    { site: 'Wreck', x: 92, depth: 32, torch: true,  facing: -1, name: 'desktop-dive-wreck-torch-cone-left' },
+    { site: 'Wreck', x: 92, depth: 32, torch: false, facing:  1, name: 'desktop-dive-wreck-torch-off-baseline' },
   ];
 
   for (const diveShot of desktopDiveShots) {

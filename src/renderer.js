@@ -131,6 +131,33 @@ var _torchDark = 0;
 // Wreck metal-interior backdrop ramp — fades in only while inside the hull
 var _wreckMetal = 0;
 
+// ── Issue #31: Directional torch beam ─────────────────────────────
+// _diverFacing is ±1 (right/left only — no vertical aim). torchBeamAngle()
+// returns the beam's centre angle in canvas radian convention:
+//   0        = +x (right, horizontal)
+//   +PI/2    = +y (DOWN — canvas y grows downward)
+//   PI       = -x (left, horizontal)
+// A small fixed tilt gives the beam a realistic "held slightly down" pose:
+//   facing right (+1): angle = 0 + TILT       → cos>0, sin>0 (down-right)
+//   facing left  (-1): angle = PI - TILT      → cos<0, sin>0 (down-left)
+// In BOTH cases sin(angle) > 0, i.e. the y-component points DOWN. The sign
+// is easy to get backwards (subtracting from PI is required for the left
+// side because increasing above PI would point UP-left) — see TC-31-*.
+const TORCH_BEAM_TILT_RAD = 12 * Math.PI / 180;      // ~12° downward tilt
+const TORCH_BEAM_HALF_ANGLE_RAD = 28 * Math.PI / 180; // ±28° cone opening
+// Near-field spill radius as a fraction of the torch's total reach. A weak
+// all-around glow so the diver's back/head isn't pure black (which reads as
+// broken rather than atmospheric) while still making the cone the dominant
+// visible zone.
+const TORCH_NEAR_FIELD_FRACTION = 0.42;
+
+function torchBeamAngle(facing) {
+    // Clamp to ±1: any non-`-1` input is treated as facing right (matches
+    // _diverFacing's own initialisation to +1).
+    var f = (facing === -1) ? -1 : 1;
+    return (f === 1) ? TORCH_BEAM_TILT_RAD : (Math.PI - TORCH_BEAM_TILT_RAD);
+}
+
 // ── Material texture tiles (issue #41) ─────────────────────────────
 // Offscreen-canvas patterns generated once at first-render, applied as a
 // semi-transparent overlay pass on top of each site's base gradient fills.
@@ -3887,36 +3914,86 @@ function drawWreckSteelBack() {
 // grows in as the diver enters (eased via _wreckMetal) and is bigger with the
 // torch on.
 function drawWreckHullSkin() {
+    // No-op outside the live dive scene — see drawSiltAndTorch note above.
+    if (gameState !== 'diving') return;
     var s = activeSite();
     if (!s || s.id !== 'wreck') return;
     var W = cssWidth, H = cssHeight, cx = ctx;
     var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
     var rad = (torchOn ? 165 : 100) * Math.max(0.55, visibility) * _wreckMetal;
+    var haveTorchLight = !!torchOn && rad > 1;
+    // With torch OFF the plain circular bubble is the only line of sight.
+    // With torch ON the near-field shrinks to a weak spill AND the cone
+    // reach is stretched well past the plain-circle radius, so the beam's
+    // directionality is unmistakable inside the murky steel interior.
+    // Preserves torch-off behaviour exactly.
+    var nearR = haveTorchLight ? rad * TORCH_NEAR_FIELD_FRACTION : rad;
+    var coneR = haveTorchLight ? rad * 1.75 : 0;
+    var beamAngle = torchBeamAngle(_diverFacing);
+    var halfA = TORCH_BEAM_HALF_ANGLE_RAD;
 
-    // Skin pass: fill the silhouette MINUS the line-of-sight hole with steel.
+    // Skin pass: fill the silhouette with steel, then destination-out
+    // punch the near-field circle and (if torch on) the directional cone
+    // wedge. destination-out avoids the fill-rule overlap trap that a
+    // single evenodd path would hit where circle and wedge intersect.
     cx.save();
     _buildWreckSilhouette(cx, dsx, dsy, mpp);
     cx.clip();                                   // restrict to the ship
+    drawWreckBackdrop(cx, W, H, dsx, dsy, mpp);  // paint steel
     if (rad > 1) {
-        cx.beginPath();
-        cx.rect(0, 0, W, H);
-        cx.arc(dsx, dsy, rad, 0, Math.PI * 2);   // screen minus the hole…
-        cx.clip('evenodd');                      // …intersected with the hull
+        cx.globalCompositeOperation = 'destination-out';
+        // Near-field spill — always present when the diver is inside.
+        var spill = cx.createRadialGradient(dsx, dsy, 0, dsx, dsy, nearR);
+        spill.addColorStop(0,   'rgba(0,0,0,1)');
+        spill.addColorStop(0.7, 'rgba(0,0,0,0.88)');
+        spill.addColorStop(1,   'rgba(0,0,0,0)');
+        cx.fillStyle = spill;
+        cx.fillRect(0, 0, W, H);
+        // Directional cone — only when torch is on.
+        if (haveTorchLight) {
+            cx.save();
+            cx.beginPath();
+            cx.moveTo(dsx, dsy);
+            cx.arc(dsx, dsy, coneR * 1.05, beamAngle - halfA, beamAngle + halfA);
+            cx.closePath();
+            cx.clip();
+            var beam = cx.createRadialGradient(dsx, dsy, 0, dsx, dsy, coneR);
+            // Strong alpha kept high across most of the cone so the beam
+            // reads unmistakably against the steel-on-steel interior
+            // (where a soft gradient would fade into the surrounding
+            // hull tone and read as a slightly-offset circle).
+            beam.addColorStop(0,    'rgba(0,0,0,1)');
+            beam.addColorStop(0.55, 'rgba(0,0,0,0.95)');
+            beam.addColorStop(0.85, 'rgba(0,0,0,0.65)');
+            beam.addColorStop(1,    'rgba(0,0,0,0)');
+            cx.fillStyle = beam;
+            cx.fillRect(0, 0, W, H);
+            cx.restore();
+        }
+        cx.globalCompositeOperation = 'source-over';
     }
-    drawWreckBackdrop(cx, W, H, dsx, dsy, mpp);
     cx.restore();
 
-    // Feather the rim so the hole blends into the steel instead of a hard disc.
+    // Feather the rim of the near-field circle so the always-visible spill
+    // blends into steel instead of a hard disc. The cone's radial-gradient
+    // falloff already softens its own edges, so no separate feather there.
     if (rad > 1) {
         cx.save();
         _buildWreckSilhouette(cx, dsx, dsy, mpp);
         cx.clip();
-        var ring = cx.createRadialGradient(dsx, dsy, rad * 0.72, dsx, dsy, rad * 1.16);
+        var ring = cx.createRadialGradient(dsx, dsy, nearR * 0.72, dsx, dsy, nearR * 1.16);
         ring.addColorStop(0, 'rgba(28,33,38,0)');
         ring.addColorStop(1, 'rgba(28,33,38,' + (0.9 * _wreckMetal).toFixed(3) + ')');
         cx.fillStyle = ring;
         cx.fillRect(0, 0, W, H);
         cx.restore();
+    }
+
+    // Volumetric glow + backscatter for the wreck interior — currently
+    // missing (drawSiltAndTorch early-returns for wreck). Runs only when
+    // the torch actually illuminates the cone.
+    if (haveTorchLight) {
+        drawTorchGlowAndSparkles(cx, W, H, dsx, dsy, coneR, beamAngle, halfA);
     }
 }
 
@@ -6157,6 +6234,10 @@ function drawGuideline() {
 }
 
 function drawSiltAndTorch() {
+    // No-op outside the live dive scene — matches the pattern used by
+    // drawNearSurfaceAtmosphere / drawSiteAtmosphere so callers/tests can
+    // invoke this directly in any game state without emitting canvas ops.
+    if (gameState !== 'diving') return;
     // Ease the darkness level toward its target so entering/leaving an
     // overhead environment fades gradually instead of snapping.
     var target = inOverhead ? 1 : 0;
@@ -6183,25 +6264,72 @@ function drawSiltAndTorch() {
     if (torchOn) {
         var torchPx = TORCH_RADIUS_M / mpp;
         var effectiveR = torchPx * 1.7 * Math.max(0.3, visibility);
-        var grad = cx.createRadialGradient(diverScreenX, diverScreenY, 0,
-                                            diverScreenX, diverScreenY, effectiveR);
-        grad.addColorStop(0,    'rgba(0,0,0,1)');     // fully clear at the diver
-        grad.addColorStop(0.5,  'rgba(0,0,0,0.92)');
-        grad.addColorStop(0.82, 'rgba(0,0,0,0.45)');
-        grad.addColorStop(1,    'rgba(0,0,0,0)');     // back to full dark at the rim
+        var beamAngle = torchBeamAngle(_diverFacing);
+        var halfA = TORCH_BEAM_HALF_ANGLE_RAD;
+        var nearR = effectiveR * TORCH_NEAR_FIELD_FRACTION;
+
+        cx.save();
         cx.globalCompositeOperation = 'destination-out';
-        cx.fillStyle = grad;
+
+        // Near-field spill — small, all-around, weaker. Keeps the diver's
+        // back/head dimly readable instead of pure black (which reads as
+        // broken rather than atmospheric). Full-screen fill; only the
+        // gradient's inner disc actually erases anything.
+        var spill = cx.createRadialGradient(diverScreenX, diverScreenY, 0,
+                                             diverScreenX, diverScreenY, nearR);
+        spill.addColorStop(0,   'rgba(0,0,0,0.85)');
+        spill.addColorStop(0.6, 'rgba(0,0,0,0.55)');
+        spill.addColorStop(1,   'rgba(0,0,0,0)');
+        cx.fillStyle = spill;
         cx.fillRect(0, 0, W, H);
+
+        // Directional cone — clip to a wedge along the beam axis, then
+        // fill the strong radial gradient. The clip guarantees the
+        // "punch" only opens along the beam direction.
+        cx.save();
+        cx.beginPath();
+        cx.moveTo(diverScreenX, diverScreenY);
+        cx.arc(diverScreenX, diverScreenY, effectiveR * 1.05,
+               beamAngle - halfA, beamAngle + halfA);
+        cx.closePath();
+        cx.clip();
+        var beam = cx.createRadialGradient(diverScreenX, diverScreenY, 0,
+                                            diverScreenX, diverScreenY, effectiveR);
+        beam.addColorStop(0,    'rgba(0,0,0,1)');
+        beam.addColorStop(0.5,  'rgba(0,0,0,0.92)');
+        beam.addColorStop(0.82, 'rgba(0,0,0,0.45)');
+        beam.addColorStop(1,    'rgba(0,0,0,0)');
+        cx.fillStyle = beam;
+        cx.fillRect(0, 0, W, H);
+        cx.restore();
+
         cx.globalCompositeOperation = 'source-over';
-        drawTorchGlowAndSparkles(cx, W, H, diverScreenX, diverScreenY, effectiveR);
+        cx.restore();
+
+        drawTorchGlowAndSparkles(cx, W, H, diverScreenX, diverScreenY,
+                                 effectiveR, beamAngle, halfA);
     }
 }
 
-function drawTorchGlowAndSparkles(cx, W, H, diverScreenX, diverScreenY, effectiveR) {
+function drawTorchGlowAndSparkles(cx, W, H, diverScreenX, diverScreenY, effectiveR,
+                                    beamAngle, beamHalfAngle) {
     var s = activeSite();
-    if (!s || s.id !== 'cave') return;
+    // Issue #31: extended to wreck (was cave-only) so the wreck interior
+    // gets glow/backscatter too. Any other site (open water / reef / shore)
+    // still short-circuits.
+    if (!s || (s.id !== 'cave' && s.id !== 'wreck')) return;
+
+    // Beam-direction params default to the current diver facing so old-style
+    // callers keep working; both current call sites (cave + wreck) pass them
+    // explicitly.
+    if (typeof beamAngle !== 'number') beamAngle = torchBeamAngle(_diverFacing);
+    if (typeof beamHalfAngle !== 'number') beamHalfAngle = TORCH_BEAM_HALF_ANGLE_RAD;
+
     cx.save();
     cx.globalCompositeOperation = 'lighter';
+
+    // Warm all-around glow — omni-directional, matches the near-field spill
+    // in the cutout pass so the diver's immediate surroundings glow softly.
     var warm = cx.createRadialGradient(diverScreenX, diverScreenY, 0,
                                        diverScreenX, diverScreenY, effectiveR * 0.72);
     warm.addColorStop(0, 'rgba(255,220,150,0.10)');
@@ -6210,17 +6338,49 @@ function drawTorchGlowAndSparkles(cx, W, H, diverScreenX, diverScreenY, effectiv
     cx.fillStyle = warm;
     cx.fillRect(0, 0, W, H);
 
-    cx.fillStyle = 'rgba(238,226,184,0.32)';
-    for (var i = 0; i < 36; i++) {
-        var seed = i * 23.7;
-        var ang = sRand(seed) * Math.PI * 2;
-        var rr = Math.pow(sRand(seed + 1), 0.65) * effectiveR * 0.85;
-        var x = diverScreenX + Math.cos(ang) * rr + Math.sin(waveTime * 0.8 + i) * 2;
-        var y = diverScreenY + Math.sin(ang) * rr;
-        if (x < 0 || x > W || y < 0 || y > H) continue;
-        var a = Math.max(0, 1 - rr / effectiveR);
-        cx.globalAlpha = a * 0.85;
-        cx.beginPath(); cx.arc(x, y, 0.7 + sRand(seed + 2) * 1.3, 0, Math.PI * 2); cx.fill();
+    // Volumetric cone-shaped backscatter — suspended particles caught in
+    // the beam. Density scales with 1-visibility (silty water scatters
+    // more). Clipped to the beam wedge so it visibly extends along the
+    // torch direction rather than blooming in every direction.
+    var vis = (typeof visibility === 'number') ? visibility : 0.8;
+    var visClamped = Math.max(0, Math.min(1, vis));
+    // 0.05 in crystal-clear water, up to 0.30 in murky. Cave is usually
+    // clear; wreck interior tends to sit around vis 0.4-0.6, so the wreck
+    // naturally reads dustier without hard-coding a site check.
+    var scatterA = 0.05 + (1 - visClamped) * 0.25;
+    cx.save();
+    cx.beginPath();
+    cx.moveTo(diverScreenX, diverScreenY);
+    cx.arc(diverScreenX, diverScreenY, effectiveR * 1.05,
+           beamAngle - beamHalfAngle, beamAngle + beamHalfAngle);
+    cx.closePath();
+    cx.clip();
+    var scatter = cx.createRadialGradient(diverScreenX, diverScreenY, 0,
+                                          diverScreenX, diverScreenY, effectiveR);
+    scatter.addColorStop(0,    'rgba(255,225,175,' + scatterA.toFixed(3) + ')');
+    scatter.addColorStop(0.55, 'rgba(210,220,200,' + (scatterA * 0.55).toFixed(3) + ')');
+    scatter.addColorStop(1,    'rgba(150,180,200,0)');
+    cx.fillStyle = scatter;
+    cx.fillRect(0, 0, W, H);
+    cx.restore();
+
+    // Deterministic point-sparkles (cave only — cave has clear water and
+    // the sparkles read as fine silt/mica flecks; wreck's murkier ambient
+    // is already conveyed by the backscatter layer above, and steel-
+    // backdrop sparkles read as noise there).
+    if (s.id === 'cave') {
+        cx.fillStyle = 'rgba(238,226,184,0.32)';
+        for (var i = 0; i < 36; i++) {
+            var seed = i * 23.7;
+            var ang = sRand(seed) * Math.PI * 2;
+            var rr = Math.pow(sRand(seed + 1), 0.65) * effectiveR * 0.85;
+            var x = diverScreenX + Math.cos(ang) * rr + Math.sin(waveTime * 0.8 + i) * 2;
+            var y = diverScreenY + Math.sin(ang) * rr;
+            if (x < 0 || x > W || y < 0 || y > H) continue;
+            var a = Math.max(0, 1 - rr / effectiveR);
+            cx.globalAlpha = a * 0.85;
+            cx.beginPath(); cx.arc(x, y, 0.7 + sRand(seed + 2) * 1.3, 0, Math.PI * 2); cx.fill();
+        }
     }
     cx.globalAlpha = 1;
     cx.restore();

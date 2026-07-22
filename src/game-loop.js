@@ -1027,6 +1027,19 @@ window.gameAPI = {
     drawWreckParallaxLayers: drawWreckParallaxLayers,
     drawCaveParallaxLayers: drawCaveParallaxLayers,
     get PARALLAX_FACTORS() { return PARALLAX_FACTORS; },
+    // Issue #31: Directional torch cone + backscatter (renderer-only,
+    // decorative). torchBeamAngle() is a pure helper; the draw hooks are
+    // exposed so tests can stub CanvasRenderingContext2D and assert the
+    // out-of-dive no-ops + torch-off / torch-on branch behaviour.
+    torchBeamAngle: torchBeamAngle,
+    get TORCH_BEAM_TILT_RAD() { return TORCH_BEAM_TILT_RAD; },
+    get TORCH_BEAM_HALF_ANGLE_RAD() { return TORCH_BEAM_HALF_ANGLE_RAD; },
+    get TORCH_NEAR_FIELD_FRACTION() { return TORCH_NEAR_FIELD_FRACTION; },
+    drawSiltAndTorch: drawSiltAndTorch,
+    drawWreckHullSkin: drawWreckHullSkin,
+    drawTorchGlowAndSparkles: drawTorchGlowAndSparkles,
+    get diverFacing() { return _diverFacing; },
+    set diverFacing(v) { _diverFacing = (v === -1) ? -1 : 1; },
     // Renderer test hook: `ctx` and `canvas` are const in state.js so they
     // are NOT properties of `window` (only `var` declarations are). Expose
     // them here so tests can pass the same context the render pipeline

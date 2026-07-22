@@ -5162,6 +5162,194 @@ tests = [
             if (threw) throw threw;
             return 'PASS — ridge Y-values change when diverX changes → wave sampled by world-x';
         }
+    },
+    // ────────────────────────────────────────────────────────────────
+    //  Issue #31 — directional torch cone + backscatter (cave & wreck)
+    // ────────────────────────────────────────────────────────────────
+    {
+        id: 'TC-31-API',
+        name: 'Issue #31 — torch-beam helpers surface on gameAPI',
+        fn: function() {
+            assert(typeof api.torchBeamAngle === 'function', 'torchBeamAngle not exposed');
+            assert(typeof api.TORCH_BEAM_TILT_RAD === 'number', 'TORCH_BEAM_TILT_RAD not exposed');
+            assert(typeof api.TORCH_BEAM_HALF_ANGLE_RAD === 'number', 'TORCH_BEAM_HALF_ANGLE_RAD not exposed');
+            assert(typeof api.TORCH_NEAR_FIELD_FRACTION === 'number', 'TORCH_NEAR_FIELD_FRACTION not exposed');
+            assert(typeof api.drawSiltAndTorch === 'function', 'drawSiltAndTorch not exposed');
+            assert(typeof api.drawWreckHullSkin === 'function', 'drawWreckHullSkin not exposed');
+            assert(typeof api.drawTorchGlowAndSparkles === 'function', 'drawTorchGlowAndSparkles not exposed');
+            // Sanity-check the tilt/half-angle magnitudes so a stray zero
+            // or a stray full-circle value would show up here.
+            assert(api.TORCH_BEAM_TILT_RAD > 0 && api.TORCH_BEAM_TILT_RAD < Math.PI / 4,
+                'TORCH_BEAM_TILT_RAD out of sane range: ' + api.TORCH_BEAM_TILT_RAD);
+            assert(api.TORCH_BEAM_HALF_ANGLE_RAD > 0 && api.TORCH_BEAM_HALF_ANGLE_RAD < Math.PI / 2,
+                'TORCH_BEAM_HALF_ANGLE_RAD out of sane range: ' + api.TORCH_BEAM_HALF_ANGLE_RAD);
+            assert(api.TORCH_NEAR_FIELD_FRACTION > 0 && api.TORCH_NEAR_FIELD_FRACTION < 1,
+                'TORCH_NEAR_FIELD_FRACTION out of range: ' + api.TORCH_NEAR_FIELD_FRACTION);
+            return 'PASS — 7 torch-cone symbols exposed';
+        }
+    },
+    {
+        id: 'TC-31-BEAM-ANGLE-SIGN',
+        name: 'Issue #31 — torchBeamAngle points DOWN-RIGHT / DOWN-LEFT (never up)',
+        fn: function() {
+            // Canvas convention: 0 rad = +x (right), +PI/2 = +y (DOWN).
+            // Facing right → beam angle should be a small positive angle
+            //   (cos > 0, sin > 0 → down-right).
+            // Facing left  → beam angle should be slightly less than PI
+            //   (cos < 0, sin > 0 → down-left).
+            // Getting the LEFT-side sign wrong (e.g. PI + tilt instead of
+            // PI - tilt) makes the beam tilt UP-left instead of DOWN-left
+            // — the classic bug this test guards against.
+            var right = api.torchBeamAngle(1);
+            var left  = api.torchBeamAngle(-1);
+            var tilt  = api.TORCH_BEAM_TILT_RAD;
+            assert(Math.abs(right - tilt) < 1e-9,
+                'torchBeamAngle(1) should be +tilt, got ' + right + ' (tilt=' + tilt + ')');
+            assert(Math.abs(left - (Math.PI - tilt)) < 1e-9,
+                'torchBeamAngle(-1) should be PI-tilt, got ' + left + ' (PI-tilt=' + (Math.PI - tilt) + ')');
+            // Vector-form sanity: both beams must have a positive y-component
+            // (i.e., point downward). This catches sign errors independently
+            // of the exact expected formula above.
+            assert(Math.sin(right) > 0,
+                'facing-right beam not pointing DOWN: sin(' + right + ') = ' + Math.sin(right));
+            assert(Math.sin(left)  > 0,
+                'facing-left beam not pointing DOWN: sin(' + left + ') = ' + Math.sin(left));
+            // …and the x-component must point in the facing direction.
+            assert(Math.cos(right) > 0,
+                'facing-right beam not pointing RIGHT: cos(' + right + ') = ' + Math.cos(right));
+            assert(Math.cos(left)  < 0,
+                'facing-left beam not pointing LEFT: cos(' + left + ') = ' + Math.cos(left));
+            return 'PASS — beam tilts DOWN in both facing directions, cos matches facing';
+        }
+    },
+    {
+        id: 'TC-31-BEAM-ANGLE-DETERMINISTIC',
+        name: 'Issue #31 — torchBeamAngle is a pure deterministic function',
+        fn: function() {
+            // Same input → same output, always. Also: unknown inputs (0,
+            // undefined, NaN, garbage) must clamp to the +1 branch to
+            // match _diverFacing's initial value.
+            var a = api.torchBeamAngle(1);
+            var b = api.torchBeamAngle(1);
+            var c = api.torchBeamAngle(-1);
+            var d = api.torchBeamAngle(-1);
+            assert(a === b, 'non-deterministic for facing=1: ' + a + ' vs ' + b);
+            assert(c === d, 'non-deterministic for facing=-1: ' + c + ' vs ' + d);
+            assert(api.torchBeamAngle(0)         === a, 'facing=0 should clamp to +1 branch');
+            assert(api.torchBeamAngle(undefined) === a, 'facing=undefined should clamp to +1 branch');
+            assert(api.torchBeamAngle(NaN)       === a, 'facing=NaN should clamp to +1 branch');
+            assert(api.torchBeamAngle('left')    === a, 'facing="left" (string) should clamp to +1 branch');
+            return 'PASS — torchBeamAngle is deterministic and defensively clamps garbage';
+        }
+    },
+    {
+        id: 'TC-31-NOOP-OUTSIDE-DIVE',
+        name: 'Issue #31 — drawSiltAndTorch + drawWreckHullSkin emit zero ops outside diving',
+        fn: function() {
+            // Follows the TC-58-NOOP-OUTSIDE-DIVE pattern: stub every
+            // canvas op the passes touch and assert zero calls in any of
+            // the four non-dive screens.
+            var iw = iframe.contentWindow;
+            var C = iw.CanvasRenderingContext2D && iw.CanvasRenderingContext2D.prototype;
+            assert(C, 'CanvasRenderingContext2D not accessible on iframe');
+            var methods = [
+                'fillRect', 'stroke', 'fill', 'beginPath',
+                'moveTo', 'lineTo', 'ellipse', 'arc', 'closePath',
+                'clip', 'save', 'restore',
+                'createLinearGradient', 'createRadialGradient'
+            ];
+            var savedState = api.gameState;
+            var savedFns = {};
+            var callCount = 0;
+            for (var i = 0; i < methods.length; i++) savedFns[methods[i]] = C[methods[i]];
+            function wrap() {
+                for (var j = 0; j < methods.length; j++) {
+                    (function(m, orig) {
+                        C[m] = function() { callCount++; return orig.apply(this, arguments); };
+                    })(methods[j], savedFns[methods[j]]);
+                }
+            }
+            function unwrap() {
+                for (var j = 0; j < methods.length; j++) C[methods[j]] = savedFns[methods[j]];
+            }
+            var states = ['gas-setup', 'post-dive', 'game-over', 'surface'];
+            var threw = null;
+            try {
+                wrap();
+                for (var si = 0; si < states.length; si++) {
+                    api.gameState = states[si];
+                    callCount = 0;
+                    api.drawSiltAndTorch();
+                    api.drawWreckHullSkin();
+                    if (callCount !== 0) {
+                        throw new Error('state "' + states[si] + '": ' +
+                            callCount + ' canvas ops emitted');
+                    }
+                }
+            } catch (e) { threw = e; }
+            finally { unwrap(); api.gameState = savedState; }
+            if (threw) throw threw;
+            return 'PASS — 4 non-dive states emitted zero canvas ops';
+        }
+    },
+    {
+        id: 'TC-31-TORCH-OFF-NO-CONE',
+        name: 'Issue #31 — cave torch-OFF path draws darkness only, never a cone-wedge arc',
+        fn: function() {
+            // Guard: the cone build (moveTo diver-centre → arc across a
+            // limited angular range) must never fire when torchOn is
+            // false. The plain darkness fillRect still happens, but no
+            // arc/moveTo cone calls should occur.
+            var iw = iframe.contentWindow;
+            var C = iw.CanvasRenderingContext2D && iw.CanvasRenderingContext2D.prototype;
+            assert(C, 'CanvasRenderingContext2D not accessible on iframe');
+            var iw2 = iframe.contentWindow;
+            var savedState    = api.gameState;
+            var savedTorch    = api.torchOn;
+            var savedSite     = api.diveSite;
+            var savedOverhead = iw2.inOverhead;
+            var savedTDark    = iw2._torchDark;
+            var savedArc = C.arc;
+            var arcCounter = { n: 0 };
+            C.arc = function() {
+                arcCounter.n++;
+                return savedArc.apply(this, arguments);
+            };
+            var offCount = 0, onCount = 0;
+            var threw = null;
+            try {
+                api.gameState  = 'diving';
+                api.diveSite   = 'cave';
+                iw2.inOverhead = true;    // so the darkness overlay doesn't fade out
+                iw2._torchDark = 1;       // pre-ramped so the pass renders in a single call
+                // Torch OFF — cone code path must not fire.
+                api.torchOn = false;
+                arcCounter.n = 0;
+                api.drawSiltAndTorch();
+                offCount = arcCounter.n;
+                // Torch ON — cone code path DOES fire (at least one arc()
+                // for the wedge). This asymmetry is the whole point of the
+                // feature.
+                api.torchOn = true;
+                arcCounter.n = 0;
+                api.drawSiltAndTorch();
+                onCount = arcCounter.n;
+            } catch (e) { threw = e; }
+            finally {
+                C.arc = savedArc;
+                api.gameState  = savedState;
+                api.torchOn    = savedTorch;
+                api.diveSite   = savedSite;
+                iw2.inOverhead = savedOverhead;
+                iw2._torchDark = savedTDark;
+            }
+            if (threw) throw threw;
+            assert(offCount === 0,
+                'cave torch OFF still emitted ' + offCount + ' arc() calls (cone leaking?)');
+            assert(onCount > 0,
+                'cave torch ON emitted 0 arc() calls — cone wedge not built');
+            return 'PASS — torch OFF: 0 arcs; torch ON: ' + onCount + ' arcs';
+        }
     }
 ];
 

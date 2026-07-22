@@ -223,6 +223,12 @@ const gameGlobals = {
   drawSiteAtmosphere: "readonly",
   drawShoreParallaxLayers: "readonly", drawReefParallaxLayers: "readonly",
   drawWreckParallaxLayers: "readonly", drawCaveParallaxLayers: "readonly",
+  // Issue #31: Directional torch cone + backscatter (renderer.js)
+  torchBeamAngle: "readonly",
+  TORCH_BEAM_TILT_RAD: "readonly", TORCH_BEAM_HALF_ANGLE_RAD: "readonly",
+  TORCH_NEAR_FIELD_FRACTION: "readonly",
+  drawWreckHullSkin: "readonly", drawTorchGlowAndSparkles: "readonly",
+  _diverFacing: "writable", _torchDark: "writable", _wreckMetal: "writable",
   // Phase C renderer helpers
   drawTerrain: "readonly", drawStructures: "readonly",
   drawFeatures: "readonly", drawSeagrass: "readonly",
