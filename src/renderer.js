@@ -158,6 +158,89 @@ function torchBeamAngle(facing) {
     return (f === 1) ? TORCH_BEAM_TILT_RAD : (Math.PI - TORCH_BEAM_TILT_RAD);
 }
 
+// ── Issue #33: Object-relative light + interior distance queries ───
+// A shared query helper: "how lit is this specific world point?" Reuses
+// #31's exact beam axis/geometry — never invents a second torch cone,
+// mask, or facing calculation. First consumer is the wreck interior
+// object-brightness/tint pass (drawFeatures / drawStructures on wreck);
+// deliberately GENERIC (not wreck-specific) since the same query is
+// useful anywhere a drawer wants to modulate colour by torch reach.
+//
+// Contract:
+//   sampleTorchLightAtWorldPoint(worldX, worldD) → number in [0..1]
+//   • Returns EXACTLY 0 when torchOn is false — the point is unlit,
+//     no artificial warm brightening is added (see TC-33-LIGHT-TORCH-OFF-ZERO).
+//   • Returns 1 at the diver's own world position when torchOn is true.
+//   • Soft radial fall-off from the diver, with a soft angular edge to
+//     the beam cone — no hard step (see TC-33-LIGHT-SOFT-EDGE).
+//   • Points inside the near-field spill radius are lit regardless of
+//     angle (mirrors #31's near-field circle).
+// Pure function of its inputs + current diver state (facing, position,
+// torchOn, visibility). No state mutation.
+const TORCH_LIGHT_EDGE_SOFTNESS = 0.22;   // fraction of angular half-width used for smooth edge
+// Interior object-distance falloff — how present an object reads INSIDE
+// the wreck as a function of its distance from the diver. This is the
+// separate #33 effect: it modulates alpha/brightness slightly with a
+// per-object distance factor, layered ON TOP of #54's zone-wide fog
+// (never a second fullscreen fog layer). See TC-33-INTERIOR-FACTOR-*.
+const INTERIOR_OBJECT_NEAR_M = 4;         // full-present within this radius
+const INTERIOR_OBJECT_FAR_M  = 26;        // fully faded past this radius
+
+function sampleTorchLightAtWorldPoint(worldX, worldD) {
+    if (!torchOn) return 0;
+    // Reach in world metres, scaled by local visibility — matches the
+    // exact formula the drawing side already uses (drawSiltAndTorch,
+    // drawWreckHullSkin: TORCH_RADIUS_M * 1.7 * max(0.3, visibility)).
+    var reachM = TORCH_RADIUS_M * 1.7 * Math.max(0.3, visibility);
+    var nearM  = reachM * TORCH_NEAR_FIELD_FRACTION;
+    var dx = worldX - diverX;
+    var dy = worldD - depth;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist <= 1e-6) return 1;
+    // Near-field spill — soft radial falloff, angle-independent.
+    var nearFactor = 0;
+    if (dist < nearM) {
+        var nr = 1 - dist / nearM;
+        nearFactor = nr * nr * (3 - 2 * nr);   // smoothstep 0→1
+    }
+    // Directional cone — same axis as #31.
+    var coneFactor = 0;
+    if (dist < reachM) {
+        var pointAngle = Math.atan2(dy, dx);
+        var beamAngle = torchBeamAngle(_diverFacing);
+        var halfA = TORCH_BEAM_HALF_ANGLE_RAD;
+        var da = pointAngle - beamAngle;
+        while (da >  Math.PI) da -= Math.PI * 2;
+        while (da < -Math.PI) da += Math.PI * 2;
+        var absDA = Math.abs(da);
+        var innerHalf = halfA * (1 - TORCH_LIGHT_EDGE_SOFTNESS);
+        var angularWeight = 0;
+        if (absDA <= innerHalf) {
+            angularWeight = 1;
+        } else if (absDA < halfA) {
+            var t = (halfA - absDA) / (halfA - innerHalf);
+            angularWeight = t * t * (3 - 2 * t);   // smoothstep
+        }
+        if (angularWeight > 0) {
+            var radial = 1 - dist / reachM;
+            if (radial < 0) radial = 0;
+            radial = radial * radial * (3 - 2 * radial);   // smoothstep
+            coneFactor = angularWeight * radial;
+        }
+    }
+    return Math.max(nearFactor, coneFactor);
+}
+
+function interiorObjectDistanceFactor(worldX, worldD) {
+    var dx = worldX - diverX;
+    var dy = worldD - depth;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist <= INTERIOR_OBJECT_NEAR_M) return 1;
+    if (dist >= INTERIOR_OBJECT_FAR_M)  return 0;
+    var t = (INTERIOR_OBJECT_FAR_M - dist) / (INTERIOR_OBJECT_FAR_M - INTERIOR_OBJECT_NEAR_M);
+    return t * t * (3 - 2 * t);   // smoothstep
+}
+
 // ── Issue #36: depth-dependent color absorption ────────────────────
 // Red is the first wavelength absorbed by water — gone by ~10-15 m —
 // followed by orange/yellow; by ~25 m without a light source everything
@@ -4009,10 +4092,31 @@ function drawWreckBackdrop(cx, W, H, dsx, dsy, mpp) {
     }
 }
 
-// Ship silhouette = union of the regions that ENCLOSE interior decks. Funnel
-// and mast are left out so their detailed sprites stay visible from outside.
-// Rects are kept NON-overlapping (they only touch edge-to-edge) so an even-odd
-// hole can be punched cleanly. Each entry: [x1, x2, dTop, dBottom] world units.
+// ── Issue #33: Ferry-like ship silhouette ──────────────────────────
+// The wreck silhouette is a clip mask used by drawWreckSteelBack (paints
+// steel behind the interior so gaps read as metal, not open ocean) and
+// drawWreckHullSkin (paints an opaque steel skin OVER the interior that
+// only opens up a diver-centred line-of-sight bubble). It is PURELY
+// COSMETIC — it never affects collision (src/sites.js `structures`), deck
+// heights, penetration openings, `solidAt()` / `overheadAt()`, or entry
+// markers. See TC-33-COLLISION-UNCHANGED for the regression net.
+//
+// Old shape was a union of three axis-aligned rectangles [hull body,
+// accommodation block, bridge]. Reads as a stack of boxes. Reshaped
+// into a single closed polygon that traces a Ro-Ro ferry outline:
+//   • raked-forward bow stem (angled forefoot, not a flat vertical edge)
+//   • subtle sheer + a small stern-top shoulder (fewer 90° outer corners)
+//   • existing superstructure blocks (accommodation, bridge) still
+//     reflected in the silhouette with their outer corners preserved.
+// The polygon is a strict SUPERSET of the old three-rectangle union
+// (every point that used to be inside the union is still inside the
+// polygon; the polygon only ADDS area outside collision-solid regions
+// — bow rake, stern shoulder). This "add-only" property is the guard
+// that keeps drawWreckHullSkin from opening an apparent gap over any
+// collision-solid point. Enforced by TC-33-SILHOUETTE-SUPERSET.
+
+// Kept for backward compat and TC-33-SILHOUETTE-SUPERSET's floor: the
+// three rectangles are still the guaranteed minimum coverage.
 function _wreckSilhouetteRects() {
     return [
         [14, 170, 28, 66],   // multi-deck hull body (main deck → keel)
@@ -4021,16 +4125,57 @@ function _wreckSilhouetteRects() {
     ];
 }
 
+// Ferry outline in world space, traced clockwise (canvas y-down). Every
+// vertex here EITHER coincides with an old-union outer corner (must
+// stay to preserve collision coverage) OR sits OUTSIDE the old union
+// in an area that had no collision solid (the bow-rake triangle and
+// the stern-top shoulder — see comment above).
+function _wreckSilhouettePolygon() {
+    return [
+        // ── Bridge / wheelhouse top (unchanged outer corners) ──
+        [70,  18], [110, 18],
+        // Down bridge right wall
+        [110, 22],
+        // ── Accommodation top-right (unchanged outer corner) ──
+        [140, 22],
+        // Down accommodation right wall
+        [140, 28],
+        // ── Hull top-right sheer (adds a small stern-top shoulder,
+        //    entirely outside the old union — no collision underneath) ──
+        [172, 28],
+        [172, 32],
+        [170, 34],
+        // Stern side down (unchanged x=170 collision preserved)
+        [170, 66],
+        // ── Keel run (unchanged) ──
+        [14,  66],
+        // ── Raked-forward bow stem: forefoot bulges forward of x=14 as
+        //    it approaches the keel, then the stem rakes back UP toward
+        //    a top-forward point at (12, 28). This entire triangle lies
+        //    left of the collision bow stem (x=14..16) — pure addition. ──
+        [10,  60],
+        [10,  34],
+        [12,  28],
+        // ── Hull top-left back to accommodation (unchanged) ──
+        [40,  28],
+        // Up accommodation left wall
+        [40,  22],
+        // Accommodation top-left (unchanged outer corner)
+        [70,  22]
+        // implicit close back to [70, 18]
+    ];
+}
+
 function _buildWreckSilhouette(cx, dsx, dsy, mpp) {
-    var R = _wreckSilhouetteRects();
+    var poly = _wreckSilhouettePolygon();
     cx.beginPath();
-    for (var i = 0; i < R.length; i++) {
-        var x1 = dsx + (R[i][0] - diverX) / mpp;
-        var x2 = dsx + (R[i][1] - diverX) / mpp;
-        var y1 = dsy + (R[i][2] - depth) / mpp;
-        var y2 = dsy + (R[i][3] - depth) / mpp;
-        cx.rect(x1, y1, x2 - x1, y2 - y1);
+    for (var i = 0; i < poly.length; i++) {
+        var sx = dsx + (poly[i][0] - diverX) / mpp;
+        var sy = dsy + (poly[i][1] - depth) / mpp;
+        if (i === 0) cx.moveTo(sx, sy);
+        else cx.lineTo(sx, sy);
     }
+    cx.closePath();
 }
 
 // Steel hull painted BEHIND the interior objects so gaps read as metal, not
@@ -5030,6 +5175,135 @@ function drawRustHole(cx, x, y) {
     cx.restore();
 }
 
+// ── Issue #33: sagging line ────────────────────────────────────────
+// A slack cable / rope hanging between two anchor points. Purely
+// cosmetic — no collision, no gameplay. Motion (a very slight sway of
+// the sagging body) comes EXCLUSIVELY from #57's sampleEnvironmentSway
+// with `SWAY_PROFILES.hangingLine`; this drawer never invents its own
+// Math.sin() and never keeps state between frames. `worldX` is passed
+// so the seed is stable in world coordinates (survives camera pan).
+//
+// Feature shape defaults: two anchors ~2 m apart, sagging ~1.4 m below
+// the anchor line. Consumers may override via feature.length (m) or
+// feature.sag (m).
+function drawHangingLine(cx, x, y, worldX, feature) {
+    var mpp = 0.05;
+    var lenM = (feature && feature.length) || 2.2;
+    var sagM = (feature && feature.sag)    || 1.4;
+    var lenPx = lenM / mpp;
+    var sagPx = sagM / mpp;
+    // Small tip sway from #57 — reuses hangingLine profile, no local math.
+    var seed = (worldX || 0) * 3.19 + 71.7;
+    var swMid = sampleEnvironmentSway(seed, SWAY_PROFILES.hangingLine, 1.0);
+    var swQtr = sampleEnvironmentSway(seed, SWAY_PROFILES.hangingLine, 0.5);
+    var ax = x - lenPx * 0.5, ay = y;
+    var bx = x + lenPx * 0.5, by = y + 0.6;   // slight asymmetry — rarely level
+    // Sag control points: mid drops by sagPx, offset by sway sample.
+    var midX = (ax + bx) / 2 + swMid.x;
+    var midY = ay + sagPx + swMid.y;
+    // Two quadratic bezier halves gives a gently sagging catenary look.
+    var q1cX = ax + lenPx * 0.25 + swQtr.x * 0.6;
+    var q1cY = ay + sagPx * 0.75;
+    var q2cX = bx - lenPx * 0.25 + swQtr.x * 0.6;
+    var q2cY = by + sagPx * 0.75;
+    cx.save();
+    // Faint shadow under the rope for depth cue (low alpha; #34 owns AO,
+    // this is just a subtle reading aid).
+    cx.strokeStyle = 'rgba(0,0,0,0.25)';
+    cx.lineWidth = 2.2;
+    cx.lineCap = 'round';
+    cx.beginPath();
+    cx.moveTo(ax + 1, ay + 1);
+    cx.quadraticCurveTo(q1cX + 1, q1cY + 1, midX + 1, midY + 1);
+    cx.quadraticCurveTo(q2cX + 1, q2cY + 1, bx + 1, by + 1);
+    cx.stroke();
+    // Rope itself — muted olive-brown, low contrast.
+    cx.strokeStyle = 'rgba(120,102,72,0.72)';
+    cx.lineWidth = 1.4;
+    cx.beginPath();
+    cx.moveTo(ax, ay);
+    cx.quadraticCurveTo(q1cX, q1cY, midX, midY);
+    cx.quadraticCurveTo(q2cX, q2cY, bx, by);
+    cx.stroke();
+    // Anchor knots at each end
+    cx.fillStyle = 'rgba(60,50,38,0.85)';
+    cx.beginPath(); cx.arc(ax, ay, 1.4, 0, Math.PI * 2); cx.fill();
+    cx.beginPath(); cx.arc(bx, by, 1.4, 0, Math.PI * 2); cx.fill();
+    cx.restore();
+}
+
+// ── Issue #33: torn fishing net ────────────────────────────────────
+// A bounded frame curve plus a sparse thin grid pattern. Purely
+// cosmetic. Motion via #57 `SWAY_PROFILES.net` only. Consumers may
+// override feature.width / feature.height (metres).
+function drawNet(cx, x, y, worldX, feature) {
+    var mpp = 0.05;
+    var wM = (feature && feature.width)  || 3.0;
+    var hM = (feature && feature.height) || 2.4;
+    var wPx = wM / mpp;
+    var hPx = hM / mpp;
+    var seed = (worldX || 0) * 5.71 + 133.3;
+    var swMid = sampleEnvironmentSway(seed, SWAY_PROFILES.net, 1.0);
+    var swQtr = sampleEnvironmentSway(seed, SWAY_PROFILES.net, 0.5);
+    // The net hangs from a top anchor line (x1..x2, y). Bottom edge
+    // drifts with the sway sample; sides sag slightly toward the middle.
+    var x1 = x - wPx * 0.5, x2 = x + wPx * 0.5;
+    var yTop = y;
+    var yBot = y + hPx + swMid.y;
+    var xBotShift = swMid.x;
+    var xMidShift = swQtr.x;
+    cx.save();
+    // Grid: 4 vertical strands, 3 horizontal strands. Kept intentionally
+    // sparse so this reads as a distant, atmospheric detail rather than
+    // a focal prop. Each strand is a quadratic curve so it sags with the
+    // frame — no per-strand ad-hoc trig.
+    cx.strokeStyle = 'rgba(120,132,124,0.42)';
+    cx.lineWidth = 0.7;
+    // Vertical strands
+    var vCount = 4;
+    for (var v = 0; v <= vCount; v++) {
+        var tv = v / vCount;
+        var xTop = x1 + wPx * tv;
+        var xB   = x1 + wPx * tv + xBotShift;
+        var xMid = (xTop + xB) / 2 + xMidShift * (1 - Math.abs(tv - 0.5) * 2) * 0.5;
+        var yMid = yTop + (yBot - yTop) * 0.55;
+        cx.beginPath();
+        cx.moveTo(xTop, yTop);
+        cx.quadraticCurveTo(xMid, yMid, xB, yBot);
+        cx.stroke();
+    }
+    // Horizontal strands
+    var hCount = 3;
+    for (var h = 1; h <= hCount; h++) {
+        var th = h / (hCount + 1);
+        var yH = yTop + (yBot - yTop) * th;
+        var xLH = x1 + xBotShift * th;
+        var xRH = x2 + xBotShift * th;
+        var xMH = (xLH + xRH) / 2;
+        var yMH = yH + xMidShift * 0.2;    // very subtle horizontal wobble
+        cx.beginPath();
+        cx.moveTo(xLH, yH);
+        cx.quadraticCurveTo(xMH, yMH, xRH, yH);
+        cx.stroke();
+    }
+    // Frame curve — slightly darker, traces the net's outer boundary so
+    // the sparse grid still reads as a bounded object even off-camera.
+    cx.strokeStyle = 'rgba(80,88,80,0.55)';
+    cx.lineWidth = 1.0;
+    cx.beginPath();
+    cx.moveTo(x1, yTop);
+    cx.lineTo(x2, yTop);                    // top edge (headline)
+    cx.quadraticCurveTo(x2 + xMidShift, (yTop + yBot) / 2, x2 + xBotShift, yBot);
+    cx.quadraticCurveTo(x + xBotShift, yBot + Math.abs(xMidShift) * 0.5, x1 + xBotShift, yBot);
+    cx.quadraticCurveTo(x1 + xMidShift, (yTop + yBot) / 2, x1, yTop);
+    cx.stroke();
+    // Anchor floats at each end of the headline
+    cx.fillStyle = 'rgba(48,54,50,0.7)';
+    cx.beginPath(); cx.arc(x1, yTop, 1.6, 0, Math.PI * 2); cx.fill();
+    cx.beginPath(); cx.arc(x2, yTop, 1.6, 0, Math.PI * 2); cx.fill();
+    cx.restore();
+}
+
 // ---- Structure-kind drawers (replace plain hull for ferry chrome) ----
 
 // Funnel — trapezoid stack, ship's-livery red band, cap.
@@ -5200,6 +5474,15 @@ function drawStructures() {
                        && ((Math.abs(w.dTop - ceilHereL) < slack)
                         || (Math.abs(w.dTop - ceilHereR) < slack));
 
+        // Issue #33: object-relative interior lighting for wreck structures.
+        // Same modulator drawFeatures uses — near/lit reads present, far
+        // outside cone blends toward background steel. No-op outside wreck
+        // interior. AO contact bands stay at full alpha (computed after
+        // restore) so contact reading isn't muted by object distance.
+        var _strAlphaMul = wreckInteriorAlphaMul(midWx, midWd);
+        var _strNeedsGate = (_strAlphaMul !== 1);
+        if (_strNeedsGate) { cx.save(); cx.globalAlpha *= _strAlphaMul; }
+
         switch (w.kind) {
             case 'rock': case 'pillar':
                 drawRockStruct(cx, sx1, sy1, sw, sh, seed, rockTone); break;
@@ -5225,6 +5508,8 @@ function drawStructures() {
                 cx.strokeRect(sx1, sy1, sw, sh);
         }
 
+        if (_strNeedsGate) cx.restore();
+
         // Issue #34: AO contact band along the structure's contact edge with
         // terrain. Sits-on-floor: draw the bottom edge. Hangs-from-ceiling:
         // draw the top edge. World-anchored via the same screen-space
@@ -5240,6 +5525,26 @@ function drawStructures() {
     }
 }
 
+// Issue #33: object-relative interior alpha modulator (wreck only,
+// while the diver is in an overhead). Combines the two #33 effects
+// into ONE small alpha multiplier layered on top of whatever #54's
+// zone-wide atmosphere already does. Never rebuilds a fog layer.
+//   • interior distance: near objects read more present than far ones.
+//   • torch-relative:   in-cone objects reach full presence even at
+//                       distance; outside-cone objects sit lower.
+// Combines via max() so a near-but-unlit object stays present, and a
+// far-but-lit object stays legible. Amplitude capped at ~30% swing so
+// nothing is fully obscured or fully saturated. Exposed via gameAPI
+// for TC-33-INTERIOR-* tests.
+function wreckInteriorAlphaMul(worldX, worldD) {
+    var s = activeSite();
+    if (!s || s.id !== 'wreck' || !inOverhead) return 1;
+    var interiorF = interiorObjectDistanceFactor(worldX, worldD);
+    var lightF = sampleTorchLightAtWorldPoint(worldX, worldD);
+    var combined = interiorF > lightF ? interiorF : lightF;
+    return 0.72 + 0.28 * combined;
+}
+
 function drawFeatures() {
     var s = activeSite();
     if (!s || !s.features.length) return;
@@ -5250,6 +5555,12 @@ function drawFeatures() {
         var f = s.features[i];
         var ffx = diverScreenX + ((f.x || 0) - diverX) / mpp;
         if (ffx < -200 || ffx > W + 200) continue;
+        // Issue #33: apply interior alpha modulation for wreck features.
+        // Uses save/restore around the switch so every drawer sees the
+        // modulated globalAlpha without needing per-kind wiring.
+        var _featAlphaMul = wreckInteriorAlphaMul(f.x || 0, f.d || 0);
+        var _needsAlphaGate = (_featAlphaMul !== 1);
+        if (_needsAlphaGate) { cx.save(); cx.globalAlpha *= _featAlphaMul; }
         if (f.kind === 'seagrass') {
             var fgy = diverScreenY + ((f.d || 0) - depth) / mpp;
             if (fgy > -20 && fgy < H + 20) drawSeagrass(cx, ffx, fgy, (f.x || 0));
@@ -5331,7 +5642,16 @@ function drawFeatures() {
         } else if (f.kind === 'rustHole') {
             var fry = diverScreenY + ((f.d || 0) - depth) / mpp;
             if (fry > -30 && fry < H + 30) drawRustHole(cx, ffx, fry);
+        } else if (f.kind === 'line') {
+            // Issue #33: sagging line — cosmetic only, no collision.
+            var flnY = diverScreenY + ((f.d || 0) - depth) / mpp;
+            if (flnY > -60 && flnY < H + 120) drawHangingLine(cx, ffx, flnY, (f.x || 0), f);
+        } else if (f.kind === 'net') {
+            // Issue #33: hanging net — cosmetic only, no collision.
+            var fnetY = diverScreenY + ((f.d || 0) - depth) / mpp;
+            if (fnetY > -60 && fnetY < H + 200) drawNet(cx, ffx, fnetY, (f.x || 0), f);
         }
+        if (_needsAlphaGate) cx.restore();
     }
 }
 

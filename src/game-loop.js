@@ -934,10 +934,17 @@ window.gameAPI = {
         if (v === 'open' || DIVE_SITES[v]) diveSite = v;
     },
     get visibility() { return visibility; },
+    // Test hook — visibility drives the torch reach formula and #33's
+    // sampleTorchLightAtWorldPoint; TC-33-* needs to pin it explicitly.
+    set visibility(v) { visibility = Math.max(0, Math.min(1.25, v)); },
     get torchOn() { return torchOn; },
     set torchOn(v) { torchOn = !!v; },
     get guidelineNodeCount() { return guidelineNodes.length; },
     get inOverhead() { return inOverhead; },
+    // Test hook — the game normally maintains inOverhead itself from
+    // overheadAt(diverX, depth); TC-33-INTERIOR-MODULATOR-SCOPE + others
+    // need to pin it deterministically.
+    set inOverhead(v) { inOverhead = !!v; },
     floorAt: floorAt,
     ceilingAt: ceilingAt,
     solidAt: solidAt,
@@ -1078,6 +1085,19 @@ window.gameAPI = {
     drawTorchGlowAndSparkles: drawTorchGlowAndSparkles,
     get diverFacing() { return _diverFacing; },
     set diverFacing(v) { _diverFacing = (v === -1) ? -1 : 1; },
+    // Issue #33: Wreck visual polish — ferry silhouette, object-relative
+    // interior distance falloff, torch-relative object lighting query
+    // helper, line/net feature drawers.
+    sampleTorchLightAtWorldPoint: sampleTorchLightAtWorldPoint,
+    interiorObjectDistanceFactor: interiorObjectDistanceFactor,
+    wreckInteriorAlphaMul: wreckInteriorAlphaMul,
+    get TORCH_LIGHT_EDGE_SOFTNESS() { return TORCH_LIGHT_EDGE_SOFTNESS; },
+    get INTERIOR_OBJECT_NEAR_M() { return INTERIOR_OBJECT_NEAR_M; },
+    get INTERIOR_OBJECT_FAR_M()  { return INTERIOR_OBJECT_FAR_M; },
+    wreckSilhouetteRects:    function() { return _wreckSilhouetteRects(); },
+    wreckSilhouettePolygon:  function() { return _wreckSilhouettePolygon(); },
+    drawHangingLine: drawHangingLine,
+    drawNet: drawNet,
     // Issue #36: depth-dependent color absorption.
     depthColorFactors: depthColorFactors,
     drawDepthColorAbsorption: drawDepthColorAbsorption,

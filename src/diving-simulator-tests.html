@@ -6071,6 +6071,486 @@ tests = [
             }
             return 'PASS — drawer op sequences deterministic and seed-sensitive';
         }
+    },
+    // ────────────────────────────────────────────────────────────────
+    //  Issue #33 — Wreck visual polish (ferry silhouette, object-relative
+    //  distance falloff, torch-relative object lighting, line/net cues)
+    // ────────────────────────────────────────────────────────────────
+    {
+        id: 'TC-33-API',
+        name: 'Issue #33 — wreck-polish helpers surface on gameAPI',
+        fn: function() {
+            assert(typeof api.sampleTorchLightAtWorldPoint === 'function', 'sampleTorchLightAtWorldPoint not exposed');
+            assert(typeof api.interiorObjectDistanceFactor === 'function', 'interiorObjectDistanceFactor not exposed');
+            assert(typeof api.wreckInteriorAlphaMul === 'function', 'wreckInteriorAlphaMul not exposed');
+            assert(typeof api.wreckSilhouetteRects === 'function', 'wreckSilhouetteRects not exposed');
+            assert(typeof api.wreckSilhouettePolygon === 'function', 'wreckSilhouettePolygon not exposed');
+            assert(typeof api.drawHangingLine === 'function', 'drawHangingLine not exposed');
+            assert(typeof api.drawNet === 'function', 'drawNet not exposed');
+            assert(typeof api.TORCH_LIGHT_EDGE_SOFTNESS === 'number', 'TORCH_LIGHT_EDGE_SOFTNESS not exposed');
+            assert(typeof api.INTERIOR_OBJECT_NEAR_M === 'number', 'INTERIOR_OBJECT_NEAR_M not exposed');
+            assert(typeof api.INTERIOR_OBJECT_FAR_M === 'number', 'INTERIOR_OBJECT_FAR_M not exposed');
+            assert(api.INTERIOR_OBJECT_NEAR_M < api.INTERIOR_OBJECT_FAR_M,
+                'INTERIOR_OBJECT_NEAR_M must be < INTERIOR_OBJECT_FAR_M');
+            return 'PASS — 10 wreck-polish symbols exposed';
+        }
+    },
+    {
+        id: 'TC-33-LIGHT-TORCH-OFF-ZERO',
+        name: 'Issue #33 — sampleTorchLightAtWorldPoint returns 0 exactly with torch off',
+        fn: function() {
+            var savedSite = api.diveSite, savedTorch = api.torchOn;
+            var savedX = api.diverX, savedD = api.depth;
+            var threw = null;
+            try {
+                api.diveSite = 'wreck';
+                api.torchOn = false;
+                api.diverX = 60;
+                api.setDepth(32);
+                // Sample a variety of points — every one MUST be exactly 0.
+                var samples = [[60, 32], [62, 32], [80, 32], [55, 30], [60, 40], [50, 40], [70, 35]];
+                for (var i = 0; i < samples.length; i++) {
+                    var v = api.sampleTorchLightAtWorldPoint(samples[i][0], samples[i][1]);
+                    assert(v === 0, 'torch off at ' + samples[i] + ' returned ' + v + ' (expected exact 0)');
+                }
+            } catch (e) { threw = e; }
+            finally {
+                api.diveSite = savedSite; api.torchOn = savedTorch;
+                api.diverX = savedX; api.setDepth(savedD);
+            }
+            if (threw) throw threw;
+            return 'PASS — 7 sample points all exactly 0 with torch off';
+        }
+    },
+    {
+        id: 'TC-33-LIGHT-IN-VS-OUT',
+        name: 'Issue #33 — same world point reads higher inside beam cone than outside',
+        fn: function() {
+            var savedSite = api.diveSite, savedTorch = api.torchOn;
+            var savedFacing = api.diverFacing;
+            var savedX = api.diverX, savedD = api.depth, savedVis = api.visibility;
+            var threw = null;
+            try {
+                api.diveSite = 'wreck';
+                api.torchOn = true;
+                api.diverFacing = 1;   // beam points down-RIGHT
+                api.diverX = 60;
+                api.setDepth(40);
+                api.visibility = 0.6;
+                // A point in the beam (down-right, ~4m away) should read
+                // measurably higher than a point on the opposite side
+                // (up-left, same 4m distance). Uses the beam-tilt angle
+                // so the "in-beam" point actually sits on-axis.
+                var tilt = api.TORCH_BEAM_TILT_RAD;
+                // r chosen outside the angle-independent near-field spill
+                // (nearM ≈ TORCH_RADIUS_M*1.7*max(0.3,vis)*NEAR_FIELD_FRACTION)
+                // but well inside the cone reach — so the near-field
+                // doesn't contaminate the out-of-cone sample.
+                var r = 3.0;
+                var inX  = 60 + Math.cos(tilt) * r;
+                var inD  = 40 + Math.sin(tilt) * r;
+                var outX = 60 - Math.cos(tilt) * r;
+                var outD = 40 - Math.sin(tilt) * r;
+                var vin  = api.sampleTorchLightAtWorldPoint(inX, inD);
+                var vout = api.sampleTorchLightAtWorldPoint(outX, outD);
+                assert(vin > vout + 0.15,
+                    'in-cone (' + vin.toFixed(3) + ') should be > out-of-cone (' + vout.toFixed(3) + ') by a clear margin');
+                assert(vin  >  0, 'in-cone intensity should be positive, got ' + vin);
+                // The out-of-cone value at 4m may still be non-zero via
+                // the near-field spill (nearM ≈ TORCH_RADIUS_M * 1.7 *
+                // max(0.3, vis) * NEAR_FIELD_FRACTION); the assertion above
+                // only requires the CONE point to be materially brighter.
+            } catch (e) { threw = e; }
+            finally {
+                api.diveSite = savedSite; api.torchOn = savedTorch;
+                api.diverFacing = savedFacing;
+                api.diverX = savedX; api.setDepth(savedD); api.visibility = savedVis;
+            }
+            if (threw) throw threw;
+            return 'PASS — in-cone > out-of-cone by clear margin';
+        }
+    },
+    {
+        id: 'TC-33-LIGHT-SOFT-EDGE',
+        name: 'Issue #33 — sampleTorchLightAtWorldPoint edge transition is soft (no hard step)',
+        fn: function() {
+            // Sweep angularly across the cone edge in small steps and
+            // check that no adjacent-pair delta is a hard step. A hard
+            // 1→0 step across a small angular delta would blow past this
+            // bound; a smoothstep-based softening keeps every step small.
+            var savedSite = api.diveSite, savedTorch = api.torchOn;
+            var savedFacing = api.diverFacing;
+            var savedX = api.diverX, savedD = api.depth, savedVis = api.visibility;
+            var threw = null, maxStep = 0;
+            try {
+                api.diveSite = 'wreck';
+                api.torchOn = true;
+                api.diverFacing = 1;
+                api.diverX = 60; api.setDepth(40); api.visibility = 0.7;
+                var tilt = api.TORCH_BEAM_TILT_RAD;
+                var halfA = api.TORCH_BEAM_HALF_ANGLE_RAD;
+                // radius chosen so the point is outside the near-field
+                // (which is angle-independent) — must be > nearM.
+                var reachM = 5 /* TORCH_RADIUS_M */ * 1.7 * Math.max(0.3, 0.7);
+                var nearM  = reachM * api.TORCH_NEAR_FIELD_FRACTION;
+                var r = nearM + (reachM - nearM) * 0.65;   // between near-edge and reach
+                var steps = 40;
+                var prev = null;
+                // Sweep from tilt - halfA*1.4 to tilt + halfA*1.4
+                for (var i = 0; i <= steps; i++) {
+                    var frac = i / steps;
+                    var ang = tilt + (frac * 2 - 1) * halfA * 1.4;
+                    var px = 60 + Math.cos(ang) * r;
+                    var pd = 40 + Math.sin(ang) * r;
+                    var v = api.sampleTorchLightAtWorldPoint(px, pd);
+                    if (prev !== null) {
+                        var step = Math.abs(v - prev);
+                        if (step > maxStep) maxStep = step;
+                    }
+                    prev = v;
+                }
+                // Angular step ≈ (halfA * 2.8) / 40 = fine. A soft edge
+                // should keep each per-step delta well below 0.35.
+                assert(maxStep < 0.35,
+                    'largest single-step delta was ' + maxStep.toFixed(3) +
+                    ' — edge looks hard');
+            } catch (e) { threw = e; }
+            finally {
+                api.diveSite = savedSite; api.torchOn = savedTorch;
+                api.diverFacing = savedFacing;
+                api.diverX = savedX; api.setDepth(savedD); api.visibility = savedVis;
+            }
+            if (threw) throw threw;
+            return 'PASS — max angular-sweep step ' + maxStep.toFixed(3) + ', soft edge';
+        }
+    },
+    {
+        id: 'TC-33-INTERIOR-FACTOR-MONOTONIC',
+        name: 'Issue #33 — interiorObjectDistanceFactor 1 near, 0 far, no popping',
+        fn: function() {
+            var savedX = api.diverX, savedD = api.depth;
+            var threw = null;
+            try {
+                api.diverX = 100; api.setDepth(40);
+                var near = api.interiorObjectDistanceFactor(100.1, 40);
+                var far  = api.interiorObjectDistanceFactor(100 + api.INTERIOR_OBJECT_FAR_M + 10, 40);
+                assert(near === 1, 'near value should be exactly 1, got ' + near);
+                assert(far  === 0, 'far value should be exactly 0, got ' + far);
+                var prev = 1, maxStep = 0, violations = 0;
+                for (var r = 0.2; r < 40; r += 0.2) {
+                    var v = api.interiorObjectDistanceFactor(100 + r, 40);
+                    if (v > prev + 1e-9) violations++;
+                    var step = Math.abs(v - prev);
+                    if (step > maxStep) maxStep = step;
+                    prev = v;
+                }
+                assert(violations === 0, violations + ' monotonicity violations');
+                assert(maxStep < 0.12, 'largest 0.2m-step delta ' + maxStep.toFixed(3) + ' — looks like a pop');
+            } catch (e) { threw = e; }
+            finally { api.diverX = savedX; api.setDepth(savedD); }
+            if (threw) throw threw;
+            return 'PASS — interior factor 1→0 with soft ramp, no popping';
+        }
+    },
+    {
+        id: 'TC-33-SILHOUETTE-SUPERSET',
+        name: 'Issue #33 — polygon is a strict superset of the old 3-rect union',
+        fn: function() {
+            // For every 1m grid point inside any old rectangle, that point
+            // must be inside the polygon. This is the collision-safety
+            // guarantee: drawing steel via the polygon clip never opens a
+            // gap where the old union used to be steel.
+            var rects = api.wreckSilhouetteRects();
+            var poly = api.wreckSilhouettePolygon();
+            assert(rects.length === 3, 'expected 3 rects, got ' + rects.length);
+            assert(poly.length >= 8, 'expected polygon with ≥8 vertices, got ' + poly.length);
+            // point-in-polygon (ray casting, y-down convention same as canvas)
+            function inPoly(px, py) {
+                var inside = false;
+                for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+                    var xi = poly[i][0], yi = poly[i][1];
+                    var xj = poly[j][0], yj = poly[j][1];
+                    var intersects = ((yi > py) !== (yj > py))
+                        && (px < (xj - xi) * (py - yi) / (yj - yi + 1e-12) + xi);
+                    if (intersects) inside = !inside;
+                }
+                return inside;
+            }
+            var missed = [];
+            for (var r = 0; r < rects.length; r++) {
+                var rect = rects[r];
+                for (var x = rect[0] + 0.5; x < rect[1]; x += 1) {
+                    for (var d = rect[2] + 0.5; d < rect[3]; d += 1) {
+                        if (!inPoly(x, d)) missed.push([x.toFixed(1), d.toFixed(1), r]);
+                        if (missed.length > 8) break;
+                    }
+                    if (missed.length > 8) break;
+                }
+                if (missed.length > 8) break;
+            }
+            assert(missed.length === 0,
+                'polygon does NOT enclose old-union point(s): ' + JSON.stringify(missed));
+            return 'PASS — every grid point in the 3-rect union sits inside the ferry polygon';
+        }
+    },
+    {
+        id: 'TC-33-COLLISION-UNCHANGED',
+        name: 'Issue #33 — floorAt/ceilingAt/solidAt/overheadAt at wreck test points unchanged',
+        fn: function() {
+            // Baseline collision samples for the wreck. These values are
+            // what the current wreck geometry MUST return — if any of
+            // them changes, the visual silhouette work has bled into
+            // sites.js (`structures` / floor / ceiling). Expected values
+            // baked in from the wreck's structure array (bow stem/keel/
+            // decks/bulkheads) — see comments alongside each sample.
+            var savedSite = api.diveSite;
+            var threw = null;
+            try {
+                api.diveSite = 'wreck';
+                // floorAt: keel at d=66 across the whole hull span
+                assert(api.floorAt(50)  === 66, 'floorAt(50) should be 66, got '  + api.floorAt(50));
+                assert(api.floorAt(100) === 66, 'floorAt(100) should be 66, got ' + api.floorAt(100));
+                assert(api.floorAt(160) === 66, 'floorAt(160) should be 66, got ' + api.floorAt(160));
+                // ceilingAt: no ceiling profile
+                assert(api.ceilingAt(50)  === 0, 'ceilingAt(50) should be 0');
+                assert(api.ceilingAt(100) === 0, 'ceilingAt(100) should be 0');
+                // solidAt at bow stem (x=14..16 d=28..66): solid
+                assert(api.solidAt(15, 40)  === true,  'bow stem (15,40) should be solid');
+                assert(api.solidAt(15, 65)  === true,  'bow stem (15,65) should be solid');
+                // solidAt at stern transom (x=168..170 d=28..66): solid
+                assert(api.solidAt(169, 40) === true,  'stern transom (169,40) should be solid');
+                assert(api.solidAt(169, 62) === true,  'stern transom (169,62) should be solid');
+                // solidAt at BOW visor opening (x=14..22 d=28..40 has NO
+                // deck slab spanning it — it's the passable entry)
+                assert(api.solidAt(18, 32) === false, 'bow visor opening (18,32) must remain passable');
+                // Main hatch opening (x=78..92 d=27..28 has no deck slab)
+                assert(api.solidAt(85, 27.5) === false, 'main hatch opening (85,27.5) must remain passable');
+                // Stern ramp opening (x=148..168 d=28..40 no deck slab)
+                assert(api.solidAt(158, 32) === false, 'stern ramp opening (158,32) must remain passable');
+                // Main deck slab collision (x=22..78 dTop=27, dBottom=28)
+                assert(api.solidAt(50, 27.5) === true,  'main deck (50,27.5) should be solid');
+                // Vehicle-deck void (below main deck, inside hull, no bulkhead)
+                assert(api.solidAt(50, 32) === false,   'vehicle-deck void (50,32) should be passable');
+                // Accommodation walls
+                assert(api.solidAt(41, 25)  === true,   'accom fwd wall (41,25) should be solid');
+                assert(api.solidAt(139, 25) === true,   'accom aft wall (139,25) should be solid');
+                // Bridge walls
+                assert(api.solidAt(71, 20)  === true,   'bridge fwd wall (71,20) should be solid');
+                assert(api.solidAt(109, 20) === true,   'bridge aft wall (109,20) should be solid');
+                // overheadAt: below the accommodation-roof / bridge-floor
+                // structure at (x=42..78 d=22..23) → point at (60,25) is
+                // directly below it → overhead.
+                assert(api.overheadAt(60, 25) === true, 'point below accom roof (60,25) should have overhead');
+                // Below the vehicle-deck slab (x=22..78 d=27..28) —
+                // straight-up path hits the deck → overhead.
+                assert(api.overheadAt(50, 35) === true, 'point below vehicle deck (50,35) should have overhead');
+                // A point OUTSIDE the wreck's hull span in open water (well
+                // to the right of the stern transom) has no overhead.
+                assert(api.overheadAt(190, 30) === false, 'open water right of stern (190,30) should not have overhead');
+            } catch (e) { threw = e; }
+            finally { api.diveSite = savedSite; }
+            if (threw) throw threw;
+            return 'PASS — 20 collision samples match baseline';
+        }
+    },
+    {
+        id: 'TC-33-ENTRY-POINTS-UNCHANGED',
+        name: 'Issue #33 — bow visor / stern ramp / main hatch entry x-ranges unchanged',
+        fn: function() {
+            // The three deliberate hull penetrations must keep their
+            // exact x-ranges. Assertions match the ranges baked into
+            // drawWreckEntryMarkers (see renderer.js, search for "BOW ").
+            // These ranges are derived from src/sites.js's structure gaps.
+            var expected = [
+                { label: 'BOW',   x1: 16,  x2: 22 },
+                { label: 'HATCH', x1: 78,  x2: 92 },
+                { label: 'STERN', x1: 148, x2: 168 }
+            ];
+            var savedSite = api.diveSite;
+            var threw = null;
+            try {
+                api.diveSite = 'wreck';
+                // Verify each entry range corresponds to a real gap in
+                // the collision structures at the deck line d=27.5.
+                var deckSample = 27.5;
+                for (var i = 0; i < expected.length; i++) {
+                    var e = expected[i];
+                    // Mid-point of entry must be passable at deck line
+                    var mx = (e.x1 + e.x2) / 2;
+                    assert(api.solidAt(mx, deckSample) === false,
+                        e.label + ' midpoint (' + mx + ', ' + deckSample + ') should be passable');
+                    // Immediately outside the entry (bounds) — passable-ness
+                    // depends on adjacent structure, so we only assert the
+                    // opening's INTERIOR is passable, not the borders.
+                    // Bow visor: also passable one metre INSIDE the ship
+                    // (d=32) since the vehicle deck opens there.
+                    if (e.label === 'BOW') {
+                        assert(api.solidAt(mx, 32) === false, 'BOW at (19, 32) should stay passable');
+                    }
+                    if (e.label === 'STERN') {
+                        assert(api.solidAt(mx, 32) === false, 'STERN at (158, 32) should stay passable');
+                    }
+                }
+            } catch (e) { threw = e; }
+            finally { api.diveSite = savedSite; }
+            if (threw) throw threw;
+            return 'PASS — bow/hatch/stern entry openings still passable at deck line';
+        }
+    },
+    {
+        id: 'TC-33-LINE-NET-FEATURES-PRESENT',
+        name: 'Issue #33 — wreck features array contains line + net entries',
+        fn: function() {
+            var wreck = api.DIVE_SITES.wreck;
+            var lines = [], nets = [];
+            for (var i = 0; i < wreck.features.length; i++) {
+                var f = wreck.features[i];
+                if (f.kind === 'line') lines.push(f);
+                if (f.kind === 'net')  nets.push(f);
+            }
+            assert(lines.length >= 2, 'expected ≥2 line features, got ' + lines.length);
+            assert(nets.length  >= 1, 'expected ≥1 net features, got '  + nets.length);
+            // None should sit on top of an entry marker's x-range at the
+            // deck line (would visually block a passable entry).
+            var entries = [[16,22], [78,92], [148,168]];
+            var all = lines.concat(nets);
+            for (var j = 0; j < all.length; j++) {
+                var af = all[j];
+                for (var k = 0; k < entries.length; k++) {
+                    var ex = entries[k];
+                    var inside = af.x >= ex[0] && af.x <= ex[1] && Math.abs(af.d - 28) < 2;
+                    assert(!inside, af.kind + ' at (' + af.x + ',' + af.d +
+                        ') sits over entry x=[' + ex[0] + ',' + ex[1] + ']');
+                }
+            }
+            return 'PASS — ' + lines.length + ' line + ' + nets.length +
+                ' net features, none obscure entry openings';
+        }
+    },
+    {
+        id: 'TC-33-LINE-NET-NO-COLLISION',
+        name: 'Issue #33 — line/net features do NOT add collision structures',
+        fn: function() {
+            var wreck = api.DIVE_SITES.wreck;
+            // Iterate the features array; ensure line/net feature entries
+            // never accidentally leak into structures (or reference any
+            // AABB fields that structures use — dTop / dBottom).
+            var strayLineNet = 0;
+            for (var i = 0; i < wreck.structures.length; i++) {
+                var s = wreck.structures[i];
+                if (s.kind === 'line' || s.kind === 'net') strayLineNet++;
+            }
+            assert(strayLineNet === 0,
+                'found ' + strayLineNet + ' line/net entry in structures[] — should be features[] only');
+            // Sample every line/net's own (x, d) — assert solidAt() is
+            // false there (the feature must not correspond to a solid).
+            var savedSite = api.diveSite;
+            var threw = null;
+            try {
+                api.diveSite = 'wreck';
+                for (var j = 0; j < wreck.features.length; j++) {
+                    var f = wreck.features[j];
+                    if (f.kind !== 'line' && f.kind !== 'net') continue;
+                    assert(api.solidAt(f.x, f.d) === false,
+                        f.kind + ' at (' + f.x + ',' + f.d + ') sits in a solid AABB');
+                }
+            } catch (e) { threw = e; }
+            finally { api.diveSite = savedSite; }
+            if (threw) throw threw;
+            return 'PASS — no line/net in structures[], no line/net at a solid point';
+        }
+    },
+    {
+        id: 'TC-33-LINE-NET-WORLD-ANCHORED',
+        name: 'Issue #33 — drawHangingLine / drawNet consume sampleEnvironmentSway with the right profiles',
+        fn: function() {
+            // Ensures the two new drawers use #57's sway helper with the
+            // profiles reserved for them (`hangingLine`, `net`), instead
+            // of new Math.sin() code paths. Assertion strategy: monkey-
+            // patch sampleEnvironmentSway on the iframe window, record
+            // (seed, profile) arguments, then invoke each drawer through
+            // the API and check the recorded profile identity.
+            var iw = iframe.contentWindow;
+            var savedSample = iw.sampleEnvironmentSway;
+            var savedWaveT = iw.waveTime;
+            var recorded = [];
+            iw.sampleEnvironmentSway = function(seed, profile, hf) {
+                recorded.push({ seed: seed, profile: profile });
+                return { x: 0, y: 0, angle: 0 };
+            };
+            var C = iw.CanvasRenderingContext2D && iw.CanvasRenderingContext2D.prototype;
+            var savedFns = {};
+            var methods = ['save', 'restore', 'beginPath', 'moveTo', 'lineTo',
+                'quadraticCurveTo', 'stroke', 'arc', 'fill'];
+            for (var i = 0; i < methods.length; i++) {
+                savedFns[methods[i]] = C[methods[i]];
+                C[methods[i]] = function() {};
+            }
+            var threw = null;
+            try {
+                iw.waveTime = 1.0;
+                var testCtx = { save: function(){}, restore: function(){}, beginPath: function(){},
+                    moveTo: function(){}, lineTo: function(){}, quadraticCurveTo: function(){},
+                    stroke: function(){}, arc: function(){}, fill: function(){},
+                    fillStyle: '', strokeStyle: '', lineWidth: 0, lineCap: '' };
+                api.drawHangingLine(testCtx, 100, 100, 42, { length: 2, sag: 1 });
+                var lineCalls = recorded.filter(function(r) {
+                    return r.profile === iw.SWAY_PROFILES.hangingLine;
+                });
+                assert(lineCalls.length > 0,
+                    'drawHangingLine did not call sampleEnvironmentSway with SWAY_PROFILES.hangingLine');
+                recorded.length = 0;
+                api.drawNet(testCtx, 200, 200, 84, { width: 3, height: 2 });
+                var netCalls = recorded.filter(function(r) {
+                    return r.profile === iw.SWAY_PROFILES.net;
+                });
+                assert(netCalls.length > 0,
+                    'drawNet did not call sampleEnvironmentSway with SWAY_PROFILES.net');
+            } catch (e) { threw = e; }
+            finally {
+                iw.sampleEnvironmentSway = savedSample;
+                iw.waveTime = savedWaveT;
+                for (var k = 0; k < methods.length; k++) C[methods[k]] = savedFns[methods[k]];
+            }
+            if (threw) throw threw;
+            return 'PASS — drawHangingLine uses hangingLine profile; drawNet uses net profile';
+        }
+    },
+    {
+        id: 'TC-33-INTERIOR-MODULATOR-SCOPE',
+        name: 'Issue #33 — wreckInteriorAlphaMul is 1 outside wreck / outside overhead',
+        fn: function() {
+            var savedSite = api.diveSite, savedOverhead = api.inOverhead;
+            var savedX = api.diverX, savedD = api.depth, savedTorch = api.torchOn;
+            var threw = null;
+            try {
+                api.diverX = 60; api.setDepth(40);
+                api.torchOn = false;   // pin torch off so light term stays 0 for far
+                // Not wreck → always 1
+                api.diveSite = 'reef';
+                api.inOverhead = true;
+                assert(api.wreckInteriorAlphaMul(60, 40) === 1, 'reef+overhead should return 1');
+                assert(api.wreckInteriorAlphaMul(200, 40) === 1, 'reef+far should return 1');
+                // Wreck but NOT overhead → always 1
+                api.diveSite = 'wreck';
+                api.inOverhead = false;
+                assert(api.wreckInteriorAlphaMul(60, 40) === 1, 'wreck+no-overhead should return 1');
+                assert(api.wreckInteriorAlphaMul(200, 40) === 1, 'wreck+no-overhead far should return 1');
+                // Wreck AND overhead → varies in [0.72, 1] range
+                api.inOverhead = true;
+                var near = api.wreckInteriorAlphaMul(60, 40);
+                var far  = api.wreckInteriorAlphaMul(60 + api.INTERIOR_OBJECT_FAR_M + 5, 40);
+                assert(near >= 0.99 && near <= 1.0001, 'near value should be ~1, got ' + near);
+                assert(far  >= 0.72 - 1e-6 && far <= 0.99,
+                    'far value should sit near the 0.72 floor, got ' + far);
+            } catch (e) { threw = e; }
+            finally {
+                api.diveSite = savedSite; api.inOverhead = savedOverhead;
+                api.diverX = savedX; api.setDepth(savedD); api.torchOn = savedTorch;
+            }
+            if (threw) throw threw;
+            return 'PASS — modulator is a no-op outside wreck-interior; near/far span the expected range';
+        }
     }
 ];
 

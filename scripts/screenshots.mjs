@@ -200,6 +200,22 @@ async function run() {
     { site: 'Reef',  x: 0,   depth: 8,  name: 'desktop-dive-reef-fauna-near-mesa' },
     { site: 'Wreck', x: 92,  depth: 40, name: 'desktop-dive-wreck-fauna-interior' },
     { site: 'Cave',  x: 100, depth: 30, name: 'desktop-dive-cave-fauna-bedrock-area' },
+    // Issue #33: wreck visual polish — ferry silhouette read + interior
+    // areas (line/net cues visible; object-distance + torch-relative
+    // lighting affecting readability). Exterior shots frame the ship
+    // outline from open water so the raked bow reads. Interior shots
+    // sample each deck. Torch-on vs torch-off pair at the vehicle deck
+    // shows the object-lighting swing without a second cone effect.
+    { site: 'Wreck', x: 25,  depth: 24, torch: false, facing:  1, name: 'desktop-dive-wreck-33-exterior-bow' },
+    { site: 'Wreck', x: 90,  depth: 20, torch: false, facing:  1, name: 'desktop-dive-wreck-33-bridge-accommodation' },
+    { site: 'Wreck', x: 50,  depth: 32, torch: true,  facing:  1, name: 'desktop-dive-wreck-33-vehicle-deck-torch-on' },
+    { site: 'Wreck', x: 50,  depth: 32, torch: false, facing:  1, name: 'desktop-dive-wreck-33-vehicle-deck-torch-off' },
+    { site: 'Wreck', x: 100, depth: 50, torch: true,  facing:  1, name: 'desktop-dive-wreck-33-cargo-hold' },
+    { site: 'Wreck', x: 100, depth: 58, torch: true,  facing:  1, name: 'desktop-dive-wreck-33-engine-room' },
+    // Line/net feature focus — vehicle deck net (~x=100 d=32) and the
+    // crew-deck net + line cluster near port aft (~x=118 d=41).
+    { site: 'Wreck', x: 100, depth: 32, torch: true,  facing:  1, name: 'desktop-dive-wreck-33-vehicle-deck-net' },
+    { site: 'Wreck', x: 118, depth: 41, torch: true,  facing:  1, name: 'desktop-dive-wreck-33-crew-deck-net-line' },
   ];
 
   for (const diveShot of desktopDiveShots) {

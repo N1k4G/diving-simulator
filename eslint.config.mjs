@@ -241,6 +241,15 @@ const gameGlobals = {
   TORCH_NEAR_FIELD_FRACTION: "readonly",
   drawWreckHullSkin: "readonly", drawTorchGlowAndSparkles: "readonly",
   _diverFacing: "writable", _torchDark: "writable", _wreckMetal: "writable",
+  // Issue #33: Wreck visual polish (renderer.js)
+  sampleTorchLightAtWorldPoint: "readonly",
+  interiorObjectDistanceFactor: "readonly",
+  wreckInteriorAlphaMul: "readonly",
+  TORCH_LIGHT_EDGE_SOFTNESS: "readonly",
+  INTERIOR_OBJECT_NEAR_M: "readonly", INTERIOR_OBJECT_FAR_M: "readonly",
+  _wreckSilhouetteRects: "readonly", _wreckSilhouettePolygon: "readonly",
+  _buildWreckSilhouette: "readonly",
+  drawHangingLine: "readonly", drawNet: "readonly",
   // Issue #36: depth-dependent color absorption (renderer.js)
   depthColorFactors: "readonly", drawDepthColorAbsorption: "readonly",
   DEPTH_COLOR_R_NEAR: "readonly", DEPTH_COLOR_R_FAR: "readonly", DEPTH_COLOR_R_LOSS: "readonly",

@@ -444,6 +444,26 @@ var DIVE_SITES = {
       {kind:'rustHole', x:152, d:58},
       {kind:'rustHole', x:30,  d:44},
 
+      // ---- ISSUE #33 — Sagging lines + torn net (cosmetic only) ---
+      // Hand-placed near existing rustHoles and away from the three
+      // deliberate entry markers (BOW x=16..22, HATCH x=78..92,
+      // STERN x=148..168). Motion comes exclusively from #57's
+      // sampleEnvironmentSway(SWAY_PROFILES.hangingLine / .net) — no
+      // rope physics, no collision. Kept sparse (a handful) so they
+      // read as atmospheric detail, not a focal prop.
+      // Line drifting near the port-side hull breach (rustHole x=30, d=44)
+      {kind:'line', x:35,  d:41, length:2.6, sag:1.2},
+      // Line near the mid-hatch rust hole (rustHole x=82, d=50)
+      {kind:'line', x:76,  d:47, length:1.9, sag:1.1},
+      // Line off the stern rust hole (rustHole x=152, d=58)
+      {kind:'line', x:145, d:55, length:2.4, sag:1.4},
+      // Torn fishing net snagged over the crew-deck ceiling area
+      // (near, but not blocking, the aft crew cabins)
+      {kind:'net',  x:118, d:41, width:3.2, height:2.6},
+      // Small piece of drift net caught inside the vehicle deck
+      // between the port lorry and a car (x≈30 is clear of BOW/HATCH)
+      {kind:'net',  x:100, d:32, width:2.4, height:2.0},
+
       // ---- Debris scattered OUTSIDE the hull on the seabed ----
       // Big bower anchor lying on the seabed off the bow (left of the wreck),
       // its chain long since parted from the ship.
