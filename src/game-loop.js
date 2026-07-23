@@ -48,6 +48,17 @@ function perSecondToPerFrameProbability(p60, dt) {
 // D6: Torch toggle — edge-detect on F key so one press = one toggle
 var _torchKeyPrev = false;
 
+// Issue #14: per-tick cache for the expensive Bühlmann calculations
+// (calculateCeiling(), calculateNDL(), calculateDecoSchedule(), calculateTTS())
+// that used to run multiple times per frame — once per call site inside
+// updateDiving(), then again in drawDiveComputer()/drawPostDive(). Populated
+// once at the top of updateDiving(); every other call site in this file and
+// in renderer.js reads from here instead of recomputing. Frozen at whatever
+// it held on the last diving tick once the dive ends, which is the correct
+// (final) state for the post-dive summary screen to read. No behavior
+// change — pure efficiency.
+var frameCalc = { ceiling: 0, ndl: 999, schedule: null, tts: 0 };
+
 // ============================================================
 function updateSurface(dtReal) {
     waveTime += dtReal;
@@ -60,8 +71,14 @@ function updateSurface(dtReal) {
 }
 
 function updateDiving(dtReal) {
+    // Issue #14: this first read of frameCalc is intentionally the value
+    // left over from the END of the PREVIOUS tick (tissues haven't been
+    // updated yet this frame, so it's numerically identical to a fresh
+    // calculateCeiling() call here) — matches original behavior exactly.
+    // frameCalc is refreshed once, right after updateTissues() runs below,
+    // for every read later in this tick and in the renderer this frame.
     // Fast-forward eligibility check
-    var decoStopD = decoStop(calculateCeiling());
+    var decoStopD = decoStop(frameCalc.ceiling);
     var atDecoStop = decoStopD > 0 && Math.abs(depth - decoStopD) <= 1.5;
     var atSafetyStop = safetyStopCountdownStarted && !safetyStopComplete && depth >= SAFETY_STOP_ACTIVE_MIN_D && depth <= SAFETY_STOP_ACTIVE_MAX_D;
     var canFastForward = (atDecoStop || atSafetyStop);
@@ -183,11 +200,21 @@ function updateDiving(dtReal) {
     while (_profileSampleTimer >= 2) {
         _profileSampleTimer -= 2;
         var _sampleT = diveTime - _profileSampleTimer / 60;
-        diveProfile.push({t: _sampleT, depth: depth, ceiling: calculateCeiling()});
+        diveProfile.push({t: _sampleT, depth: depth, ceiling: frameCalc.ceiling});
     }
 
     // Update tissues
     updateTissues(dtDiveMinutes);
+
+    // Issue #14: refresh the per-tick cache now that tissues reflect this
+    // frame's update — every read for the rest of this tick, and the
+    // renderer's reads later this same frame, use these values instead of
+    // recomputing (calculateDecoSchedule() alone was up to ~3000 iterations,
+    // previously invoked up to 3x per frame across game-loop.js + renderer.js).
+    frameCalc.ceiling = calculateCeiling();
+    frameCalc.ndl = calculateNDL();
+    frameCalc.schedule = decoStop(frameCalc.ceiling) > 0 ? calculateDecoSchedule() : null;
+    frameCalc.tts = calculateTTS();
 
     // WP-038: Update CNS tracking
     updateCNS(dtDiveMinutes);
@@ -274,7 +301,7 @@ function updateDiving(dtReal) {
     }
 
     // WP-036: Info tone when deco stop depth changes
-    var currentDecoStop = decoStop(calculateCeiling());
+    var currentDecoStop = decoStop(frameCalc.ceiling);
     if (currentDecoStop > 0 && lastDecoStopDepth > 0 && currentDecoStop !== lastDecoStopDepth) {
         playInfoTone();
     }
@@ -385,7 +412,7 @@ function updateDiving(dtReal) {
     }
 
     // DCS check
-    var ceilDepth = calculateCeiling();
+    var ceilDepth = frameCalc.ceiling;
     if (ceilDepth > 0 && depth < decoStop(ceilDepth)) {
         dcsViolationTime += dtDiveSeconds;
     } else {
@@ -401,7 +428,7 @@ function updateDiving(dtReal) {
 
     // Adaptive safety stop
     // Track NDL dropping below 5 for duration determination
-    if (depth > 0.5 && calculateNDL() < 5) {
+    if (depth > 0.5 && frameCalc.ndl < 5) {
         ndlDroppedBelow5 = true;
     }
     // Activation: safety stop needed once maxDepth exceeds 11m
@@ -1017,6 +1044,7 @@ window.gameAPI = {
     get SAFETY_STOP_ACTIVE_MIN_D() { return SAFETY_STOP_ACTIVE_MIN_D; },
     get SAFETY_STOP_ACTIVE_MAX_D() { return SAFETY_STOP_ACTIVE_MAX_D; },
     get DECO_PLANNING_ASCENT_RATE_MPM() { return DECO_PLANNING_ASCENT_RATE_MPM; },
+    get frameCalc() { return frameCalc; },
     calculateGTR: calculateGTR,
     calculateNarcoticPP: calculateNarcoticPP,
     calculateEND: calculateEND,

@@ -16,7 +16,6 @@
 // KEY FUNCTIONS (grep to find):
 //   drawScene()              — underwater background, diver, particles, fish
 //   drawDiveComputer()       — HUD overlay: depth, NDL, tissue bars, PO2, deco
-//   drawGasSetup()           — canvas gas-setup screen (keyboard/desktop mode)
 //   drawDiveProfileChart()   — post-dive depth/time profile chart
 //   drawPostDive()           — post-dive summary screen
 //   drawGameOver()           — game-over screen with cause of death
@@ -7533,9 +7532,13 @@ function drawDiveComputer() {
     var contentW = innerW;
 
     // --- Data values ---
+    // Issue #14: ndl/ceilDepth/schedule read from the per-tick cache
+    // (game-loop.js's frameCalc, refreshed once per frame in updateDiving()
+    // right after this frame's tissue update) instead of recomputing —
+    // calculateDecoSchedule() alone was up to ~3000 iterations.
     var po2 = calculatePO2();
-    var ndl = calculateNDL();
-    var ceilDepth = calculateCeiling();
+    var ndl = frameCalc.ndl;
+    var ceilDepth = frameCalc.ceiling;
     var decoStopDepth = decoStop(ceilDepth);
     var avgDepthVal = avgDepthSamples > 0 ? avgDepthAccum / avgDepthSamples : 0;
     var tank = getActiveTank();
@@ -7543,7 +7546,7 @@ function drawDiveComputer() {
     var tBar = tankBar();
     var arRate = Math.abs(ascentRate);
     var inDeco = decoStopDepth > 0;
-    var schedule = inDeco ? calculateDecoSchedule() : null;
+    var schedule = inDeco ? frameCalc.schedule : null;
 
     // --- Region Y positions ---
     var statusTop = innerY;
@@ -7733,12 +7736,16 @@ function drawDiveComputer() {
             cx.fillText('SAFETY STOP', rBX + s(6), rBTop + s(12));
             cx.font = 'bold ' + s(28) + "px " + DCF;
             cx.fillStyle = '#fff';
+            // Issue #13: nominal target depth derived from the real active
+            // window (SAFETY_STOP_ACTIVE_MIN_D..MAX_D, issue #68) instead of
+            // a hardcoded "5" disconnected from the actual 2.4-8.3m zone.
+            var ssTargetD = String(Math.round((SAFETY_STOP_ACTIVE_MIN_D + SAFETY_STOP_ACTIVE_MAX_D) / 2));
             if (safetyStopCountdownStarted && !safetyStopComplete && !safetyStopPaused) {
                 var ssMin = Math.floor(safetyStopRemaining / 60);
                 var ssSec = Math.floor(safetyStopRemaining % 60);
                 cx.fillStyle = '#46f08f';
-                cx.fillText('5', rBX + s(6), rBTop + s(38));
-                var ss5W = cx.measureText('5').width;
+                cx.fillText(ssTargetD, rBX + s(6), rBTop + s(38));
+                var ss5W = cx.measureText(ssTargetD).width;
                 cx.font = s(18) + "px " + DCF;
                 cx.fillStyle = '#a8b6cc';
                 cx.fillText('m', rBX + s(6) + ss5W + s(2), rBTop + s(38));
@@ -7750,8 +7757,8 @@ function drawDiveComputer() {
                 var ssMin2 = Math.floor(safetyStopRemaining / 60);
                 var ssSec2 = Math.floor(safetyStopRemaining % 60);
                 cx.fillStyle = '#ffd24d';
-                cx.fillText('5', rBX + s(6), rBTop + s(38));
-                var ss5W2 = cx.measureText('5').width;
+                cx.fillText(ssTargetD, rBX + s(6), rBTop + s(38));
+                var ss5W2 = cx.measureText(ssTargetD).width;
                 cx.font = s(18) + "px " + DCF;
                 cx.fillStyle = '#a8b6cc';
                 cx.fillText('m', rBX + s(6) + ss5W2 + s(2), rBTop + s(38));
@@ -7763,8 +7770,8 @@ function drawDiveComputer() {
                 var ssDur = calculateSafetyStopDuration();
                 var ssMinPlan = Math.floor(ssDur / 60);
                 cx.fillStyle = '#ffd24d';
-                cx.fillText('5', rBX + s(6), rBTop + s(38));
-                var ss5W3 = cx.measureText('5').width;
+                cx.fillText(ssTargetD, rBX + s(6), rBTop + s(38));
+                var ss5W3 = cx.measureText(ssTargetD).width;
                 cx.font = s(18) + "px " + DCF;
                 cx.fillStyle = '#a8b6cc';
                 cx.fillText('m', rBX + s(6) + ss5W3 + s(2), rBTop + s(38));
@@ -8133,7 +8140,7 @@ function drawDiveComputer() {
     bR2Y = slotY + rowH * 1 + s(14);
     cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
     cx.fillText('TTS', box2X + padL, bR2Y);
-    var ttsVal = calculateTTS();
+    var ttsVal = frameCalc.tts;
     cx.font = valueFont;
     cx.fillStyle = ttsVal > 0 ? (inDeco ? '#ff9933' : '#eaf2ff') : '#555';
     cx.textAlign = 'right';
@@ -8317,7 +8324,10 @@ function drawDiveComputer() {
         cx.fillText(cnsVal + '%', box0X + box0W - padL, gR3Y);
 
         // Box 1: CEIL / GF Lo / GF Hi
-        var ceilVal = calculateCeiling();
+        // Issue #14: tissues are frozen once the dive ends (updateTissues()
+        // no longer runs), so frameCalc's value from the last diving tick
+        // is numerically identical to a fresh call here.
+        var ceilVal = frameCalc.ceiling;
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('CEIL', box1X + padL, gR1Y);
         cx.font = valueFont; cx.fillStyle = ceilVal > 0 ? '#ff9933' : '#46f08f'; cx.textAlign = 'right';
@@ -8334,7 +8344,7 @@ function drawDiveComputer() {
         cx.fillText(gfHigh + '%', box1X + box1W - padL, gR3Y);
 
         // Box 2: TTS / NDL / PO2 (additional useful metrics)
-        var ttsVal2 = calculateTTS();
+        var ttsVal2 = frameCalc.tts;
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('TTS', box2X + padL, gR1Y);
         cx.font = valueFont;
@@ -8479,164 +8489,6 @@ function drawDiveComputer() {
     if (hasWarning) playAlertBeep();
 
     cx.restore();
-}
-
-// SECTION: Gas selection setup screen
-// SEARCH TERMS: drawGasSetup, diveMode, tank tabs, preset gases, mode selector
-
-// ============================================================
-//  GAS SELECTION SCREEN — TASK-018
-// ============================================================
-
-function drawGasSetup() {
-    var cx = ctx;
-    var W = cssWidth;
-    var H = cssHeight;
-
-    cx.fillStyle = 'rgba(0,0,0,0.95)';
-    cx.fillRect(0, 0, W, H);
-
-    var centerX = W / 2;
-    var y = H * 0.08;
-
-    // Title
-    cx.textAlign = 'center';
-    cx.font = 'bold 28px monospace';
-    cx.fillStyle = '#fff';
-    cx.fillText(S('gasSetupTitle'), centerX, y);
-    y += 40;
-
-    // BUG-CCR-10: Removed canvas-drawn mode tabs (they looked clickable but
-    // weren't). The HTML gas-setup overlay's mode buttons (modeBtnRec/Tec/Ccr)
-    // and the keyboard M hint are the only entry points now.
-    cx.font = 'bold 14px monospace';
-    cx.fillStyle = '#33ff99';
-    cx.textAlign = 'center';
-    cx.fillText(S('modeLabel') + ': ' + diveMode.toUpperCase(), centerX, y);
-    y += 18;
-    cx.font = '11px monospace';
-    cx.fillStyle = '#555';
-    cx.fillText('M = ' + S('modeLabel') + ' (gas setup only)', centerX, y);
-    y += 16;
-
-    // TASK-032A: CCR gas setup (canvas)
-    if (diveMode === 'ccr') {
-        cx.font = '16px monospace';
-        cx.fillStyle = '#33ff99';
-        cx.textAlign = 'center';
-        cx.fillText(S('ccrO2Cyl') + ': ' + ccrState.o2CylPressure + 'bar \u00D7 ' + ccrState.o2CylVolume + 'L', centerX, y + 20);
-        cx.fillStyle = '#66ccff';
-        cx.fillText(S('ccrDiluent') + ': ' + ccrDilPresetName(), centerX, y + 44);
-        cx.fillText(S('ccrDilCyl') + ': ' + ccrState.dilCylPressure + 'bar \u00D7 ' + ccrState.dilCylVolume + 'L', centerX, y + 66);
-        cx.fillStyle = '#ffcc00';
-        cx.fillText(S('ccrSetpoint') + ': ' + ccrState.targetSP.toFixed(1) + ' bar', centerX, y + 90);
-        cx.fillStyle = '#aaa';
-        cx.fillText(S('ccrScrubber') + ': ' + ccrState.scrubberRemaining + ' min', centerX, y + 112);
-        cx.font = '11px monospace';
-        cx.fillStyle = '#555';
-        cx.fillText('[1-5] Diluent  [/] SP  [,/.] Cyl  [Enter] Start', centerX, y + 140);
-        cx.textAlign = 'left';
-        return;
-    }
-
-    if (isAdvanced()) {
-        // Tank tabs
-        cx.font = 'bold 14px monospace';
-        var tabW = 80;
-        var totalTabW = tankCount * (tabW + 8) + 60;
-        var tabX = centerX - totalTabW / 2;
-        for (var i = 0; i < tankCount; i++) {
-            var isSelected = (i === selectedTankTab);
-            cx.fillStyle = isSelected ? '#33ff99' : '#555';
-            cx.fillRect(tabX, y - 14, tabW, 22);
-            cx.fillStyle = isSelected ? '#000' : '#ccc';
-            cx.textAlign = 'center';
-            cx.fillText('Tank ' + (i + 1), tabX + tabW / 2, y + 2);
-            tabX += tabW + 8;
-        }
-        cx.fillStyle = '#888';
-        cx.font = 'bold 18px monospace';
-        cx.fillText('[+]', tabX + 10, y + 2);
-        cx.fillText('[-]', tabX + 45, y + 2);
-        y += 40;
-    }
-
-    var t = tanks[selectedTankTab];
-    cx.textAlign = 'center';
-
-    // O2
-    cx.font = 'bold 40px monospace';
-    cx.fillStyle = '#33ff33';
-    cx.fillText('O\u2082 ' + Math.round(t.fO2 * 100) + '%', centerX, y);
-    y += 25;
-
-    if (isAdvanced()) {
-        // He
-        cx.font = 'bold 32px monospace';
-        cx.fillStyle = '#44ccff';
-        cx.fillText('He ' + Math.round(t.fHe * 100) + '%', centerX, y);
-        y += 25;
-    }
-
-    // N2
-    cx.font = '20px monospace';
-    cx.fillStyle = '#ccc';
-    cx.fillText('N\u2082: ' + Math.round(t.fN2 * 100) + '%', centerX, y);
-    y += 35;
-
-    // Pressure
-    cx.font = 'bold 18px monospace';
-    cx.fillStyle = '#fff';
-    cx.fillText(S('pressure') + ': ' + t.pressure + ' bar', centerX, y);
-    y += 25;
-
-    // MOD + Label
-    var mod = calculateMOD(t.fO2);
-    cx.font = '16px monospace';
-    cx.fillStyle = '#aaa';
-    cx.fillText('MOD (PO2 1.4): ' + mod.toFixed(0) + 'm    Label: ' + t.label, centerX, y);
-    y += 35;
-
-    // AMV setting (advanced only)
-    if (isAdvanced()) {
-        cx.font = 'bold 18px monospace';
-        cx.fillStyle = '#ffcc00';
-        cx.fillText(S('amvLabel') + ': ' + amvRate + ' L/min', centerX, y);
-        y += 25;
-
-        // Tank size setting
-        cx.font = 'bold 18px monospace';
-        cx.fillStyle = '#66ccff';
-        cx.fillText(S('tankSizeLabel') + ': ' + tanks[selectedTankTab].volume + ' L', centerX, y);
-        y += 25;
-
-        // GF setting
-        cx.font = 'bold 18px monospace';
-        cx.fillStyle = '#ff9966';
-        cx.fillText(S('gfLowLabel') + ': ' + gfLow + '%  /  ' + S('gfHighLabel') + ': ' + gfHigh + '%', centerX, y);
-        y += 25;
-    }
-
-    // Presets
-    cx.font = '13px monospace';
-    cx.fillStyle = '#aaa';
-    if (isAdvanced()) {
-        cx.fillText(S('presetsAdv1'), centerX, y);
-        y += 18;
-        cx.fillText(S('presetsAdv2'), centerX, y);
-        y += 25;
-    } else {
-        cx.fillText(S('presetsBasic'), centerX, y);
-        y += 25;
-    }
-
-    y += 10;
-
-    cx.font = 'bold 20px monospace';
-    cx.fillStyle = '#fff';
-    cx.fillText(S('startDive'), centerX, y);
-
-    cx.textAlign = 'left';
 }
 
 // SECTION: Dive profile chart

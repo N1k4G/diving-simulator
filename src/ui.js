@@ -25,103 +25,6 @@
 //   ccrAdjustO2Pres(delta)   — adjust CCR O2 cylinder pressure (clamped 50-300 bar)
 //   ccrAdjustDilVol(delta)   — adjust CCR diluent cylinder volume
 //   ccrAdjustSP(delta)       — adjust CCR setpoint (clamped 0.5-1.6 bar)
-// SECTION: HTML help overlay
-// SEARCH TERMS: showHtmlHelp, help-content, controlsText, helpCcr, keyboard shortcuts
-
-// ============================================================
-// ============================================================
-//  HELP OVERLAY (TASK-025)
-// ============================================================
-
-function drawHelpOverlay() {
-    var cx = ctx;
-    var W = cssWidth;
-    var H = cssHeight;
-    
-    cx.fillStyle = 'rgba(0,0,0,0.92)';
-    cx.fillRect(0, 0, W, H);
-    
-    var y = 30;
-    var leftCol = 30;
-    var rightCol = W / 2 + 15;
-    var colW = W / 2 - 45;
-    var useTwo = W > 800;
-    
-    cx.textAlign = 'left';
-    
-    // Title
-    cx.font = 'bold 22px monospace';
-    cx.fillStyle = '#fff';
-    cx.fillText(S('helpTitle'), leftCol, y);
-    y += 10;
-    cx.strokeStyle = '#33ff99';
-    cx.lineWidth = 1;
-    cx.beginPath(); cx.moveTo(leftCol, y); cx.lineTo(W - 30, y); cx.stroke();
-    y += 25;
-    
-    var sections = [
-        { title: 'DEPTH', color: '#fff', text: S('helpDepth') },
-        { title: 'NDL (No Deco Limit)', color: '#33ff33', text: S('helpNDL') },
-        { title: 'DECO / Ceiling / Stops', color: '#ff3333', text: S('helpDeco') },
-        { title: 'PO2 (O\u2082 Partial Pressure)', color: '#ffff33', text: S('helpPO2') },
-        { title: 'GTR (Gas Time Remaining)', color: '#33ff33', text: S('helpGTR') },
-        { title: 'AMV (Actual Minute Volume)', color: '#aaa', text: S('helpAMV') },
-        { title: 'Ascent Rate Bar', color: '#ffff33', text: S('helpAscent') },
-        { title: 'Safety Stop', color: '#ffff33', text: S('helpSafety') },
-        { title: 'BEST Gas Indicator', color: '#00ffff', text: S('helpBest') },
-        { title: 'Tank Bar', color: '#33ff33', text: S('helpTank') },
-        { title: 'TTS (Time To Surface)', color: '#ff9933', text: S('helpTTS') },
-        { title: S('controlsTitle'), color: '#33ff99', text: S('controlsText') }
-    ];
-    
-    var col = leftCol;
-    var startY = y;
-    for (var i = 0; i < sections.length; i++) {
-        var s = sections[i];
-        
-        // Switch to right column at midpoint if two-column
-        if (useTwo && i === Math.ceil(sections.length / 2)) {
-            col = rightCol;
-            y = startY;
-        }
-        
-        cx.font = 'bold 12px monospace';
-        cx.fillStyle = s.color;
-        cx.fillText(s.title, col, y);
-        y += 14;
-        
-        cx.font = '11px monospace';
-        cx.fillStyle = '#bbb';
-        // Word wrap
-        var words = s.text.split(' ');
-        var line = '';
-        var maxW = useTwo ? colW : W - 60;
-        for (var w = 0; w < words.length; w++) {
-            var test = line + words[w] + ' ';
-            if (cx.measureText(test).width > maxW && line.length > 0) {
-                cx.fillText(line.trim(), col, y);
-                y += 13;
-                line = words[w] + ' ';
-            } else {
-                line = test;
-            }
-        }
-        if (line.trim().length > 0) {
-            cx.fillText(line.trim(), col, y);
-            y += 13;
-        }
-        y += 10;
-    }
-    
-    // Footer
-    var footY = Math.max(y + 10, H - 30);
-    cx.font = 'bold 14px monospace';
-    cx.fillStyle = '#888';
-    cx.textAlign = 'center';
-    cx.fillText(S('helpClose'), W / 2, footY);
-    cx.textAlign = 'left';
-}
-
 // SECTION: Gas setup keyboard input handler
 // SEARCH TERMS: updateGasSetup, switchMode, startDiveAction, keys, diveMode toggle
 
@@ -181,10 +84,11 @@ function updateGasSetup() {
     // early-return above already claimed `[` `]` for setpoint and `,` `.` for
     // diluent volume, so nothing here can leak into CCR mode.
     //
-    // The lowercase keys[...] indices double as touch-button targets: the
-    // #touch-setup buttons in diving-simulator.html set exactly these strings
-    // via bindTap() in touch.js, so wiring them here also lights up the
-    // legacy touch buttons for free.
+    // Touch users get the equivalent controls through the HTML gas-setup
+    // overlay (buildHtmlGasSetup()), not through keys[] — the old canvas-era
+    // #touch-setup adjust buttons that used to set these same keys[] entries
+    // were permanently hidden dead code (touchUpdateUI() never shows
+    // #touch-setup during 'gas-setup') and were removed in issue #13.
 
     // Arrow keys — O2 fraction (available in rec and tec; UI shows O2 always)
     if (keys['arrowleft'])  { keys['arrowleft']  = false; gsAdjustO2(-GAS_SETUP_O2_STEP); }

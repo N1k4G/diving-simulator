@@ -162,15 +162,6 @@ function bindHold(btn, keyName) {
         setTimeout(function() { keys['t'] = false; }, 100);
     });
 
-    // --- Gas setup O2/He/Pressure ---
-    var adjBtns = document.querySelectorAll('.t-setup-adj .t-btn[data-key]');
-    for (var i = 0; i < adjBtns.length; i++) {
-        (function(btn) {
-            var k = btn.getAttribute('data-key');
-            bindTap(btn, k);
-        })(adjBtns[i]);
-    }
-
     // Language toggle
     document.getElementById('touch-setup-lang').addEventListener('touchstart', function(e) {
         e.preventDefault();

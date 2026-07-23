@@ -68,11 +68,6 @@ canvas { display: block; }
 #touch-setup-start { bottom: 30px; left: 50%; transform: translateX(-50%); }
 #touch-setup-presets { position: absolute; bottom: 140px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; max-width: 360px; }
 #touch-setup-presets .t-btn { min-width: 60px; min-height: 44px; font-size: 13px; position: relative; }
-.t-setup-adj { position: absolute; display: flex; gap: 10px; }
-#touch-adj-o2 { top: 18%; left: 50%; transform: translateX(-50%); }
-#touch-adj-he { top: 30%; left: 50%; transform: translateX(-50%); }
-#touch-adj-pres { top: 42%; left: 50%; transform: translateX(-50%); }
-#touch-adj-tank { top: 52%; left: 50%; transform: translateX(-50%); }
 #touch-setup-extras { position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; }
 /* Surface / gameover / postdive */
 #touch-surface-btn { bottom: 25%; left: 50%; transform: translateX(-50%); }

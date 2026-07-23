@@ -1310,6 +1310,56 @@ tests = [
         }
     },
     // ----------------------------------------------------------
+    // TC-14: per-tick frameCalc cache stays consistent with fresh calls
+    // ----------------------------------------------------------
+    {
+        id: 'TC-14-FRAMECALC-MATCHES-FRESH-CALLS-NO-DECO',
+        name: 'Issue #14 — frameCalc matches fresh calculateCeiling()/NDL()/TTS() calls outside deco',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(15);
+            api.clearKeys();
+            for (var i = 0; i < 10; i++) {
+                api.setDepth(15);
+                api.updateDiving(0.5);
+            }
+            var fc = api.frameCalc;
+            assert(fc && typeof fc === 'object', 'gameAPI.frameCalc must be exposed as an object');
+            assert(Math.abs(fc.ceiling - api.calculateCeiling()) < 1e-9,
+                'frameCalc.ceiling must equal a fresh calculateCeiling() call, got ' + fc.ceiling + ' vs ' + api.calculateCeiling());
+            assert(Math.abs(fc.ndl - api.calculateNDL()) < 1e-9,
+                'frameCalc.ndl must equal a fresh calculateNDL() call, got ' + fc.ndl + ' vs ' + api.calculateNDL());
+            assert(Math.abs(fc.tts - api.calculateTTS()) < 1e-9,
+                'frameCalc.tts must equal a fresh calculateTTS() call, got ' + fc.tts + ' vs ' + api.calculateTTS());
+            assert(fc.schedule === null, 'frameCalc.schedule must be null outside deco, got ' + JSON.stringify(fc.schedule));
+            return 'PASS — frameCalc matches fresh calls: ceiling=' + fc.ceiling.toFixed(2) + ', ndl=' + fc.ndl.toFixed(1) + ', tts=' + fc.tts.toFixed(1);
+        }
+    },
+    {
+        id: 'TC-14-FRAMECALC-SCHEDULE-POPULATED-IN-DECO',
+        name: 'Issue #14 — frameCalc.schedule is populated (and matches a fresh call) once in mandatory deco',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(40);
+            api.clearKeys();
+            // Long enough at 40m to accrue a real deco obligation.
+            for (var i = 0; i < 400; i++) {
+                api.setDepth(40);
+                api.updateDiving(0.5);
+            }
+            var ceiling = api.frameCalc.ceiling;
+            assert(ceiling > 0, 'setup should have accrued a real deco ceiling, got ' + ceiling);
+            var fc = api.frameCalc;
+            assert(fc.schedule !== null, 'frameCalc.schedule must be populated while in mandatory deco');
+            var fresh = api.calculateDecoSchedule();
+            assert(Math.abs(fc.schedule.tts - fresh.tts) < 1e-9,
+                'frameCalc.schedule.tts must equal a fresh calculateDecoSchedule() call, got ' + fc.schedule.tts + ' vs ' + fresh.tts);
+            assert(fc.schedule.stops.length === fresh.stops.length,
+                'frameCalc.schedule.stops length must match a fresh call, got ' + fc.schedule.stops.length + ' vs ' + fresh.stops.length);
+            return 'PASS — frameCalc.schedule populated in deco and matches a fresh calculateDecoSchedule() call';
+        }
+    },
+    // ----------------------------------------------------------
     // TC-32: BUG-CCR-4 — ccrAdjustO2Vol clamps to CCR_O2_VOL_MIN..MAX
     // ----------------------------------------------------------
     {

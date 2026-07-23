@@ -9,12 +9,11 @@ const gameGlobals = {
   // ZHL-16C tables
   ZHL16C_N2: "readonly", ZHL16C_HE: "readonly",
   INITIAL_N2_LOADING: "readonly", LN2: "readonly",
-  SURFACE_PRESSURE: "readonly", P_H2O: "readonly",
+  P_H2O: "readonly",
 
   // Tuning constants
   TIME_ACCELERATION: "readonly", FAST_FORWARD_MULTIPLIER: "readonly",
   PHYSICS_MAX_SUBSTEP_SEC: "readonly",
-  MAX_ASCENT_RATE: "readonly", MAX_DESCENT_RATE: "readonly",
   DECO_PLANNING_ASCENT_RATE_MPM: "readonly",
   MAX_DEPTH: "readonly",
   MAX_DEVICE_PIXEL_RATIO: "readonly",
@@ -99,6 +98,7 @@ const gameGlobals = {
   bestGasAlerted: "writable",
   lastDecoStopDepth: "writable",
   diveProfile: "writable", _profileSampleTimer: "writable",
+  frameCalc: "writable",
   diver: "writable", verticalVelocity: "writable",
   diverX: "writable", horizontalVelocity: "writable", current: "writable",
   // Phase C state (state.js)

@@ -13,12 +13,11 @@
 //   STRINGS              — full EN/DE string table
 //   ZHL16C_N2_A/B/HT     — Bühlmann N2 compartment coefficients (16 compartments)
 //   ZHL16C_HE_A/B/HT     — Bühlmann He compartment coefficients
-//   SURFACE_PRESSURE     — 1.0 bar
-//   MAX_ASCENT_RATE      — 15 m/min
+//   BUOYANCY_PARAMS.maxAscentRate/maxDescentRate — physical ascent/descent clamps (m/min)
 //   TIME_ACCELERATION    — 3x real-time default
 //   FAST_FORWARD_MULTIPLIER — 10x skip multiplier
 // SECTION: Game constants and tuning parameters
-// SEARCH TERMS: TIME_ACCELERATION, MAX_ASCENT_RATE, SURFACE_PRESSURE, FAST_FORWARD_MULTIPLIER, ZHL16C_N2_A, ZHL16C_HE_A
+// SEARCH TERMS: TIME_ACCELERATION, BUOYANCY_PARAMS, FAST_FORWARD_MULTIPLIER, ZHL16C_N2_A, ZHL16C_HE_A
 
 // ============================================================
 // ============================================================
@@ -35,11 +34,9 @@ const FAST_FORWARD_MULTIPLIER = 10;
 // to keep every per-step drag factor well below 1. A single sub-step is a
 // no-op wrapper in the common small-dt case.
 const PHYSICS_MAX_SUBSTEP_SEC = 0.1;
-const MAX_ASCENT_RATE   = 25;   // max possible ascent m/min (a runaway BCD CAN exceed the 18 barotrauma threshold)
-const MAX_DESCENT_RATE  = 20;   // max possible descent m/min
 // Issue #30: the ASSUMED planning rate used when simulating time-to-surface,
-// distinct from MAX_ASCENT_RATE above (the physical clamp on how fast the
-// diver's own buoyancy CAN carry them). calculateDecoSchedule() used to
+// distinct from BUOYANCY_PARAMS.maxAscentRate below (the physical clamp on
+// how fast the diver's own buoyancy CAN carry them). calculateDecoSchedule() used to
 // simulate ascent-to-first-stop and the final ascent at a very conservative
 // 3 m/min while calculateTTS()'s non-deco path used 9 m/min — a diver
 // crossing from non-deco into deco saw TTS triple for no in-fiction reason.
