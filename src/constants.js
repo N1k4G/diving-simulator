@@ -122,6 +122,18 @@ const GF_HIGH_MAX = 100;
 const GF_LOW_DEFAULT = 35;
 const GF_HIGH_DEFAULT = 75;
 
+// Issue #6: gas-setup keyboard step sizes. Match the values previously
+// baked into the HTML/touch-button handlers (buildHtmlGasSetup() action
+// buttons) and the ±steps promised in the gfHint / pressureHint / amvHint /
+// tankSizeHint strings above. Centralised here so a step-size tweak is a
+// single-line edit, not a hunt through ui.js.
+const GAS_SETUP_O2_STEP        = 0.01;   // O2 fraction per arrow-left/right press
+const GAS_SETUP_HE_STEP        = 0.01;   // He fraction per arrow-up/down press
+const GAS_SETUP_PRESSURE_STEP  = 10;     // bar per PgUp/PgDn press
+const GAS_SETUP_AMV_STEP       = 1;      // L/min per [/] press
+const GAS_SETUP_TANK_VOL_STEP  = 1;      // litres per ,/. press
+const GAS_SETUP_GF_STEP        = 5;      // percent per G/F press (Shift inverts sign)
+
 // Bubble config
 const BUBBLE_RADIUS_MIN = 2;
 const BUBBLE_RADIUS_MAX = 6;

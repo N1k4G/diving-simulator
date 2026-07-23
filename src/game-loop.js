@@ -1034,6 +1034,13 @@ window.gameAPI = {
     ccrApplyDilPreset: ccrApplyDilPreset,
     initCCR: initCCR,
     startDiveAction: startDiveAction,
+    // Issue #6 test hooks: gas-setup key handler + selected-tab getter/setter
+    // so TAB-cycle / add-tank / remove-tank / gas-mix / GF / AMV / pressure
+    // key assertions can observe and drive the same state the real handler
+    // reads.
+    updateGasSetup: updateGasSetup,
+    get selectedTankTab() { return selectedTankTab; },
+    set selectedTankTab(v) { selectedTankTab = Math.max(0, Math.min(tankCount - 1, v | 0)); },
     // Reef redesign: expose registries for tests
     get DIVE_SITES() { return DIVE_SITES; },
     get FISH_TYPES() { return FISH_TYPES; },

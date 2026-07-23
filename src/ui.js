@@ -176,6 +176,84 @@ function updateGasSetup() {
         }
     }
 
+    // Issue #6: documented-but-previously-missing keyboard controls for the
+    // gas-setup screen. All handlers here are OC-only by placement — the CCR
+    // early-return above already claimed `[` `]` for setpoint and `,` `.` for
+    // diluent volume, so nothing here can leak into CCR mode.
+    //
+    // The lowercase keys[...] indices double as touch-button targets: the
+    // #touch-setup buttons in diving-simulator.html set exactly these strings
+    // via bindTap() in touch.js, so wiring them here also lights up the
+    // legacy touch buttons for free.
+
+    // Arrow keys — O2 fraction (available in rec and tec; UI shows O2 always)
+    if (keys['arrowleft'])  { keys['arrowleft']  = false; gsAdjustO2(-GAS_SETUP_O2_STEP); }
+    if (keys['arrowright']) { keys['arrowright'] = false; gsAdjustO2( GAS_SETUP_O2_STEP); }
+
+    // PgUp / PgDn — tank pressure (available in rec and tec)
+    if (keys['pageup'])   { keys['pageup']   = false; gsAdjustPressure( GAS_SETUP_PRESSURE_STEP); }
+    if (keys['pagedown']) { keys['pagedown'] = false; gsAdjustPressure(-GAS_SETUP_PRESSURE_STEP); }
+
+    // Advanced-only controls: He, AMV, tank size, tank cycle/add/remove,
+    // and GF Low/High. Gated on isAdvanced() so rec-mode key mashing can't
+    // silently mutate hidden state (matches how the touch UI hides these
+    // sections in rec mode via buildHtmlGasSetup()).
+    if (isAdvanced()) {
+        // Arrow up/down — He fraction
+        if (keys['arrowup'])   { keys['arrowup']   = false; gsAdjustHe( GAS_SETUP_HE_STEP); }
+        if (keys['arrowdown']) { keys['arrowdown'] = false; gsAdjustHe(-GAS_SETUP_HE_STEP); }
+
+        // [ / ] — AMV (matches CCR's setpoint direction: [ is negative, ] positive)
+        if (keys['[']) { keys['['] = false; gsAdjustAMV(-GAS_SETUP_AMV_STEP); }
+        if (keys[']']) { keys[']'] = false; gsAdjustAMV( GAS_SETUP_AMV_STEP); }
+
+        // , / . — tank size (matches CCR's diluent-volume direction: , negative, . positive)
+        if (keys[',']) { keys[','] = false; gsAdjustTankVol(-GAS_SETUP_TANK_VOL_STEP); }
+        if (keys['.']) { keys['.'] = false; gsAdjustTankVol( GAS_SETUP_TANK_VOL_STEP); }
+
+        // TAB — cycle to the next tank tab (wraps at tankCount). state.js's
+        // keydown handler already preventDefault()s Tab so browser focus
+        // never leaves the page. Clear both case variants because keydown
+        // stored both keys['tab'] (from toLowerCase) and keys['Tab'] (raw
+        // e.key) and the corresponding keyup may only see one.
+        if (keys['tab'] || keys['Tab']) {
+            keys['tab'] = false;
+            keys['Tab'] = false;
+            if (tankCount > 0) {
+                selectedTankTab = (selectedTankTab + 1) % tankCount;
+                _gsBuilt = false;
+            }
+        }
+
+        // + / − — add / remove tank
+        if (keys['+']) { keys['+'] = false; gsAddTank(); }
+        if (keys['-']) { keys['-'] = false; gsRemoveTank(); }
+
+        // G / Shift+G — GF Low ±5. Both keys['g'] and keys['G'] end up true
+        // when Shift+G is pressed (state.js stores both e.key.toLowerCase()
+        // and raw e.key). Test the uppercase branch FIRST and clear both,
+        // otherwise the else-if below would immediately fire the plain-G
+        // handler on the same press.
+        if (keys['G']) {
+            keys['G'] = false;
+            keys['g'] = false;
+            gsAdjustGFLow(-GAS_SETUP_GF_STEP);
+        } else if (keys['g']) {
+            keys['g'] = false;
+            gsAdjustGFLow(GAS_SETUP_GF_STEP);
+        }
+
+        // F / Shift+F — GF High ±5 (same case-disambiguation as G above).
+        if (keys['F']) {
+            keys['F'] = false;
+            keys['f'] = false;
+            gsAdjustGFHigh(-GAS_SETUP_GF_STEP);
+        } else if (keys['f']) {
+            keys['f'] = false;
+            gsAdjustGFHigh(GAS_SETUP_GF_STEP);
+        }
+    }
+
     // Enter
     if (keys['enter']) {
         keys['enter'] = false;
