@@ -611,6 +611,53 @@ function updateDiving(dtReal) {
             hudCurrent.style.display = 'none';
         }
     }
+    // Issue #37: back-way chip — direction + distance to boat/entry point.
+    // Pure display: computeBackwayState() decides show/hide from
+    // activeSite() + diverX, and the DOM update just mirrors it.
+    var hudBack = document.getElementById('hud-backway');
+    if (hudBack) {
+        var backState = computeBackwayState();
+        if (backState.visible) {
+            hudBack.style.display = '';
+            hudBack.setAttribute('data-dir', backState.direction);
+            hudBack.setAttribute('data-distance', backState.distance);
+            var bArrow = hudBack.querySelector('[data-bind="arrow"]');
+            var bDist = hudBack.querySelector('[data-bind="distance"]');
+            if (bArrow) bArrow.textContent = backState.direction < 0 ? '◄' : '►';
+            if (bDist) bDist.textContent = backState.distance + ' m';
+        } else {
+            hudBack.style.display = 'none';
+        }
+    }
+}
+
+// Issue #37: Back-way chip state.
+// Pure function of diveSite + inOverhead + diverX. Returns
+//   { visible, direction: -1|0|+1, distance: integer metres, boatX }.
+// Hide rules (visible=false):
+//   • gameState !== 'diving'
+//   • activeSite() is null (open water — no anchor to point at)
+//   • activeSite().hasOverhead === true (cave / wreck — guideline serves)
+//   • inOverhead is true (belt-and-braces: inside a structure)
+//   • the site has no boatX
+//   • |diverX - boatX| <= BACKWAY_MIN_DISTANCE_M (chip is noise near entry)
+function computeBackwayState() {
+    var hidden = { visible: false, direction: 0, distance: 0, boatX: null };
+    if (gameState !== 'diving') return hidden;
+    var s = activeSite();
+    if (!s) return hidden;
+    if (s.hasOverhead) return hidden;
+    if (inOverhead) return hidden;
+    if (s.boatX == null) return hidden;
+    var dx = s.boatX - diverX;
+    var absDx = Math.abs(dx);
+    if (absDx <= BACKWAY_MIN_DISTANCE_M) return hidden;
+    return {
+        visible: true,
+        direction: dx < 0 ? -1 : 1,
+        distance: Math.round(absDx),
+        boatX: s.boatX
+    };
 }
 
 // SECTION: Main game loop
@@ -1279,6 +1326,15 @@ window.gameAPI = {
     get EXIT_LIGHT_NEAR_M() { return EXIT_LIGHT_NEAR_M; },
     get EXIT_LIGHT_FAR_M() { return EXIT_LIGHT_FAR_M; },
     get EXIT_LIGHT_BASE_ALPHA() { return EXIT_LIGHT_BASE_ALPHA; },
+    // Issue #37: Orientation aids — back-way chip helper + depth-scale
+    // renderer + constants. computeBackwayState() is a pure function of
+    // diveSite / inOverhead / diverX so tests can exercise the show/hide
+    // + direction/distance decision without touching the DOM.
+    computeBackwayState: computeBackwayState,
+    drawDepthScale: drawDepthScale,
+    get BACKWAY_MIN_DISTANCE_M() { return BACKWAY_MIN_DISTANCE_M; },
+    get DEPTH_SCALE_TICK_INTERVAL_M() { return DEPTH_SCALE_TICK_INTERVAL_M; },
+    get DEPTH_SCALE_LABEL_INTERVAL_M() { return DEPTH_SCALE_LABEL_INTERVAL_M; },
     // Renderer test hook: `ctx` and `canvas` are const in state.js so they
     // are NOT properties of `window` (only `var` declarations are). Expose
     // them here so tests can pass the same context the render pipeline

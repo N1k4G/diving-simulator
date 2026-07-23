@@ -184,6 +184,17 @@ const NARC_RAMP_DOWN    = 0.025;
 const NARC_KO_THRESHOLD = 0.95;
 const NARC_KO_TIME      = 30;
 
+// Issue #37: Orientation aids — back-way chip + depth-scale ruler.
+// BACKWAY_MIN_DISTANCE_M — the chip is hidden when |diverX - boatX|
+// is at or below this value. Right at the entry the chip is noise;
+// beyond ~25 m the diver has genuinely drifted and wants a heading.
+// DEPTH_SCALE_TICK_INTERVAL_M / DEPTH_SCALE_LABEL_INTERVAL_M — the
+// ruler paints a short tick every TICK metres and a labelled tick
+// every LABEL metres. LABEL must be an integer multiple of TICK.
+const BACKWAY_MIN_DISTANCE_M     = 25;
+const DEPTH_SCALE_TICK_INTERVAL_M  = 5;
+const DEPTH_SCALE_LABEL_INTERVAL_M = 10;
+
 // Colors
 const COLOR_SURFACE_WATER = [135, 206, 235];
 const COLOR_DEEP_WATER    = [0, 17, 51];

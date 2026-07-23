@@ -241,7 +241,8 @@ canvas { display: block; }
 .gas-info-card .best-tag { color: #33ff99; font-weight: bold; font-size: 12px; }
 /* ── HUD chip base — shared geometry ─────────────────────────── */
 #hud-horizontal-speed,
-#hud-current {
+#hud-current,
+#hud-backway {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
@@ -303,6 +304,33 @@ canvas { display: block; }
 #hud-current [data-bind="strength"] {
   font-weight: bold;
   color: #ffcc88;
+}
+
+/* ── Issue #37: Back-way chip (open-water sites only) ─────────── */
+/*   Diver-anchored orientation aid — calm blue-grey, sits above    */
+/*   the fin-kick chip. Direction arrow + anchor glyph + distance.  */
+#hud-backway {
+  bottom: 152px;
+  background: rgba(0, 20, 30, 0.68);
+  border: 1px solid rgba(120, 180, 220, 0.28);
+  color: #cfe1f0;
+}
+
+#hud-backway [data-bind="arrow"] {
+  font-size: 18px;
+  color: #8ac0e6;
+  line-height: 1;
+}
+
+#hud-backway [data-bind="anchor"] {
+  font-size: 14px;
+  color: #8ac0e6;
+  line-height: 1;
+}
+
+#hud-backway [data-bind="distance"] {
+  font-weight: bold;
+  color: #eaf2f6;
 }
 
 /* ── Task 3: Rule-of-thirds gas gauge (cave / wreck overhead) ─── */

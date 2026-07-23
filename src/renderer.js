@@ -1128,6 +1128,13 @@ function drawScene() {
     // sampleTorchLightAtWorldPoint().
     drawCaveSiltCloud();
 
+    // Issue #37: subtle depth-scale ruler on the right edge. Drawn
+    // BEFORE drawSiltAndTorch so the cave/wreck darkness overlay dims
+    // it along with the rest of the world — matches the requirement
+    // that it "dims along with everything else that responds to
+    // _torchDark" without the ruler owning its own fade logic.
+    drawDepthScale();
+
     // Phase C: Silt-out + torch overlay — dims the environment + guideline.
     // Drawn BEFORE the diver so the diver is never shadowed by its own torch.
     drawSiltAndTorch();
@@ -7244,6 +7251,71 @@ function drawGuideline() {
         if (gi === 0) cx.moveTo(gpx, gpy); else cx.lineTo(gpx, gpy);
     }
     cx.stroke();
+    cx.restore();
+}
+
+// Issue #37: Subtle depth-scale ruler on the right edge of the canvas.
+// Short tick every DEPTH_SCALE_TICK_INTERVAL_M metres, labelled tick
+// every DEPTH_SCALE_LABEL_INTERVAL_M metres. World-anchored on Y so the
+// ticks appear to scroll past as the diver descends — giving a visual
+// sense of ascent/descent rate and helping hold stop depths without
+// staring at the dive computer. Screen-anchored on X (right edge).
+//
+// Uses the same depth-to-screen-Y conversion the rest of the file uses:
+// dsy = H * 0.45, mpp = 0.05  →  y = dsy + (d - depth) / mpp.
+//
+// Dimming: drawn BEFORE drawSiltAndTorch in the render pipeline, so the
+// cave/wreck darkness overlay tints the ruler along with everything
+// else that responds to _torchDark. This function does not need its own
+// _torchDark branch.
+function drawDepthScale() {
+    if (gameState !== 'diving') return;
+    var W = cssWidth, H = cssHeight;
+    var dsy = H * 0.45, mpp = 0.05;
+    var cx = ctx;
+    // Right-edge column: short ticks between rightEdgeX and tickInnerX;
+    // labels sit just left of the ticks, right-aligned to labelX. Kept
+    // narrow (~30px total) so the ruler stays clear of the touch-button
+    // strip that lives at right:20px with 48px-wide buttons.
+    var rightEdgeX = W - 4;
+    var tickShortX = W - 10;
+    var tickLongX  = W - 14;
+    var labelX     = W - 18;
+    var tickIntervalM  = DEPTH_SCALE_TICK_INTERVAL_M;
+    var labelIntervalM = DEPTH_SCALE_LABEL_INTERVAL_M;
+    // World-depth range visible on screen. Round to the tick interval so
+    // ticks land on integer depths, not on partial multiples that would
+    // wobble frame-to-frame.
+    var minVisibleDepth = depth - (dsy * mpp);
+    var maxVisibleDepth = depth + ((H - dsy) * mpp);
+    // Clamp: never draw ticks above 0 m (surface) — negative depths
+    // aren't meaningful for a depth ruler.
+    if (minVisibleDepth < 0) minVisibleDepth = 0;
+    // First tick at or below minVisibleDepth aligned to tickIntervalM.
+    var firstTick = Math.ceil(minVisibleDepth / tickIntervalM) * tickIntervalM;
+    cx.save();
+    cx.textBaseline = 'middle';
+    cx.textAlign = 'right';
+    cx.font = '10px monospace';
+    for (var d = firstTick; d <= maxVisibleDepth + 0.001; d += tickIntervalM) {
+        var y = dsy + (d - depth) / mpp;
+        // Skip ticks that would clip off screen (tick line ~1px, label ~10px tall).
+        if (y < 6 || y > H - 6) continue;
+        var isLabelled = (Math.round(d) % labelIntervalM) === 0;
+        var x1 = isLabelled ? tickLongX : tickShortX;
+        cx.strokeStyle = isLabelled
+            ? 'rgba(255,255,255,0.35)'
+            : 'rgba(255,255,255,0.18)';
+        cx.lineWidth = 1;
+        cx.beginPath();
+        cx.moveTo(x1, y);
+        cx.lineTo(rightEdgeX, y);
+        cx.stroke();
+        if (isLabelled) {
+            cx.fillStyle = 'rgba(255,255,255,0.55)';
+            cx.fillText(Math.round(d) + ' m', labelX, y);
+        }
+    }
     cx.restore();
 }
 
