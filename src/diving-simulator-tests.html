@@ -7874,6 +7874,259 @@ tests = [
             assert(api.activeTank === 0, 'auto-switch must NOT silently jump to the hypoxic tank; activeTank should stay at 0, got ' + api.activeTank);
             return 'PASS — auto-switch declined the hypoxic fallback and stayed on empty active tank';
         }
+    },
+    // ==========================================================
+    // Issue #6 — documented-but-missing gas-setup keyboard controls
+    // ==========================================================
+    // Shared helper: put the harness into a known gas-setup state.
+    // Each test switches to tec/rec first, then rebuilds a one-tank OC setup so
+    // per-mode saved settings from prior tests can't leak in. We drive the
+    // real updateGasSetup() through gameAPI rather than dispatching keydown
+    // events so the test isolates the handler under test (state.js's own
+    // keydown listener is exercised elsewhere by TC-9).
+    {
+        id: 'TC-6-ARROWS-ADJUST-O2',
+        name: 'Issue #6 — arrowleft/right adjust O2 fraction by ±1%',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.32, 0, 200]]);
+            api.gameState = 'gas-setup';
+            api.clearKeys();
+            var start = api.tanks[0].fO2;
+            api.setKeys({ arrowright: true });
+            api.updateGasSetup();
+            assert(Math.abs(api.tanks[0].fO2 - (start + 0.01)) < 1e-6,
+                'arrowright should raise fO2 by 0.01; got ' + api.tanks[0].fO2 + ' from ' + start);
+            assert(api.keys['arrowright'] === false, 'arrowright must be edge-consumed');
+            api.setKeys({ arrowleft: true });
+            api.updateGasSetup();
+            assert(Math.abs(api.tanks[0].fO2 - start) < 1e-6,
+                'arrowleft should drop fO2 back by 0.01; got ' + api.tanks[0].fO2);
+            assert(api.keys['arrowleft'] === false, 'arrowleft must be edge-consumed');
+            return 'PASS — O2 arrows adjust fO2 by ±1% and consume the key press';
+        }
+    },
+    {
+        id: 'TC-6-ARROWS-ADJUST-HE-TEC-ONLY',
+        name: 'Issue #6 — arrowup/down adjust He only in tec mode (silent in rec)',
+        fn: function() {
+            // Rec mode: He arrows must be no-op (rec has no He UI).
+            api.diveMode = 'rec';
+            setupDive([[0.32, 0, 200]]);
+            api.gameState = 'gas-setup';
+            api.clearKeys();
+            var recHe = api.tanks[0].fHe;
+            api.setKeys({ arrowup: true });
+            api.updateGasSetup();
+            assert(api.tanks[0].fHe === recHe,
+                'rec mode must ignore arrowup for He; changed to ' + api.tanks[0].fHe);
+            // Rec should also leave the key set (nothing consumed it here).
+            assert(api.keys['arrowup'] === true,
+                'rec mode should leave arrowup unconsumed (no He handler ran)');
+            api.clearKeys();
+            // Tec mode: He arrows work.
+            api.diveMode = 'tec';
+            setupDive([[0.18, 0.35, 200]]);
+            api.gameState = 'gas-setup';
+            api.clearKeys();
+            var start = api.tanks[0].fHe;
+            api.setKeys({ arrowup: true });
+            api.updateGasSetup();
+            assert(Math.abs(api.tanks[0].fHe - (start + 0.01)) < 1e-6,
+                'tec arrowup should raise fHe by 0.01; got ' + api.tanks[0].fHe);
+            api.setKeys({ arrowdown: true });
+            api.updateGasSetup();
+            assert(Math.abs(api.tanks[0].fHe - start) < 1e-6,
+                'tec arrowdown should drop fHe back by 0.01; got ' + api.tanks[0].fHe);
+            return 'PASS — He arrows gated on tec, otherwise ±1% per press';
+        }
+    },
+    {
+        id: 'TC-6-PGUP-PGDN-PRESSURE',
+        name: 'Issue #6 — PgUp/PgDn adjust tank pressure by ±10 bar',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 220]]);
+            api.gameState = 'gas-setup';
+            api.clearKeys();
+            var start = api.tanks[0].pressure;
+            api.setKeys({ pageup: true });
+            api.updateGasSetup();
+            assert(api.tanks[0].pressure === start + 10,
+                'pageup should raise pressure by 10 bar; got ' + api.tanks[0].pressure);
+            api.setKeys({ pagedown: true });
+            api.updateGasSetup();
+            assert(api.tanks[0].pressure === start,
+                'pagedown should drop pressure back to ' + start + '; got ' + api.tanks[0].pressure);
+            return 'PASS — PgUp/PgDn adjust pressure by ±10 bar';
+        }
+    },
+    {
+        id: 'TC-6-BRACKET-KEYS-ADJUST-AMV-OC-ONLY',
+        name: 'Issue #6 — [/] adjust AMV in OC mode without touching CCR setpoint',
+        fn: function() {
+            api.diveMode = 'tec';
+            setupDive([[0.21, 0, 200]]);
+            api.gameState = 'gas-setup';
+            api.amvRate = 15;
+            api.clearKeys();
+            api.setKeys({ ']': true });
+            api.updateGasSetup();
+            assert(api.amvRate === 16, 'OC ] should raise amvRate to 16; got ' + api.amvRate);
+            api.setKeys({ '[': true });
+            api.updateGasSetup();
+            assert(api.amvRate === 15, 'OC [ should drop amvRate back to 15; got ' + api.amvRate);
+            return 'PASS — OC-mode [/] adjust AMV by ±1 L/min';
+        }
+    },
+    {
+        id: 'TC-6-COMMA-DOT-ADJUST-TANK-SIZE-OC-ONLY',
+        name: 'Issue #6 — ,/. adjust OC tank size in tec mode',
+        fn: function() {
+            api.diveMode = 'tec';
+            setupDive([[0.21, 0, 200]]);
+            api.gameState = 'gas-setup';
+            var start = api.tanks[0].volume;
+            api.clearKeys();
+            api.setKeys({ '.': true });
+            api.updateGasSetup();
+            assert(api.tanks[0].volume === start + 1,
+                '. should raise tank volume by 1 L; got ' + api.tanks[0].volume);
+            api.setKeys({ ',': true });
+            api.updateGasSetup();
+            assert(api.tanks[0].volume === start,
+                ', should drop tank volume back; got ' + api.tanks[0].volume);
+            return 'PASS — ,/. adjust tank size by ±1 L';
+        }
+    },
+    {
+        id: 'TC-6-G-KEY-ADJUSTS-GF-LOW',
+        name: 'Issue #6 — g raises GF Low, Shift+G lowers it (±5)',
+        fn: function() {
+            api.diveMode = 'tec';
+            setupDive([[0.21, 0, 200]]);
+            api.gameState = 'gas-setup';
+            api.gfLow = 40;
+            api.gfHigh = 85; // keep clamp headroom on both sides
+            api.clearKeys();
+            api.setKeys({ g: true });
+            api.updateGasSetup();
+            assert(api.gfLow === 45, 'plain g should raise gfLow to 45; got ' + api.gfLow);
+            // Shift+G: state.js sets both keys['g'] and keys['G'] (raw + toLowerCase).
+            api.setKeys({ g: true, G: true });
+            api.updateGasSetup();
+            assert(api.gfLow === 40, 'Shift+G should drop gfLow to 40; got ' + api.gfLow);
+            // Regression: the Shift branch must clear both variants so the
+            // plain-g else-if cannot fire on the same press and cancel out.
+            assert(api.keys['g'] === false && api.keys['G'] === false,
+                'Shift+G handler must clear both keys[g] and keys[G]');
+            return 'PASS — G adjusts GF Low +5, Shift+G -5, both cases cleared';
+        }
+    },
+    {
+        id: 'TC-6-F-KEY-ADJUSTS-GF-HIGH',
+        name: 'Issue #6 — f raises GF High, Shift+F lowers it (±5)',
+        fn: function() {
+            api.diveMode = 'tec';
+            setupDive([[0.21, 0, 200]]);
+            api.gameState = 'gas-setup';
+            api.gfLow = 35;
+            api.gfHigh = 75;
+            api.clearKeys();
+            api.setKeys({ f: true });
+            api.updateGasSetup();
+            assert(api.gfHigh === 80, 'plain f should raise gfHigh to 80; got ' + api.gfHigh);
+            api.setKeys({ f: true, F: true });
+            api.updateGasSetup();
+            assert(api.gfHigh === 75, 'Shift+F should drop gfHigh back to 75; got ' + api.gfHigh);
+            assert(api.keys['f'] === false && api.keys['F'] === false,
+                'Shift+F handler must clear both keys[f] and keys[F]');
+            return 'PASS — F adjusts GF High +5, Shift+F -5, both cases cleared';
+        }
+    },
+    {
+        id: 'TC-6-TAB-CYCLES-TANK-TAB',
+        name: 'Issue #6 — TAB cycles selectedTankTab forward and wraps at tankCount',
+        fn: function() {
+            api.diveMode = 'tec';
+            setupDive([[0.21, 0, 200], [0.32, 0, 200], [1.0, 0, 200]]);
+            api.gameState = 'gas-setup';
+            api.selectedTankTab = 0;
+            api.clearKeys();
+            api.setKeys({ tab: true, Tab: true });
+            api.updateGasSetup();
+            assert(api.selectedTankTab === 1, 'TAB should cycle 0 -> 1; got ' + api.selectedTankTab);
+            api.setKeys({ tab: true, Tab: true });
+            api.updateGasSetup();
+            assert(api.selectedTankTab === 2, 'TAB should cycle 1 -> 2; got ' + api.selectedTankTab);
+            api.setKeys({ tab: true, Tab: true });
+            api.updateGasSetup();
+            assert(api.selectedTankTab === 0, 'TAB should wrap 2 -> 0 at tankCount=3; got ' + api.selectedTankTab);
+            return 'PASS — TAB cycles selectedTankTab 0->1->2->0 (wraps)';
+        }
+    },
+    {
+        id: 'TC-6-PLUS-MINUS-ADD-REMOVE-TANK',
+        name: 'Issue #6 — + adds a tank, - removes one (tec only)',
+        fn: function() {
+            api.diveMode = 'tec';
+            setupDive([[0.21, 0, 200]]);
+            api.gameState = 'gas-setup';
+            api.clearKeys();
+            var startCount = api.tankCount;
+            api.setKeys({ '+': true });
+            api.updateGasSetup();
+            assert(api.tankCount === startCount + 1,
+                '+ should add a tank; tankCount ' + startCount + ' -> ' + api.tankCount);
+            api.setKeys({ '-': true });
+            api.updateGasSetup();
+            assert(api.tankCount === startCount,
+                '- should remove a tank back to ' + startCount + '; got ' + api.tankCount);
+            return 'PASS — +/- add and remove tanks (tec-gated)';
+        }
+    },
+    {
+        id: 'TC-6-CCR-KEYS-DO-NOT-LEAK-TO-OC',
+        name: 'Issue #6 — [/] and ,/. keep CCR meaning in CCR mode, no AMV/volume leak',
+        fn: function() {
+            api.diveMode = 'ccr';
+            api.initCCR();
+            api.gameState = 'gas-setup';
+            // Baseline CCR state values we can watch for change.
+            api.ccrState.targetSP = 0.7;
+            api.ccrState.dilCylVolume = 3;
+            // AMV / tank-size values that MUST NOT change while we're in CCR.
+            api.amvRate = 15;
+            var startVol = api.tanks[0] ? api.tanks[0].volume : null;
+            api.clearKeys();
+            // [ in CCR = setpoint DOWN
+            api.setKeys({ '[': true });
+            api.updateGasSetup();
+            assert(Math.abs(api.ccrState.targetSP - 0.6) < 1e-6,
+                'CCR [ should drop setpoint to 0.6; got ' + api.ccrState.targetSP);
+            assert(api.amvRate === 15, 'CCR [ must not touch amvRate; got ' + api.amvRate);
+            // ] in CCR = setpoint UP
+            api.setKeys({ ']': true });
+            api.updateGasSetup();
+            assert(Math.abs(api.ccrState.targetSP - 0.7) < 1e-6,
+                'CCR ] should raise setpoint back to 0.7; got ' + api.ccrState.targetSP);
+            assert(api.amvRate === 15, 'CCR ] must not touch amvRate; got ' + api.amvRate);
+            // , in CCR = diluent volume DOWN
+            api.setKeys({ ',': true });
+            api.updateGasSetup();
+            assert(api.ccrState.dilCylVolume === 2,
+                'CCR , should drop diluent volume to 2; got ' + api.ccrState.dilCylVolume);
+            if (startVol !== null) {
+                assert(api.tanks[0].volume === startVol,
+                    'CCR , must not touch OC tank volume; got ' + api.tanks[0].volume);
+            }
+            // . in CCR = diluent volume UP
+            api.setKeys({ '.': true });
+            api.updateGasSetup();
+            assert(api.ccrState.dilCylVolume === 3,
+                'CCR . should raise diluent volume back to 3; got ' + api.ccrState.dilCylVolume);
+            return 'PASS — CCR [ ] , . still drive CCR state, never AMV/tank-volume';
+        }
     }
 ];
 

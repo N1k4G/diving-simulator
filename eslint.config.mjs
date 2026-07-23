@@ -42,6 +42,11 @@ const gameGlobals = {
   GF_LOW_DEFAULT: "readonly", GF_LOW_MIN: "readonly", GF_LOW_MAX: "readonly",
   GF_HIGH_DEFAULT: "readonly", GF_HIGH_MIN: "readonly", GF_HIGH_MAX: "readonly",
 
+  // Issue #6: gas-setup keyboard step sizes
+  GAS_SETUP_O2_STEP: "readonly", GAS_SETUP_HE_STEP: "readonly",
+  GAS_SETUP_PRESSURE_STEP: "readonly", GAS_SETUP_AMV_STEP: "readonly",
+  GAS_SETUP_TANK_VOL_STEP: "readonly", GAS_SETUP_GF_STEP: "readonly",
+
   // CCR constants
   CCR_DEFAULTS: "readonly", CCR_DIL_PRESETS: "readonly",
   CCR_SP_MIN: "readonly", CCR_SP_MAX: "readonly", CCR_SP_STEP: "readonly",
