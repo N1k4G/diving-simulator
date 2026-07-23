@@ -311,6 +311,9 @@ const gameGlobals = {
   saveDiveState: "readonly", loadSavedDive: "readonly",
   maybeSaveDiveState: "readonly", clearSavedDive: "readonly",
   beforeUnloadHandler: "readonly", updateBeforeUnloadGuard: "readonly",
+  // Issue #67: non-blocking resume-dive banner
+  _updateResumeBanner: "readonly", resumeSavedDive: "readonly",
+  discardSavedDive: "readonly", _pendingResumeDive: "writable",
   recommendBestGas: "readonly", bestGasForDepth: "readonly",
   playAlertBeep: "readonly", playInfoTone: "readonly",
 
