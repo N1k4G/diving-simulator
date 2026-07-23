@@ -4782,6 +4782,17 @@ var ROCK_PALETTES = {
     shore:     ['#6a6256', '#494238', '#221e18'],
     'default': ['#5b4d40', '#3d3228', '#1e1a16']
 };
+// Issue #101 — bound the rounded-boulder dome sink so the visual silhouette
+// closely fills the AABB collision box at the top corners. Values are in
+// canvas pixels; at the game's mpp=0.05 (20 px/m), ROCK_DOME_MAX_PX=30 caps
+// the shoulder sag at 1.5 m below the AABB top for any rock size, keeping
+// a subtle rounded crown without leaving phantom "collide in mid-air"
+// gaps in the top corners. The two fractional caps (SH_FRAC/SW_FRAC) keep
+// small boulders proportionally rounder than large ones — a 2 m-wide rock
+// still domes gently rather than reading as a rectangle.
+var ROCK_DOME_MAX_PX  = 30;
+var ROCK_DOME_SH_FRAC = 0.15;
+var ROCK_DOME_SW_FRAC = 0.10;
 // Boulders are static vector art that only TRANSLATES as the camera pans, but
 // re-rasterising their fine detail (cracks, speckle, rim) every frame makes the
 // thin 1px features shimmer/crawl under sub-pixel motion — worst on the widest
@@ -4819,13 +4830,25 @@ function _paintRockStruct(cx, sx1, sy1, sw, sh, seed, tone) {
     // gentle bumps, so each rock reads as a water-worn round boulder. Reef
     // walls keep the old near-flat cliff profile. The dome apex stays at the
     // box top (never bulges past the collision AABB).
+    //
+    // Issue #101 — the previous dome (`min(sh*0.5, sw*0.4)` px) sank the top
+    // corners of a typical shore boulder by 4-6 m below the AABB top, which
+    // left large chunks of the collision box floating in what looked like
+    // open water. A diver approaching over the shoulder read a phantom
+    // "collide in mid-air" hit. ROCK_DOME_MAX_PX bounds the sink so the
+    // silhouette closely fills the AABB at the top-corners (max ≈ 1.5 m of
+    // shoulder sag at any rock size at 1 m/20 px) while keeping a subtle
+    // rounded crown.
     var rounded = (tone !== 'reef');
     var lobes = Math.max(rounded ? 6 : 3, Math.round(sw / (rounded ? 16 : 26)));
     var jitter = rounded ? Math.min(sw * 0.05, sh * 0.12, 7)
                          : Math.min(sh * 0.3, sw * 0.45, 20);
     if (tone === 'reef') jitter = Math.min(jitter, 5);
-    var dome = rounded ? Math.min(sh * 0.5, sw * 0.4) : 0;
-    var crown = rounded ? Math.min(dome * 0.18, 10) : Math.min(jitter * 0.7, 12);
+    var dome = rounded ? Math.min(sh * ROCK_DOME_SH_FRAC,
+                                  sw * ROCK_DOME_SW_FRAC,
+                                  ROCK_DOME_MAX_PX)
+                       : 0;
+    var crown = rounded ? Math.min(dome * 0.18, 6) : Math.min(jitter * 0.7, 12);
     var top = [];
     for (var i = 0; i <= lobes; i++) {
         var t = i / lobes;

@@ -1136,6 +1136,13 @@ window.gameAPI = {
     set fishSpawnTimer(v) { fishSpawnTimer = v; },
     get wildlifeSpawnTimer() { return wildlifeSpawnTimer; },
     set wildlifeSpawnTimer(v) { wildlifeSpawnTimer = v; },
+    // Issue #101: Rock-silhouette dome caps (renderer-only, purely visual).
+    // Exposed so tests can pin the visual↔AABB match ceiling in metres:
+    //   maxSagPx = min(sh*SH_FRAC, sw*SW_FRAC, MAX_PX)
+    //   maxSagM  = maxSagPx * mpp   (mpp = 0.05 m/px)
+    get ROCK_DOME_MAX_PX()  { return ROCK_DOME_MAX_PX;  },
+    get ROCK_DOME_SH_FRAC() { return ROCK_DOME_SH_FRAC; },
+    get ROCK_DOME_SW_FRAC() { return ROCK_DOME_SW_FRAC; },
     // Issue #52: Visual Surface Layer test hooks (renderer-only, decorative)
     visualSurfaceNoise: visualSurfaceNoise,
     visualProfileDepth: visualProfileDepth,

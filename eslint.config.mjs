@@ -275,6 +275,9 @@ const gameGlobals = {
   DEPTH_COLOR_CAVE_STRENGTH: "readonly",
   _depthColorRestoreCanvas: "writable", _depthColorRestoreCtx: "writable",
   _depthColorMaskCanvas: "writable", _depthColorMaskCtx: "writable",
+  // Issue #101: Rock-silhouette dome caps (renderer.js), read from game-loop.js
+  ROCK_DOME_MAX_PX: "readonly",
+  ROCK_DOME_SH_FRAC: "readonly", ROCK_DOME_SW_FRAC: "readonly",
   // Phase C renderer helpers
   drawTerrain: "readonly", drawStructures: "readonly",
   drawFeatures: "readonly", drawSeagrass: "readonly",
