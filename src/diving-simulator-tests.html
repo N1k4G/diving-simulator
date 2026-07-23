@@ -1267,6 +1267,49 @@ tests = [
         }
     },
     // ----------------------------------------------------------
+    // TC-90: Safety stop resets on a second descent below 11m, even after
+    // an earlier stop this dive already completed
+    // ----------------------------------------------------------
+    {
+        id: 'TC-90-SAFETY-STOP-RESETS-ON-REDESCENT',
+        name: 'Issue #90 — completed safety stop resets after descending back below 11m',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            api.clearKeys();
+
+            // Hold at 20m to activate, then complete a safety stop at 5m.
+            for (var i = 0; i < 20; i++) {
+                api.setDepth(20);
+                api.updateDiving(0.5);
+            }
+            api.setDepth(5);
+            api.updateDiving(0.033);
+            assert(api.safetyStopCountdownStarted === true, 'Setup: countdown should have started');
+            for (var j = 0; j < 150; j++) {
+                api.setDepth(5);
+                api.updateDiving(0.5);
+                if (api.safetyStopComplete) break;
+            }
+            assert(api.safetyStopComplete === true, 'Setup: first safety stop should have completed');
+
+            // Descend back below 11m — this must fully reset the safety-stop
+            // state, including safetyStopComplete, so a second stop is required.
+            api.setDepth(15);
+            api.updateDiving(0.033);
+            assert(api.safetyStopComplete === false, 'Descending below 11m must reset safetyStopComplete, got ' + api.safetyStopComplete);
+            assert(api.safetyStopCountdownStarted === false, 'Descending below 11m must reset safetyStopCountdownStarted, got ' + api.safetyStopCountdownStarted);
+            assert(api.safetyStopRemaining === 0, 'Descending below 11m must reset safetyStopRemaining, got ' + api.safetyStopRemaining);
+
+            // And the second stop can actually be started/completed again.
+            api.setDepth(5);
+            api.updateDiving(0.033);
+            assert(api.safetyStopCountdownStarted === true, 'Second descent below 11m should allow a new countdown to start');
+
+            return 'PASS — safety stop state fully resets on a second descent below 11m';
+        }
+    },
+    // ----------------------------------------------------------
     // TC-32: BUG-CCR-4 — ccrAdjustO2Vol clamps to CCR_O2_VOL_MIN..MAX
     // ----------------------------------------------------------
     {

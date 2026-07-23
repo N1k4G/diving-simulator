@@ -408,13 +408,16 @@ function updateDiving(dtReal) {
     if (maxDepth > 11) {
         safetyStopNeeded = true;
     }
+    // Reset: if diver descends back below 11m, safety-stop state resets
+    // fully, even if a stop was already completed earlier this dive
+    // (issue #90) — a second descent past 11m needs its own stop.
+    if (depth > 11) {
+        safetyStopCountdownStarted = false;
+        safetyStopRemaining = 0;
+        safetyStopPaused = false;
+        safetyStopComplete = false;
+    }
     if (safetyStopNeeded && !safetyStopComplete) {
-        // Reset: if diver descends back below 11m, countdown resets fully
-        if (depth > 11) {
-            safetyStopCountdownStarted = false;
-            safetyStopRemaining = 0;
-            safetyStopPaused = false;
-        }
         // Start countdown: first time depth crosses below 6m
         if (!safetyStopCountdownStarted && depth > 0 && depth < 6) {
             safetyStopCountdownStarted = true;

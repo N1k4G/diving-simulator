@@ -1427,17 +1427,18 @@ function drawDiver(x, y, tilt) {
     // far leg + fin
     drawDiverLeg(cx, -16, 4, farKick, '#22262a', '#c45c0e', farSplay);
 
-    // tank
+    // tank — issue #90: nudged up and toward the head (was riding low/rearward
+    // on the back, disconnected from the shoulder/neck area)
     cx.save(); cx.rotate(-0.02);
     cx.fillStyle = '#1d3140';
-    cx.beginPath(); cx.roundRect(-22, -17, 26, 11, 5); cx.fill();
-    cx.fillStyle = '#0c1a23'; cx.fillRect(-24, -14, 4, 6);
-    cx.fillStyle = 'rgba(150,205,225,0.25)'; cx.beginPath(); cx.roundRect(-20, -16, 22, 3, 2); cx.fill();
+    cx.beginPath(); cx.roundRect(-17, -20, 26, 11, 5); cx.fill();
+    cx.fillStyle = '#0c1a23'; cx.fillRect(-19, -17, 4, 6);
+    cx.fillStyle = 'rgba(150,205,225,0.25)'; cx.beginPath(); cx.roundRect(-15, -19, 22, 3, 2); cx.fill();
     cx.restore();
 
     // reg hose
     cx.strokeStyle = '#2a3038'; cx.lineWidth = 2.4; cx.lineCap = 'round';
-    cx.beginPath(); cx.moveTo(-18, -10); cx.quadraticCurveTo(6, -6, 26, 2); cx.stroke();
+    cx.beginPath(); cx.moveTo(-13, -13); cx.quadraticCurveTo(6, -6, 26, 2); cx.stroke();
 
     // torso — D1: grey wetsuit with gradient shading
     cx.fillStyle = '#2e3338';
