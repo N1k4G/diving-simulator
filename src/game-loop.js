@@ -115,6 +115,16 @@ function updateDiving(dtReal) {
     // localStorage guard inside showHintOnce is what enforces the
     // once-per-BROWSER promise; hintEdges only prevents re-enqueue within
     // the current dive.
+    //
+    // NOTE on timing: this runs before this tick's updateTissues()/
+    // updateOverheadState()/safety-stop block, so safetyStopNeeded/inOverhead/
+    // current.active/calculateNDL()/calculateCeiling() here reflect the END
+    // of the PREVIOUS tick, not this one — a hint can lag the true edge by
+    // one frame (~16ms), which is inconsequential for a UI tooltip. Moving
+    // this block later to eliminate that lag was tried and reverted: it
+    // causes setDepth()-driven test scenarios (and, in principle, any real
+    // scenario using a large single-frame depth jump) to read post-physics-
+    // clamp state instead of the value the diver/test actually asked for.
     if (!hintEdges.bcd && depth > HINT_BCD_MIN_DEPTH) {
         showHintOnce('bcd', 'hintBcd');
         hintEdges.bcd = true;
@@ -999,6 +1009,11 @@ window.gameAPI = {
     get currentVerticalRate() { return currentVerticalRate; },
     get gameState() { return gameState; },
     set gameState(v) { gameState = v; },
+    // fastForwardActive is declared with `let`, so unlike `var`-declared
+    // globals it does NOT become a window property — tests must go through
+    // this accessor rather than assigning window.fastForwardActive directly.
+    get fastForwardActive() { return fastForwardActive; },
+    set fastForwardActive(v) { fastForwardActive = !!v; },
     get cssWidth() { return cssWidth; },
     // Test hook (issue #32): the test harness runs in a hidden iframe
     // whose innerWidth/Height is 0, so cssWidth/cssHeight stay 0 unless
