@@ -30,6 +30,21 @@ function effectiveAMV(kicking) {
     return amvRate * (kicking ? FINKICK_PARAMS.exertionFactor : 1);
 }
 
+// Issue #69: convert a per-frame probability that was calibrated at an
+// assumed 60 fps (p60) into the correct per-frame probability for the
+// actual frame's dt so that the expected NUMBER of events per real second
+// stays constant regardless of framerate. Standard framerate-independent
+// Bernoulli trial: P(no event over dt) = (1 - p60)^(dt * 60). A per-frame
+// call sites feeding a raw p60 fired 2.4x more often on a 144 Hz display
+// than on 60 Hz (bubbles, narcosis input drops); wrapping p60 through
+// this helper removes that dependency.
+function perSecondToPerFrameProbability(p60, dt) {
+    if (!(dt > 0)) return 0;
+    if (p60 <= 0) return 0;
+    if (p60 >= 1) return 1;
+    return 1 - Math.pow(1 - p60, dt * 60);
+}
+
 // D6: Torch toggle — edge-detect on F key so one press = one toggle
 var _torchKeyPrev = false;
 
@@ -73,15 +88,23 @@ function updateDiving(dtReal) {
     }
 
     // Variable rate movement — acceleration/deceleration
-    // WP-020: Narcosis control impairment — random frame skips
+    // WP-020: Narcosis control impairment — random frame skips.
+    // Issue #69: `narcDelay * 0.6` is a per-frame drop probability calibrated
+    // at 60 fps; feeding it raw made a 144 Hz display drop 2.4x more input
+    // events per real second. `perSecondToPerFrameProbability(p60, dtReal)`
+    // maps it to the correct per-frame value for the actual frame dt so the
+    // expected number of drops per real second is framerate-independent.
+    // Uses dtReal (not dtDiveSeconds) because the diver's keypress cadence
+    // is a real-time-domain event that shouldn't scale with time-acceleration.
     var narcDelay = narcosisIndex > 0.3 ? (narcosisIndex - 0.3) / 0.7 : 0;
+    var narcDropP = perSecondToPerFrameProbability(narcDelay * 0.6, dtReal);
     // Movement keys: WASD or the arrow keys (arrows only adjust gas on the
     // gas-setup screen, so aliasing them here — diving only — is conflict-free).
-    var wActive = (keys['w'] || keys['arrowup'])    && Math.random() > narcDelay * 0.6;
-    var sActive = (keys['s'] || keys['arrowdown'])  && Math.random() > narcDelay * 0.6;
+    var wActive = (keys['w'] || keys['arrowup'])    && Math.random() > narcDropP;
+    var sActive = (keys['s'] || keys['arrowdown'])  && Math.random() > narcDropP;
     // Phase A: Horizontal fin kicks — narcosis impairs lateral control too
-    var aActive = (keys['a'] || keys['arrowleft'])  && Math.random() > narcDelay * 0.6;
-    var dActive = (keys['d'] || keys['arrowright']) && Math.random() > narcDelay * 0.6;
+    var aActive = (keys['a'] || keys['arrowleft'])  && Math.random() > narcDropP;
+    var dActive = (keys['d'] || keys['arrowright']) && Math.random() > narcDropP;
     var kickDir = (dActive ? 1 : 0) - (aActive ? 1 : 0);
 
     // D6: Toggle torch on T press — F is taken by fast-forward
@@ -93,12 +116,26 @@ function updateDiving(dtReal) {
     if (wActive) { inflateBCD(dtDiveSeconds, depth); }
     if (sActive) { ventBCD(dtDiveSeconds, depth); }
 
-    // --- Buoyancy Physics ---
+    // --- Buoyancy + Horizontal Physics ---
+    // Issue #65: at fast-forward + a frame drop, dtDiveSeconds can reach
+    // ~3 s (0.1s real × 30x). Both integrators use explicit Euler with a
+    // per-step drag factor of `dragCoefficient * dtSec` — at 3 s the factor
+    // exceeds 1, flipping velocity sign every step and, downstream, tripping
+    // the exertion-threshold gas-consumption check at deco stops. Break the
+    // frame into fixed sub-steps of at most PHYSICS_MAX_SUBSTEP_SEC (see
+    // constants.js) so every per-step drag factor stays well below 1. In
+    // the common small-dt case this is a single-iteration no-op wrapper.
+    // Same pattern as the existing collision sub-stepping inside
+    // updateBuoyancyPhysics() (line ~128) and updateHorizontalPhysics()
+    // (line ~177) — those are spatial, this is temporal.
     var prevDepth = depth;
-    updateBuoyancyPhysics(dtDiveSeconds);
-
-    // --- Horizontal Physics (Phase A) ---
-    updateHorizontalPhysics(dtDiveSeconds, kickDir);
+    var _physRemaining = dtDiveSeconds;
+    while (_physRemaining > 1e-9) {
+        var _physStep = _physRemaining > PHYSICS_MAX_SUBSTEP_SEC ? PHYSICS_MAX_SUBSTEP_SEC : _physRemaining;
+        updateBuoyancyPhysics(_physStep);
+        updateHorizontalPhysics(_physStep, kickDir);
+        _physRemaining -= _physStep;
+    }
 
     // WP-020: Narcosis drift (applies to velocity)
     if (narcosisIndex > 0.45 && depth > 0) {
@@ -131,11 +168,22 @@ function updateDiving(dtReal) {
         avgDepthSamples += dtDiveSeconds;
     }
 
-    // WP-034: Record dive profile sample every ~2 seconds
+    // WP-034 / Issue #71: Record dive profile sample every ~2 simulated
+    // seconds. Under fast-forward a single frame can advance dtDiveSeconds
+    // by up to ~3 s, crossing multiple 2 s boundaries per frame. The old
+    // `if` variant consumed one boundary and dropped the remainder, so
+    // samples fell behind and clustered irregularly. The `while` catches
+    // every boundary crossed this frame — one sample per boundary. Depth/
+    // ceiling values are the current end-of-frame values (per issue spec:
+    // simple "repeat current values, correct timestamp spacing" is enough
+    // to keep the profile chart's cadence stable). Each caught-up sample's
+    // timestamp is back-computed from the leftover timer so the entries
+    // stay exactly 2 s apart in dive-time even when we're catching up.
     _profileSampleTimer += dtDiveSeconds;
-    if (_profileSampleTimer >= 2) {
+    while (_profileSampleTimer >= 2) {
         _profileSampleTimer -= 2;
-        diveProfile.push({t: diveTime, depth: depth, ceiling: calculateCeiling()});
+        var _sampleT = diveTime - _profileSampleTimer / 60;
+        diveProfile.push({t: _sampleT, depth: depth, ceiling: calculateCeiling()});
     }
 
     // Update tissues
@@ -387,10 +435,16 @@ function updateDiving(dtReal) {
         }
     }
 
-    // Bubbles — breathing cycle
-    updateBreathCycle(dtDiveSeconds);
-    // BCD exhaust bubbles during fast ascent
-    if (ascentRate > 5 && Math.random() < 0.3) {
+    // Bubbles — breathing cycle. dtDiveSeconds drives the phase timer,
+    // dtReal is used only for issue #69's framerate-independence math on
+    // the exhale-trickle probability.
+    updateBreathCycle(dtDiveSeconds, dtReal);
+    // BCD exhaust bubbles during fast ascent.
+    // Issue #69: 0.3 was a per-frame probability calibrated at 60 fps; at
+    // 144 Hz that fired 2.4x more often than intended, dumping a stream of
+    // BCD bubbles. Convert to a framerate-independent probability so the
+    // expected number of emissions per real second stays constant.
+    if (ascentRate > 5 && Math.random() < perSecondToPerFrameProbability(0.3, dtReal)) {
         emitBCDBubbles();
     }
     updateBubbles(dtDiveSeconds);
@@ -962,6 +1016,23 @@ window.gameAPI = {
     calculateGTR: calculateGTR,
     calculateNarcoticPP: calculateNarcoticPP,
     calculateEND: calculateEND,
+    // Issue #65/#69/#71: framerate/timestep-independence hooks
+    perSecondToPerFrameProbability: perSecondToPerFrameProbability,
+    updateBuoyancyPhysics: updateBuoyancyPhysics,
+    updateHorizontalPhysics: updateHorizontalPhysics,
+    get PHYSICS_MAX_SUBSTEP_SEC() { return PHYSICS_MAX_SUBSTEP_SEC; },
+    get diveProfile() { return diveProfile; },
+    set diveProfile(v) { diveProfile = v; },
+    get _profileSampleTimer() { return _profileSampleTimer; },
+    set _profileSampleTimer(v) { _profileSampleTimer = v; },
+    get TIME_ACCELERATION() { return TIME_ACCELERATION; },
+    get FAST_FORWARD_MULTIPLIER() { return FAST_FORWARD_MULTIPLIER; },
+    get verticalVelocity() { return verticalVelocity; },
+    set verticalVelocity(v) { verticalVelocity = v; },
+    get bcdGasSurfaceLiters() { return bcdGasSurfaceLiters; },
+    set bcdGasSurfaceLiters(v) { bcdGasSurfaceLiters = v; },
+    get FINKICK_PARAMS() { return FINKICK_PARAMS; },
+    get BUOYANCY_PARAMS() { return BUOYANCY_PARAMS; },
     getCCRInspiredGas: getCCRInspiredGas,
     updateCCRLoop: updateCCRLoop,
     updateCCRDiluent: updateCCRDiluent,

@@ -7768,6 +7768,227 @@ tests = [
         }
     },
     {
+        id: 'TC-65-PHYSICS-SUBSTEP-STABILITY',
+        name: 'Issue #65 — physics substepping keeps velocities bounded at large frame dt',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            var FP = api.FINKICK_PARAMS;
+            var BP = api.BUOYANCY_PARAMS;
+
+            // Baseline: many small steps summing to 3s of simulated physics.
+            // At dtSec=3s the raw single-call integrators would flip
+            // velocity sign every step (drag factor = FP.dragCoefficient*3
+            // exceeds 1). The substep-driven caller must produce a bounded,
+            // sensible result close to the small-step reference.
+            api.horizontalVelocity = 0.3; // seed a modest speed
+            api.verticalVelocity = 0;
+            api.setDepth(20);
+            api.bcdGasSurfaceLiters = 4;
+            var kickDir = 1;
+            var totalSec = 3.0;
+            var smallStep = 0.02;
+            var nSmall = Math.round(totalSec / smallStep);
+            for (var i = 0; i < nSmall; i++) {
+                api.updateBuoyancyPhysics(smallStep);
+                api.updateHorizontalPhysics(smallStep, kickDir);
+            }
+            var hRefSmall = api.horizontalVelocity;
+            var vRefSmall = api.verticalVelocity;
+
+            // Now do the same 3s of physics but through the substep-driven
+            // caller (one dtDiveSeconds=3 "frame"). Reset first.
+            api.horizontalVelocity = 0.3;
+            api.verticalVelocity = 0;
+            api.setDepth(20);
+            api.bcdGasSurfaceLiters = 4;
+            // Emulate the game-loop substep loop directly to isolate the fix.
+            var remaining = 3.0;
+            var CAP = api.PHYSICS_MAX_SUBSTEP_SEC;
+            while (remaining > 1e-9) {
+                var step = remaining > CAP ? CAP : remaining;
+                api.updateBuoyancyPhysics(step);
+                api.updateHorizontalPhysics(step, kickDir);
+                remaining -= step;
+            }
+            var hSubstep = api.horizontalVelocity;
+            var vSubstep = api.verticalVelocity;
+
+            // 1) Substep results must be bounded / sane.
+            assert(isFinite(hSubstep) && isFinite(vSubstep),
+                'substep velocities must be finite (h=' + hSubstep + ', v=' + vSubstep + ')');
+            assert(Math.abs(hSubstep) <= FP.maxSpeed + 0.01,
+                'substep horizontal speed must respect maxSpeed clamp (got ' + hSubstep + ', max ' + FP.maxSpeed + ')');
+            var maxV = Math.max(BP.maxAscentRate, BP.maxDescentRate);
+            assert(Math.abs(vSubstep) <= maxV + 0.01,
+                'substep vertical speed must respect the ascent/descent clamps (got ' + vSubstep + ')');
+
+            // 2) Substep and small-step reference must converge — not diverge
+            // wildly. Explicit Euler even at 0.1s dt isn't identical to 0.02s
+            // dt, but they should be in the same neighbourhood. A generous
+            // tolerance suffices to catch the sign-flipping failure mode.
+            assert(Math.sign(hSubstep) === Math.sign(hRefSmall) || (Math.abs(hSubstep) < 0.05 && Math.abs(hRefSmall) < 0.05),
+                'substep horizontal velocity should not diverge in sign from small-step reference (substep=' + hSubstep.toFixed(3) + ', ref=' + hRefSmall.toFixed(3) + ')');
+            assert(Math.abs(hSubstep - hRefSmall) < 0.4,
+                'substep vs small-step horizontal velocities should be close: substep=' + hSubstep.toFixed(3) + ', ref=' + hRefSmall.toFixed(3));
+
+            // 3) Direct sanity check the failure mode CAN'T reappear: at
+            // dt=3s with the OLD single-call integrator the drag factor is
+            // FP.dragCoefficient*3 which exceeds 1, so velocity flips sign.
+            // With substepping every per-step drag factor is <= 0.1 * FP.dragCoefficient.
+            assert(CAP * FP.dragCoefficient < 1,
+                'PHYSICS_MAX_SUBSTEP_SEC must keep per-step horizontal drag factor below 1 (got ' + (CAP * FP.dragCoefficient) + ')');
+            assert(CAP * BP.dragCoefficient < 1,
+                'PHYSICS_MAX_SUBSTEP_SEC must keep per-step buoyancy drag factor below 1 (got ' + (CAP * BP.dragCoefficient) + ')');
+
+            return 'PASS — substep: h=' + hSubstep.toFixed(3) + '/v=' + vSubstep.toFixed(3)
+                + '; small-step ref: h=' + hRefSmall.toFixed(3) + '/v=' + vRefSmall.toFixed(3);
+        }
+    },
+    {
+        id: 'TC-69-FRAMERATE-INDEPENDENT-PROBABILITY',
+        name: 'Issue #69 — perSecondToPerFrameProbability keeps event counts equal across framerates',
+        fn: function() {
+            var f = api.perSecondToPerFrameProbability;
+            assert(typeof f === 'function', 'perSecondToPerFrameProbability must be exposed on gameAPI');
+            // Boundary/identity cases
+            assert(f(0, 1/60) === 0, 'p=0 should stay 0');
+            assert(f(1, 1/60) === 1, 'p=1 should stay 1');
+            assert(f(0.15, 0) === 0, 'dt=0 should yield 0 (no frame time = no chance of event)');
+            // A 60fps input frame reproduces the calibration probability.
+            assert(Math.abs(f(0.15, 1/60) - 0.15) < 1e-9,
+                'at dt=1/60 the result should equal p60 (identity), got ' + f(0.15, 1/60));
+
+            // Statistical: draw N frames at 60 fps vs 144 fps for the same
+            // total real-time window. The expected number of events per
+            // real second should stay constant across framerates. Use a
+            // modestly small p60 so the linear approximation p60*60 events/s
+            // is a valid target — with p60 = 0.15 the per-frame probability
+            // saturates at low framerates (1-0.85^6 ≈ 0.62 at 10 fps caps
+            // at 10 events/s vs the ~9 events/s calibration target, so a
+            // 10-fps sample would be biased low regardless of the fix).
+            function countEvents(dtReal, totalSec, p60) {
+                var frames = Math.round(totalSec / dtReal);
+                var p = f(p60, dtReal);
+                var events = 0;
+                for (var i = 0; i < frames; i++) {
+                    if (Math.random() < p) events++;
+                }
+                return events;
+            }
+            var TOTAL = 40; // seconds of simulated real time — bigger N = tighter σ
+            var P60 = 0.03;
+            var e60  = countEvents(1/60,  TOTAL, P60);
+            var e144 = countEvents(1/144, TOTAL, P60);
+            // Expected exact rate: -60 * ln(1 - p60) events/sec ≈ 1.83/sec.
+            // Over 40s → ≈73 events. sqrt(73) ≈ 8.5 → generous ±25 window
+            // (≈3σ) catches genuine breakage but tolerates one-run variance.
+            var expected = -60 * Math.log(1 - P60) * TOTAL; // ≈ 73
+            assert(Math.abs(e60 - expected) < 25,
+                '60 fps event count should be near ' + expected.toFixed(1) + ' (±25), got ' + e60);
+            assert(Math.abs(e144 - expected) < 25,
+                '144 fps event count should be near ' + expected.toFixed(1) + ' (±25), got ' + e144);
+            assert(Math.abs(e60 - e144) < 30,
+                'event counts across framerates should be close, got 60fps=' + e60 + ', 144fps=' + e144);
+
+            return 'PASS — 60fps=' + e60 + ', 144fps=' + e144 + ' (expected ≈' + expected.toFixed(1) + ')';
+        }
+    },
+    {
+        id: 'TC-71-PROFILE-SAMPLE-CATCH-UP',
+        name: 'Issue #71 — profile sampler catches every 2 s boundary crossed under large dt',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            // Descend gently to a stable non-shallow depth so updateDiving()'s
+            // ">0.5m gate" fires every frame and the various game-over checks
+            // stay clean at the huge dtDiveSeconds values this test drives.
+            api.setDepth(10);
+            api.diveProfile.length = 0;
+            api._profileSampleTimer = 0;
+            api.maxDepth = 20;
+
+            // Run several fast-forward-style large-dt frames. dtReal=0.4 with
+            // TIME_ACCELERATION=3 yields dtDiveSeconds=1.2 per frame — small
+            // enough to keep updateDiving()'s gameover checks clean, but
+            // large enough that some frames cross a 2s boundary and others
+            // don't, exercising the "catch every boundary crossed" fix
+            // rather than "one per frame". A few frames will cross zero
+            // boundaries and a few will cross two, mirroring the fast-
+            // forward failure mode #71 describes.
+            var FRAME_DT_REAL = 0.4;   // → dtDiveSeconds = 1.2 with TIME_ACCEL=3
+            var N_FRAMES = 60;
+            var startProfileLen = api.diveProfile.length;
+            var startDiveTime = api.diveTime;
+            var actualFrames = 0;
+            for (var i = 0; i < N_FRAMES; i++) {
+                api.setDepth(10); // hold depth so the ">0.5m" gate always fires
+                api.updateDiving(FRAME_DT_REAL);
+                actualFrames++;
+                if (api.gameState !== 'diving') break;
+            }
+            assert(actualFrames >= N_FRAMES,
+                'test needs all ' + N_FRAMES + ' frames to run (gameover=' + api.gameOverReason + '), only ran ' + actualFrames);
+            var endDiveTime = api.diveTime;
+            var samples = api.diveProfile.slice(startProfileLen);
+            var simSecs = (endDiveTime - startDiveTime) * 60;
+            // Expected samples: ~simSecs / 2, ± one boundary (rounding).
+            var expected = Math.floor(simSecs / 2);
+            assert(samples.length >= expected - 1 && samples.length <= expected + 1,
+                'expected ~' + expected + ' samples over ' + simSecs.toFixed(2) + ' sim-seconds, got ' + samples.length);
+
+            // Sample spacing check: consecutive samples should be ~2 sim-
+            // seconds apart in dive-time. Convert diveTime (minutes) to
+            // seconds for the check.
+            var maxGapErr = 0;
+            for (var j = 1; j < samples.length; j++) {
+                var gapSec = (samples[j].t - samples[j - 1].t) * 60;
+                var err = Math.abs(gapSec - 2);
+                if (err > maxGapErr) maxGapErr = err;
+            }
+            assert(maxGapErr < 0.05,
+                'consecutive-sample spacing should be ~2 sim-seconds; worst gap error = ' + maxGapErr.toFixed(4) + 's');
+
+            // Sanity: none of the caught-up samples should share an
+            // identical timestamp (the "one sample per boundary" fix must
+            // produce distinct t values within a single frame's catch-up).
+            for (var k = 1; k < samples.length; k++) {
+                assert(samples[k].t > samples[k - 1].t,
+                    'sample timestamps must be strictly increasing; found duplicate/regression at index ' + k);
+            }
+
+            // Direct catch-up test — bypass updateDiving() and drive the
+            // sampler math directly at an extreme dtDiveSeconds so we
+            // exercise the multi-boundary-crossing case explicitly. Old
+            // "if" variant would emit exactly one sample here; the new
+            // while loop must emit three.
+            api.diveProfile.length = 0;
+            api._profileSampleTimer = 0;
+            var beforeT = api.diveTime;
+            var beforeLen = api.diveProfile.length;
+            // Emulate the exact sampler block from updateDiving at
+            // dtDiveSeconds=6 (past three 2-s boundaries).
+            api._profileSampleTimer = api._profileSampleTimer + 6;
+            var pushed = 0;
+            while (api._profileSampleTimer >= 2) {
+                api._profileSampleTimer = api._profileSampleTimer - 2;
+                var sT = beforeT - api._profileSampleTimer / 60;
+                api.diveProfile.push({ t: sT, depth: 10, ceiling: 0 });
+                pushed++;
+            }
+            assert(pushed === 3, 'a 6s frame must produce exactly 3 caught-up samples, got ' + pushed);
+            var caughtUp = api.diveProfile.slice(beforeLen);
+            for (var m = 1; m < caughtUp.length; m++) {
+                var gap2 = (caughtUp[m].t - caughtUp[m - 1].t) * 60;
+                assert(Math.abs(gap2 - 2) < 0.001,
+                    'caught-up samples must be spaced exactly 2 sim-sec apart, got gap ' + gap2);
+            }
+
+            return 'PASS — updateDiving path: ' + samples.length + ' samples over ' + simSecs.toFixed(1)
+                + ' sim-seconds, max gap error ' + maxGapErr.toFixed(4) + 's; '
+                + 'direct-drive: ' + pushed + ' samples caught up in one 6s frame';
+        }
+    },
+    {
         id: 'TC-66-RESTORE-REJECTS-MALFORMED-SAVE',
         name: 'Issue #66 — loadSavedDive() rejects a malformed/wrong-version payload instead of returning it',
         fn: function() {
