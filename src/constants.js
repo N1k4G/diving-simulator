@@ -27,6 +27,14 @@
 
 const TIME_ACCELERATION = 3;
 const FAST_FORWARD_MULTIPLIER = 10;
+// Issue #65: physics integrator sub-step cap. `updateBuoyancyPhysics()` and
+// `updateHorizontalPhysics()` both do explicit Euler with per-step drag
+// factors of ~0.4-0.8 * dt — at dt = 3s (fast-forward + a frame drop) the
+// per-step drag factor can exceed 1, inverting velocity sign every step.
+// Callers break a large frame dt into steps of at most this many seconds
+// to keep every per-step drag factor well below 1. A single sub-step is a
+// no-op wrapper in the common small-dt case.
+const PHYSICS_MAX_SUBSTEP_SEC = 0.1;
 const MAX_ASCENT_RATE   = 25;   // max possible ascent m/min (a runaway BCD CAN exceed the 18 barotrauma threshold)
 const MAX_DESCENT_RATE  = 20;   // max possible descent m/min
 // Issue #30: the ASSUMED planning rate used when simulating time-to-surface,

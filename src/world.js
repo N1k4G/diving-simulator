@@ -49,8 +49,15 @@ function emitBubbles(count) {
     }
 }
 
-function updateBreathCycle(dt) {
+function updateBreathCycle(dt, dtReal) {
     if (depth < 0.3) return;
+    // `dt` is dtDiveSeconds — the breath-cycle timers below are calibrated
+    // in dive-seconds (BREATH_CYCLE_INHALE/EXHALE/PAUSE, see constants.js)
+    // so the diver's breathing rhythm scales with TIME_ACCELERATION.
+    // `dtReal` is the wall-clock frame dt used only to make the trickle
+    // Bernoulli trial framerate-independent (issue #69). Falls back to `dt`
+    // for backward compatibility if a caller omits the second argument.
+    if (dtReal === undefined) dtReal = dt;
     breathTimer -= dt;
     if (breathTimer <= 0) {
         if (breathPhase === 'inhale') {
@@ -71,8 +78,17 @@ function updateBreathCycle(dt) {
             // Initial burst at start of exhale: 2-3 bubbles
             emitBubbles(2 + Math.floor(Math.random() * 2));
             exhaleEmitted = true;
-        } else if (Math.random() < 0.15) {
-            // Trickle: ~15% chance per frame for 1 more bubble during exhale
+        } else if (Math.random() < perSecondToPerFrameProbability(0.15, dtReal)) {
+            // Trickle: ~15% chance per 60 fps real-time frame for 1 more
+            // bubble during exhale. Issue #69: at 144 Hz the raw 0.15 fired
+            // 2.4x too often; wrapping p60 through the framerate-
+            // independence helper (with dtReal) keeps the expected number
+            // of trickle bubbles per REAL second constant regardless of
+            // wall-clock framerate. Using dtReal (not dtDiveSeconds) also
+            // means fast-forward doesn't flood the screen — an exhale
+            // compressed into a fraction of a real second gets vanishingly
+            // few trickle bubbles, dominated by the deterministic initial
+            // burst above (which is what the player actually sees).
             emitBubbles(1);
         }
     }

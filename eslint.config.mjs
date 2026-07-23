@@ -13,6 +13,7 @@ const gameGlobals = {
 
   // Tuning constants
   TIME_ACCELERATION: "readonly", FAST_FORWARD_MULTIPLIER: "readonly",
+  PHYSICS_MAX_SUBSTEP_SEC: "readonly",
   MAX_ASCENT_RATE: "readonly", MAX_DESCENT_RATE: "readonly",
   DECO_PLANNING_ASCENT_RATE_MPM: "readonly",
   MAX_DEPTH: "readonly",
@@ -304,6 +305,7 @@ const gameGlobals = {
 
   // Game loop (game-loop.js)
   effectiveAMV: "readonly",
+  perSecondToPerFrameProbability: "readonly",
   updateSurface: "readonly", updateDiving: "readonly",
   gameLoop: "writable",
   saveDiveState: "readonly", loadSavedDive: "readonly",
