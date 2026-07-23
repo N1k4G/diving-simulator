@@ -1180,6 +1180,25 @@ function drawScene() {
         cx.restore();
     }
 
+    // Issue #38: Contextual onboarding hint toast. Rendered at
+    // HINT_TOAST_Y_FRAC so it sits BELOW the gas-switch banner and both
+    // can be visible simultaneously without overlap. Suppressed while
+    // any full-screen overlay is up (help/gas-info) and outside the
+    // diving state — drawScene() also runs in the game-over screen and
+    // the issue explicitly bans hints there. The last-second fade uses
+    // the same tail-alpha math as the gas-switch toast for visual
+    // consistency.
+    if (hintNotifyTime > 0 && hintNotifyText && gameState === 'diving' && !showHelp && !showGasInfo) {
+        cx.save();
+        cx.textAlign = 'center';
+        cx.font = 'bold 18px monospace';
+        var hAlpha = Math.min(1, hintNotifyTime / 0.5);
+        cx.fillStyle = 'rgba(255,220,120,' + hAlpha + ')';
+        cx.fillText(hintNotifyText, W / 2, H * HINT_TOAST_Y_FRAC);
+        cx.textAlign = 'left';
+        cx.restore();
+    }
+
     // Red edge flash on dangerous ascent rate
     if (gameState === 'diving' && ascentRate > 9) {
         var flashAlpha = (0.2 + 0.15 * Math.sin(Date.now() * 0.01)) * Math.min(1, (ascentRate - 9) / 9);

@@ -510,6 +510,14 @@ const STRINGS = {
     ccrHyperoxia: 'O\u2082 TOXICITY \u2014 PO\u2082 TOO HIGH',
     ccrCO2: 'CO\u2082 POISONING \u2014 SCRUBBER EXHAUSTED',
     ccrBailout: 'BAILOUT',
+    // Issue #38: contextual onboarding hint toasts (edge-triggered, one-time)
+    hintBcd: 'W/S control BCD buoyancy \u2014 short bursts, then trim out',
+    hintNdl: 'NDL dropping: deco obligation soon \u2014 go shallower or plan your ascent',
+    hintSafetyStop: 'Safety stop: hold 3\u20135 min between 2.4\u20138.3m, F = fast-forward',
+    hintDeco: 'Deco ceiling: don\u2019t ascend above the CEIL depth!',
+    hintOverhead: 'Overhead: the guideline marks the way back, T = torch',
+    hintCurrent: 'Current! Swim against it with A/D',
+    hintDismissBtn: 'Don\u2019t show hints again',
     gameOverInfo: null // set below
   },
   de: {
@@ -640,6 +648,14 @@ const STRINGS = {
     ccrHyperoxia: 'O\u2082-TOXIZIT\u00C4T \u2014 PO\u2082 ZU HOCH',
     ccrCO2: 'CO\u2082-VERGIFTUNG \u2014 SCRUBBER ERSCH\u00D6PFT',
     ccrBailout: 'NOTFALL-OC',
+    // Issue #38: kontextuelle Onboarding-Hinweise (Edge-getriggert, einmalig)
+    hintBcd: 'W/S steuern die Tarierweste \u2014 kurze St\u00F6\u00DFe, dann austrimmen',
+    hintNdl: 'NDL sinkt: bald Deko-Pflicht \u2014 flacher gehen oder Aufstieg planen',
+    hintSafetyStop: 'Sicherheitsstopp: 3\u20135 min zwischen 2,4\u20138,3m halten, F = Zeitraffer',
+    hintDeco: 'Deko-Ceiling: nicht \u00FCber die CEIL-Tiefe aufsteigen!',
+    hintOverhead: '\u00DCberkopf: die Leine markiert den R\u00FCckweg, T = Lampe',
+    hintCurrent: 'Str\u00F6mung! Mit A/D dagegen anschwimmen',
+    hintDismissBtn: 'Hinweise nicht mehr anzeigen',
     gameOverInfo: {
       'OUT OF GAS': {
         cause: 'Alle Flaschen leer \u2014 kein Atemgas mehr vorhanden.',
