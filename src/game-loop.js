@@ -208,6 +208,51 @@ function updateDiving(dtReal) {
         }
     }
 
+    // Issue #27: Rule-of-thirds gas planning (overhead only). On first entry
+    // snapshot the diver's total remaining gas as the reference "full" — for
+    // multi-tank tec setups this sums all OC tanks (a cave/wreck plan is over
+    // the whole gas supply the diver is carrying, not one bottle). Each tick
+    // compute remaining / snapshot -> phase + %; latch turn-phase beep exactly
+    // once via thirdsTurnWarned. Leaving the overhead clears the snapshot AND
+    // the latches, so a subsequent penetration starts fresh.
+    if (inOverhead) {
+        if (thirdsStartingGas <= 0) {
+            var _thStart = 0;
+            for (var _ti = 0; _ti < tankCount; _ti++) {
+                _thStart += tanks[_ti].gasRemaining;
+            }
+            thirdsStartingGas = _thStart;
+        }
+        var _thNow = 0;
+        for (var _tj = 0; _tj < tankCount; _tj++) {
+            _thNow += tanks[_tj].gasRemaining;
+        }
+        var _thFrac = thirdsStartingGas > 0 ? (_thNow / thirdsStartingGas) : 0;
+        if (_thFrac < 0) _thFrac = 0;
+        if (_thFrac > 1) _thFrac = 1;
+        thirdsPct = Math.round(_thFrac * 100);
+        if (_thFrac > THIRDS_TURN_FRACTION) {
+            thirdsCurrentPhase = 'outbound';
+        } else if (_thFrac > THIRDS_RESERVE_FRACTION) {
+            thirdsCurrentPhase = 'turn';
+            if (!thirdsTurnWarned) {
+                thirdsTurnWarned = true;
+                playAlertBeep();
+            }
+        } else {
+            thirdsCurrentPhase = 'reserve';
+            thirdsReserveActive = true;
+        }
+    } else if (thirdsStartingGas > 0) {
+        // Left the overhead — clear snapshot + latches so the next penetration
+        // gets a fresh reference against whatever gas remains at that moment.
+        thirdsStartingGas = 0;
+        thirdsCurrentPhase = 'outbound';
+        thirdsPct = 100;
+        thirdsTurnWarned = false;
+        thirdsReserveActive = false;
+    }
+
     // Phase B: Current lifecycle — roll once per dive, then run timer + ramp
     // currentBias multiplies the base chance for the active site (0 = never, 1 = open water default)
     if (!current.rolledThisDive && depth > 5) {
@@ -609,6 +654,19 @@ function updateDiving(dtReal) {
             if (cStr) cStr.textContent = current.level.toFixed(2) + ' m/s';
         } else {
             hudCurrent.style.display = 'none';
+        }
+    }
+    // Issue #27: rule-of-thirds gauge visibility + attributes. Only visible
+    // while actually inside an overhead during the diving state — style.css
+    // renders phase colour + text and gas % from the data attributes.
+    var hudThirds = document.getElementById('hud-thirds');
+    if (hudThirds) {
+        if (inOverhead && gameState === 'diving') {
+            hudThirds.style.display = '';
+            hudThirds.setAttribute('data-phase', thirdsCurrentPhase);
+            hudThirds.setAttribute('data-pct', String(thirdsPct));
+        } else {
+            hudThirds.style.display = 'none';
         }
     }
 }
@@ -1093,6 +1151,19 @@ window.gameAPI = {
     // overheadAt(diverX, depth); TC-33-INTERIOR-MODULATOR-SCOPE + others
     // need to pin it deterministically.
     set inOverhead(v) { inOverhead = !!v; },
+    // Issue #27: Rule-of-thirds test hooks. Phase + pct are computed each
+    // tick from thirdsStartingGas (snapshotted on overhead entry). Flags
+    // are exposed writable so TC-27-* can pin them for edge-case coverage.
+    get thirdsCurrentPhase() { return thirdsCurrentPhase; },
+    get thirdsPct() { return thirdsPct; },
+    get thirdsStartingGas() { return thirdsStartingGas; },
+    set thirdsStartingGas(v) { thirdsStartingGas = +v || 0; },
+    get thirdsTurnWarned() { return thirdsTurnWarned; },
+    set thirdsTurnWarned(v) { thirdsTurnWarned = !!v; },
+    get thirdsReserveActive() { return thirdsReserveActive; },
+    set thirdsReserveActive(v) { thirdsReserveActive = !!v; },
+    get THIRDS_TURN_FRACTION() { return THIRDS_TURN_FRACTION; },
+    get THIRDS_RESERVE_FRACTION() { return THIRDS_RESERVE_FRACTION; },
     floorAt: floorAt,
     ceilingAt: ceilingAt,
     solidAt: solidAt,
