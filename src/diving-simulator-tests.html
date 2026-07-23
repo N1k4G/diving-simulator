@@ -8109,6 +8109,96 @@ tests = [
             return 'PASS — malformed save rejected + cleared, well-formed save still round-trips';
         }
     },
+    {
+        id: 'TC-67-RESUME-BANNER-NON-BLOCKING',
+        name: 'Issue #67 — saved dive triggers non-blocking banner (never a blocking confirm()) with working Resume/Discard buttons',
+        fn: function() {
+            var win = document.getElementById('gameFrame').contentWindow;
+            var doc = win.document;
+            var key = win.SAVE_KEY;
+            var original = win.localStorage.getItem(key);
+            // Shim window.confirm() so any regression re-introducing a
+            // blocking dialog is caught immediately instead of hanging the
+            // test run behind a modal.
+            var origConfirm = win.confirm;
+            var confirmWasCalled = false;
+            win.confirm = function() { confirmWasCalled = true; return false; };
+            try {
+                // 1. Banner element exists in the DOM (added by #67).
+                var el = doc.getElementById('resume-dive-banner');
+                assert(el !== null, 'resume-dive-banner DOM element must exist');
+                var yesBtn = doc.getElementById('resume-dive-banner-yes');
+                var noBtn = doc.getElementById('resume-dive-banner-discard');
+                assert(yesBtn !== null && noBtn !== null, 'banner Yes/Discard buttons must exist');
+
+                // 2. Produce a real, well-formed saved dive via the real save
+                //    path, then re-load it. Any regression that reverted #67's
+                //    save shape would fail loadSavedDive() here first.
+                setupDive([[0.21, 0, 200]]);
+                api.setDepth(15);
+                api.maxDepth = 15;
+                win.saveDiveState();
+                var saved = win.loadSavedDive();
+                assert(saved !== null, 'precondition: loadSavedDive() must return the just-saved state');
+
+                // 3. Stash a pending resume via the test hook and force the
+                //    gas-setup state — this exercises the real _updateResumeBanner()
+                //    path exactly as the on-load bootstrap would.
+                api.gameState = 'gas-setup';
+                api.setPendingResumeDive(saved);
+                assert(api.pendingResumeDive !== null, 'setPendingResumeDive should stash the payload');
+                assert(api.resumeBannerVisible === true, 'banner must be visible when a pending dive exists in gas-setup');
+                assert(confirmWasCalled === false, 'showing the banner must not call window.confirm()');
+
+                // 4. Banner hides itself when leaving gas-setup even without
+                //    an explicit click — guards against the banner floating
+                //    on top of the diving HUD.
+                api.gameState = 'diving';
+                api.updateResumeBanner();
+                assert(api.resumeBannerVisible === false, 'banner must hide when gameState leaves gas-setup');
+                api.gameState = 'gas-setup';
+                api.updateResumeBanner();
+                assert(api.resumeBannerVisible === true, 'banner must reappear on return to gas-setup while a pending dive exists');
+
+                // 5. Discard path: clears the save AND hides the banner.
+                api.discardSavedDive();
+                assert(api.pendingResumeDive === null, 'discardSavedDive() must clear _pendingResumeDive');
+                assert(win.localStorage.getItem(key) === null, 'discardSavedDive() must clear localStorage');
+                assert(api.resumeBannerVisible === false, 'banner must be hidden after Discard');
+
+                // 6. Resume path: restores depth from the saved payload and
+                //    hides the banner. Prep a fresh save first so Resume has
+                //    something to restore that is distinguishable from the
+                //    current state.
+                setupDive([[0.21, 0, 200]]);
+                api.setDepth(0);
+                api.maxDepth = 0;
+                api.setDepth(22);
+                api.maxDepth = 22;
+                win.saveDiveState();
+                var saved2 = win.loadSavedDive();
+                api.setDepth(0);
+                api.maxDepth = 0;
+                api.gameState = 'gas-setup';
+                api.setPendingResumeDive(saved2);
+                assert(api.resumeBannerVisible === true, 'banner must show again for a new pending dive');
+                api.resumeSavedDive();
+                assert(api.pendingResumeDive === null, 'resumeSavedDive() must clear _pendingResumeDive');
+                assert(api.resumeBannerVisible === false, 'banner must be hidden after Resume');
+                assert(Math.abs(api.depth - 22) < 0.5, 'Resume should restore depth from the saved state, got ' + api.depth);
+
+                // 7. Confirm was never called at any point in the resume flow.
+                assert(confirmWasCalled === false, 'window.confirm() must never be called throughout the resume flow');
+
+                return 'PASS — banner shown/hidden correctly, Resume/Discard both wired, confirm() never called';
+            } finally {
+                win.confirm = origConfirm;
+                api.setPendingResumeDive(null);
+                if (original !== null) win.localStorage.setItem(key, original);
+                else win.localStorage.removeItem(key);
+            }
+        }
+    },
     // ----------------------------------------------------------
     // TC-51-*: recommendBestGas() PO2 window + explicit sentinel
     // ----------------------------------------------------------

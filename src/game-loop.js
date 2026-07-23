@@ -925,21 +925,56 @@ initTissues();
 initParticles();
 resetDive();
 
-// Check for saved dive state on load
+// Issue #67: non-blocking resume-dive banner. Do not call confirm() at
+// script-load time — that blocks the first paint (especially painful on
+// mobile). Instead always proceed to 'gas-setup' immediately, and if a
+// saved dive was found stash it in _pendingResumeDive so the banner can
+// offer the choice non-blockingly. resumeSavedDive() / discardSavedDive()
+// are wired to the banner's Yes / Discard buttons below.
 var _savedDive = loadSavedDive();
-if (_savedDive) {
-    var resumeMsg = currentLang === 'de'
-        ? 'Ein gespeicherter Tauchgang wurde gefunden. Fortsetzen?'
-        : 'A saved dive was found. Resume?';
-    if (confirm(resumeMsg)) {
-        restoreDiveState(_savedDive);
+var _pendingResumeDive = _savedDive || null;
+gameState = 'gas-setup';
+
+function _updateResumeBanner() {
+    const el = document.getElementById('resume-dive-banner');
+    if (!el) return;
+    if (_pendingResumeDive && gameState === 'gas-setup') {
+        const txt = document.getElementById('resume-dive-banner-text');
+        const yes = document.getElementById('resume-dive-banner-yes');
+        const no = document.getElementById('resume-dive-banner-discard');
+        if (txt) txt.textContent = S('resumeBannerText');
+        if (yes) yes.textContent = S('resumeBannerYes');
+        if (no) no.textContent = S('resumeBannerDiscard');
+        el.style.display = 'flex';
     } else {
-        clearSavedDive();
-        gameState = 'gas-setup';
+        el.style.display = 'none';
     }
-} else {
-    gameState = 'gas-setup';
 }
+
+function resumeSavedDive() {
+    if (!_pendingResumeDive) return false;
+    const s = _pendingResumeDive;
+    _pendingResumeDive = null;
+    restoreDiveState(s);
+    _updateResumeBanner();
+    return true;
+}
+
+function discardSavedDive() {
+    if (!_pendingResumeDive) return false;
+    _pendingResumeDive = null;
+    clearSavedDive();
+    _updateResumeBanner();
+    return true;
+}
+
+(function _wireResumeBanner() {
+    const yes = document.getElementById('resume-dive-banner-yes');
+    const no = document.getElementById('resume-dive-banner-discard');
+    if (yes) yes.addEventListener('click', function() { resumeSavedDive(); });
+    if (no) no.addEventListener('click', function() { discardSavedDive(); });
+    _updateResumeBanner();
+})();
 
 requestAnimationFrame(gameLoop);
 
@@ -962,6 +997,21 @@ window.gameAPI = {
     get currentVerticalRate() { return currentVerticalRate; },
     get gameState() { return gameState; },
     set gameState(v) { gameState = v; },
+    // Issue #67: non-blocking resume-dive banner test hooks.
+    // `pendingResumeDive` / `resumeBannerVisible` are read-only observability;
+    // `resumeSavedDive` / `discardSavedDive` reproduce the button-click paths;
+    // `setPendingResumeDive` lets a test set up a pending dive without going
+    // through localStorage; `updateResumeBanner` re-runs the show/hide logic
+    // after the test mutates gameState.
+    get pendingResumeDive() { return _pendingResumeDive; },
+    get resumeBannerVisible() {
+        const el = document.getElementById('resume-dive-banner');
+        return !!(el && el.style.display !== 'none');
+    },
+    resumeSavedDive: function() { return resumeSavedDive(); },
+    discardSavedDive: function() { return discardSavedDive(); },
+    updateResumeBanner: function() { return _updateResumeBanner(); },
+    setPendingResumeDive: function(s) { _pendingResumeDive = s || null; _updateResumeBanner(); },
     get cssWidth() { return cssWidth; },
     // Test hook (issue #32): the test harness runs in a hidden iframe
     // whose innerWidth/Height is 0, so cssWidth/cssHeight stay 0 unless

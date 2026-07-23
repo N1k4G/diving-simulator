@@ -400,6 +400,10 @@ const STRINGS = {
     ctrlBasic: '[1-4] gas presets  [M] Mode (Rec/Tec/CCR)',
     startDive: 'Start Dive',
     langToggle: '[L] Language: English',
+    // Issue #67: non-blocking resume-dive banner (replaces blocking confirm())
+    resumeBannerText: 'A saved dive was found. Resume?',
+    resumeBannerYes: 'Resume',
+    resumeBannerDiscard: 'Discard',
     // Surface
     surfaceDescend: 'Press S to vent & descend',
     surfaceLoaded: 'loaded',
@@ -530,6 +534,10 @@ const STRINGS = {
     ctrlBasic: '[1-4] Gas-Presets  [M] Modus (Rec/Tec/CCR)',
     startDive: 'Tauchgang starten',
     langToggle: '[L] Sprache: Deutsch',
+    // Issue #67: non-blocking resume-dive banner (replaces blocking confirm())
+    resumeBannerText: 'Ein gespeicherter Tauchgang wurde gefunden. Fortsetzen?',
+    resumeBannerYes: 'Fortsetzen',
+    resumeBannerDiscard: 'Verwerfen',
     // Surface
     surfaceDescend: 'S dr\u00FCcken zum Ablassen & Abtauchen',
     surfaceLoaded: 'geladen',

@@ -501,3 +501,45 @@ canvas { display: block; }
   #touch-ccr-sp-down { bottom: 190px; left: 10px; width: 52px; height: 52px; }
   #touch-torch { bottom: 228px; right: 10px; width: 44px; height: 44px; }
 }
+
+/* Issue #67: non-blocking resume-dive banner shown on the gas-setup screen
+   when a saved dive was found on load. Replaces the previous blocking
+   confirm() dialog. Positioned as a top-of-screen strip so it does not
+   overlap the gas-setup controls. */
+#resume-dive-banner {
+    position: fixed;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(20, 40, 60, 0.94);
+    border: 1px solid rgba(140, 200, 220, 0.4);
+    border-radius: 8px;
+    color: #eef6f8;
+    font-family: 'Barlow Semi Condensed', sans-serif;
+    font-size: 14px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+    max-width: calc(100vw - 24px);
+}
+#resume-dive-banner button {
+    padding: 6px 12px;
+    background: rgba(120, 150, 170, 0.18);
+    border: 1px solid rgba(140, 170, 190, 0.32);
+    color: #eef6f8;
+    border-radius: 5px;
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+#resume-dive-banner button:hover { background: rgba(120, 150, 170, 0.32); }
+#resume-dive-banner button:active { transform: translateY(1px); }
+#resume-dive-banner #resume-dive-banner-yes {
+    background: #33ff99;
+    color: #012;
+    border-color: #33ff99;
+    font-weight: 600;
+}
