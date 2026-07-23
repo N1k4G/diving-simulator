@@ -183,6 +183,34 @@ let lastFrameTime = 0;
 let gasSwitchNotifyTime = 0;
 let gasSwitchNotifyText = '';
 
+// Issue #38: Contextual onboarding hint toasts.
+// One-time in-dive nudges triggered by state transitions (not timers). Each
+// hint id is remembered in localStorage under HINT_STORAGE_PREFIX + id so it
+// fires exactly once per browser. A single global HINT_DONE_KEY suppresses
+// the whole system (the "don't show again" button on the help overlay).
+// Rendering mirrors the gasSwitchNotify pattern at HINT_TOAST_Y_FRAC (below
+// the gas-switch banner so both can be visible simultaneously). Queue depth
+// is unbounded but only one hint is visible at a time; the queue drains one
+// entry per HINT_DISPLAY_SEC seconds via the pump call in updateDiving().
+const HINT_DISPLAY_SEC = 6;
+const HINT_STORAGE_PREFIX = 'diveSim_hint_';
+const HINT_DONE_KEY = 'diveSim_hintsDone';
+const HINT_TOAST_Y_FRAC = 0.36; // gas-switch sits at 0.30 — hints go below it
+// NDL threshold used by the "NDL dropping" trigger. Below 10 min the diver
+// should already start planning; the hint fires at the first crossing.
+const HINT_NDL_MIN = 10;
+// Minimum depth for the BCD hint — avoids firing during the surface descent
+// gate (where depth briefly ticks past 0 but the diver is not yet "in-dive").
+const HINT_BCD_MIN_DEPTH = 2;
+let hintNotifyTime = 0;
+let hintNotifyText = '';
+let hintQueue = [];
+// Per-dive edge state so a trigger fires at most once per dive AND, once its
+// localStorage flag is set, never again. Reset in resetDive() to re-detect
+// edges cleanly on the next dive — the localStorage guard inside
+// showHintOnce() still prevents any duplicate display.
+let hintEdges = { bcd: false, ndl: false, safetyStop: false, deco: false, overhead: false, current: false };
+
 // TASK-022: Fish system
 let fishes = [];
 let fishSpawnTimer = 0;
@@ -635,6 +663,17 @@ function showHtmlHelp() {
         content.appendChild(sec);
     }
 
+    // Issue #38: "Don't show hints again" opt-out. Uses the same button styling
+    // so the row reads as a coherent footer; setting HINT_DONE_KEY drops any
+    // currently-queued hint and prevents future ones for this browser.
+    var dismissBtn = document.createElement('button');
+    dismissBtn.className = 'help-close-btn';
+    dismissBtn.textContent = S('hintDismissBtn');
+    dismissBtn.setAttribute('data-hint-dismiss', '1');
+    dismissBtn.addEventListener('click', function() { dismissAllHints(); });
+    dismissBtn.addEventListener('touchstart', function(e) { e.preventDefault(); dismissAllHints(); }, { passive: false });
+    content.appendChild(dismissBtn);
+
     var closeBtn = document.createElement('button');
     closeBtn.className = 'help-close-btn';
     closeBtn.textContent = S('helpClose');
@@ -799,6 +838,15 @@ function resetDive() {
     exhaleEmitted = false;
     gasSwitchNotifyTime = 0;
     gasSwitchNotifyText = '';
+    // Issue #38: reset in-memory hint state (queue + timer + edge cache) so a
+    // new dive re-detects state-transition edges cleanly. The localStorage
+    // flags (HINT_STORAGE_PREFIX + id, HINT_DONE_KEY) are intentionally left
+    // untouched — hints persist "seen" across dives in the same browser, and
+    // the "don't show again" opt-out survives resetDive() by design.
+    hintNotifyTime = 0;
+    hintNotifyText = '';
+    hintQueue = [];
+    hintEdges = { bcd: false, ndl: false, safetyStop: false, deco: false, overhead: false, current: false };
     fishes = [];
     fishSpawnTimer = randomFishInterval();
     wildlife = [];
@@ -866,6 +914,66 @@ function resetDive() {
     ccrWarningBeepTriggered = false;
     initTissues();
     initParticles();
+}
+
+// Issue #38: onboarding-hint helpers.
+// -----------------------------------------------------------------------
+// showHintOnce(id, textKey)
+//   Enqueue the localized string S(textKey) for one-time display, unless:
+//     - the diver dismissed all hints (HINT_DONE_KEY is set), or
+//     - this specific hint id already fired at least once in this browser
+//       (HINT_STORAGE_PREFIX + id is set).
+//   The localStorage write happens BEFORE the queue push so a mid-frame
+//   crash still marks the hint as seen — a duplicate display is worse UX
+//   than a silent drop. localStorage failures (private mode, disabled
+//   storage) are swallowed; the hint simply won't persist across sessions
+//   but still respects the in-memory hintEdges guard for the current dive.
+// hintsDismissed() / dismissHints() / resetAllHints()
+//   Small wrappers used by the help overlay button and the test harness.
+function _hintsAreDismissed() {
+    try { return localStorage.getItem(HINT_DONE_KEY) === '1'; }
+    catch { return false; }
+}
+function showHintOnce(id, textKey) {
+    if (_hintsAreDismissed()) return false;
+    var key = HINT_STORAGE_PREFIX + id;
+    try {
+        if (localStorage.getItem(key) === '1') return false;
+        localStorage.setItem(key, '1');
+    } catch {
+        // Storage unavailable — fall back to the in-memory hintEdges guard
+        // (updateDiving() sets hintEdges[trigger]=true after calling
+        // showHintOnce, so the trigger won't re-fire this dive).
+    }
+    hintQueue.push(S(textKey));
+    return true;
+}
+function dismissAllHints() {
+    try { localStorage.setItem(HINT_DONE_KEY, '1'); } catch {}
+    // Also drop any queued/visible hint so the opt-out feels immediate.
+    hintQueue = [];
+    hintNotifyTime = 0;
+    hintNotifyText = '';
+}
+// Test helper — clears every persisted hint flag so a test can exercise
+// "first-time" behaviour repeatedly. Only clears keys under the
+// HINT_STORAGE_PREFIX namespace + HINT_DONE_KEY; unrelated localStorage
+// (e.g. SAVE_KEY) is left untouched.
+function resetAllHintsForTests() {
+    try {
+        var toRemove = [];
+        for (var i = 0; i < localStorage.length; i++) {
+            var k = localStorage.key(i);
+            if (k && (k === HINT_DONE_KEY || k.indexOf(HINT_STORAGE_PREFIX) === 0)) {
+                toRemove.push(k);
+            }
+        }
+        for (var j = 0; j < toRemove.length; j++) localStorage.removeItem(toRemove[j]);
+    } catch {}
+    hintQueue = [];
+    hintNotifyTime = 0;
+    hintNotifyText = '';
+    hintEdges = { bcd: false, ndl: false, safetyStop: false, deco: false, overhead: false, current: false };
 }
 
 function randomFishInterval() {

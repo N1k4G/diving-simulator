@@ -104,6 +104,80 @@ function updateDiving(dtReal) {
         gasSwitchNotifyTime -= dtReal;
     }
 
+    // Issue #38: Contextual onboarding hint pump.
+    // The queue drains one hint at a time. Each visible hint runs for
+    // HINT_DISPLAY_SEC real-seconds (dtReal, not dtDiveSeconds — the toast
+    // is a UX affordance, not a physics event, so it must not compress
+    // under fast-forward). We also refuse to *start* a new hint while
+    // fast-forwarding — the diver's attention is on the accelerated
+    // timeline, not on a nudge. If a hint was already visible when FF
+    // was toggled on, we let its timer finish naturally.
+    if (hintNotifyTime > 0) {
+        hintNotifyTime -= dtReal;
+        if (hintNotifyTime <= 0) {
+            hintNotifyTime = 0;
+            hintNotifyText = '';
+        }
+    }
+    if (hintNotifyTime <= 0 && hintQueue.length > 0 && !fastForwardActive) {
+        hintNotifyText = hintQueue.shift();
+        hintNotifyTime = HINT_DISPLAY_SEC;
+    }
+
+    // Edge-triggered onboarding hints (issue #38). Each block flips a
+    // per-dive edge flag AFTER calling showHintOnce so a trigger that
+    // already fired this dive stays silent even if the condition oscillates
+    // (e.g. NDL dipping below 10 min and back above 10 min inside a single
+    // dive would otherwise re-queue the hint every crossing). The
+    // localStorage guard inside showHintOnce is what enforces the
+    // once-per-BROWSER promise; hintEdges only prevents re-enqueue within
+    // the current dive.
+    //
+    // NOTE on timing: this runs before this tick's updateTissues()/
+    // updateOverheadState()/safety-stop block, so safetyStopNeeded/inOverhead/
+    // current.active/calculateNDL()/calculateCeiling() here reflect the END
+    // of the PREVIOUS tick, not this one — a hint can lag the true edge by
+    // one frame (~16ms), which is inconsequential for a UI tooltip. Moving
+    // this block later to eliminate that lag was tried and reverted: it
+    // causes setDepth()-driven test scenarios (and, in principle, any real
+    // scenario using a large single-frame depth jump) to read post-physics-
+    // clamp state instead of the value the diver/test actually asked for.
+    if (!hintEdges.bcd && depth > HINT_BCD_MIN_DEPTH) {
+        showHintOnce('bcd', 'hintBcd');
+        hintEdges.bcd = true;
+    }
+    if (!hintEdges.ndl) {
+        // Only meaningful once the diver is actually underwater — at the
+        // surface calculateNDL() returns 0 (surface pressure has no NDL),
+        // which would spuriously trip a "NDL dropping" hint on frame 0.
+        var _ndl = calculateNDL();
+        if (depth > HINT_BCD_MIN_DEPTH && _ndl > 0 && _ndl < HINT_NDL_MIN) {
+            showHintOnce('ndl', 'hintNdl');
+            hintEdges.ndl = true;
+        }
+    }
+    if (!hintEdges.safetyStop && safetyStopNeeded) {
+        showHintOnce('safetyStop', 'hintSafetyStop');
+        hintEdges.safetyStop = true;
+    }
+    if (!hintEdges.deco) {
+        // Deco obligation = there is a mandatory stop shallower than the
+        // diver. decoStop(calculateCeiling()) > 0 is the exact same check
+        // the dive computer uses to switch from NDL to STOP display.
+        if (decoStop(calculateCeiling()) > 0) {
+            showHintOnce('deco', 'hintDeco');
+            hintEdges.deco = true;
+        }
+    }
+    if (!hintEdges.overhead && inOverhead) {
+        showHintOnce('overhead', 'hintOverhead');
+        hintEdges.overhead = true;
+    }
+    if (!hintEdges.current && current.active) {
+        showHintOnce('current', 'hintCurrent');
+        hintEdges.current = true;
+    }
+
     // Variable rate movement — acceleration/deceleration
     // WP-020: Narcosis control impairment — random frame skips.
     // Issue #69: `narcDelay * 0.6` is a per-frame drop probability calibrated
@@ -1012,6 +1086,11 @@ window.gameAPI = {
     discardSavedDive: function() { return discardSavedDive(); },
     updateResumeBanner: function() { return _updateResumeBanner(); },
     setPendingResumeDive: function(s) { _pendingResumeDive = s || null; _updateResumeBanner(); },
+    // fastForwardActive is declared with `let`, so unlike `var`-declared
+    // globals it does NOT become a window property — tests must go through
+    // this accessor rather than assigning window.fastForwardActive directly.
+    get fastForwardActive() { return fastForwardActive; },
+    set fastForwardActive(v) { fastForwardActive = !!v; },
     get cssWidth() { return cssWidth; },
     // Test hook (issue #32): the test harness runs in a hidden iframe
     // whose innerWidth/Height is 0, so cssWidth/cssHeight stay 0 unless
@@ -1362,5 +1441,25 @@ window.gameAPI = {
     // them here so tests can pass the same context the render pipeline
     // draws into.
     get ctx() { return ctx; },
-    get canvas() { return canvas; }
+    get canvas() { return canvas; },
+    // Issue #38: Onboarding hint hooks. Tests need to (a) observe the
+    // queue/timer state after triggering an edge, (b) reset every persisted
+    // hint flag between test cases so a "first-time" scenario replays cleanly
+    // (same idea as the TC-66 save/restore test's key backup pattern), and
+    // (c) exercise the dismiss opt-out. hintEdges is exposed as a live
+    // reference so tests can pin one edge without touching the others.
+    get hintNotifyTime() { return hintNotifyTime; },
+    set hintNotifyTime(v) { hintNotifyTime = v; },
+    get hintNotifyText() { return hintNotifyText; },
+    set hintNotifyText(v) { hintNotifyText = v; },
+    get hintQueue() { return hintQueue; },
+    get hintEdges() { return hintEdges; },
+    get HINT_DISPLAY_SEC() { return HINT_DISPLAY_SEC; },
+    get HINT_STORAGE_PREFIX() { return HINT_STORAGE_PREFIX; },
+    get HINT_DONE_KEY() { return HINT_DONE_KEY; },
+    get HINT_NDL_MIN() { return HINT_NDL_MIN; },
+    get HINT_BCD_MIN_DEPTH() { return HINT_BCD_MIN_DEPTH; },
+    showHintOnce: showHintOnce,
+    dismissAllHints: dismissAllHints,
+    resetAllHintsForTests: resetAllHintsForTests
 };

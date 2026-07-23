@@ -8531,6 +8531,300 @@ tests = [
                 'CCR . should raise diluent volume back to 3; got ' + api.ccrState.dilCylVolume);
             return 'PASS — CCR [ ] , . still drive CCR state, never AMV/tank-volume';
         }
+    },
+    // ==========================================================
+    // Issue #38 — contextual onboarding hints (one-time, edge-triggered)
+    // ==========================================================
+    // Shared helper mirroring the TC-66 save/restore pattern: back up every
+    // localStorage key that touches the hint namespace, wipe it, and restore
+    // the whole snapshot afterwards. Tests need to exercise "first-time"
+    // behaviour repeatedly, and the harness must never leak state between
+    // test cases or into the surrounding page's localStorage.
+    {
+        id: 'TC-38-BCD-FIRST-DEPTH-QUEUES-HINT',
+        name: 'Issue #38 — first descent past 2m enqueues the BCD hint exactly once',
+        fn: function() {
+            api.resetAllHintsForTests();
+            setupDive([[0.21, 0, 200]]);
+            // Depth 0 → below the 2m gate, must NOT trigger.
+            api.setDepth(0);
+            api.updateDiving(0.033);
+            assert(!api.hintEdges.bcd, 'BCD edge must stay false at depth 0');
+            // Cross the 2m gate — hint should enqueue.
+            api.setDepth(3);
+            api.updateDiving(0.033);
+            assert(api.hintEdges.bcd, 'BCD edge should latch true after depth > 2m');
+            var pendingOrShown = (api.hintQueue.length + (api.hintNotifyTime > 0 ? 1 : 0));
+            assert(pendingOrShown === 1,
+                'exactly one BCD hint should be pending/shown, got queue=' + api.hintQueue.length + ' time=' + api.hintNotifyTime);
+            // A second frame at depth must NOT enqueue again.
+            api.updateDiving(0.033);
+            var stillOne = (api.hintQueue.length + (api.hintNotifyTime > 0 ? 1 : 0));
+            assert(stillOne === 1, 'BCD hint must not re-enqueue while edge is latched, got ' + stillOne);
+            return 'PASS — BCD edge fires exactly once when depth first crosses 2m';
+        }
+    },
+    {
+        id: 'TC-38-LOCALSTORAGE-SUPPRESSES-REPEAT',
+        name: 'Issue #38 — localStorage flag suppresses the hint on a fresh dive',
+        fn: function() {
+            api.resetAllHintsForTests();
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(3);
+            api.updateDiving(0.033);
+            assert(api.hintEdges.bcd, 'BCD edge should latch on first crossing');
+            // Simulate "next dive" — resetDive clears in-memory edges but
+            // must leave the localStorage flag intact. First-run of the
+            // BCD trigger on dive #2 must be a no-op.
+            api.resetDive();
+            assert(!api.hintEdges.bcd, 'resetDive must clear in-memory edge');
+            var win = document.getElementById('gameFrame').contentWindow;
+            var flag = win.localStorage.getItem(api.HINT_STORAGE_PREFIX + 'bcd');
+            assert(flag === '1', 'localStorage BCD flag must survive resetDive, got ' + flag);
+            // Push through the trigger again — showHintOnce must decline.
+            api.setDepth(3);
+            api.updateDiving(0.033);
+            var pendingOrShown = (api.hintQueue.length + (api.hintNotifyTime > 0 ? 1 : 0));
+            assert(pendingOrShown === 0,
+                'BCD hint must NOT re-enqueue on dive #2, got queue=' + api.hintQueue.length + ' time=' + api.hintNotifyTime);
+            return 'PASS — localStorage flag survives resetDive and suppresses repeat';
+        }
+    },
+    {
+        id: 'TC-38-NDL-TRIGGER-FIRES-ONCE',
+        name: 'Issue #38 — NDL trigger fires when NDL drops below 10 min',
+        fn: function() {
+            api.resetAllHintsForTests();
+            // diveMode and diveSite must both be pinned before setupDive() —
+            // neither is reset by resetDive() (diveSite by design, per its
+            // own comment in state.js), so a prior test in the suite leaving
+            // diveMode='ccr' or diveSite='cave' would break this test: an
+            // OC-shaped tank setup under CCR logic behaves nonsensically,
+            // and setDepth(30) against a shallow leaked site's floor (e.g.
+            // cave's floor is 10m at x=0) gets clamped back by the physics
+            // integrator every tick, producing a false ~800 m/min "ascent"
+            // that trips a barotrauma game-over within a handful of ticks.
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            // Hold at 30m for long enough to drop NDL below 10 min.
+            // At dt=0.5 real → 1.5 dive-sec/frame, ~20 min of dive-time is
+            // plenty to breach the NDL_MIN threshold.
+            var fired = false;
+            for (var i = 0; i < 900; i++) {
+                api.setDepth(30);
+                api.updateDiving(0.5);
+                if (api.hintEdges.ndl) { fired = true; break; }
+                if (api.gameState !== 'diving') break;
+            }
+            assert(fired, 'NDL edge should latch once NDL crosses below ' + api.HINT_NDL_MIN + ' min, got gameState=' + api.gameState + ' gameOverReason=' + api.gameOverReason);
+            var win = document.getElementById('gameFrame').contentWindow;
+            var flag = win.localStorage.getItem(api.HINT_STORAGE_PREFIX + 'ndl');
+            assert(flag === '1', 'localStorage NDL flag should be set after trigger fires');
+            return 'PASS — NDL trigger fires exactly once when NDL drops below threshold';
+        }
+    },
+    {
+        id: 'TC-38-SAFETY-STOP-EDGE-FIRES',
+        name: 'Issue #38 — safetyStopNeeded rising edge queues the safety-stop hint',
+        fn: function() {
+            api.resetAllHintsForTests();
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            // Below the 11m activation threshold — must NOT trigger.
+            api.setDepth(8);
+            api.maxDepth = 8;
+            api.updateDiving(0.033);
+            assert(!api.hintEdges.safetyStop, 'safetyStop edge must stay false while maxDepth < 11');
+            // Now push maxDepth past 11m, which flips safetyStopNeeded to
+            // true. The hint-trigger block runs before this tick's
+            // safety-stop logic (see the NOTE on timing in updateDiving()),
+            // so safetyStopNeeded itself lags the hint check by one tick —
+            // a second updateDiving() call is what lets the hint catch up,
+            // matching how the trigger behaves in real play (one frame,
+            // ~16ms, imperceptible).
+            api.setDepth(15);
+            api.maxDepth = 15;
+            api.updateDiving(0.033);
+            assert(api.safetyStopNeeded, 'safetyStopNeeded should latch true when maxDepth > 11');
+            api.updateDiving(0.033);
+            assert(api.hintEdges.safetyStop, 'safetyStop edge should latch true within one tick of the safetyStopNeeded rising edge');
+            return 'PASS — safety-stop hint fires on the safetyStopNeeded rising edge';
+        }
+    },
+    {
+        id: 'TC-38-DECO-CEILING-EDGE-FIRES',
+        name: 'Issue #38 — deco ceiling > 0 rising edge queues the deco hint',
+        fn: function() {
+            api.resetAllHintsForTests();
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            // Hold at 40m long enough to accrue deco obligation
+            var fired = false;
+            for (var i = 0; i < 3000; i++) {
+                api.setDepth(40);
+                api.updateDiving(0.5);
+                if (api.hintEdges.deco) { fired = true; break; }
+                if (api.gameState !== 'diving') break;
+            }
+            assert(fired, 'deco edge should latch once decoStop(calculateCeiling()) > 0, got gameState=' + api.gameState + ' gameOverReason=' + api.gameOverReason);
+            return 'PASS — deco hint fires on the first mandatory-stop edge';
+        }
+    },
+    {
+        id: 'TC-38-OVERHEAD-EDGE-FIRES',
+        name: 'Issue #38 — inOverhead rising edge queues the overhead hint',
+        fn: function() {
+            api.resetAllHintsForTests();
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.inOverhead = false;
+            api.setDepth(5);
+            api.updateDiving(0.033);
+            assert(!api.hintEdges.overhead, 'overhead edge must stay false before entering overhead');
+            // Pin inOverhead via the documented test hook (mirrors TC-33-*).
+            api.inOverhead = true;
+            api.updateDiving(0.033);
+            assert(api.hintEdges.overhead, 'overhead edge should latch on rising edge');
+            return 'PASS — overhead hint fires exactly once on inOverhead rising edge';
+        }
+    },
+    {
+        id: 'TC-38-CURRENT-EDGE-FIRES',
+        name: 'Issue #38 — current.active rising edge queues the current hint',
+        fn: function() {
+            api.resetAllHintsForTests();
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(10);
+            api.updateDiving(0.033);
+            assert(!api.hintEdges.current, 'current edge must stay false before current triggers');
+            // triggerCurrent is the documented Phase-B test hook (used by
+            // TC-Phase-B-*), also drives current.active = true.
+            api.triggerCurrent({ direction: 1, strength: 0.3, depthMin: 0, depthMax: 100, duration: 60 });
+            api.updateDiving(0.033);
+            assert(api.hintEdges.current, 'current edge should latch on current.active rising edge');
+            return 'PASS — current hint fires exactly once on current.active rising edge';
+        }
+    },
+    {
+        id: 'TC-38-NO-HINT-DURING-FAST-FORWARD',
+        name: 'Issue #38 — hint queue does not start a new toast while fast-forwarding',
+        fn: function() {
+            api.resetAllHintsForTests();
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            // updateDiving()'s own fast-forward eligibility gate (top of the
+            // function) force-sets fastForwardActive = false every tick
+            // unless the diver is genuinely at an active deco/safety stop —
+            // so this test must build a real safety-stop-active scenario
+            // (same setup as TC-30) rather than just poking the flag at an
+            // arbitrary depth, or the eligibility gate silently cancels it
+            // before the hint pump ever sees it as true.
+            api.setDepth(15);
+            api.clearKeys();
+            for (var i = 0; i < 10; i++) {
+                api.setDepth(15);
+                api.updateDiving(0.5);
+            }
+            assert(api.safetyStopNeeded === true, 'setup: safetyStopNeeded should be true at 15m');
+            api.setDepth(5);
+            api.updateDiving(0.033);
+            assert(api.safetyStopCountdownStarted === true, 'setup: safety-stop countdown should have started at 5m');
+            // The setup above genuinely trips the built-in safetyStop hint
+            // trigger (and BCD, since depth > HINT_BCD_MIN_DEPTH throughout)
+            // and they auto-display immediately since fast-forward wasn't
+            // active yet — clear hint state again so the assertions below
+            // start from a clean slate, without losing the safety-stop-
+            // active physics state we just built. Mark EVERY edge as
+            // already-fired (mutating the live hintEdges object the getter
+            // returns): safetyStopNeeded stays true for the rest of this
+            // dive, and current.active can roll on randomly during any
+            // updateDiving() tick (Phase B's current mechanic) — either
+            // would otherwise re-trigger and enqueue an unwanted extra hint
+            // on the fast-forward tick below, unrelated to what this test
+            // is actually checking.
+            api.resetAllHintsForTests();
+            api.hintEdges.bcd = true;
+            api.hintEdges.ndl = true;
+            api.hintEdges.safetyStop = true;
+            api.hintEdges.deco = true;
+            api.hintEdges.overhead = true;
+            api.hintEdges.current = true;
+            // Force-enqueue a hint directly (independent of trigger paths).
+            api.showHintOnce('bcd', 'hintBcd');
+            assert(api.hintQueue.length === 1, 'BCD hint should be queued for display');
+            assert(api.hintNotifyTime === 0, 'no hint should be visible yet');
+            // NOTE: fastForwardActive is declared with `let` in state.js, so
+            // unlike `var`-declared globals it does NOT become a window
+            // property — must go through the gameAPI accessor, not
+            // window.fastForwardActive (which would silently no-op).
+            api.fastForwardActive = true;
+            api.setDepth(5);
+            api.updateDiving(0.033);
+            assert(api.fastForwardActive === true, 'setup: fastForwardActive must still be true — depth must stay in the active safety-stop window for the eligibility gate to allow it');
+            assert(api.hintNotifyTime === 0,
+                'fast-forward must suppress the toast start; got hintNotifyTime=' + api.hintNotifyTime);
+            assert(api.hintQueue.length === 1,
+                'hint must remain queued for later; got queue length ' + api.hintQueue.length);
+            // Cancelling fast-forward lets the pump drain the queue.
+            api.fastForwardActive = false;
+            api.updateDiving(0.033);
+            assert(api.hintNotifyTime > 0,
+                'once fast-forward ends the pump should start the toast; got ' + api.hintNotifyTime);
+            assert(api.hintQueue.length === 0, 'queue should drain once toast starts');
+            return 'PASS — fast-forward suppresses the pump but does not drop the hint';
+        }
+    },
+    {
+        id: 'TC-38-DISMISS-SURVIVES-RESETDIVE',
+        name: 'Issue #38 — "don\'t show hints again" opt-out survives resetDive()',
+        fn: function() {
+            api.resetAllHintsForTests();
+            setupDive([[0.21, 0, 200]]);
+            api.dismissAllHints();
+            var win = document.getElementById('gameFrame').contentWindow;
+            var doneFlag = win.localStorage.getItem(api.HINT_DONE_KEY);
+            assert(doneFlag === '1', 'HINT_DONE_KEY must be set after dismissAllHints');
+            // A fresh dive must respect the opt-out.
+            api.resetDive();
+            var stillDone = win.localStorage.getItem(api.HINT_DONE_KEY);
+            assert(stillDone === '1', 'HINT_DONE_KEY must survive resetDive, got ' + stillDone);
+            // Trigger the BCD condition — showHintOnce must decline.
+            api.setDepth(3);
+            api.updateDiving(0.033);
+            var pendingOrShown = (api.hintQueue.length + (api.hintNotifyTime > 0 ? 1 : 0));
+            assert(pendingOrShown === 0,
+                'dismissed hints must NOT re-enqueue; got queue=' + api.hintQueue.length + ' time=' + api.hintNotifyTime);
+            return 'PASS — dismiss opt-out is permanent and survives resetDive';
+        }
+    },
+    {
+        id: 'TC-38-HINT-TIMER-COUNTDOWN',
+        name: 'Issue #38 — visible hint counts down in real seconds and clears text',
+        fn: function() {
+            api.resetAllHintsForTests();
+            setupDive([[0.21, 0, 200]]);
+            api.showHintOnce('bcd', 'hintBcd');
+            // Advance the pump so the toast starts.
+            api.setDepth(0);
+            api.updateDiving(0.033);
+            assert(api.hintNotifyTime > 0, 'toast should be visible after pump');
+            assert(api.hintNotifyText && api.hintNotifyText.length > 0, 'notify text should be non-empty');
+            var startT = api.hintNotifyTime;
+            // Drive a large enough real-time chunk to burn the full display.
+            for (var i = 0; i < 50; i++) api.updateDiving(0.5);
+            assert(api.hintNotifyTime === 0, 'timer should hit 0 after HINT_DISPLAY_SEC elapses, got ' + api.hintNotifyTime);
+            assert(api.hintNotifyText === '', 'text should clear once timer hits 0, got "' + api.hintNotifyText + '"');
+            assert(startT <= api.HINT_DISPLAY_SEC + 0.01,
+                'initial timer should equal HINT_DISPLAY_SEC, got ' + startT);
+            return 'PASS — hint runs for ' + api.HINT_DISPLAY_SEC + 's then clears';
+        }
     }
 ];
 
