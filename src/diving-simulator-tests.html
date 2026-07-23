@@ -7794,6 +7794,86 @@ tests = [
             }
             return 'PASS — malformed save rejected + cleared, well-formed save still round-trips';
         }
+    },
+    // ----------------------------------------------------------
+    // TC-51-*: recommendBestGas() PO2 window + explicit sentinel
+    // ----------------------------------------------------------
+    {
+        id: 'TC-51-HYPOXIC-NOT-RECOMMENDED-SHALLOW',
+        name: 'Issue #51 — recommendBestGas() does not recommend a hypoxic gas at shallow depth',
+        fn: function() {
+            // Tx 10/70 at the surface: PO2 = 0.10 * 1.0 = 0.10, below PO2_HYPOXIA (0.16).
+            // Old behaviour: still returned it as "BEST" because only the upper bound
+            // was checked (po2 <= 1.4). New behaviour: rejected by the lower bound.
+            api.diveMode = 'tec';
+            setupDive([[0.21, 0, 200], [0.10, 0.70, 200]]);
+            api.setDepth(0);
+            api.activeTank = 0;
+            var best = api.recommendBestGas();
+            assert(best !== 1, 'hypoxic Tx 10/70 (PO2=0.10 at surface) must NOT be recommended, got tank ' + best);
+            // Air (PO2=0.21 at surface) sits inside the window, so it is the only
+            // valid candidate — recommendBestGas() picks it.
+            assert(best === 0, 'Air (fO2=0.21) is the only in-window gas at the surface, expected tank 0, got ' + best);
+            return 'PASS — Tx 10/70 rejected at surface, Air selected as best';
+        }
+    },
+    {
+        id: 'TC-51-INWINDOW-GAS-STILL-BEST',
+        name: 'Issue #51 — a gas inside the PO2 window is still correctly chosen as best',
+        fn: function() {
+            // Regression guard for the standard multi-tank selection: at 25m,
+            // pAmb = 3.5. Air PO2 = 0.735, EAN36 PO2 = 1.26 — both inside
+            // [PO2_HYPOXIA, PO2_HIGH]. The higher-fO2 tank must still win.
+            api.diveMode = 'tec';
+            setupDive([[0.21, 0, 200], [0.36, 0, 200]]);
+            api.setDepth(25);
+            api.activeTank = 0;
+            var best = api.recommendBestGas();
+            assert(best === 1, 'EAN36 must still be picked as best in-window gas at 25m, got ' + best);
+            return 'PASS — EAN36 picked as best in-window gas at 25m';
+        }
+    },
+    {
+        id: 'TC-51-NO-SAFE-GAS-RETURNS-SENTINEL',
+        name: 'Issue #51 — "no safe gas available" returns the -1 sentinel, not activeTank',
+        fn: function() {
+            // Two tanks at 15m (pAmb=2.5), both outside the operational
+            // window: extreme hypoxic Tx 5/85 → PO2 0.125 < PO2_HYPOXIA (0.16),
+            // and 100% O2 → PO2 2.5 > PO2_HIGH (1.6). No safe candidate
+            // exists, so the sentinel -1 must be returned rather than silently
+            // falling back to the (unsafe) activeTank.
+            api.diveMode = 'tec';
+            setupDive([[0.05, 0.85, 200], [1.00, 0, 200]]);
+            api.setDepth(15);
+            api.activeTank = 0;
+            var best = api.recommendBestGas();
+            assert(best === -1, 'recommendBestGas() must return -1 when every non-empty tank is out of window, got ' + best);
+            // And when every tank is EMPTY, still -1 (not a silent fallback to activeTank).
+            api.tanks[0].gasRemaining = 0;
+            api.tanks[1].gasRemaining = 0;
+            var bestAllEmpty = api.recommendBestGas();
+            assert(bestAllEmpty === -1, 'recommendBestGas() must return -1 when every tank is empty, got ' + bestAllEmpty);
+            return 'PASS — sentinel -1 returned both when all gases OOB and when all tanks empty';
+        }
+    },
+    {
+        id: 'TC-51-AUTO-SWITCH-NEVER-SILENTLY-HYPOXIC',
+        name: 'Issue #51 — auto-switch on empty tank never silently picks a hypoxic gas',
+        fn: function() {
+            // Air active tank (safe at surface), plus a hypoxic Tx 10/70 spare.
+            // Drain the active tank so updateDiving()'s auto-switch path fires.
+            // Old behaviour: fell into the "any tank with gas" fallback loop and
+            // silently switched to the hypoxic bottle, then hypoxia timer tripped
+            // as if the diver had chosen it. New behaviour: activeTank stays put.
+            api.diveMode = 'tec';
+            setupDive([[0.21, 0, 200], [0.10, 0.70, 200]]);
+            api.setDepth(0);
+            api.activeTank = 0;
+            api.tanks[0].gasRemaining = 0;
+            api.updateDiving(0.033);
+            assert(api.activeTank === 0, 'auto-switch must NOT silently jump to the hypoxic tank; activeTank should stay at 0, got ' + api.activeTank);
+            return 'PASS — auto-switch declined the hypoxic fallback and stayed on empty active tank';
+        }
     }
 ];
 

@@ -8071,14 +8071,22 @@ function drawDiveComputer() {
     }
 
     // Row 5: Best gas indicator (label color, right-aligned)
+    // Issue #51: recommendBestGas() returns -1 when no tank has a PO2 inside
+    // the operational window. Surface that as "NO SAFE GAS" in warning colour
+    // rather than pointing at some other tank as "Best".
     cx.font = labelFont; cx.textAlign = 'right';
-    var bestText = isBest ? 'Best: \u2713' : ('Best: T' + (bestIdx + 1));
-    if (!isBest && bestIdx !== null && bestIdx !== activeTank) {
+    var bestText;
+    if (bestIdx === -1) {
+        bestText = 'NO SAFE GAS';
+        cx.fillStyle = '#ff9933';
+    } else if (isBest) {
+        bestText = 'Best: \u2713';
+        cx.fillStyle = '#33ff99';
+    } else {
+        bestText = 'Best: T' + (bestIdx + 1);
         // Blink green/grey every 500ms if a better tank is available
         var blink = Math.floor(Date.now() / 500) % 2 === 0;
         cx.fillStyle = blink ? '#33ff99' : '#888';
-    } else {
-        cx.fillStyle = isBest ? '#33ff99' : labelColor;
     }
     cx.fillText(bestText, box0X + box0W - padR, bY5);
     } // end OC/CCR gas box
