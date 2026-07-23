@@ -46,6 +46,17 @@ CI (`.github/workflows/pr.yml`) runs lint, tests, and review screenshots on
 every PR — including PRs from forks. `main` is protected, so all changes land
 through a reviewed, green PR.
 
+### A note on release tagging and fast merges
+
+`deploy.yml`'s `release` job uses `concurrency: production-deploy` (needed so
+production deploys never run concurrently). A side effect: if two PRs merge to
+`main` in quick succession, only the *latest* queued workflow run survives —
+the middle run (and its release tag) is skipped. Lint/tests/deploy for that
+PR still ran and succeeded via the run that superseded it in the queue; only
+the discrete GitHub Release/tag for that specific commit is skipped. This is
+an accepted tradeoff given this repo's merge frequency, not a bug — if you
+notice a version number "jump," that's why.
+
 ## License
 
 By contributing, you agree that your contributions will be licensed under the
