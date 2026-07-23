@@ -6034,7 +6034,12 @@ function drawFeatures() {
             if (scy > -90 && scy < H + 40) { drawContactShadow(cx, ffx, scy, 42, 8, 0.14); drawSoftCoral(cx, ffx, scy, f.color, (f.x || 0)); }
         } else if (f.kind === 'gorgonian') {
             var gy = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (gy > -160 && gy < H + 160) { drawContactShadow(cx, ffx, gy, 44, 9, 0.15); drawGorgonian(cx, ffx, gy, f.side, f.color, (f.x || 0)); }
+            // Issue #59: `f.scale` (optional) lets a single hand-placed hero
+            // gorgonian read distinctly larger than the coralVariation range.
+            var gScale = (typeof f.scale === 'number') ? f.scale : 1;
+            var gShadowW = 44 * gScale, gShadowH = 9 * Math.sqrt(gScale);
+            var gCull = 160 * Math.max(1, gScale);
+            if (gy > -gCull && gy < H + gCull) { drawContactShadow(cx, ffx, gy, gShadowW, gShadowH, 0.15); drawGorgonian(cx, ffx, gy, f.side, f.color, (f.x || 0), f.scale); }
         } else if (f.kind === 'barrelSponge') {
             var bsy = diverScreenY + ((f.d || 0) - depth) / mpp;
             if (bsy > -80 && bsy < H + 40) { drawContactShadow(cx, ffx, bsy, 42, 9, 0.17); drawBarrelSponge(cx, ffx, bsy, f.color, (f.x || 0)); }
@@ -6073,6 +6078,19 @@ function drawFeatures() {
             // Issue #33: hanging net — cosmetic only, no collision.
             var fnetY = diverScreenY + ((f.d || 0) - depth) / mpp;
             if (fnetY > -60 && fnetY < H + 200) drawNet(cx, ffx, fnetY, (f.x || 0), f);
+        } else if (f.kind === 'caveColumn') {
+            // Issue #59: hand-placed cathedral columns. Reuses #32's
+            // _drawSpeleothemColumn so the shape stays consistent with the
+            // ambient speleothem field. Purely cosmetic — no collision.
+            // Feature fields: {x, dTop, dBottom, wTop, wBot, seed}.
+            var fdTop = (typeof f.dTop === 'number') ? f.dTop : (f.d || 0);
+            var fdBot = (typeof f.dBottom === 'number') ? f.dBottom : (f.d || 0) + 6;
+            var ftopY = diverScreenY + (fdTop - depth) / mpp;
+            var fbotY = diverScreenY + (fdBot - depth) / mpp;
+            var fwTop = (typeof f.wTop === 'number') ? f.wTop : 8;
+            var fwBot = (typeof f.wBot === 'number') ? f.wBot : 10;
+            var fseed = (typeof f.seed === 'number') ? f.seed : (f.x || 0);
+            if (fbotY > -40 && ftopY < H + 40) _drawSpeleothemColumn(cx, ffx, ftopY, fbotY, fwTop, fwBot, fseed);
         }
         if (_needsAlphaGate) cx.restore();
     }
@@ -6805,13 +6823,17 @@ function drawSoftCoral(cx, x, y, color, worldX) {
     cx.restore();
 }
 
-function drawGorgonian(cx, x, y, side, color, worldX) {
+function drawGorgonian(cx, x, y, side, color, worldX, scaleOverride) {
     // Issue #35: per-instance variation layered ON TOP of #57 sway.
     // No mirror here — `side` already anchors direction to the wall.
+    // Issue #59: `scaleOverride` (optional) replaces the coralVariation
+    // scale entirely so a single hero gorgonian can read distinctly larger
+    // than the [0.80, 1.25] variation range. Undefined → normal variation.
     var v = coralVariation(worldX);
+    var drawScale = (typeof scaleOverride === 'number') ? scaleOverride : v.scale;
     cx.save();
     cx.translate(x, y);
-    cx.scale(v.scale, v.scale);
+    cx.scale(drawScale, drawScale);
     cx.lineCap = 'round';
     var col = color || REEF_PAL.gorgBright;
     col = tintCoralColor(col, v.brightness, v.hueShift) || col;

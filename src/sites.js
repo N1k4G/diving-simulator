@@ -66,15 +66,30 @@ var DIVE_SITES = {
       // Beach scene on the dry sand to the left (above the waterline)
       {kind:'towel',x:-17},
       {kind:'umbrella',x:-13},
+      // Issue #59 — HERO A (Entry/Beach): a second towel further right so
+      // the beach silhouette reads as a lived-in area rather than a single
+      // umbrella. Still no new large object, still all above the waterline.
+      {kind:'towel',x:-6},
       // D3: denser seagrass beds along the sandy descent
+      // Issue #59 — HERO B (Meadow): tightened + extended slightly so the
+      // meadow reads as a deliberate band that clearly ends before the
+      // Boulder Gate. Adds two anchor tufts at x=82,86 to bridge the
+      // seagrass belt to the transitional coral tufts at x=85,90.
       {kind:'seagrass',x:18,d:5},{kind:'seagrass',x:25,d:6},
       {kind:'seagrass',x:32,d:6},{kind:'seagrass',x:45,d:8},
       {kind:'seagrass',x:52,d:8},{kind:'seagrass',x:60,d:9},
       {kind:'seagrass',x:68,d:10},{kind:'seagrass',x:78,d:11},
+      {kind:'seagrass',x:82,d:12},{kind:'seagrass',x:86,d:13},
       {kind:'coral',x:85,d:13},{kind:'coral',x:90,d:13},
+      // Issue #59 — HERO D (Wreck + Anchor cluster): a small coral tuft
+      // nestled against the wreck's stern-end (x=152 sits just past the
+      // wreckSmall structure at x=135..152) and one behind the anchor
+      // knit the wreck→anchor pair into one destination area.
+      {kind:'coral',   x:152,d:28},
       // Landmarks right of the small wreck: an old admiralty anchor half-buried
       // in the sand, with a little life clustered around the outcrop.
       {kind:'anchor',  x:156},
+      {kind:'seagrass',x:159,d:29},
       {kind:'seagrass',x:163,d:29},{kind:'seagrass',x:168,d:29},
       {kind:'coral',   x:180,d:30}
     ],
@@ -90,25 +105,52 @@ var DIVE_SITES = {
       { id: 'shore_entry',  x1: -20, x2: 25,  d1: 0,  d2: 4,  priority: 10, blend: 1, tags: ['shore','sand','sunlit','shallow'] },
       { id: 'shore_grass',  x1: 10,  x2: 88,  d1: 3,  d2: 13, priority: 10, blend: 2, tags: ['shore','sand','seagrass','shallow'] },
       { id: 'shore_slope',  x1: 55,  x2: 118, d1: 10, d2: 22, priority: 8,  blend: 2, tags: ['shore','sand','slope'] },
+      // Issue #59 — HERO C (Boulder Gate): a narrow, higher-priority sub-zone
+      // wrapping the two AABB rocks at x=100..118 and x=122..132 so extra
+      // edge-stone set-dressing can be scattered ONLY here to visually thicken
+      // the transition. Priority 14 wins over the surrounding shore_slope
+      // (priority 8) but loses to shore_deep (priority 12? — no, priority 14
+      // > 12 wins). We deliberately size the rectangle only wide enough for
+      // the two rocks plus a small skirt to either side; shore_deep still
+      // owns everything east of x=134 (the wreck cluster).
+      { id: 'shore_boulder_gate', x1: 95, x2: 134, d1: 12, d2: 22, priority: 14, blend: 2, tags: ['shore','sand','boulder-gate','transition'] },
       { id: 'shore_deep',   x1: 90,  x2: 190, d1: 18, d2: 32, priority: 12, blend: 2, tags: ['shore','sand','deep','wreck-debris'] }
     ],
     // Issue #54 — local atmosphere profiles keyed by visualZone id.
+    // Issue #59 tuning: pushed shore_entry a touch brighter (ambient/visibility)
+    // to make the beach silhouette pop as the clearest bright area. Added a
+    // very light "warm cast" to shore_boulder_gate so the rock-transition
+    // reads slightly warmer than the adjacent slope without changing depth
+    // atmospherics.
     atmosphereProfiles: {
-      shore_entry: { visibility: 1.05, tint: [0.98, 1.04, 0.98], particleDensity: 1.15, particleBrightness: 1.10, ambient: 1.10 },
-      shore_grass: { visibility: 0.95, tint: [0.98, 1.02, 0.98], particleDensity: 1.25, particleBrightness: 1.00, ambient: 1.00 },
-      shore_slope: { visibility: 1.00, tint: [1.00, 1.00, 1.00], particleDensity: 1.00, particleBrightness: 1.00, ambient: 0.95 },
-      shore_deep:  { visibility: 0.85, tint: [0.90, 0.95, 1.00], particleDensity: 0.90, particleBrightness: 0.80, ambient: 0.80 }
+      shore_entry:        { visibility: 1.10, tint: [1.00, 1.05, 0.98], particleDensity: 1.10, particleBrightness: 1.15, ambient: 1.15 },
+      shore_grass:        { visibility: 0.95, tint: [0.98, 1.02, 0.98], particleDensity: 1.25, particleBrightness: 1.00, ambient: 1.00 },
+      shore_slope:        { visibility: 1.00, tint: [1.00, 1.00, 1.00], particleDensity: 1.00, particleBrightness: 1.00, ambient: 0.95 },
+      shore_boulder_gate: { visibility: 0.98, tint: [1.02, 0.98, 0.94], particleDensity: 1.05, particleBrightness: 0.95, ambient: 0.92 },
+      shore_deep:         { visibility: 0.85, tint: [0.90, 0.95, 1.00], particleDensity: 0.90, particleBrightness: 0.80, ambient: 0.80 }
     },
     // Issue #55 — decorationRules: deterministic micro set-dressing (shells,
     // pebbles, small rocks, grass tufts, sand-ripple accents) scattered
     // within the visualZones above. Purely cosmetic filler between the
     // hand-placed features array; never touches physics/collision/gameplay.
+    // Issue #59 tuning:
+    //   • shore_entry_shells: slightly denser (0.5→0.6) + tighter spacing so
+    //     the shoreline reads a hair more populated with lived-in detail.
+    //   • shore_grass_micro: denser (0.6→0.85) and tighter spacing so the
+    //     meadow reads as visibly thicker than the surrounding zones.
+    //   • shore_boulder_gate_stones (new): scatters smallRocks/pebbles ONLY
+    //     inside the new shore_boulder_gate zone so the AABB rocks read as
+    //     a grouped "gate" instead of two isolated boulders.
+    //   • shore_deep_debris: mild density bump (0.35→0.45) so the deep area
+    //     around the small wreck/anchor reads as a cohesive debris field.
     decorationRules: [
-      { id: 'shore_entry_shells', zone: 'shore_entry', spacing: 2.2, density: 0.5, seed: 1101, surface: 'floor',
+      { id: 'shore_entry_shells', zone: 'shore_entry', spacing: 1.9, density: 0.6, seed: 1101, surface: 'floor',
         props: [{kind:'shell',weight:2},{kind:'pebble',weight:3},{kind:'smallRock',weight:1}] },
-      { id: 'shore_grass_micro', zone: 'shore_grass', spacing: 1.8, density: 0.6, seed: 1102, surface: 'floor',
+      { id: 'shore_grass_micro', zone: 'shore_grass', spacing: 1.4, density: 0.85, seed: 1102, surface: 'floor',
         props: [{kind:'grassTuft',weight:3},{kind:'pebble',weight:4},{kind:'sandRippleAccent',weight:2}] },
-      { id: 'shore_deep_debris', zone: 'shore_deep', spacing: 3.0, density: 0.35, seed: 1103, surface: 'floor',
+      { id: 'shore_boulder_gate_stones', zone: 'shore_boulder_gate', spacing: 1.8, density: 0.6, seed: 1104, surface: 'floor',
+        props: [{kind:'smallRock',weight:4},{kind:'pebble',weight:3},{kind:'debrisSpeck',weight:1}] },
+      { id: 'shore_deep_debris', zone: 'shore_deep', spacing: 2.5, density: 0.45, seed: 1103, surface: 'floor',
         props: [{kind:'smallRock',weight:3},{kind:'pebble',weight:2},{kind:'debrisSpeck',weight:2}] }
     ]
   },
@@ -162,13 +204,23 @@ var DIVE_SITES = {
       {kind:'barrelSponge',x:12,  d:30, color:'#9c5a3a'},
       {kind:'barrelSponge',x:-12, d:30, color:'#8a4828'},
       // ---- MID WALL (37-52 m): big fans + an off-wall cloud ----
+      // Issue #59 — HERO B (Signature Gorgonian): ONE deliberately oversized
+      // gorgonian anchored on the right wall at 32 m. `scale:2.15` replaces
+      // the coralVariation range (0.80..1.25) entirely — makes this fan
+      // clearly bigger than any other individual instance and a natural
+      // orientation landmark for the upper/mid wall boundary.
+      {kind:'gorgonian',   x:14,  d:32, side:'right', color:'#d84a6a', scale:2.15},
       {kind:'gorgonian',   x:13,  d:37, side:'right', color:'#c83a5a'},
       {kind:'gorgonian',   x:-13, d:37, side:'left',  color:'#882a3a'},
       {kind:'softCoral',   x:15,  d:52, color:'#7a4a8a'},
       {kind:'anthiasCloud',x:-17, d:45, w:200, h:130, count:80, dir:1},
       // ---- DEEP SENTINELS (60+ m): sparse ----
+      // Issue #59 — HERO D (Deep Sentinel): ONE additional dark gorgonian
+      // at 78 m gives the deep zone a definitive "last landmark" beat
+      // beneath the 60 m pair without adding overall density.
       {kind:'gorgonian',   x:16,  d:60, side:'right', color:'#882a3a'},
-      {kind:'softCoral',   x:-16, d:60, color:'#7a4a8a'}
+      {kind:'softCoral',   x:-16, d:60, color:'#7a4a8a'},
+      {kind:'gorgonian',   x:-18, d:78, side:'left',  color:'#4a1e2c', scale:1.6}
     ],
 
     surfaceMarker: 'boat',
@@ -184,28 +236,45 @@ var DIVE_SITES = {
     visualZones: [
       { id: 'reef_plateau',    x1: -8,   x2: 8,   d1: 0,  d2: 8,          priority: 20, blend: 1, tags: ['reef','sunlit','plateau','coral'] },
       { id: 'reef_upper_wall', x1: -16,  x2: 16,  d1: 8,  d2: 30,         priority: 10, blend: 2, tags: ['reef','wall','upper','coral'] },
+      // Issue #59 — HERO C (Vertical Crack Cue): a tall thin higher-priority
+      // sub-zone along the LEFT flank spanning the upper→mid wall boundary.
+      // Data-only, purely visual: gets a darker/cooler atmosphere profile so
+      // the strip reads as a shadowed fissure. NOT a collision hole, NOT a
+      // new passable cave — the floor profile and structures are unchanged.
+      { id: 'reef_crack_cue',  x1: -14.5, x2: -13.5, d1: 15, d2: 40,       priority: 22, blend: 2, tags: ['reef','wall','crack','shadow'] },
       { id: 'reef_mid_wall',   x1: -20,  x2: 20,  d1: 30, d2: 55,         priority: 10, blend: 2, tags: ['reef','wall','mid'] },
       { id: 'reef_deep_wall',  x1: -24,  x2: 24,  d1: 55, d2: 90,         priority: 10, blend: 3, tags: ['reef','wall','deep'] },
       { id: 'reef_blue_water', x1: -100, x2: 100, d1: 0,  d2: MAX_DEPTH,  priority: 0,  blend: 0, tags: ['open-water','blue'] }
     ],
     // Issue #54 — local atmosphere profiles keyed by visualZone id.
+    // Issue #59 tuning:
+    //   • reef_deep_wall: slightly cooler + darker (0.75→0.68 ambient) to
+    //     read as an emptier "sentinel" area rather than "same, just darker".
+    //   • reef_crack_cue: dark cool profile so the fissure strip reads as
+    //     a shadowed vertical break in the wall (purely visual).
     atmosphereProfiles: {
       reef_plateau:    { visibility: 1.15, tint: [1.02, 1.05, 1.02], particleDensity: 0.75, particleBrightness: 1.15, ambient: 1.10 },
       reef_upper_wall: { visibility: 1.05, tint: [0.98, 1.00, 1.02], particleDensity: 0.85, particleBrightness: 1.05, ambient: 1.00 },
+      reef_crack_cue:  { visibility: 0.70, tint: [0.80, 0.88, 1.02], particleDensity: 0.45, particleBrightness: 0.60, ambient: 0.55 },
       reef_mid_wall:   { visibility: 0.95, tint: [0.92, 0.96, 1.02], particleDensity: 0.85, particleBrightness: 0.90, ambient: 0.85 },
-      reef_deep_wall:  { visibility: 0.85, tint: [0.82, 0.92, 1.05], particleDensity: 0.55, particleBrightness: 0.75, ambient: 0.75 },
+      reef_deep_wall:  { visibility: 0.80, tint: [0.78, 0.88, 1.05], particleDensity: 0.45, particleBrightness: 0.70, ambient: 0.68 },
       reef_blue_water: { visibility: 1.20, tint: [0.95, 0.98, 1.05], particleDensity: 0.35, particleBrightness: 0.90, ambient: 1.00 }
     },
     // Issue #55 — decorationRules: deterministic micro set-dressing (reef
     // crust, tiny sponges, small coral branches, loose rock/debris) scattered
     // within the visualZones above. Purely cosmetic filler between the
     // hand-placed features array; never touches physics/collision/gameplay.
+    // Issue #59 tuning:
+    //   • reef_plateau_crust: slightly denser + tighter so the plateau reads
+    //     as the most heavily colonised zone at a glance.
+    //   • reef_deep_wall_sparse: pushed even sparser so the sentinel zone
+    //     reads as noticeably emptier than the mid wall.
     decorationRules: [
-      { id: 'reef_plateau_crust', zone: 'reef_plateau', spacing: 1.6, density: 0.7, seed: 2101, surface: 'floor',
+      { id: 'reef_plateau_crust', zone: 'reef_plateau', spacing: 1.3, density: 0.85, seed: 2101, surface: 'floor',
         props: [{kind:'reefCrustBlob',weight:4},{kind:'tinySponge',weight:1},{kind:'pebble',weight:2}] },
       { id: 'reef_upper_wall_micro', zone: 'reef_upper_wall', spacing: 2.5, density: 0.45, seed: 2102, surface: 'floor',
         props: [{kind:'reefCrustBlob',weight:2},{kind:'smallCoralBranch',weight:1},{kind:'debrisSpeck',weight:2}] },
-      { id: 'reef_deep_wall_sparse', zone: 'reef_deep_wall', spacing: 4.0, density: 0.3, seed: 2103, surface: 'floor',
+      { id: 'reef_deep_wall_sparse', zone: 'reef_deep_wall', spacing: 5.0, density: 0.2, seed: 2103, surface: 'floor',
         props: [{kind:'smallRock',weight:3},{kind:'debrisSpeck',weight:2}] }
     ]
   },
@@ -495,15 +564,26 @@ var DIVE_SITES = {
       { id: 'wreck_bilge',         x1: 14,  x2: 170, d1: 62, d2: 66, priority: 15, blend: 0, tags: ['wreck','interior','deep','bilge'] }
     ],
     // Issue #54 — local atmosphere profiles keyed by visualZone id.
+    // Issue #59 tuning: sharpen the identity gradient so each deck reads
+    // distinctly from its neighbours at a glance.
+    //   • Bridge: pushed slightly cleaner/brighter (visibility 0.95→1.00,
+    //     particleDensity 1.05→0.90) so the wheelhouse feels more open than
+    //     the deeper interior spaces.
+    //   • Cargo hold: heavier turbidity (particleDensity 1.35→1.55, warmer
+    //     tint) so container colours read against a hazier medium.
+    //   • Engine room: darker + warmer rust cast (ambient 0.65→0.58, tint R
+    //     1.08→1.12) — the most technical and darkest working space.
+    //   • Crew deck: same overall level but noticeably more particle-heavy
+    //     (1.15→1.30) to feel small-scale/cramped.
     atmosphereProfiles: {
       wreck_exterior:      { visibility: 1.00, tint: [1.00, 1.00, 1.00], particleDensity: 1.00, particleBrightness: 1.00, ambient: 1.00 },
-      wreck_bridge:        { visibility: 0.95, tint: [1.00, 0.98, 0.94], particleDensity: 1.05, particleBrightness: 0.95, ambient: 0.95 },
+      wreck_bridge:        { visibility: 1.00, tint: [1.02, 1.00, 0.96], particleDensity: 0.90, particleBrightness: 1.00, ambient: 0.98 },
       wreck_accommodation: { visibility: 0.90, tint: [1.02, 0.98, 0.92], particleDensity: 1.15, particleBrightness: 0.90, ambient: 0.90 },
       wreck_vehicle_deck:  { visibility: 0.85, tint: [1.02, 0.96, 0.90], particleDensity: 1.20, particleBrightness: 0.85, ambient: 0.85 },
-      wreck_crew_deck:     { visibility: 0.80, tint: [1.00, 0.94, 0.88], particleDensity: 1.15, particleBrightness: 0.80, ambient: 0.75 },
-      wreck_cargo_hold:    { visibility: 0.78, tint: [1.02, 0.94, 0.86], particleDensity: 1.35, particleBrightness: 0.80, ambient: 0.75 },
-      wreck_engine_room:   { visibility: 0.70, tint: [1.08, 0.92, 0.80], particleDensity: 1.20, particleBrightness: 0.75, ambient: 0.65 },
-      wreck_bilge:         { visibility: 0.60, tint: [1.05, 0.90, 0.78], particleDensity: 1.50, particleBrightness: 0.70, ambient: 0.55 }
+      wreck_crew_deck:     { visibility: 0.78, tint: [1.00, 0.94, 0.88], particleDensity: 1.30, particleBrightness: 0.78, ambient: 0.72 },
+      wreck_cargo_hold:    { visibility: 0.75, tint: [1.05, 0.92, 0.84], particleDensity: 1.55, particleBrightness: 0.80, ambient: 0.72 },
+      wreck_engine_room:   { visibility: 0.66, tint: [1.12, 0.90, 0.78], particleDensity: 1.25, particleBrightness: 0.72, ambient: 0.58 },
+      wreck_bilge:         { visibility: 0.55, tint: [1.08, 0.88, 0.76], particleDensity: 1.55, particleBrightness: 0.68, ambient: 0.50 }
     },
     // Issue #55 — decorationRules: deterministic micro set-dressing (rust
     // flakes, metal debris, sediment clumps, cable scraps) scattered within
@@ -511,11 +591,24 @@ var DIVE_SITES = {
     // features array; never touches physics/collision/gameplay. The exterior
     // rule carries minDepth so scraps only appear near/below the hull rather
     // than floating in open water above the wreck.
+    // Issue #59 tuning:
+    //   • wreck_vehicle_deck_debris: nudged denser (0.55→0.65) — vehicle deck
+    //     is the widest, most horizontal space; extra sediment reinforces the
+    //     "open loading hall" feel without changing sightlines.
+    //   • wreck_engine_room_debris: heavier rust flake weight so the machinery
+    //     space reads as the rustiest area, matching its warmer tint.
+    //   • wreck_cargo_hold_sediment (new): subtle sediment scatter tying the
+    //     hold to its warmer/hazier atmosphere. Kept sparse — containers stay
+    //     the visual identity, sediment is atmospheric backing.
+    //   Crew deck deliberately gets NO decoration rule so it stays cramped
+    //   and read-through-bulkheads clean, not object-flooded.
     decorationRules: [
-      { id: 'wreck_vehicle_deck_debris', zone: 'wreck_vehicle_deck', spacing: 2.2, density: 0.55, seed: 3101, surface: 'floor',
+      { id: 'wreck_vehicle_deck_debris', zone: 'wreck_vehicle_deck', spacing: 2.0, density: 0.65, seed: 3101, surface: 'floor',
         props: [{kind:'rustFlake',weight:3},{kind:'smallMetalDebris',weight:2},{kind:'sedimentClump',weight:2},{kind:'cableScrap',weight:1}] },
-      { id: 'wreck_engine_room_debris', zone: 'wreck_engine_room', spacing: 2.4, density: 0.5, seed: 3102, surface: 'floor',
-        props: [{kind:'rustFlake',weight:3},{kind:'smallMetalDebris',weight:3},{kind:'debrisSpeck',weight:1}] },
+      { id: 'wreck_engine_room_debris', zone: 'wreck_engine_room', spacing: 2.2, density: 0.55, seed: 3102, surface: 'floor',
+        props: [{kind:'rustFlake',weight:5},{kind:'smallMetalDebris',weight:3},{kind:'debrisSpeck',weight:1}] },
+      { id: 'wreck_cargo_hold_sediment', zone: 'wreck_cargo_hold', spacing: 2.8, density: 0.35, seed: 3104, surface: 'floor',
+        props: [{kind:'sedimentClump',weight:4},{kind:'rustFlake',weight:1},{kind:'debrisSpeck',weight:2}] },
       { id: 'wreck_exterior_scraps', zone: 'wreck_exterior', spacing: 4.5, density: 0.25, seed: 3103, surface: 'floor', minDepth: 20,
         props: [{kind:'rustFlake',weight:2},{kind:'smallMetalDebris',weight:1},{kind:'sedimentClump',weight:2}] }
     ]
@@ -565,7 +658,20 @@ var DIVE_SITES = {
     ],
     features: [
       {kind:'pond',x:0},
-      {kind:'warningSign',x:17}
+      {kind:'warningSign',x:17},
+      // Issue #59 — HERO D (Cathedral columns): 1-2 large hand-placed
+      // speleothem columns inside the deep chamber. Reuses #32's
+      // _drawSpeleothemColumn drawer (no new rendering framework). Both
+      // sit within cave_cathedral (x=60..134, d=52..104) but well clear of
+      // the bedrock ceiling (dTop≥52) and the cave floor (see floor profile).
+      //   Column A: x=88, dTop=56, dBottom=98 — near-central pillar; the
+      //     dramatic single-column focal point on the way through.
+      //   Column B: x=112, dTop=60, dBottom=95 — slimmer, off-axis, reads
+      //     as a distant background pillar giving depth to the chamber.
+      // Neither introduces collision — solidAt() only tests the AABB
+      // structures list, and neither column is added there.
+      {kind:'caveColumn', x:88,  dTop:56, dBottom:98, wTop:9,  wBot:11, seed:5901},
+      {kind:'caveColumn', x:112, dTop:60, dBottom:95, wTop:6,  wBot:8,  seed:5902}
     ],
     surfaceMarker: 'pond',
     noShark: true,
@@ -582,35 +688,66 @@ var DIVE_SITES = {
     // where the ceiling rises again from d=16 (x=146) to d=0 (x=200).
     visualZones: [
       { id: 'cave_entrance',     x1: -10, x2: 18,  d1: 0,  d2: 14,  priority: 10, blend: 1, tags: ['cave','entrance','open-to-surface'] },
+      // Issue #59 — HERO B (Warning Threshold): a narrow, higher-priority
+      // sub-zone straddling the warningSign at x=17 marks the "open water →
+      // overhead" transition with its own subtly darker/cooler atmosphere
+      // so the threshold reads without needing a bigger sign.
+      { id: 'cave_threshold',    x1: 15,  x2: 22,  d1: 6,  d2: 16,  priority: 20, blend: 1, tags: ['cave','threshold','warning'] },
       { id: 'cave_upper_tunnel', x1: 18,  x2: 146, d1: 10, d2: 22,  priority: 15, blend: 1, tags: ['cave','tunnel','shallow'] },
+      // Issue #59 — HERO C (Restriction Nub): a tight sub-zone wrapping the
+      // pillar at x=88..91 with a claustrophobic atmosphere (lower visibility,
+      // higher particle density) so the squeeze reads more strongly. No
+      // collision change — the pillar structure is unchanged.
+      { id: 'cave_restriction',  x1: 86,  x2: 93,  d1: 10, d2: 22,  priority: 22, blend: 1, tags: ['cave','tunnel','restriction','squeeze'] },
       { id: 'cave_down_shaft',   x1: 48,  x2: 72,  d1: 20, d2: 90,  priority: 15, blend: 2, tags: ['cave','shaft','descent'] },
       { id: 'cave_cathedral',    x1: 60,  x2: 134, d1: 50, d2: 104, priority: 25, blend: 3, tags: ['cave','cathedral','deep','open-chamber'] },
       { id: 'cave_up_shaft',     x1: 124, x2: 146, d1: 20, d2: 90,  priority: 15, blend: 2, tags: ['cave','shaft','ascent'] },
       { id: 'cave_exit',         x1: 146, x2: 200, d1: 0,  d2: 20,  priority: 10, blend: 1, tags: ['cave','exit','open-to-surface'] }
     ],
     // Issue #54 — local atmosphere profiles keyed by visualZone id.
+    // Issue #59 tuning:
+    //   • cave_entrance: brightest area — bumped ambient/visibility to
+    //     reinforce the "surface light spills in here" reading.
+    //   • cave_threshold: darker/cooler than entrance so the warning sign
+    //     zone reads as a definite step-down into overhead.
+    //   • cave_restriction: tightened visibility + heavier particles to
+    //     make the squeeze past the nub feel physically confined.
+    //   • cave_cathedral: pushed cooler + slightly more ambient so the
+    //     chamber reads as vast/cold rather than merely dark.
+    //   • cave_exit: bright as entrance so the exit staging reads unambiguously.
     atmosphereProfiles: {
-      cave_entrance:     { visibility: 1.05, tint: [0.96, 1.04, 0.94], particleDensity: 1.05, particleBrightness: 1.05, ambient: 1.10 },
+      cave_entrance:     { visibility: 1.15, tint: [0.98, 1.06, 0.94], particleDensity: 1.00, particleBrightness: 1.10, ambient: 1.20 },
+      cave_threshold:    { visibility: 0.85, tint: [0.94, 0.98, 1.00], particleDensity: 1.10, particleBrightness: 0.85, ambient: 0.75 },
       cave_upper_tunnel: { visibility: 0.90, tint: [0.95, 0.98, 1.00], particleDensity: 1.00, particleBrightness: 0.85, ambient: 0.80 },
+      cave_restriction:  { visibility: 0.75, tint: [0.94, 0.96, 1.00], particleDensity: 1.30, particleBrightness: 0.80, ambient: 0.68 },
       cave_down_shaft:   { visibility: 0.85, tint: [0.92, 0.96, 1.05], particleDensity: 0.85, particleBrightness: 0.80, ambient: 0.75 },
-      cave_cathedral:    { visibility: 1.10, tint: [0.88, 0.94, 1.08], particleDensity: 0.45, particleBrightness: 0.70, ambient: 0.60 },
+      cave_cathedral:    { visibility: 1.20, tint: [0.84, 0.92, 1.10], particleDensity: 0.35, particleBrightness: 0.72, ambient: 0.65 },
       cave_up_shaft:     { visibility: 0.85, tint: [0.92, 0.96, 1.05], particleDensity: 0.85, particleBrightness: 0.80, ambient: 0.75 },
-      cave_exit:         { visibility: 1.05, tint: [0.96, 1.04, 0.94], particleDensity: 1.00, particleBrightness: 1.00, ambient: 1.05 }
+      cave_exit:         { visibility: 1.15, tint: [0.98, 1.06, 0.94], particleDensity: 0.95, particleBrightness: 1.05, ambient: 1.15 }
     },
     // Issue #55 — decorationRules: deterministic micro set-dressing (calcite
     // chips, rock fragments, small stalagmites/stalactites) scattered within
     // the visualZones above. Purely cosmetic filler between the hand-placed
     // features array; never touches physics/collision/gameplay. Cathedral
     // gets both a floor rule and a ceiling rule since it is tall and open.
+    // Issue #59 tuning:
+    //   • cave_cathedral_{floor,ceiling}: lower density so the chamber reads
+    //     as more open and the two hand-placed columns dominate as focal
+    //     points rather than getting lost in a forest of small speleothems.
+    //   • cave_restriction_chips (new): a tight, mineral-heavy scatter right
+    //     at the pillar so contact/mineral cues (per brief C) make the
+    //     squeeze read as a natural rock-carved constriction.
     decorationRules: [
       { id: 'cave_entrance_chips', zone: 'cave_entrance', spacing: 2.0, density: 0.5, seed: 4101, surface: 'floor',
         props: [{kind:'calciteChip',weight:3},{kind:'rockFragment',weight:2},{kind:'pebble',weight:2}] },
-      { id: 'cave_cathedral_floor', zone: 'cave_cathedral', spacing: 3.5, density: 0.4, seed: 4102, surface: 'floor',
+      { id: 'cave_cathedral_floor', zone: 'cave_cathedral', spacing: 4.5, density: 0.28, seed: 4102, surface: 'floor',
         props: [{kind:'smallStalagmite',weight:2},{kind:'rockFragment',weight:3},{kind:'calciteChip',weight:2}] },
-      { id: 'cave_cathedral_ceiling', zone: 'cave_cathedral', spacing: 4.0, density: 0.35, seed: 4103, surface: 'ceiling',
+      { id: 'cave_cathedral_ceiling', zone: 'cave_cathedral', spacing: 5.0, density: 0.25, seed: 4103, surface: 'ceiling',
         props: [{kind:'smallStalactite',weight:3},{kind:'calciteChip',weight:1}] },
       { id: 'cave_upper_tunnel_sparse', zone: 'cave_upper_tunnel', spacing: 3.5, density: 0.3, seed: 4104, surface: 'floor',
-        props: [{kind:'pebble',weight:3},{kind:'rockFragment',weight:2},{kind:'calciteChip',weight:1}] }
+        props: [{kind:'pebble',weight:3},{kind:'rockFragment',weight:2},{kind:'calciteChip',weight:1}] },
+      { id: 'cave_restriction_chips', zone: 'cave_restriction', spacing: 1.4, density: 0.7, seed: 4105, surface: 'floor',
+        props: [{kind:'calciteChip',weight:4},{kind:'rockFragment',weight:2}] }
     ]
   }
 };

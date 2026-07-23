@@ -265,6 +265,34 @@ async function run() {
     { site: 'Cave', x: 22, depth: 15, torch: true,  facing:  1, name: 'desktop-dive-cave-32-column-narrow-tunnel' },
     { site: 'Cave', x: 62, depth: 55, torch: true,  facing:  1, name: 'desktop-dive-cave-32-flowstone-down-shaft' },
     { site: 'Cave', x: 138, depth: 55, torch: true,  facing:  1, name: 'desktop-dive-cave-32-flowstone-up-shaft' },
+    // Issue #59: final map-identity pass — one shot per hero-landmark
+    // area so a reviewer can eyeball that each area reads as its own
+    // distinct place. Order follows the site-by-site brief.
+    // ---- Shore: Entry → Meadow → Boulder Gate → Wreck ----
+    { site: 'Shore', x: 0,   depth: 2,  name: 'desktop-dive-59-shore-a-entry' },
+    { site: 'Shore', x: 45,  depth: 8,  name: 'desktop-dive-59-shore-b-meadow' },
+    { site: 'Shore', x: 115, depth: 18, name: 'desktop-dive-59-shore-c-boulder-gate' },
+    { site: 'Shore', x: 150, depth: 26, name: 'desktop-dive-59-shore-d-wreck-cluster' },
+    // ---- Reef: Plateau, Mid Wall (with signature gorgonian + crack), Deep ----
+    { site: 'Reef',  x: 0,   depth: 6,  name: 'desktop-dive-59-reef-a-plateau' },
+    { site: 'Reef',  x: 14,  depth: 32, name: 'desktop-dive-59-reef-b-signature-gorgonian' },
+    { site: 'Reef',  x: -14, depth: 26, name: 'desktop-dive-59-reef-c-crack-cue' },
+    { site: 'Reef',  x: -18, depth: 78, name: 'desktop-dive-59-reef-d-deep-sentinel' },
+    // ---- Wreck: Exterior + one shot per hero deck area ----
+    { site: 'Wreck', x: 25,  depth: 24, torch: false, facing: 1, name: 'desktop-dive-59-wreck-a-exterior-bow' },
+    { site: 'Wreck', x: 90,  depth: 20, torch: true,  facing: 1, name: 'desktop-dive-59-wreck-b-bridge' },
+    { site: 'Wreck', x: 50,  depth: 32, torch: true,  facing: 1, name: 'desktop-dive-59-wreck-c-vehicle-deck' },
+    { site: 'Wreck', x: 50,  depth: 43, torch: true,  facing: 1, name: 'desktop-dive-59-wreck-d-crew-deck' },
+    { site: 'Wreck', x: 100, depth: 50, torch: true,  facing: 1, name: 'desktop-dive-59-wreck-e-cargo-hold' },
+    { site: 'Wreck', x: 100, depth: 58, torch: true,  facing: 1, name: 'desktop-dive-59-wreck-f-engine-room' },
+    { site: 'Wreck', x: 85,  depth: 45, torch: true,  facing: 1, name: 'desktop-dive-59-wreck-g-main-hatch' },
+    // ---- Cave: Entrance → Upper Tunnel (via threshold + restriction) → Cathedral → Exit ----
+    { site: 'Cave',  x: 8,   depth: 4,  torch: false, facing: 1, name: 'desktop-dive-59-cave-a-entrance' },
+    { site: 'Cave',  x: 18,  depth: 12, torch: true,  facing: 1, name: 'desktop-dive-59-cave-b-threshold' },
+    { site: 'Cave',  x: 89,  depth: 17, torch: true,  facing: 1, name: 'desktop-dive-59-cave-c-restriction' },
+    { site: 'Cave',  x: 88,  depth: 75, torch: true,  facing: 1, name: 'desktop-dive-59-cave-d-cathedral-column-a' },
+    { site: 'Cave',  x: 112, depth: 75, torch: true,  facing: 1, name: 'desktop-dive-59-cave-d-cathedral-column-b' },
+    { site: 'Cave',  x: 185, depth: 10, torch: true,  facing: 1, name: 'desktop-dive-59-cave-e-exit' },
   ];
 
   for (const diveShot of desktopDiveShots) {

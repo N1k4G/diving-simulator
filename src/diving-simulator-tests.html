@@ -3600,10 +3600,13 @@ tests = [
             // x=0, d=2 is inside shore_entry (x1=-20, x2=25, d1=0, d2=4, blend=1).
             // The core (blend=1) is reached when distance to every edge >= 1.
             // At x=0, d=2: distEdge = min(20, 25, 2, 2) = 2 >= blend=1 → weight=1.
-            // So we expect full profile value: visibility = 1.05, clamped to max 1.25.
+            // So we expect full profile value. Issue #59 (HERO A: Entry/Beach
+            // Silhouette) intentionally pushed shore_entry.visibility from
+            // 1.05 to 1.10 so the beach reads as the brightest area — updated
+            // baseline here to match.
             var s = api.DIVE_SITES.shore;
             var atmo = api.sampleLocalAtmosphere(s, 0, 2);
-            var expected = 1.05;
+            var expected = 1.10;
             assert(Math.abs(atmo.visibility - expected) < 0.001,
                 'shore_entry at x=0,d=2 → visibility should be ' + expected + ', got ' + atmo.visibility);
             return 'PASS — shore_entry visibility=' + atmo.visibility.toFixed(3);
@@ -7214,6 +7217,392 @@ tests = [
             }
             if (threw) throw threw;
             return 'PASS — speleothem path uses seeded sRand only';
+        }
+    },
+    // ============================================================
+    //  Issue #59 — final map-identity pass. These tests are the
+    //  safety net for what is otherwise a data-only curation pass:
+    //  collision/bad-air/overhead must be byte-identical before and
+    //  after across all four sites; new/tuned data must have sane
+    //  values; hero landmarks must be present; and no drawer path
+    //  may have picked up Math.random. Follows the pattern set by
+    //  TC-32-COLLISION-UNCHANGED and TC-33-COLLISION-UNCHANGED.
+    // ============================================================
+    {
+        id: 'TC-59-SHORE-COLLISION-UNCHANGED',
+        name: 'Issue #59 — Shore floorAt/ceilingAt/solidAt at baseline points unchanged',
+        fn: function() {
+            var savedSite = api.diveSite;
+            var threw = null;
+            try {
+                api.diveSite = 'shore';
+                // Piecewise-linear floor at exact profile knots.
+                assert(api.floorAt(0)   === 3,  'floorAt(0) should be 3, got '   + api.floorAt(0));
+                assert(api.floorAt(35)  === 6,  'floorAt(35) should be 6, got '  + api.floorAt(35));
+                assert(api.floorAt(70)  === 10, 'floorAt(70) should be 10, got ' + api.floorAt(70));
+                assert(api.floorAt(115) === 22, 'floorAt(115) should be 22, got ' + api.floorAt(115));
+                assert(api.floorAt(140) === 28, 'floorAt(140) should be 28, got ' + api.floorAt(140));
+                assert(api.floorAt(185) === 30, 'floorAt(185) should be 30, got ' + api.floorAt(185));
+                // No ceiling profile on the open shore.
+                assert(api.ceilingAt(0)   === 0, 'ceilingAt(0) should be 0');
+                assert(api.ceilingAt(100) === 0, 'ceilingAt(100) should be 0');
+                // Boulder Gate — rock AABBs at x=100..118 and x=122..132 unchanged.
+                assert(api.solidAt(110, 18) === true,  'rock (110,18) should be solid');
+                assert(api.solidAt(127, 24) === true,  'rock (127,24) should be solid');
+                assert(api.solidAt(120, 20) === false, 'gap between rocks (120,20) should be passable');
+                // Small wreck AABB unchanged.
+                assert(api.solidAt(143, 26) === true,  'wreckSmall (143,26) should be solid');
+                // Deep boulder outcrops.
+                assert(api.solidAt(165, 30) === true,  'deep boulder (165,30) should be solid');
+                assert(api.solidAt(180, 32) === true,  'deep boulder (180,32) should be solid');
+            } catch (e) { threw = e; }
+            finally { api.diveSite = savedSite; }
+            if (threw) throw threw;
+            return 'PASS — shore geometry unchanged (12 samples)';
+        }
+    },
+    {
+        id: 'TC-59-REEF-COLLISION-UNCHANGED',
+        name: 'Issue #59 — Reef floorAt/ceilingAt at baseline points unchanged',
+        fn: function() {
+            var savedSite = api.diveSite;
+            var threw = null;
+            try {
+                api.diveSite = 'reef';
+                // Mesa top and flank profile knots.
+                assert(api.floorAt(0)   === 5,  'floorAt(0) plateau should be 5, got '  + api.floorAt(0));
+                assert(api.floorAt(-8)  === 5,  'floorAt(-8) plateau should be 5');
+                assert(api.floorAt(8)   === 5,  'floorAt(8) plateau should be 5');
+                assert(api.floorAt(12)  === 30, 'floorAt(12) upper-wall should be 30');
+                assert(api.floorAt(20)  === 90, 'floorAt(20) mid-wall should be 90');
+                assert(api.ceilingAt(0) === 0,  'reef has no ceiling profile');
+                // Reef has no AABB structures — solidAt must be false everywhere in water.
+                assert(api.solidAt(0, 3)  === false, 'reef has no solid AABBs at plateau (0,3)');
+                assert(api.solidAt(15, 40) === false, 'reef has no solid AABBs on mid-wall (15,40)');
+            } catch (e) { threw = e; }
+            finally { api.diveSite = savedSite; }
+            if (threw) throw threw;
+            return 'PASS — reef geometry unchanged (8 samples)';
+        }
+    },
+    {
+        id: 'TC-59-WRECK-COLLISION-UNCHANGED',
+        name: 'Issue #59 — Wreck floorAt/solidAt/overheadAt at baseline points unchanged',
+        fn: function() {
+            var savedSite = api.diveSite;
+            var threw = null;
+            try {
+                api.diveSite = 'wreck';
+                assert(api.floorAt(100) === 66, 'floorAt(100) keel should be 66');
+                // Bow stem, stern transom, deck slab, bridge wall — same as TC-33.
+                assert(api.solidAt(15, 40)   === true,  'bow stem (15,40) should be solid');
+                assert(api.solidAt(169, 40)  === true,  'stern transom (169,40) should be solid');
+                assert(api.solidAt(50, 27.5) === true,  'main deck (50,27.5) should be solid');
+                assert(api.solidAt(71, 20)   === true,  'bridge fwd wall (71,20) should be solid');
+                // Entry openings must remain passable.
+                assert(api.solidAt(18, 32)   === false, 'bow visor opening (18,32) still passable');
+                assert(api.solidAt(85, 27.5) === false, 'main hatch opening (85,27.5) still passable');
+                assert(api.solidAt(158, 32)  === false, 'stern ramp opening (158,32) still passable');
+                // Overhead detection unchanged inside the hull.
+                assert(api.overheadAt(50, 35) === true,  'overhead under vehicle deck (50,35)');
+                assert(api.overheadAt(190, 30) === false, 'no overhead in open water right of stern');
+            } catch (e) { threw = e; }
+            finally { api.diveSite = savedSite; }
+            if (threw) throw threw;
+            return 'PASS — wreck geometry unchanged (10 samples)';
+        }
+    },
+    {
+        id: 'TC-59-CAVE-COLLISION-UNCHANGED',
+        name: 'Issue #59 — Cave floorAt/ceilingAt/solidAt/badAirAt at baseline points unchanged',
+        fn: function() {
+            var savedSite = api.diveSite;
+            var iw = iframe.contentWindow;
+            var _ba = iw.badAirAt;
+            var threw = null;
+            try {
+                api.diveSite = 'cave';
+                assert(api.floorAt(0)   === 10,  'floorAt(0) should be 10');
+                assert(api.floorAt(90)  === 103, 'floorAt(90) should be 103');
+                assert(api.floorAt(200) === 6,   'floorAt(200) should be 6');
+                assert(api.ceilingAt(14)  === 0, 'ceilingAt(14) should be 0');
+                assert(api.ceilingAt(103) === 12, 'ceilingAt(103) should be 12');
+                assert(api.ceilingAt(200) === 0, 'ceilingAt(200) should be 0');
+                // Bedrock partition + restriction pillar unchanged.
+                assert(api.solidAt(90, 30) === true,  'bedrock roof (90,30) should be solid');
+                assert(api.solidAt(90, 70) === false, 'cathedral interior (90,70) should be passable');
+                assert(api.solidAt(89, 14) === true,  'restriction pillar (89,14) should be solid');
+                // Bad-air pocket coordinates unchanged.
+                assert(_ba && _ba(106) !== null, 'badAirAt(106) inside pocket');
+                assert(_ba && _ba(102) === null, 'badAirAt(102) outside x1');
+                assert(_ba && _ba(110) === null, 'badAirAt(110) outside x2');
+                var pocket = api.activeSite().badAir[0];
+                assert(pocket && pocket.x1 === 103 && pocket.x2 === 109 && pocket.d === 12,
+                    'bad-air pocket must remain {x1:103,x2:109,d:12}');
+            } catch (e) { threw = e; }
+            finally { api.diveSite = savedSite; }
+            if (threw) throw threw;
+            return 'PASS — cave geometry + bad-air pocket unchanged (12 samples)';
+        }
+    },
+    {
+        id: 'TC-59-SHORE-HERO-LANDMARKS-PRESENT',
+        name: 'Issue #59 — Shore hero landmark data present and sane',
+        fn: function() {
+            var s = api.DIVE_SITES.shore;
+            assert(!!s, 'shore site exists');
+            // Boulder Gate zone (Hero C) must be declared with priority high
+            // enough to win over the surrounding shore_slope (priority 8).
+            var gate = s.visualZones.find(function(z) { return z.id === 'shore_boulder_gate'; });
+            assert(!!gate, 'shore_boulder_gate zone must exist');
+            assert(gate.priority > 8, 'shore_boulder_gate priority must beat shore_slope (8), got ' + gate.priority);
+            assert(gate.x1 < gate.x2 && gate.d1 < gate.d2, 'shore_boulder_gate rectangle must be non-degenerate');
+            // Boulder-gate decoration rule keyed to that zone must exist.
+            var gateRule = s.decorationRules.find(function(r) { return r.zone === 'shore_boulder_gate'; });
+            assert(!!gateRule, 'boulder-gate decoration rule must exist');
+            assert(gateRule.density > 0 && gateRule.density <= 1, 'boulder-gate density in (0,1]');
+            // Wreck cluster: coral tuft at x=152 alongside the small wreck.
+            var wreckCluster = s.features.find(function(f) { return f.kind === 'coral' && f.x === 152; });
+            assert(!!wreckCluster, 'wreck-cluster coral tuft at x=152 must exist');
+            return 'PASS — shore hero landmarks present';
+        }
+    },
+    {
+        id: 'TC-59-REEF-SIGNATURE-GORGONIAN',
+        name: 'Issue #59 — Reef signature gorgonian is distinctly larger than the coralVariation range',
+        fn: function() {
+            var s = api.DIVE_SITES.reef;
+            // Scale must exceed CORAL_SCALE_MAX (1.25 in renderer.js) so this
+            // one gorgonian reads distinctly larger than every random instance.
+            var CORAL_SCALE_MAX = 1.25;
+            var hero = s.features.find(function(f) { return f.kind === 'gorgonian' && typeof f.scale === 'number' && f.scale > CORAL_SCALE_MAX * 1.4; });
+            assert(!!hero, 'at least one signature gorgonian with scale > 1.75 must exist');
+            assert(hero.side === 'right' || hero.side === 'left', 'signature gorgonian must anchor to a wall side');
+            // The crack-cue zone must exist and outrank the surrounding wall zones.
+            var crack = s.visualZones.find(function(z) { return z.id === 'reef_crack_cue'; });
+            assert(!!crack, 'reef_crack_cue zone must exist');
+            var upper = s.visualZones.find(function(z) { return z.id === 'reef_upper_wall'; });
+            assert(crack.priority > upper.priority, 'crack cue priority must beat reef_upper_wall');
+            // Deep sentinel: a second gorgonian below 70 m.
+            var deep = s.features.filter(function(f) { return f.kind === 'gorgonian' && f.d >= 70; });
+            assert(deep.length >= 1, 'at least one deep-sentinel gorgonian below 70 m must exist');
+            return 'PASS — signature gorgonian scale=' + hero.scale + '; crack cue priority ' + crack.priority + '; deep sentinels: ' + deep.length;
+        }
+    },
+    {
+        id: 'TC-59-WRECK-DECK-ATMOSPHERE-GRADIENT',
+        name: 'Issue #59 — wreck atmosphere profiles form a monotonic bright→dark gradient by depth',
+        fn: function() {
+            var s = api.DIVE_SITES.wreck;
+            var a = s.atmosphereProfiles;
+            // Deck order from shallow → deep. Ambient light must strictly
+            // decrease so identity reads at a glance.
+            var order = ['wreck_bridge', 'wreck_accommodation', 'wreck_vehicle_deck', 'wreck_crew_deck', 'wreck_cargo_hold', 'wreck_engine_room', 'wreck_bilge'];
+            var prev = Infinity;
+            for (var i = 0; i < order.length; i++) {
+                var p = a[order[i]];
+                assert(!!p, 'atmosphere profile for ' + order[i] + ' must exist');
+                assert(p.ambient <= prev, 'ambient must be non-increasing from ' + order[i - 1] + '(' + prev + ') to ' + order[i] + '(' + p.ambient + ')');
+                prev = p.ambient;
+            }
+            // Bridge must be the brightest interior (matches "clean/open").
+            assert(a.wreck_bridge.ambient >= a.wreck_accommodation.ambient, 'bridge should be at least as bright as accommodation');
+            // Cargo hold must have the heaviest particle density in the ferry
+            // (excluding bilge) — matches the "turbid hold" identity.
+            var cargoParticles = a.wreck_cargo_hold.particleDensity;
+            assert(cargoParticles >= a.wreck_vehicle_deck.particleDensity, 'cargo hold particles >= vehicle deck');
+            assert(cargoParticles >= a.wreck_crew_deck.particleDensity, 'cargo hold particles >= crew deck');
+            // Cargo hold sediment rule must exist.
+            var cargoRule = s.decorationRules.find(function(r) { return r.zone === 'wreck_cargo_hold'; });
+            assert(!!cargoRule, 'cargo hold sediment rule must exist');
+            return 'PASS — wreck deck ambient gradient monotone shallow→deep; cargo hold identity present';
+        }
+    },
+    {
+        id: 'TC-59-CAVE-HERO-COLUMNS-PRESENT',
+        name: 'Issue #59 — Cave cathedral columns hand-placed inside the cathedral zone',
+        fn: function() {
+            var s = api.DIVE_SITES.cave;
+            var cathedral = s.visualZones.find(function(z) { return z.id === 'cave_cathedral'; });
+            assert(!!cathedral, 'cave_cathedral zone must exist');
+            var cols = s.features.filter(function(f) { return f.kind === 'caveColumn'; });
+            assert(cols.length >= 1 && cols.length <= 2, 'expected 1-2 hand-placed caveColumns, got ' + cols.length);
+            for (var i = 0; i < cols.length; i++) {
+                var c = cols[i];
+                assert(c.x >= cathedral.x1 && c.x <= cathedral.x2, 'column x=' + c.x + ' must lie inside cathedral x-range');
+                assert(c.dTop < c.dBottom, 'column dTop < dBottom');
+                assert(c.dTop >= cathedral.d1 - 5, 'column top near/inside cathedral top');
+                assert(c.dBottom <= cathedral.d2 + 5, 'column bottom near/inside cathedral floor');
+                // Column must NOT lie inside the bedrock partition (x=70..130, d=22..52).
+                assert(!api.solidAt(c.x, c.dTop), 'column top must not lie inside bedrock');
+                assert(!api.solidAt(c.x, c.dBottom), 'column bottom must not lie inside cave floor');
+            }
+            // Restriction sub-zone must exist and outrank cave_upper_tunnel.
+            var restriction = s.visualZones.find(function(z) { return z.id === 'cave_restriction'; });
+            var upper = s.visualZones.find(function(z) { return z.id === 'cave_upper_tunnel'; });
+            assert(!!restriction && !!upper, 'cave_restriction + cave_upper_tunnel must exist');
+            assert(restriction.priority > upper.priority, 'restriction priority must beat upper tunnel');
+            return 'PASS — cave has ' + cols.length + ' cathedral columns + restriction sub-zone';
+        }
+    },
+    {
+        id: 'TC-59-ZONE-LOOKUP-DETERMINISM',
+        name: 'Issue #59 — visualZoneAt returns the higher-priority sub-zones deterministically',
+        fn: function() {
+            var savedSite = api.diveSite;
+            var threw = null;
+            try {
+                // Reef crack cue should win over reef_upper_wall at its centre.
+                api.diveSite = 'reef';
+                var reefSite = api.DIVE_SITES.reef;
+                var z = api.visualZoneAt(-14, 25, reefSite);
+                assert(!!z && z.id === 'reef_crack_cue', 'reef_crack_cue must be selected at (-14,25), got ' + (z && z.id));
+                // Shore boulder gate should win over shore_slope in the gate rect.
+                api.diveSite = 'shore';
+                var shoreSite = api.DIVE_SITES.shore;
+                var z2 = api.visualZoneAt(115, 18, shoreSite);
+                assert(!!z2 && z2.id === 'shore_boulder_gate', 'shore_boulder_gate must win at (115,18), got ' + (z2 && z2.id));
+                // Cave restriction should win over cave_upper_tunnel at pillar centre.
+                api.diveSite = 'cave';
+                var caveSite = api.DIVE_SITES.cave;
+                var z3 = api.visualZoneAt(89, 14, caveSite);
+                assert(!!z3 && z3.id === 'cave_restriction', 'cave_restriction must win at (89,14), got ' + (z3 && z3.id));
+                // Cave threshold should win over cave_upper_tunnel near the warning sign.
+                var z4 = api.visualZoneAt(18, 12, caveSite);
+                assert(!!z4 && z4.id === 'cave_threshold', 'cave_threshold must win at (18,12), got ' + (z4 && z4.id));
+                // Repeat call → same result (determinism).
+                var z5 = api.visualZoneAt(18, 12, caveSite);
+                assert(z4 === z5, 'visualZoneAt must return identical descriptor on repeat call');
+            } catch (e) { threw = e; }
+            finally { api.diveSite = savedSite; }
+            if (threw) throw threw;
+            return 'PASS — new sub-zones selected deterministically';
+        }
+    },
+    {
+        id: 'TC-59-DECORATION-DETERMINISM',
+        name: 'Issue #59 — new decorationRules produce identical candidates across repeat calls',
+        fn: function() {
+            // A tuning pass must not introduce non-determinism. Sample the
+            // full site width twice and require identical outputs.
+            var siteIds = ['shore', 'reef', 'wreck', 'cave'];
+            var savedSite = api.diveSite;
+            var threw = null;
+            try {
+                for (var i = 0; i < siteIds.length; i++) {
+                    var sid = siteIds[i];
+                    api.diveSite = sid;
+                    var site = api.DIVE_SITES[sid];
+                    var a = api.sampleSetDressingCandidates(site, -50, 250);
+                    var b = api.sampleSetDressingCandidates(site, -50, 250);
+                    assert(a.length === b.length, sid + ': candidate count changed between calls (' + a.length + ' vs ' + b.length + ')');
+                    for (var k = 0; k < a.length; k++) {
+                        assert(a[k].ruleId === b[k].ruleId, sid + ' #' + k + ' ruleId mismatch');
+                        assert(a[k].kind === b[k].kind, sid + ' #' + k + ' kind mismatch');
+                        assert(Math.abs(a[k].wx - b[k].wx) < 1e-9, sid + ' #' + k + ' wx mismatch');
+                        assert(Math.abs(a[k].depth - b[k].depth) < 1e-9, sid + ' #' + k + ' depth mismatch');
+                    }
+                    assert(a.length > 0, sid + ': expected at least one decoration candidate over full site width');
+                }
+            } catch (e) { threw = e; }
+            finally { api.diveSite = savedSite; }
+            if (threw) throw threw;
+            return 'PASS — decoration candidates identical across repeat calls for all 4 sites';
+        }
+    },
+    {
+        id: 'TC-59-CAVE-COLUMN-DRAW-DETERMINISM',
+        name: 'Issue #59 — caveColumn feature draws deterministically with no Math.random',
+        fn: function() {
+            var iw = iframe.contentWindow;
+            var C = iw.CanvasRenderingContext2D && iw.CanvasRenderingContext2D.prototype;
+            if (!C) return 'PASS — no CanvasRenderingContext2D available; skipping';
+            var savedSite = api.diveSite;
+            var savedRandom = Math.random;
+            var savedIwRandom = iw.Math.random;
+            var savedFill = C.fill, savedStroke = C.stroke;
+            var savedX = api.diverX, savedD = api.depth;
+            var savedW = api.cssWidth, savedH = api.cssHeight;
+            var savedGameState = api.gameState;
+            var trip = 0;
+            var fillCount1 = 0, fillCount2 = 0;
+            var threw = null;
+            try {
+                api.cssWidth = 1280; api.cssHeight = 800;
+                api.diveSite = 'cave';
+                api.diverX = 88; api.setDepth(75);
+                api.gameState = 'diving';
+                Math.random    = function() { trip++; return 0.5; };
+                iw.Math.random = function() { trip++; return 0.5; };
+                var iterFill = 0;
+                C.fill = function() { iterFill++; };
+                C.stroke = function() {};
+                // The caveColumn feature is dispatched from drawFeatures()'s
+                // per-feature switch, not drawSiteDetailPass() (which only
+                // handles terrain-edge/mineral accents, never `features`).
+                iw.drawFeatures();
+                fillCount1 = iterFill; iterFill = 0;
+                iw.drawFeatures();
+                fillCount2 = iterFill;
+                assert(trip === 0, 'cave draw path must not call Math.random (called ' + trip + ')');
+                assert(fillCount1 === fillCount2, 'cave draw must emit identical fill count (' + fillCount1 + ' vs ' + fillCount2 + ')');
+                assert(fillCount1 > 0, 'cave draw should emit at least one fill');
+            } catch (e) { threw = e; }
+            finally {
+                C.fill = savedFill; C.stroke = savedStroke;
+                Math.random = savedRandom;
+                iw.Math.random = savedIwRandom;
+                api.diveSite = savedSite;
+                api.diverX = savedX; api.setDepth(savedD);
+                api.cssWidth = savedW; api.cssHeight = savedH;
+                api.gameState = savedGameState;
+            }
+            if (threw) throw threw;
+            return 'PASS — cave draw path deterministic (fills=' + fillCount1 + ', no Math.random)';
+        }
+    },
+    {
+        id: 'TC-59-ATMOSPHERE-PROFILES-IN-CLAMP-RANGE',
+        name: 'Issue #59 — all tuned atmosphere profile values sample within safe clamp range',
+        fn: function() {
+            // Post-tuning safety net: sampleLocalAtmosphere() returns clamped
+            // values, but a profile with an out-of-range field would clamp
+            // AWAY from the author's intent. Verify every profile field would
+            // pass through untouched (i.e. author values are all in-range).
+            var CLAMP = {
+                visibility:        { min: 0.35, max: 1.25 },
+                tint:              { min: 0.5,  max: 1.25 },
+                particleDensity:   { min: 0,    max: 2.0  },
+                particleBrightness:{ min: 0.25, max: 1.75 },
+                ambient:           { min: 0.4,  max: 1.3  }
+            };
+            var siteIds = ['shore', 'reef', 'wreck', 'cave'];
+            var problems = [];
+            for (var i = 0; i < siteIds.length; i++) {
+                var s = api.DIVE_SITES[siteIds[i]];
+                var prof = s.atmosphereProfiles || {};
+                for (var zid in prof) {
+                    if (!Object.prototype.hasOwnProperty.call(prof, zid)) continue;
+                    var p = prof[zid];
+                    function check(label, val, range) {
+                        if (val == null) return;
+                        if (val < range.min || val > range.max) {
+                            problems.push(siteIds[i] + '.' + zid + '.' + label + '=' + val + ' outside [' + range.min + ',' + range.max + ']');
+                        }
+                    }
+                    check('visibility', p.visibility, CLAMP.visibility);
+                    check('particleDensity', p.particleDensity, CLAMP.particleDensity);
+                    check('particleBrightness', p.particleBrightness, CLAMP.particleBrightness);
+                    check('ambient', p.ambient, CLAMP.ambient);
+                    if (p.tint) {
+                        check('tint[0]', p.tint[0], CLAMP.tint);
+                        check('tint[1]', p.tint[1], CLAMP.tint);
+                        check('tint[2]', p.tint[2], CLAMP.tint);
+                    }
+                }
+            }
+            assert(problems.length === 0, 'atmosphere values outside safe clamp: ' + problems.join('; '));
+            return 'PASS — every atmosphere field on all 4 sites lies inside its clamp range';
         }
     }
 ];
