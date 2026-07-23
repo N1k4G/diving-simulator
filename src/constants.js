@@ -29,6 +29,15 @@ const TIME_ACCELERATION = 3;
 const FAST_FORWARD_MULTIPLIER = 10;
 const MAX_ASCENT_RATE   = 25;   // max possible ascent m/min (a runaway BCD CAN exceed the 18 barotrauma threshold)
 const MAX_DESCENT_RATE  = 20;   // max possible descent m/min
+// Issue #30: the ASSUMED planning rate used when simulating time-to-surface,
+// distinct from MAX_ASCENT_RATE above (the physical clamp on how fast the
+// diver's own buoyancy CAN carry them). calculateDecoSchedule() used to
+// simulate ascent-to-first-stop and the final ascent at a very conservative
+// 3 m/min while calculateTTS()'s non-deco path used 9 m/min — a diver
+// crossing from non-deco into deco saw TTS triple for no in-fiction reason.
+// 9 m/min matches typical deco software and the in-game help text's
+// recommended ≤9-10 m/min ascent rate.
+const DECO_PLANNING_ASCENT_RATE_MPM = 9;
 // WP-015: HiDPI canvas — cap devicePixelRatio to avoid fill-rate cost on
 // phones with dpr 3+ where the visual gain is negligible.
 const MAX_DEVICE_PIXEL_RATIO = 2;
@@ -77,6 +86,14 @@ const SILT_KICK_THRESHOLD   = 0.35;  // m/s above which fast kicks stir silt
 const SILT_DECAY            = 0.25;  // visibility lost per dive-second at threshold
 const SILT_RECOVER          = 0.08;  // visibility gained per dive-second while calm
 const TORCH_RADIUS_M        = 5;     // torch light cone radius in metres
+
+// Issue #68: the safety-stop countdown's own active-tick range (2.4-8.3m)
+// was duplicated as a narrower ±1.5m-around-5m band in two separate
+// fast-forward-eligibility checks (game-loop.js, touch.js), so at e.g. 7.5m
+// the countdown visibly ticked down but the FF button didn't appear. One
+// shared constant pair, used by the countdown tick AND both FF checks.
+const SAFETY_STOP_ACTIVE_MIN_D = 2.4;
+const SAFETY_STOP_ACTIVE_MAX_D = 8.3;
 
 const BAROTRAUMA_RATE   = 18;   // m/min ascent threshold for injury
 const BAROTRAUMA_TIME   = 10;   // dive-seconds sustained to trigger game over

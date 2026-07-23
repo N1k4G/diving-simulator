@@ -283,7 +283,7 @@ function touchUpdateUI() {
             document.getElementById('touch-gas-info').style.display = (isAdvanced() || diveMode === 'ccr') ? 'flex' : 'none';
             var decoStopFF = decoStop(calculateCeiling());
             var atDecoFF = decoStopFF > 0 && Math.abs(depth - decoStopFF) <= 1.5;
-            var atSafetyFF = safetyStopCountdownStarted && !safetyStopComplete && Math.abs(depth - 5) <= 1.5;
+            var atSafetyFF = safetyStopCountdownStarted && !safetyStopComplete && depth >= SAFETY_STOP_ACTIVE_MIN_D && depth <= SAFETY_STOP_ACTIVE_MAX_D;
             var isStationary = Math.abs(ascentRate) < 0.5;
             var ffBtn = document.getElementById('touch-fast-forward');
             ffBtn.style.display = ((atDecoFF || atSafetyFF) && isStationary) ? 'flex' : 'none';

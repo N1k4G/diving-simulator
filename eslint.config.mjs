@@ -14,6 +14,7 @@ const gameGlobals = {
   // Tuning constants
   TIME_ACCELERATION: "readonly", FAST_FORWARD_MULTIPLIER: "readonly",
   MAX_ASCENT_RATE: "readonly", MAX_DESCENT_RATE: "readonly",
+  DECO_PLANNING_ASCENT_RATE_MPM: "readonly",
   MAX_DEPTH: "readonly",
   MAX_DEVICE_PIXEL_RATIO: "readonly",
 
@@ -26,6 +27,7 @@ const gameGlobals = {
   GUIDELINE_MAX_NODES: "readonly", GUIDELINE_SAMPLE_SEC: "readonly",
   SILT_KICK_THRESHOLD: "readonly", SILT_DECAY: "readonly",
   SILT_RECOVER: "readonly", TORCH_RADIUS_M: "readonly",
+  SAFETY_STOP_ACTIVE_MIN_D: "readonly", SAFETY_STOP_ACTIVE_MAX_D: "readonly",
   BAROTRAUMA_RATE: "readonly", BAROTRAUMA_TIME: "readonly",
   AMV_MIN: "readonly", AMV_MAX: "readonly", AMV_DEFAULT: "readonly",
   TANK_VOL_MIN: "readonly", TANK_VOL_MAX: "readonly", TANK_VOL_DEFAULT: "readonly",
@@ -63,6 +65,7 @@ const gameGlobals = {
   COLOR_SURFACE_WATER: "readonly", COLOR_DEEP_WATER: "readonly",
   REEF_PAL: "readonly",
   SAVE_KEY: "readonly", SAVE_INTERVAL_MS: "readonly",
+  SAVE_STATE_VERSION: "readonly", _isValidSaveState: "readonly",
   GAME_OVER_INFO: "readonly",
   GAS_PRESETS: "readonly",
 

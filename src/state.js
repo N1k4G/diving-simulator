@@ -100,7 +100,13 @@ window.addEventListener('keydown', e => {
     }
 });
 window.addEventListener('keyup', e => {
+    // Issue #9: if Shift is released before the letter (e.g. Shift+G), the
+    // keyup for the letter arrives with e.key === 'g' (lowercase) even
+    // though keydown stored keys['G'] = true. Clear both case variants
+    // (not just the two forms of whatever case e.key happens to be) so a
+    // Shift-combo key can never get stuck true.
     keys[e.key.toLowerCase()] = false;
+    keys[e.key.toUpperCase()] = false;
     keys[e.key] = false;
 });
 

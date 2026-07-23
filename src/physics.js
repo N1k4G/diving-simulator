@@ -369,7 +369,7 @@ function calculateDecoSchedule() {
     }
 
     if (simDepth > firstStop) {
-        var ascentTime = (simDepth - firstStop) / 3.0;
+        var ascentTime = (simDepth - firstStop) / DECO_PLANNING_ASCENT_RATE_MPM;
         var steps = Math.ceil(ascentTime / 0.1);
         var stepTime = ascentTime / steps;
         var stepDepthChange = (simDepth - firstStop) / steps;
@@ -423,8 +423,8 @@ function calculateDecoSchedule() {
             } else {
                 gas = bestGasForDepth(0);
             }
-            simUpdate(0, stopDepth / 3.0);
-            totalTime += stopDepth / 3.0;
+            simUpdate(0, stopDepth / DECO_PLANNING_ASCENT_RATE_MPM);
+            totalTime += stopDepth / DECO_PLANNING_ASCENT_RATE_MPM;
             break;
         }
         stopDepth = nextStop;
@@ -455,7 +455,11 @@ function calculatePO2() {
 }
 
 function calculateMOD(o2) {
-    var fo2 = o2 || activeGas().fO2;
+    // Issue #61: `o2 || ...` treated an explicit 0 as "not provided" via
+    // truthiness, silently substituting the active gas's fO2. A 0% O2
+    // mixture has no upper PO2-driven depth limit — check for undefined
+    // explicitly so callers passing 0 get the correct (infinite) MOD.
+    var fo2 = (o2 !== undefined) ? o2 : activeGas().fO2;
     return ((1.4 / fo2) - 1) * 10;
 }
 
@@ -485,7 +489,7 @@ function calculateTTS() {
         var sched = calculateDecoSchedule();
         return sched.tts;
     }
-    var ascentTime = depth / 9.0;
+    var ascentTime = depth / DECO_PLANNING_ASCENT_RATE_MPM;
     var ssTime = 0;
     if (safetyStopNeeded || maxDepth > 11) {
         ssTime = calculateSafetyStopDuration() / 60;
@@ -572,16 +576,23 @@ function bestGasForDepth(d) {
     if (!isAdvanced()) return { fO2: tanks[activeTank].fO2, fHe: tanks[activeTank].fHe, fN2: tanks[activeTank].fN2 };
     var best = null;
     var bestO2 = -1;
+    var fallback = null; // best NON-EMPTY tank seen, regardless of PO2 window
     for (var i = 0; i < tankCount; i++) {
         var t = tanks[i];
         if (t.gasRemaining <= 0) continue;
+        if (!fallback || t.fO2 > fallback.fO2) fallback = t;
         var po2 = t.fO2 * ambientPressure(d);
         if (po2 > PO2_HIGH || po2 < PO2_HYPOXIA) continue;
         // DISABLED: Staging of bottles — all tanks available at all depths for now
         // if (i > 0 && t.switchDepth !== null && d > t.switchDepth) continue;
         if (t.fO2 > bestO2) { bestO2 = t.fO2; best = t; }
     }
-    if (!best) best = tanks[activeTank];
+    // Issue #70: when no tank satisfies the PO2 window, fall back to the
+    // best NON-EMPTY tank rather than blindly using tanks[activeTank] —
+    // that tank may itself be empty, which fed a nonexistent gas into the
+    // deco plan/TTS calculation. Only fall all the way back to activeTank
+    // if every tank is empty.
+    if (!best) best = fallback || tanks[activeTank];
     return { fO2: best.fO2, fHe: best.fHe, fN2: best.fN2 };
 }
 

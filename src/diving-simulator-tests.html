@@ -7604,6 +7604,196 @@ tests = [
             assert(problems.length === 0, 'atmosphere values outside safe clamp: ' + problems.join('; '));
             return 'PASS — every atmosphere field on all 4 sites lies inside its clamp range';
         }
+    },
+    {
+        id: 'TC-61-MOD-ZERO-O2',
+        name: 'Issue #61 — calculateMOD(0) treats 0 as a valid fO2, not "omitted"',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            // fO2=0 has no PO2-driven upper depth limit — must NOT silently
+            // fall back to the active gas's fO2 via `o2 || ...` truthiness.
+            var modZero = api.calculateMOD(0);
+            assert(modZero === Infinity, 'calculateMOD(0) should be Infinity (no O2 in the mix), got ' + modZero);
+            // A real fO2 still computes normally (regression guard).
+            var modNormal = api.calculateMOD(0.32);
+            var expected = ((1.4 / 0.32) - 1) * 10;
+            assert(Math.abs(modNormal - expected) < 0.01, 'calculateMOD(0.32) should be ' + expected.toFixed(2) + ', got ' + modNormal);
+            return 'PASS — MOD(0)=Infinity, MOD(0.32)=' + modNormal.toFixed(1) + 'm';
+        }
+    },
+    {
+        id: 'TC-9-SHIFT-COMBO-STUCK-KEY',
+        name: 'Issue #9 — releasing Shift before the letter does not leave the uppercase key stuck',
+        fn: function() {
+            var win = document.getElementById('gameFrame').contentWindow;
+            // keydown 'G' while Shift is held — browsers report e.key as the
+            // shifted char, i.e. uppercase 'G'. `keys` is `const`-declared
+            // in state.js (never a window property) — access it via the
+            // gameAPI getter instead of win.keys. Dispatch directly on `win`
+            // (not `document`) — the listener is window.addEventListener and
+            // KeyboardEvent does not bubble by default, so dispatching on
+            // document may never reach it.
+            win.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'G' }));
+            assert(api.keys['G'] === true, 'keydown G should set keys[\"G\"]');
+            // Shift released FIRST, so the keyup for the letter now reports
+            // the UNshifted lowercase 'g' — this is the exact scenario #9
+            // describes. Before the fix, only keys['g'] was cleared and
+            // keys['G'] stayed true forever.
+            win.dispatchEvent(new win.KeyboardEvent('keyup', { key: 'g' }));
+            assert(api.keys['G'] !== true, 'keys[\"G\"] should be cleared after keyup \"g\" (Shift released first), got ' + api.keys['G']);
+            assert(api.keys['g'] !== true, 'keys[\"g\"] should also be cleared');
+            return 'PASS — uppercase key no longer stuck after a Shift-first release';
+        }
+    },
+    {
+        id: 'TC-26-AVG-DEPTH-TIME-WEIGHTED',
+        name: 'Issue #26 — average depth accumulates time-weighted, not per-frame',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(30);
+            api.avgDepthAccum = 0;
+            api.avgDepthSamples = 0;
+            // One long (fast-forwarded-style) frame at 30m, then many short
+            // frames at 5m. Per-frame counting would weight these equally
+            // (2 samples → avg 17.5m); time-weighted must reflect that the
+            // 30m frame covered vastly more simulated dive-time.
+            runFrames(1, 3.0, 30);   // one frame, dtReal=3s → dtDiveSeconds scales with TIME_ACCELERATION
+            var accumAfterLong = api.avgDepthAccum;
+            var samplesAfterLong = api.avgDepthSamples;
+            runFrames(1, 0.033, 5); // one normal short frame
+            assert(api.avgDepthSamples > samplesAfterLong, 'a second frame must add more weighted time, not just +1 sample');
+            var longFrameWeight = samplesAfterLong;
+            var shortFrameWeight = api.avgDepthSamples - samplesAfterLong;
+            assert(longFrameWeight > shortFrameWeight * 10,
+                'the long (fast-forward-style) frame should carry far more weight than the short frame; long=' + longFrameWeight.toFixed(3) + ' short=' + shortFrameWeight.toFixed(3));
+            return 'PASS — long frame weight=' + longFrameWeight.toFixed(2) + ', short frame weight=' + shortFrameWeight.toFixed(4);
+        }
+    },
+    {
+        id: 'TC-70-DECO-FALLBACK-SKIPS-EMPTY-TANK',
+        name: 'Issue #70 — bestGasForDepth() never falls back to an empty tank while a non-empty one exists',
+        fn: function() {
+            // bestGasForDepth()'s multi-tank PO2-filtered loop (where the
+            // #70 fix lives) only runs in advanced/tec mode — in plain OC it
+            // early-returns tanks[activeTank] unconditionally by design.
+            // Switch mode BEFORE setupDive(), not after: switching modes
+            // calls restoreModeSettings(), which restores whatever tank
+            // config was last saved for 'tec' mode by an EARLIER test —
+            // setupDive()'s explicit tank rebuild must run last so it isn't
+            // clobbered by that mode-memory side effect.
+            api.diveMode = 'tec';
+            setupDive([[0.21, 0, 200], [1.0, 0, 200]]);
+            // Tank 0 (air) is PO2-valid at 40m boundary but drained to empty.
+            // Tank 1 (100% O2) is NOT PO2-valid at 40m (way over PO2_HIGH) —
+            // so no tank satisfies the PO2 window, forcing the fallback path.
+            api.tanks[0].gasRemaining = 0;
+            api.activeTank = 0;
+            var gas = api.bestGasForDepth(40);
+            assert(gas.fO2 !== undefined, 'bestGasForDepth must return a gas object');
+            // The fallback must prefer the non-empty tank (index 1) over the
+            // empty active tank (index 0), even though neither is strictly
+            // PO2-valid at this depth.
+            assert(Math.abs(gas.fO2 - 1.0) < 0.001,
+                'fallback should pick the non-empty tank (fO2=1.0), not the empty active tank (fO2=0.21); got fO2=' + gas.fO2);
+            // Last-resort: if EVERY tank is empty, still return something
+            // (the pre-existing activeTank fallback) rather than throwing.
+            api.tanks[1].gasRemaining = 0;
+            var gasAllEmpty = api.bestGasForDepth(40);
+            assert(gasAllEmpty && gasAllEmpty.fO2 !== undefined, 'bestGasForDepth must not throw/return nothing when every tank is empty');
+            return 'PASS — fallback prefers non-empty tank (fO2=' + gas.fO2 + '), degrades gracefully when all empty';
+        }
+    },
+    {
+        id: 'TC-68-FF-ZONE-MATCHES-SAFETY-STOP-ZONE',
+        name: 'Issue #68 — fast-forward eligibility matches the safety-stop countdown\'s own active range',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.maxDepth = 20; // triggers safetyStopNeeded once maxDepth > 11
+            api.setDepth(5);
+            runFrames(1, 0.033, 5); // let safetyStopCountdownStarted flip on (crosses below 6m)
+            assert(api.safetyStopCountdownStarted === true, 'countdown should have started by 5m');
+            // 7.5m is INSIDE the countdown's own active range (2.4-8.3m) but
+            // was OUTSIDE the old FF check's range (3.5-6.5m) — the exact
+            // mismatch #68 reports: countdown visibly ticks, FF button doesn't.
+            api.setDepth(7.5);
+            var win = document.getElementById('gameFrame').contentWindow;
+            var remainingBefore = api.safetyStopRemaining;
+            win.updateDiving(0.033);
+            assert(api.safetyStopRemaining < remainingBefore, 'countdown should still be actively ticking at 7.5m');
+            assert(api.SAFETY_STOP_ACTIVE_MIN_D <= 7.5 && 7.5 <= api.SAFETY_STOP_ACTIVE_MAX_D,
+                '7.5m should be inside the shared active-zone constants');
+            return 'PASS — 7.5m is inside both the countdown-active zone and the (now unified) FF-eligible zone';
+        }
+    },
+    {
+        id: 'TC-63-TANKCOUNT-SETTER-SYNCS-TANKS',
+        name: 'Issue #63 — gameAPI.tankCount setter pads/truncates tanks[] to match',
+        fn: function() {
+            setupDive([[0.21, 0, 200], [0.32, 0, 200]]);
+            assert(api.tanks.length === 2, 'setup should have produced 2 tanks');
+            // Raise tankCount above the real tanks[] length (the exact bug:
+            // a bare assignment used to leave tanks[2]/[3] as undefined).
+            api.tankCount = 4;
+            assert(api.tanks.length === 4, 'tanks[] should be padded to 4, got length ' + api.tanks.length);
+            for (var i = 0; i < 4; i++) {
+                assert(api.tanks[i] !== undefined && typeof api.tanks[i].fO2 === 'number',
+                    'tanks[' + i + '] should be a real tank object, got ' + JSON.stringify(api.tanks[i]));
+            }
+            // Lowering tankCount truncates tanks[] to match.
+            api.tankCount = 1;
+            assert(api.tanks.length === 1, 'tanks[] should be truncated to 1, got length ' + api.tanks.length);
+            return 'PASS — tanks[] length always tracks tankCount (padded to 4, truncated to 1)';
+        }
+    },
+    {
+        id: 'TC-30-UNIFIED-ASCENT-RATE',
+        name: 'Issue #30 — deco-schedule ascent and non-deco TTS use the same planning ascent rate',
+        fn: function() {
+            assert(api.DECO_PLANNING_ASCENT_RATE_MPM === 9,
+                'DECO_PLANNING_ASCENT_RATE_MPM should be 9 m/min, got ' + api.DECO_PLANNING_ASCENT_RATE_MPM);
+            setupDive([[0.21, 0, 200]]);
+            // A shallow, brief dive has no deco obligation and — keeping
+            // maxDepth at/under 11m — no safety-stop time either, so TTS's
+            // non-deco path is isolated to pure ascent time: depth / 9
+            // (rounded up), not the old depth / 3.
+            api.setDepth(10);
+            api.tissues = new Array(16).fill(0.79);
+            api.tissuesHe = new Array(16).fill(0);
+            api.maxDepth = 10;
+            var tts = api.calculateTTS();
+            var expectedAscentOnly = Math.ceil(10 / 9);
+            assert(tts <= expectedAscentOnly + 1,
+                'non-deco TTS at 10m should be close to depth/9=' + expectedAscentOnly + ', got ' + tts + ' (would be ~4 under the old 3 m/min rate)');
+            return 'PASS — TTS=' + tts + ' consistent with the unified 9 m/min planning rate';
+        }
+    },
+    {
+        id: 'TC-66-RESTORE-REJECTS-MALFORMED-SAVE',
+        name: 'Issue #66 — loadSavedDive() rejects a malformed/wrong-version payload instead of returning it',
+        fn: function() {
+            var win = document.getElementById('gameFrame').contentWindow;
+            var key = win.SAVE_KEY;
+            var original = win.localStorage.getItem(key);
+            try {
+                // Wrong version + short tissues array — the exact "older/
+                // divergent version" scenario #66 describes.
+                var bad = { saveVersion: 999, savedAt: Date.now(), tissues: [1, 2, 3], tissuesHe: [0, 0, 0], tanks: [{ fO2: 0.21 }], depth: 10, maxDepth: 10 };
+                win.localStorage.setItem(key, JSON.stringify(bad));
+                var loaded = win.loadSavedDive();
+                assert(loaded === null, 'loadSavedDive() should reject a malformed/wrong-version payload, got ' + JSON.stringify(loaded));
+                assert(win.localStorage.getItem(key) === null, 'a rejected save should also be cleared from localStorage');
+                // A well-formed save (via the real saveDiveState()) still round-trips.
+                setupDive([[0.21, 0, 200]]);
+                api.setDepth(12);
+                win.saveDiveState();
+                var goodLoaded = win.loadSavedDive();
+                assert(goodLoaded !== null, 'a real saveDiveState() payload should still load successfully');
+            } finally {
+                if (original !== null) win.localStorage.setItem(key, original);
+                else win.localStorage.removeItem(key);
+            }
+            return 'PASS — malformed save rejected + cleared, well-formed save still round-trips';
+        }
     }
 ];
 

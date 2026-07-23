@@ -48,7 +48,7 @@ function updateDiving(dtReal) {
     // Fast-forward eligibility check
     var decoStopD = decoStop(calculateCeiling());
     var atDecoStop = decoStopD > 0 && Math.abs(depth - decoStopD) <= 1.5;
-    var atSafetyStop = safetyStopCountdownStarted && !safetyStopComplete && Math.abs(depth - 5) <= 1.5;
+    var atSafetyStop = safetyStopCountdownStarted && !safetyStopComplete && depth >= SAFETY_STOP_ACTIVE_MIN_D && depth <= SAFETY_STOP_ACTIVE_MAX_D;
     var canFastForward = (atDecoStop || atSafetyStop);
     
     if (canFastForward && !keys['w'] && !keys['arrowup'] && !keys['s'] && !keys['arrowdown']) {
@@ -120,8 +120,15 @@ function updateDiving(dtReal) {
 
     if (depth > maxDepth) maxDepth = depth;
     if (depth > 0.5) {
-        avgDepthAccum += depth;
-        avgDepthSamples++;
+        // Issue #26: time-weighted, not per-frame. A fast-forwarded frame
+        // (up to 30x normal dtDiveSeconds) used to count as exactly one
+        // sample same as a normal frame, systematically underweighting
+        // flat stop time and skewing the displayed average depth shallow
+        // once FF was used. Weighting by dtDiveSeconds also makes the
+        // result framerate-independent; the display formula (accum/samples)
+        // and saveDiveState() persistence are unchanged.
+        avgDepthAccum += depth * dtDiveSeconds;
+        avgDepthSamples += dtDiveSeconds;
     }
 
     // WP-034: Record dive profile sample every ~2 seconds
@@ -365,9 +372,9 @@ function updateDiving(dtReal) {
             safetyStopRemaining = calculateSafetyStopDuration();
             safetyStopPaused = false;
         }
-        // Active countdown in 2.4–8.3m range
+        // Active countdown — see SAFETY_STOP_ACTIVE_MIN_D/MAX_D (issue #68).
         if (safetyStopCountdownStarted) {
-            if (depth >= 2.4 && depth <= 8.3) {
+            if (depth >= SAFETY_STOP_ACTIVE_MIN_D && depth <= SAFETY_STOP_ACTIVE_MAX_D) {
                 safetyStopPaused = false;
                 safetyStopRemaining -= dtDiveSeconds;
                 if (safetyStopRemaining <= 0) {
@@ -635,10 +642,32 @@ function gameLoop(timestamp) {
 var SAVE_KEY = 'diveSim_savedState';
 var SAVE_INTERVAL_MS = 3000;
 var _lastSaveTime = 0;
+// Issue #66: restoreDiveState() used to blindly assign every field from a
+// parsed localStorage payload. A save from an older/divergent version with
+// missing or malformed fields (e.g. tissues.length !== 16) fed `undefined`
+// straight into tissue/physics calculations, propagating NaN through the
+// whole simulation. Bump this whenever saveDiveState()'s shape changes in
+// a way that would make an old save invalid to restore.
+var SAVE_STATE_VERSION = 1;
+
+// Minimal plausibility check — not a full schema validator, just enough to
+// catch a payload that can't safely feed restoreDiveState(): wrong version,
+// missing/wrong-length tissue arrays, or non-finite core numbers.
+function _isValidSaveState(state) {
+    if (!state || typeof state !== 'object') return false;
+    if (state.saveVersion !== SAVE_STATE_VERSION) return false;
+    if (!Array.isArray(state.tissues) || state.tissues.length !== 16) return false;
+    if (!Array.isArray(state.tissuesHe) || state.tissuesHe.length !== 16) return false;
+    if (!state.tissues.every(isFinite) || !state.tissuesHe.every(isFinite)) return false;
+    if (!Array.isArray(state.tanks) || state.tanks.length < 1) return false;
+    if (!isFinite(state.depth) || !isFinite(state.maxDepth)) return false;
+    return true;
+}
 
 function saveDiveState() {
     if (gameState !== 'diving' && gameState !== 'surface') return;
     var state = {
+        saveVersion: SAVE_STATE_VERSION,
         gameState: gameState,
         depth: depth,
         maxDepth: maxDepth,
@@ -704,6 +733,10 @@ function loadSavedDive() {
         var state = JSON.parse(raw);
         // Reject stale saves (older than 1 hour)
         if (Date.now() - state.savedAt > 3600000) { clearSavedDive(); return null; }
+        // Issue #66: reject saves that don't match the current shape/version
+        // or fail a basic plausibility check, instead of feeding malformed
+        // data into restoreDiveState().
+        if (!_isValidSaveState(state)) { clearSavedDive(); return null; }
         return state;
     } catch { return null; }
 }
@@ -827,8 +860,18 @@ requestAnimationFrame(gameLoop);
 
 // Expose state for testing — used by diving-simulator-tests.html
 window.gameAPI = {
+    // Issue #9 test hook: `keys` is declared with `const` in state.js, so it
+    // never became a window property (classic-script quirk: only top-level
+    // `function` declarations do). Expose the live object directly — tests
+    // need to observe real keydown/keyup mutations, not a snapshot.
+    get keys() { return keys; },
     get depth() { return depth; },
     get maxDepth() { return maxDepth; },
+    set maxDepth(v) { maxDepth = v; },
+    get avgDepthAccum() { return avgDepthAccum; },
+    set avgDepthAccum(v) { avgDepthAccum = v; },
+    get avgDepthSamples() { return avgDepthSamples; },
+    set avgDepthSamples(v) { avgDepthSamples = v; },
     get diveTime() { return diveTime; },
     get ascentRate() { return ascentRate; },
     get currentVerticalRate() { return currentVerticalRate; },
@@ -844,12 +887,31 @@ window.gameAPI = {
     set cssHeight(v) { cssHeight = v; },
     get gameOverReason() { return gameOverReason; },
     get tissues() { return tissues; },
+    set tissues(v) { tissues = v; },
     get tissuesHe() { return tissuesHe; },
+    set tissuesHe(v) { tissuesHe = v; },
     get tanks() { return tanks; },
     get activeTank() { return activeTank; },
     set activeTank(v) { activeTank = v; },
     get tankCount() { return tankCount; },
-    set tankCount(v) { tankCount = v; },
+    // Issue #63: test-only setter used to bypass gsAddTank()/gsRemoveTank().
+    // A bare assignment left tanks[] out of sync (e.g. tankCount=4 with only
+    // 2 real tanks), so anything indexing tanks[i] for i < tankCount could
+    // read undefined. Pad with createTank() (same template gsAddTank uses)
+    // or truncate to match. Floor is 0 (not 1) rather than mirroring
+    // gsRemoveTank()'s `tankCount > 1` gate: the test harness's own
+    // setupDive() helper deliberately does `tanks.length = 0; tankCount = 0;`
+    // as an explicit "clear everything" step before manually re-pushing
+    // tanks via pushTank() — clamping the floor to 1 here would silently
+    // inject an extra dummy tank ahead of every test's real tanks.
+    set tankCount(v) {
+        v = Math.max(0, Math.min(MAX_TANKS, v));
+        while (tanks.length < v) tanks.push(createTank(0.21, 0.0, 200));
+        while (tanks.length > v) tanks.pop();
+        tankCount = v;
+        if (selectedTankTab >= tankCount) selectedTankTab = Math.max(0, tankCount - 1);
+        if (activeTank >= tankCount) activeTank = Math.max(0, tankCount - 1);
+    },
     get po2ViolationTime() { return po2ViolationTime; },
     get dcsViolationTime() { return dcsViolationTime; },
     get cnsPercent() { return cnsPercent; },
@@ -892,6 +954,11 @@ window.gameAPI = {
     calculateDecoSchedule: calculateDecoSchedule,
     calculatePO2: calculatePO2,
     calculateMOD: calculateMOD,
+    calculateTTS: calculateTTS,
+    bestGasForDepth: bestGasForDepth,
+    get SAFETY_STOP_ACTIVE_MIN_D() { return SAFETY_STOP_ACTIVE_MIN_D; },
+    get SAFETY_STOP_ACTIVE_MAX_D() { return SAFETY_STOP_ACTIVE_MAX_D; },
+    get DECO_PLANNING_ASCENT_RATE_MPM() { return DECO_PLANNING_ASCENT_RATE_MPM; },
     calculateGTR: calculateGTR,
     calculateNarcoticPP: calculateNarcoticPP,
     calculateEND: calculateEND,
