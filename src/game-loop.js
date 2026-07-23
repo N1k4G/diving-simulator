@@ -214,11 +214,14 @@ function updateDiving(dtReal) {
     }
 
     // BYP-029: Best gas available info tone
+    // Issue #51: recommendBestGas() now returns -1 when no tank satisfies the
+    // PO2 window. Suppress the info tone in that case — it would be misleading
+    // to chirp "a better gas is available" when the truth is the opposite.
     var bestGasIdx = recommendBestGas();
-    if (bestGasIdx !== activeTank && !bestGasAlerted) {
+    if (bestGasIdx !== -1 && bestGasIdx !== activeTank && !bestGasAlerted) {
         playInfoTone();
         bestGasAlerted = true;
-    } else if (bestGasIdx === activeTank) {
+    } else if (bestGasIdx === activeTank || bestGasIdx === -1) {
         bestGasAlerted = false;
     }
 
@@ -251,20 +254,18 @@ function updateDiving(dtReal) {
       // Auto-switch if active tank empty — pick best gas for current depth
       if (tank.gasRemaining <= 0) {
           var bestIdx = recommendBestGas();
-          if (bestIdx !== activeTank && tanks[bestIdx].gasRemaining > 0) {
+          if (bestIdx !== -1 && bestIdx !== activeTank && tanks[bestIdx].gasRemaining > 0) {
               activeTank = bestIdx;
               gasSwitchNotifyTime = 2;
               gasSwitchNotifyText = '\u26A0 AUTO SWITCH \u2192 T' + (bestIdx + 1) + ': ' + tanks[bestIdx].label;
-          } else {
-              // Fallback: any tank with gas
-              for (var si = 0; si < tankCount; si++) {
-                  if (si !== activeTank && tanks[si].gasRemaining > 0) {
-                      activeTank = si;
-                      gasSwitchNotifyTime = 2;
-                      gasSwitchNotifyText = '\u26A0 AUTO SWITCH \u2192 T' + (si + 1) + ': ' + tanks[si].label;
-                      break;
-                  }
-              }
+          } else if (bestIdx === -1) {
+              // Issue #51: no tank has a PO2 inside the operational window.
+              // Do NOT silently switch to some other (possibly hypoxic) tank \u2014
+              // that used to trip the hypoxia timer as if the diver had chosen
+              // it. Alert instead and leave the empty tank active; manual
+              // gas-switch keys (1..6) remain available.
+              gasSwitchNotifyTime = 2;
+              gasSwitchNotifyText = '\u26A0 NO SAFE GAS';
           }
       }
     }

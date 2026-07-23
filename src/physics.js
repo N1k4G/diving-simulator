@@ -596,14 +596,21 @@ function bestGasForDepth(d) {
     return { fO2: best.fO2, fHe: best.fHe, fN2: best.fN2 };
 }
 
+// Issue #51: enforce BOTH ends of the operational PO2 window (previously only
+// the upper bound was checked, so a hypoxic gas could be recommended — and
+// auto-switched to — at shallow depth). The window matches bestGasForDepth()
+// exactly: PO2_HYPOXIA <= po2 <= PO2_HIGH. When no tank satisfies it, return
+// the sentinel -1 so callers can distinguish "no safe gas" from "current tank
+// is best" and refuse to silently switch to an unsafe cylinder.
 function recommendBestGas() {
-    var bestIdx = activeTank;
-    var bestFO2 = 0;
+    var bestIdx = -1;
+    var bestFO2 = -1;
     var pAmb = ambientPressure(depth);
     for (var i = 0; i < tankCount; i++) {
         if (tanks[i].gasRemaining <= 0) continue;
         var po2 = tanks[i].fO2 * pAmb;
-        if (po2 <= 1.4 && tanks[i].fO2 > bestFO2) {
+        if (po2 < PO2_HYPOXIA || po2 > PO2_HIGH) continue;
+        if (tanks[i].fO2 > bestFO2) {
             bestFO2 = tanks[i].fO2;
             bestIdx = i;
         }
