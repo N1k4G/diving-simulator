@@ -99,6 +99,10 @@ const gameGlobals = {
   depth: "writable", maxDepth: "writable",
   avgDepthAccum: "writable", avgDepthSamples: "writable",
   diveTime: "writable", ascentRate: "writable",
+  // Issue #45 drill-framework internal helper: exposed to eslint globals
+  // so cross-file references resolve; treated as writable-if-reassigned
+  // (game-loop.js does not reassign it, but keeping it writable keeps the
+  // rule consistent with the other drill state).
   gameOverReason: "writable",
   tissues: "writable", tissuesHe: "writable",
   cnsPercent: "writable", po2ViolationTime: "writable", dcsViolationTime: "writable",
@@ -136,6 +140,27 @@ const gameGlobals = {
   hintQueue: "writable", hintEdges: "writable",
   showHintOnce: "readonly", dismissAllHints: "readonly",
   resetAllHintsForTests: "readonly", _hintsAreDismissed: "readonly",
+
+  // Issue #45: Scenario drills (constants.js + state.js + game-loop.js +
+  // renderer.js + touch.js + ui.js)
+  DRILLS: "readonly",
+  DRILL_MIN_DIVETIME_MIN: "readonly", DRILL_MAX_DIVETIME_MIN: "readonly",
+  DRILL_MIN_DEPTH_M: "readonly", DRILL_TRIGGER_PROB_PER_SEC: "readonly",
+  DRILL_DEBRIEF_DURATION_SEC: "readonly",
+  DRILL_LIGHT_FLICKER_SEC: "readonly", DRILL_LIGHT_DARK_SEC: "readonly",
+  DRILL_LIGHT_WRONG_VIS: "readonly",
+  DRILL_FREEFLOW_MULT: "readonly", DRILL_FREEFLOW_DURATION_SEC: "readonly",
+  drillsEnabled: "writable", drillHasRunThisDive: "writable",
+  drillState: "writable",
+  isDrillEligibleNow: "readonly", tryTriggerDrill: "readonly",
+  startDrill: "readonly", resolveDrillOption: "readonly",
+  dismissDrillDebrief: "readonly",
+  _drillIsAlarmActive: "readonly", _pickEligibleDrill: "readonly",
+  _drillById: "readonly", _drillRealTime: "readonly",
+  _openDrillOverlay: "readonly", _updateDrillTiming: "readonly",
+  _visibleDrillOptions: "readonly", _drillVisibleOptions: "readonly",
+  drawDrillOverlay: "readonly", drawDrillDebrief: "readonly",
+  drawDrillFlicker: "readonly",
   fishes: "writable", fishSpawnTimer: "writable",
   wildlife: "writable", wildlifeSpawnTimer: "writable",
   shark: "writable", sharkTimer: "writable",

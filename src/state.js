@@ -272,6 +272,63 @@ let torchOn = false;
 // current zone id as a small HUD line.
 let debugVisualZones = false;
 
+// Issue #45: Scenario drills — opt-in scriptable emergency scenarios.
+// drillsEnabled is the setup-time toggle; drillState is the mutable per-dive
+// runtime object driven by game-loop.js's trigger/resolution helpers.
+// resetDive() clears drillState and drillHasRunThisDive; drillsEnabled is a
+// setup-screen choice that intentionally persists across dives (same rule as
+// diveSite, currentLang).
+//
+// drillState.phase transitions:
+//   'inactive' — no drill running (default between dives / after debrief).
+//   'flicker'  — visual pre-roll for lightFailure (2 s of torch flicker,
+//                gameState still 'diving'; physics continues so the visual
+//                warning has real time to be perceived).
+//   'overlay'  — decision overlay is up (gameState === 'drill'; physics
+//                paused; keys 1/2/3 or tap on option row selects).
+//   'debrief'  — 5-second debrief card, then auto-dismisses; Enter dismisses
+//                immediately (gameState === 'drill' still, physics paused).
+//   'effect'   — resolution effects that outlive the overlay (freeflow
+//                multiplier, light dark period). gameState back to 'diving';
+//                consumption code + renderer read the timers below.
+//
+// drillState fields set during a run:
+//   id                          — drill catalog id (e.g. 'lightFailure')
+//   startedAt                   — dive-time (min) when the drill started
+//   flickerUntilReal            — real-time timestamp (Date.now/1000) when
+//                                 the flicker phase ends and overlay opens
+//   selectedOption              — index of the option the player picked
+//   correct                     — whether that option was marked correct
+//   debriefUntilReal            — real-time timestamp when the debrief card
+//                                 auto-dismisses (also cleared by Enter)
+//   freeflowUntilDiveSec        — dive-seconds timestamp when the free-flow
+//                                 consumption multiplier expires
+//   freeflowDrainTankIdx        — tank index whose regulator is free-flowing.
+//                                 If === activeTank, the ×N multiplier is
+//                                 applied to breathing consumption; if
+//                                 different, that tank drains in parallel.
+//   lightRestoreAt              — dive-seconds timestamp when the torch turns
+//                                 back on (correct + wrong-option paths both
+//                                 restore at DRILL_LIGHT_DARK_SEC).
+//   optionRects                 — CSS-pixel bounding boxes of the on-canvas
+//                                 option rows, populated by drawDrillOverlay()
+//                                 each frame so touch.js can hit-test taps.
+let drillsEnabled = false;
+let drillHasRunThisDive = false;
+let drillState = {
+    phase: 'inactive',
+    id: null,
+    startedAt: 0,
+    flickerUntilReal: 0,
+    selectedOption: -1,
+    correct: false,
+    debriefUntilReal: 0,
+    freeflowUntilDiveSec: 0,
+    freeflowDrainTankIdx: -1,
+    lightRestoreAt: 0,
+    optionRects: []
+};
+
 // Phase B: Current state
 let current = {
   active: false,
@@ -923,6 +980,22 @@ function resetDive() {
     _fastAscentAccum = 0;
     _fastAscentPeak = 0;
     _ceilingViolationAccum = 0;
+    // Issue #45: reset scenario-drill state (drillsEnabled itself is a
+    // setup-time toggle and intentionally persists across dives).
+    drillHasRunThisDive = false;
+    drillState = {
+        phase: 'inactive',
+        id: null,
+        startedAt: 0,
+        flickerUntilReal: 0,
+        selectedOption: -1,
+        correct: false,
+        debriefUntilReal: 0,
+        freeflowUntilDiveSec: 0,
+        freeflowDrainTankIdx: -1,
+        lightRestoreAt: 0,
+        optionRects: []
+    };
     for (var i = 0; i < tanks.length; i++) {
         tanks[i].gasRemaining = tanks[i].totalGas;
     }

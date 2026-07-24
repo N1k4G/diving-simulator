@@ -309,6 +309,44 @@ function touchUpdateUI() {
     }
 }
 
+// Issue #45: Scenario-drill canvas tap handler. Options are drawn on the
+// canvas by drawDrillOverlay() into drillState.optionRects (CSS-pixel
+// bounds); the pointer handler below hit-tests every tap/click and calls
+// resolveDrillOption(idx) with the matching index. Registered as pointer
+// events so a mouse click on desktop and a finger tap on touch both work.
+// When the debrief card is up, any tap dismisses it (same UX as pressing
+// Enter). Bound directly to the canvas so it never fights with the HTML
+// overlays / buttons which layer above it.
+(function initDrillTapHandler() {
+    var _c = document.getElementById('c');
+    if (!_c) return;
+    function onCanvasPointerDown(e) {
+        if (gameState !== 'drill') return;
+        if (drillState.phase === 'debrief') {
+            if (e.cancelable) e.preventDefault();
+            dismissDrillDebrief();
+            return;
+        }
+        if (drillState.phase !== 'overlay') return;
+        // Translate viewport → CSS-pixel canvas coords. The canvas fills the
+        // window in this game (no offset) but we still honour getBoundingClientRect
+        // so any future layout change stays correct.
+        var rect = _c.getBoundingClientRect();
+        var px = (e.clientX != null ? e.clientX : 0) - rect.left;
+        var py = (e.clientY != null ? e.clientY : 0) - rect.top;
+        var rects = drillState.optionRects || [];
+        for (var i = 0; i < rects.length; i++) {
+            var r = rects[i];
+            if (px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h) {
+                if (e.cancelable) e.preventDefault();
+                resolveDrillOption(r.index != null ? r.index : i);
+                return;
+            }
+        }
+    }
+    _c.addEventListener('pointerdown', onCanvasPointerDown);
+})();
+
 // Inject touch update into game loop
 var _realGameLoop = gameLoop;
 gameLoop = function(timestamp) {

@@ -413,6 +413,22 @@ function buildHtmlGasSetup() {
             _gsBuilt = false;
         });
 
+        // Issue #45: Training Drills opt-in toggle. Placed in the extras
+        // footer next to Language so it's visible in every mode/site and
+        // does not shift the primary Start Dive affordance. Matches the
+        // gs-btn styling used by every other row here — border-color +
+        // background change track the on/off state (updated below on each
+        // frame the way the mode buttons do via `_mc`).
+        _gsNodes.drillsBtn = mkEl('button', 'gs-btn', extrasRow);
+        _gsNodes.drillsBtn.style.fontSize = '13px';
+        _gsNodes.drillsBtn.style.flexDirection = 'column';
+        _gsNodes.drillsBtn.style.minHeight = '56px';
+        function _toggleDrills() { drillsEnabled = !drillsEnabled; _gsBuilt = false; }
+        _gsNodes.drillsBtn.addEventListener('touchstart', function(e) {
+            e.preventDefault(); _toggleDrills();
+        }, { passive: false });
+        _gsNodes.drillsBtn.addEventListener('click', _toggleDrills);
+
         // Start dive button — BUG-CCR-5: call startDiveAction() directly.
         _gsNodes.startBtn = mkEl('button', 'gs-btn gs-accent', extrasRow);
         _gsNodes.startBtn.addEventListener('touchstart', function(e) {
@@ -527,4 +543,11 @@ function buildHtmlGasSetup() {
     _gsNodes.startBtn.textContent = S('startDive');
     _gsNodes.langBtn.textContent = currentLang === 'en' ? 'Sprache' : 'Language';
     document.getElementById('touch-setup-lang').textContent = currentLang === 'en' ? 'Sprache' : 'Language';
+    // Issue #45: Training Drills toggle — label + on/off tint.
+    if (_gsNodes.drillsBtn) {
+        _gsNodes.drillsBtn.textContent = S('drillsToggleLabel') + ': ' + (drillsEnabled ? 'ON' : 'OFF');
+        _gsNodes.drillsBtn.style.borderColor = drillsEnabled ? 'rgba(70,240,143,0.55)' : 'rgba(255,255,255,0.25)';
+        _gsNodes.drillsBtn.style.background = drillsEnabled ? 'rgba(70,240,143,0.14)' : 'rgba(255,255,255,0.05)';
+        _gsNodes.drillsBtn.style.color = drillsEnabled ? '#46f08f' : '#c9d3df';
+    }
 }

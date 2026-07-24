@@ -417,6 +417,31 @@ const GAS_PRESETS = [
     { name: 'Hx 21/79',    fO2: 0.21, fHe: 0.79 }
 ];
 
+// ============================================================
+//  Issue #45: Scenario drills — scriptable, opt-in didactic incidents
+// ============================================================
+// A drill is a scriptable emergency management scenario that pauses the
+// dive at a "what would you do now?" decision point instead of the fatal
+// game-over screen. Framework tuning constants below; the DRILLS catalog
+// (id, precondition, text keys, options with correct/effect, debrief keys)
+// lives further down together with the string table so both are edited in
+// lock-step.
+//
+// All drills use ONLY mechanics that already exist elsewhere in the
+// simulator (torch on/off, silt visibility, effectiveAMV multiplier,
+// tank drain, scrubberFailed / co2BuildupTime, onBailout, barotraumaTime).
+// No new physics.
+const DRILL_MIN_DIVETIME_MIN            = 3;    // earliest firing point (dive-minutes)
+const DRILL_MAX_DIVETIME_MIN            = 15;   // latest firing point (dive-minutes)
+const DRILL_MIN_DEPTH_M                 = 8;    // depth floor: no drill in the last few metres
+const DRILL_TRIGGER_PROB_PER_SEC        = 0.03; // per real-second Bernoulli chance while eligible
+const DRILL_DEBRIEF_DURATION_SEC        = 5;    // real-seconds a debrief card auto-dismisses after
+const DRILL_LIGHT_FLICKER_SEC           = 2;    // torch flicker duration before overlay appears
+const DRILL_LIGHT_DARK_SEC              = 8;    // dark period after correct "backup light" answer
+const DRILL_LIGHT_WRONG_VIS             = 0.15; // visibility floor forced by "swim fast" wrong option
+const DRILL_FREEFLOW_MULT               = 6;    // consumption multiplier for a free-flowing regulator
+const DRILL_FREEFLOW_DURATION_SEC       = 45;   // dive-seconds the free-flow lasts
+
 // SECTION: i18n string tables (EN/DE)
 // SEARCH TERMS: STRINGS, S(), currentLang, EN, DE, language
 
@@ -589,6 +614,53 @@ const STRINGS = {
       trimReport:      'Depth held to \u00b1{stddev} m stddev during your stops. Aim for \u00b10.5 m \u2014 bobbing wastes gas and stirs silt.'
     },
     debriefStarLabel: 'Rating',
+    // Issue #45: Scenario drills — opt-in didactic emergency scenarios.
+    // Text keys are consumed by drawDrillOverlay() / drawDrillDebrief();
+    // the DRILLS catalog binds each key to a drill id + option index.
+    drillsToggleLabel: 'Training Drills',
+    drillsToggleHint: 'Occasional scripted incidents with a decision point',
+    drillHeader: 'TRAINING DRILL',
+    drillPromptFooter: 'Press 1 / 2 / 3 to choose',
+    drillDebriefHeader: 'DEBRIEFING',
+    drillDebriefCorrect: 'Correct choice',
+    drillDebriefWrong: 'Suboptimal choice',
+    drillDebriefWhyLabel: 'WHY:',
+    drillDebriefRealLabel: 'IN THE REAL WORLD:',
+    drillDebriefDismiss: 'Enter to continue',
+    drills: {
+      lightFailure: {
+        title: 'Light Failure',
+        text: 'Your primary torch just failed and the passage is dark. You are on the guideline. What do you do?',
+        options: [
+          'Stop, activate backup light, stay on the guideline',
+          'Swim fast toward the exit right now',
+          'Ascend to open water'
+        ],
+        why: 'Stop-Think-Act on a light failure: a backup light and the guideline get you out. Rushing kicks up silt; ascending in a cave hits ceiling.',
+        realWorld: 'Cave and technical divers always carry at least two redundant lights and never leave the guideline. Silt-outs and lost lines kill quickly when you cannot simply ascend.'
+      },
+      freeflow: {
+        title: 'Regulator Free-Flow',
+        text: 'Your regulator is icing up — gas is free-flowing loudly! You feel it draining fast. What do you do?',
+        options: [
+          'Breathe through it calmly, initiate ascent/turn',
+          'Switch to your backup tank',
+          'Hold your breath and cover the regulator'
+        ],
+        why: 'A free-flowing reg can still be breathed from — a shallow "sipping" technique keeps you alive while you turn the dive. Holding your breath while ascending risks lung barotrauma.',
+        realWorld: 'Open-water and technical courses drill breathing from a free-flow so it becomes muscle memory. Redundancy (independent second-stage or bailout tank) is the ultimate answer, but the reg you have keeps working until it runs the tank dry.'
+      },
+      co2: {
+        title: 'CO2 Buildup In The Loop',
+        text: 'Loud warning tone: CO2 is building up in the loop — the scrubber is not clearing your exhalations. What do you do?',
+        options: [
+          'Bail out to open circuit, end the dive',
+          'Increase setpoint and continue'
+        ],
+        why: 'CO2 is not fixed by more O2 — the scrubber sorbs CO2, not the diluent or oxygen supply. Bailout puts you on OC where every exhaled breath leaves your system.',
+        realWorld: 'CCR training makes bailout the automatic answer to any scrubber problem. CO2 toxicity impairs judgement fast — every extra minute inside the failing loop reduces your ability to recognise you are in trouble.'
+      }
+    },
     gameOverInfo: null // set below
   },
   de: {
@@ -750,6 +822,51 @@ const STRINGS = {
       trimReport:      'Tiefe auf ±{stddev} m Streuung gehalten. Ziel: ±0,5 m — Auf-und-ab verbraucht Gas und wirbelt Silt auf.'
     },
     debriefStarLabel: 'Bewertung',
+    // Issue #45: Szenario-Drills (spiegelt EN-Schlüssel)
+    drillsToggleLabel: 'Trainings-Drills',
+    drillsToggleHint: 'Vereinzelte Zwischenfälle mit Entscheidungsmoment',
+    drillHeader: 'TRAININGS-DRILL',
+    drillPromptFooter: '1 / 2 / 3 drücken zum Wählen',
+    drillDebriefHeader: 'AUSWERTUNG',
+    drillDebriefCorrect: 'Richtige Entscheidung',
+    drillDebriefWrong: 'Suboptimale Entscheidung',
+    drillDebriefWhyLabel: 'WARUM:',
+    drillDebriefRealLabel: 'IN DER PRAXIS:',
+    drillDebriefDismiss: 'Enter zum Fortfahren',
+    drills: {
+      lightFailure: {
+        title: 'Lampenausfall',
+        text: 'Deine Hauptlampe ist gerade ausgefallen und der Gang ist dunkel. Du bist an der Leine. Was tust du?',
+        options: [
+          'Stop, Backup-Lampe aktivieren, an der Leine bleiben',
+          'Sofort schnell Richtung Ausgang schwimmen',
+          'Ins Freiwasser aufsteigen'
+        ],
+        why: 'Stop-Think-Act bei Lampenausfall: Backup-Lampe und Leine bringen dich raus. Hektik wirbelt Silt auf; in der Höhle aufsteigen stößt an die Decke.',
+        realWorld: 'Höhlen- und Tec-Taucher führen immer mindestens zwei redundante Lampen und verlassen nie die Leine. Silt-Out und verlorene Leine töten schnell, wenn du nicht einfach auftauchen kannst.'
+      },
+      freeflow: {
+        title: 'Vereister Automat',
+        text: 'Dein Automat friert ein — das Gas strömt laut ab! Du spürst, wie es schnell weniger wird. Was tust du?',
+        options: [
+          'Ruhig weiteratmen, Aufstieg/Umkehr einleiten',
+          'Auf die Backup-Flasche wechseln',
+          'Luft anhalten und Automat abdecken'
+        ],
+        why: 'Ein blasender Automat kann noch geatmet werden — "sippen" hält dich am Leben, während du den Tauchgang beendest. Luft anhalten beim Aufsteigen riskiert ein Lungenbarotrauma.',
+        realWorld: 'OWD- und Tec-Kurse drillen das Atmen aus einem Freeflow, damit es Muskelgedächtnis wird. Redundanz (unabhängige zweite Stufe oder Bailout-Flasche) ist die endgültige Antwort, aber der laufende Automat funktioniert bis die Flasche leer ist.'
+      },
+      co2: {
+        title: 'CO2-Aufbau im Kreislauf',
+        text: 'Warnton: CO2 baut sich im Kreislauf auf — der Scrubber bindet deine Ausatemluft nicht mehr. Was tust du?',
+        options: [
+          'Bailout auf Open Circuit, Tauchgang beenden',
+          'Sollwert erhöhen und weitertauchen'
+        ],
+        why: 'CO2 wird nicht durch mehr O2 behoben — der Scrubber bindet CO2, nicht Diluent oder Sauerstoff. Bailout bringt dich auf OC, wo jede Ausatmung dein System verlässt.',
+        realWorld: 'Die CCR-Ausbildung macht Bailout zur automatischen Antwort auf jedes Scrubber-Problem. CO2-Vergiftung trübt das Urteilsvermögen rasant — jede zusätzliche Minute im defekten Kreislauf verringert deine Fähigkeit, das überhaupt zu erkennen.'
+      }
+    },
     gameOverInfo: {
       'OUT OF GAS': {
         cause: 'Alle Flaschen leer \u2014 kein Atemgas mehr vorhanden.',
@@ -828,3 +945,158 @@ const STRINGS = {
 };
 // Point English gameOverInfo to the existing GAME_OVER_INFO object
 STRINGS.en.gameOverInfo = GAME_OVER_INFO;
+
+// Issue #45: DRILLS catalog — scriptable scenario definitions.
+// Each entry:
+//   id           — stable string key (also used by gameAPI.forceDrill()).
+//   precondition — function(api) -> boolean; determines whether the drill
+//                  is eligible in the current dive context. Only preconditions
+//                  that read pure "run-time" state (mode, site, tank count,
+//                  torch state, alarms) belong here — the framework itself
+//                  already gates on drillsEnabled, min dive-time, depth,
+//                  and "no active alarm".
+//   stringsKey   — key inside STRINGS[lang].drills for text + options + debrief.
+//   options      — array of { correct: boolean, effect: function(api) }.
+//                  effect() is called synchronously the moment the player
+//                  selects the option; it may mutate state (visibility,
+//                  scrubberFailed, onBailout, drillState.freeflow*).
+//                  Passive effects (e.g. "you'll hit the ceiling on ascent")
+//                  are handled by the existing physics — effect() may be a
+//                  no-op in that case.
+//
+// NOTE on file layout: the catalog uses lazy state-reads (site strings via
+// activeSite(), tankCount, ccrState fields, torchOn, inOverhead). Those
+// symbols only exist at runtime inside the game frames; constants.js loads
+// first, so a `precondition` that reads them must do so via the passed api
+// (which is `window` inside the game — every game global is either window.x
+// directly, or accessed through the standard identifier binding).
+const DRILLS = [
+    {
+        id: 'lightFailure',
+        stringsKey: 'lightFailure',
+        precondition: function() {
+            return inOverhead && torchOn && diveSite === 'cave';
+        },
+        options: [
+            {
+                correct: true,
+                effect: function() {
+                    // Correct: torch stays off, backup light means visibility
+                    // stays workable but with a dimmed residual light for 8 s.
+                    drillState.lightRestoreAt = diveTime * 60 + DRILL_LIGHT_DARK_SEC;
+                }
+            },
+            {
+                correct: false,
+                effect: function() {
+                    // Swim fast wrong option: silt kicks up hard, light still
+                    // returns only after 8 s. Direct visibility drop mirrors
+                    // what the silt mechanic would produce over ~2 s of hard
+                    // finning near the floor, without requiring the diver to
+                    // actually kick during the paused overlay.
+                    visibility = Math.min(visibility, DRILL_LIGHT_WRONG_VIS);
+                    drillState.lightRestoreAt = diveTime * 60 + DRILL_LIGHT_DARK_SEC;
+                }
+            },
+            {
+                correct: false,
+                effect: function() {
+                    // Ascend wrong option: no drill-side effect. The existing
+                    // overhead-ceiling collision + fast-ascent barotrauma
+                    // system handles the consequence when the player follows
+                    // through with W after the drill closes.
+                    drillState.lightRestoreAt = diveTime * 60 + DRILL_LIGHT_DARK_SEC;
+                }
+            }
+        ]
+    },
+    {
+        id: 'freeflow',
+        stringsKey: 'freeflow',
+        precondition: function() {
+            // OC only (CCR uses a different failure mode).
+            return diveMode !== 'ccr';
+        },
+        options: [
+            {
+                correct: true,
+                effect: function() {
+                    // Breathe through it: consumption multiplier applied to
+                    // the active tank for DRILL_FREEFLOW_DURATION_SEC dive-
+                    // seconds. drainingTankIdx === activeTank means "the free-
+                    // flowing reg is the one you are breathing from".
+                    drillState.freeflowUntilDiveSec = diveTime * 60 + DRILL_FREEFLOW_DURATION_SEC;
+                    drillState.freeflowDrainTankIdx = activeTank;
+                }
+            },
+            {
+                correct: true,
+                // Precondition: option only offered when a second tank exists.
+                requiresMultiTank: true,
+                effect: function() {
+                    // Switch to backup: drain continues on the ORIGINAL tank
+                    // (drainTankIdx keeps the pre-switch index) while the
+                    // player breathes from the next available tank.
+                    var oldIdx = activeTank;
+                    var newIdx = -1;
+                    for (var i = 0; i < tankCount; i++) {
+                        if (i !== oldIdx && tanks[i] && tanks[i].gasRemaining > 0) {
+                            newIdx = i;
+                            break;
+                        }
+                    }
+                    if (newIdx >= 0) {
+                        activeTank = newIdx;
+                        gasSwitchNotifyTime = 2;
+                        gasSwitchNotifyText = '⚠ DRILL → T' + (newIdx + 1) + ': ' + tanks[newIdx].label;
+                    }
+                    drillState.freeflowUntilDiveSec = diveTime * 60 + DRILL_FREEFLOW_DURATION_SEC;
+                    drillState.freeflowDrainTankIdx = oldIdx;
+                }
+            },
+            {
+                correct: false,
+                effect: function() {
+                    // Hold-breath option: no drill-side mechanic. Barotrauma
+                    // physics handles the consequence on the next ascent.
+                    // Nothing to schedule.
+                }
+            }
+        ]
+    },
+    {
+        id: 'co2',
+        stringsKey: 'co2',
+        precondition: function() {
+            return diveMode === 'ccr' && !ccrState.onBailout && !ccrState.scrubberFailed;
+        },
+        onTrigger: function() {
+            // Activate the existing scrubber-failure mechanic so the CO2
+            // buildup timer starts running BEFORE the player chooses. Reset
+            // co2BuildupTime so the drill starts from a clean countdown.
+            ccrState.scrubberFailed = true;
+            ccrState.co2BuildupTime = 0;
+        },
+        options: [
+            {
+                correct: true,
+                effect: function() {
+                    // Bail out to OC: existing bailout flag stops the loop
+                    // update and moves consumption onto the diluent cyl. The
+                    // CO2 buildup timer no longer matters because bailout
+                    // exhaust leaves the loop.
+                    ccrState.onBailout = true;
+                    ccrState.co2BuildupTime = 0;
+                }
+            },
+            {
+                correct: false,
+                effect: function() {
+                    // Increase setpoint: the CO2 countdown keeps running. Do
+                    // NOT clear scrubberFailed — that IS the lesson.
+                    ccrAdjustSP(0.1);
+                }
+            }
+        ]
+    }
+];

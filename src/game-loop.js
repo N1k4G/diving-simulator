@@ -30,6 +30,167 @@ function effectiveAMV(kicking) {
     return amvRate * (kicking ? FINKICK_PARAMS.exertionFactor : 1);
 }
 
+// Issue #45: Scenario drills — helper functions.
+// -----------------------------------------------------------------------
+// isDrillEligibleNow()
+//   Framework-level gates that apply BEFORE a specific drill's precondition
+//   is checked: dive-time window, depth floor, no active alarm/gameover
+//   condition, opt-in toggle on, at most one drill per dive. Returns
+//   boolean.
+// tryTriggerDrill(dtReal)
+//   Called once per updateDiving() tick when eligible. Picks a random
+//   drill whose precondition passes and starts it. Uses a per-second
+//   Bernoulli probability converted through perSecondToPerFrameProbability
+//   so the expected number of triggers per real-second is framerate-
+//   independent (same pattern as bubbles / narcosis input drops).
+// startDrill(id)
+//   Public entry (also used by gameAPI.forceDrill()). Marks the drill as
+//   run this dive so the trigger check will not re-fire, runs the drill's
+//   optional onTrigger (e.g. co2 flips ccrState.scrubberFailed), and either
+//   begins the flicker phase (lightFailure — 2 s of visual pre-roll,
+//   physics continues) or opens the overlay immediately (freeflow, co2).
+// resolveDrillOption(idx)
+//   Called by the keyboard handler (1/2/3) OR by touch.js's canvas tap
+//   handler. Runs the option's effect, logs a 'drillOutcome' event into
+//   diveEvents (issue #44 debriefing), moves to the debrief phase.
+// dismissDrillDebrief()
+//   Called by Enter OR by the auto-dismiss timer. Returns to 'diving'.
+function _drillIsAlarmActive() {
+    // "Active alarm" = any of the sustained-violation timers has any
+    // accumulated time, OR the CCR loop is already failing, OR the diver
+    // is in the bad-air lens. This is deliberately broad — the didactic
+    // point of the framework is that drills only fire when the diver is
+    // NOT already fighting for their life.
+    if (po2ViolationTime > 0 || dcsViolationTime > 0 ||
+        barotraumaTime > 0 || hypoxiaTime > 0) return true;
+    if (diveMode === 'ccr' && (ccrHypoxiaTime > 0 || ccrHyperoxiaTime > 0)) return true;
+    if (badAirWarning) return true;
+    return false;
+}
+function isDrillEligibleNow() {
+    if (!drillsEnabled) return false;
+    if (drillHasRunThisDive) return false;
+    if (drillState.phase !== 'inactive') return false;
+    if (diveTime < DRILL_MIN_DIVETIME_MIN) return false;
+    if (diveTime > DRILL_MAX_DIVETIME_MIN) return false;
+    if (depth <= DRILL_MIN_DEPTH_M) return false;
+    if (_drillIsAlarmActive()) return false;
+    return true;
+}
+function _pickEligibleDrill() {
+    var candidates = [];
+    for (var i = 0; i < DRILLS.length; i++) {
+        try {
+            if (DRILLS[i].precondition()) candidates.push(DRILLS[i]);
+        } catch { /* precondition may touch not-yet-populated state; skip */ }
+    }
+    if (candidates.length === 0) return null;
+    return candidates[Math.floor(Math.random() * candidates.length)];
+}
+function tryTriggerDrill(dtReal) {
+    if (!isDrillEligibleNow()) return false;
+    var pFrame = perSecondToPerFrameProbability(DRILL_TRIGGER_PROB_PER_SEC, dtReal);
+    if (Math.random() >= pFrame) return false;
+    var drill = _pickEligibleDrill();
+    if (!drill) return false;
+    return startDrill(drill.id);
+}
+function _drillById(id) {
+    for (var i = 0; i < DRILLS.length; i++) if (DRILLS[i].id === id) return DRILLS[i];
+    return null;
+}
+function startDrill(id) {
+    var drill = _drillById(id);
+    if (!drill) return false;
+    drillHasRunThisDive = true;
+    drillState.id = id;
+    drillState.startedAt = diveTime;
+    drillState.selectedOption = -1;
+    drillState.correct = false;
+    drillState.optionRects = [];
+    if (typeof drill.onTrigger === 'function') {
+        try { drill.onTrigger(); } catch { /* onTrigger has no rollback path */ }
+    }
+    if (id === 'lightFailure') {
+        // 2 s of torch flicker BEFORE the overlay appears — the didactic
+        // signal is "you saw your light die, then had to decide". Physics
+        // keeps ticking during the flicker so the interruption feels real.
+        drillState.phase = 'flicker';
+        drillState.flickerUntilReal = _drillRealTime() + DRILL_LIGHT_FLICKER_SEC;
+    } else {
+        _openDrillOverlay();
+    }
+    return true;
+}
+function _drillRealTime() {
+    // performance.now() when available (avoids Date.now() jumping backward
+    // on wall-clock adjustments); fallback for the classic-script iframe
+    // context used by the test harness.
+    return (typeof performance !== 'undefined' && performance.now)
+        ? performance.now() / 1000
+        : Date.now() / 1000;
+}
+function _openDrillOverlay() {
+    // lightFailure: torch has now definitely failed (flicker window over).
+    // Other drills open the overlay directly from startDrill().
+    if (drillState.id === 'lightFailure') torchOn = false;
+    drillState.phase = 'overlay';
+    if (gameState === 'diving') gameState = 'drill';
+}
+function _updateDrillTiming(dtReal) {
+    // Called BEFORE physics from the 'diving' branch (advance flicker->overlay)
+    // AND from the 'drill' branch (auto-dismiss debrief). One entry point so
+    // the same real-time clock drives both, whether we are still ticking
+    // physics or paused. Also expires the freeflow multiplier once dive-time
+    // passes the deadline (called from within updateDiving()).
+    if (drillState.phase === 'flicker' && _drillRealTime() >= drillState.flickerUntilReal) {
+        _openDrillOverlay();
+    }
+    if (drillState.phase === 'debrief' && _drillRealTime() >= drillState.debriefUntilReal) {
+        dismissDrillDebrief();
+    }
+}
+function resolveDrillOption(idx) {
+    if (drillState.phase !== 'overlay') return false;
+    var drill = _drillById(drillState.id);
+    if (!drill) return false;
+    // Multi-tank gating: the freeflow "switch to backup" option is only
+    // offered when tankCount > 1. The overlay renderer / tap-hit logic
+    // already filters the visible options through the same gate, but a
+    // programmatic (test) forceOption path must reject an unavailable idx
+    // rather than silently pick another option.
+    var visible = _visibleDrillOptions(drill);
+    if (idx < 0 || idx >= visible.length) return false;
+    var opt = visible[idx];
+    drillState.selectedOption = idx;
+    drillState.correct = !!opt.correct;
+    try { opt.effect(); } catch { /* option effects don't currently throw */ }
+    diveEvents.push({ t: diveTime, kind: 'drillOutcome', value: {
+        id: drill.id, option: idx, correct: !!opt.correct
+    }});
+    drillState.phase = 'debrief';
+    drillState.debriefUntilReal = _drillRealTime() + DRILL_DEBRIEF_DURATION_SEC;
+    return true;
+}
+function _visibleDrillOptions(drill) {
+    var out = [];
+    for (var i = 0; i < drill.options.length; i++) {
+        var o = drill.options[i];
+        if (o.requiresMultiTank && tankCount <= 1) continue;
+        out.push(o);
+    }
+    return out;
+}
+function dismissDrillDebrief() {
+    if (drillState.phase !== 'debrief') return false;
+    drillState.phase = 'effect';
+    // Ongoing effects (freeflow multiplier, light-restore countdown) remain
+    // active — they are read directly off drillState by consumption code and
+    // the renderer respectively.
+    if (gameState === 'drill') gameState = 'diving';
+    return true;
+}
+
 // Issue #69: convert a per-frame probability that was calibrated at an
 // assumed 60 fps (p60) into the correct per-frame probability for the
 // actual frame's dt so that the expected NUMBER of events per real second
@@ -103,6 +264,24 @@ function updateDiving(dtReal) {
     if (gasSwitchNotifyTime > 0) {
         gasSwitchNotifyTime -= dtReal;
     }
+
+    // Issue #45: advance flicker->overlay transition (real-time driven)
+    // + expire the free-flow multiplier when its dive-second deadline
+    // passes + restore torch if the light-failure dark period elapsed.
+    _updateDrillTiming(dtReal);
+    if (drillState.freeflowUntilDiveSec > 0 && diveTime * 60 >= drillState.freeflowUntilDiveSec) {
+        drillState.freeflowUntilDiveSec = 0;
+        drillState.freeflowDrainTankIdx = -1;
+    }
+    if (drillState.lightRestoreAt > 0 && diveTime * 60 >= drillState.lightRestoreAt) {
+        torchOn = true;
+        drillState.lightRestoreAt = 0;
+    }
+    // Try to fire a scripted drill. Only rolls when isDrillEligibleNow()
+    // returns true (dive-time window + depth floor + no active alarm +
+    // opt-in + at most one per dive), so this is a cheap gate in the
+    // common case.
+    tryTriggerDrill(dtReal);
 
     // Issue #38: Contextual onboarding hint pump.
     // The queue drains one hint at a time. Each visible hint runs for
@@ -441,9 +620,29 @@ function updateDiving(dtReal) {
         updateCCRLoop(dtDiveSeconds, prevDepth);
       }
     } else {
-      consumed = effectiveAMV(kicking) * pAmb * dtDiveMinutes;
+      var baseConsumed = effectiveAMV(kicking) * pAmb * dtDiveMinutes;
+      consumed = baseConsumed;
+      // Issue #45: Free-flow drill effect. When the free-flow deadline has
+      // not yet passed AND the free-flowing reg is on the active tank, the
+      // consumption multiplier applies to the diver's breathing. When the
+      // free-flowing reg is on a DIFFERENT tank (option 2 — switched to
+      // backup), the active tank consumes normally and the old tank drains
+      // in parallel at DRILL_FREEFLOW_MULT × base (below).
+      var ffActive = drillState.freeflowUntilDiveSec > 0 && diveTime * 60 < drillState.freeflowUntilDiveSec;
+      if (ffActive && drillState.freeflowDrainTankIdx === activeTank) {
+          consumed = baseConsumed * DRILL_FREEFLOW_MULT;
+      }
       var tank = getActiveTank();
       tank.gasRemaining = Math.max(0, tank.gasRemaining - consumed);
+      // Parallel free-flow drain on the pre-switch tank (option 2 path).
+      if (ffActive && drillState.freeflowDrainTankIdx >= 0 &&
+          drillState.freeflowDrainTankIdx !== activeTank) {
+          var drainT = tanks[drillState.freeflowDrainTankIdx];
+          if (drainT) {
+              var drainC = baseConsumed * DRILL_FREEFLOW_MULT;
+              drainT.gasRemaining = Math.max(0, drainT.gasRemaining - drainC);
+          }
+      }
 
       // Auto-switch if active tank empty — pick best gas for current depth
       if (tank.gasRemaining <= 0) {
@@ -898,8 +1097,41 @@ function gameLoop(timestamp) {
             }
             drawScene();
             drawDiveComputer();
+            // Issue #45: torch-flicker pre-roll for the lightFailure drill.
+            // Only fires when drillState.phase === 'flicker' && id === 'lightFailure'.
+            drawDrillFlicker();
             if (showHelp && !_helpShown) { showHtmlHelp(); _helpShown = true; }
             if (!showHelp && _helpShown) { hideHtmlHelp(); _helpShown = false; }
+            break;
+        case 'drill':
+            // Issue #45: Scripted-drill pause. Physics does NOT tick — the
+            // scene renders as a frozen snapshot with the decision overlay
+            // (or debrief card, depending on drillState.phase) painted on
+            // top. Real-time still advances so the debrief auto-dismiss and
+            // any future auto-time-out on undecided drills works, but no
+            // gas / tissue / clock updates run.
+            document.getElementById('html-gas-setup').style.display = 'none';
+            _updateDrillTiming(dtReal);
+            drawScene();
+            drawDiveComputer();
+            if (drillState.phase === 'debrief') {
+                drawDrillDebrief();
+                if (keys['enter']) {
+                    keys['enter'] = false;
+                    dismissDrillDebrief();
+                }
+            } else {
+                drawDrillOverlay();
+                // Keyboard selection: 1/2/3 map to the currently-visible
+                // options (which may be filtered by requiresMultiTank).
+                for (var _dk = 1; _dk <= 3; _dk++) {
+                    if (keys[String(_dk)]) {
+                        keys[String(_dk)] = false;
+                        resolveDrillOption(_dk - 1);
+                        break;
+                    }
+                }
+            }
             break;
         case 'gameover':
             document.getElementById('html-gas-setup').style.display = 'none';
@@ -972,7 +1204,10 @@ function _isValidSaveState(state) {
 }
 
 function saveDiveState() {
-    if (gameState !== 'diving' && gameState !== 'surface') return;
+    // Issue #45: 'drill' is a paused-but-inside-dive state — treated the
+    // same as 'diving' for persistence purposes so the save game is not
+    // cleared while the decision overlay is up.
+    if (gameState !== 'diving' && gameState !== 'surface' && gameState !== 'drill') return;
     var state = {
         saveVersion: SAVE_STATE_VERSION,
         gameState: gameState,
@@ -1129,7 +1364,8 @@ function beforeUnloadHandler(event) {
 }
 
 function updateBeforeUnloadGuard() {
-    if (gameState === 'diving' || gameState === 'surface') {
+    // Issue #45: 'drill' is a paused-but-mid-dive state — keep the guard on.
+    if (gameState === 'diving' || gameState === 'surface' || gameState === 'drill') {
         window.addEventListener('beforeunload', beforeUnloadHandler);
     } else {
         window.removeEventListener('beforeunload', beforeUnloadHandler);
@@ -1140,7 +1376,10 @@ function updateBeforeUnloadGuard() {
 function maybeSaveDiveState(timestamp) {
     if (timestamp - _lastSaveTime > SAVE_INTERVAL_MS) {
         _lastSaveTime = timestamp;
-        if (gameState === 'diving' || gameState === 'surface') {
+        // Issue #45: 'drill' persists the same as 'diving'/'surface' — a
+        // page reload with a drill on-screen must not silently discard the
+        // paused dive.
+        if (gameState === 'diving' || gameState === 'surface' || gameState === 'drill') {
             saveDiveState();
         } else {
             clearSavedDive();
@@ -1224,6 +1463,12 @@ window.gameAPI = {
     get avgDepthSamples() { return avgDepthSamples; },
     set avgDepthSamples(v) { avgDepthSamples = v; },
     get diveTime() { return diveTime; },
+    // Issue #45: writable diveTime setter so drill tests can pin the
+    // dive-time gate (DRILL_MIN_DIVETIME_MIN) without having to run 120
+    // frames of physics just to cross a 3-minute threshold. diveTime is
+    // declared `let` in state.js so a bare window.diveTime = x from a
+    // test would silently no-op (classic-script scope rules).
+    set diveTime(v) { diveTime = +v || 0; },
     get ascentRate() { return ascentRate; },
     get currentVerticalRate() { return currentVerticalRate; },
     get gameState() { return gameState; },
@@ -1660,5 +1905,34 @@ window.gameAPI = {
     get HINT_BCD_MIN_DEPTH() { return HINT_BCD_MIN_DEPTH; },
     showHintOnce: showHintOnce,
     dismissAllHints: dismissAllHints,
-    resetAllHintsForTests: resetAllHintsForTests
+    resetAllHintsForTests: resetAllHintsForTests,
+    // Issue #45: Scenario-drill hooks. `drillsEnabled` / `drillHasRunThisDive`
+    // / `drillState` are declared with `let` in state.js so they never became
+    // window properties — tests must read/write them through this surface.
+    // `forceDrill(id)` triggers a specific catalog entry deterministically
+    // (skips the random window + Bernoulli roll but still runs its onTrigger
+    // hook so, e.g., the co2 drill flips scrubberFailed exactly the way a
+    // "real" trigger would). `resolveDrillOption(idx)` and
+    // `dismissDrillDebrief()` reproduce the keyboard / tap-selection paths.
+    get drillsEnabled() { return drillsEnabled; },
+    set drillsEnabled(v) { drillsEnabled = !!v; },
+    get drillHasRunThisDive() { return drillHasRunThisDive; },
+    set drillHasRunThisDive(v) { drillHasRunThisDive = !!v; },
+    get drillState() { return drillState; },
+    get DRILLS() { return DRILLS; },
+    get DRILL_MIN_DIVETIME_MIN() { return DRILL_MIN_DIVETIME_MIN; },
+    get DRILL_MAX_DIVETIME_MIN() { return DRILL_MAX_DIVETIME_MIN; },
+    get DRILL_MIN_DEPTH_M() { return DRILL_MIN_DEPTH_M; },
+    get DRILL_LIGHT_FLICKER_SEC() { return DRILL_LIGHT_FLICKER_SEC; },
+    get DRILL_LIGHT_DARK_SEC() { return DRILL_LIGHT_DARK_SEC; },
+    get DRILL_FREEFLOW_MULT() { return DRILL_FREEFLOW_MULT; },
+    get DRILL_FREEFLOW_DURATION_SEC() { return DRILL_FREEFLOW_DURATION_SEC; },
+    get DRILL_DEBRIEF_DURATION_SEC() { return DRILL_DEBRIEF_DURATION_SEC; },
+    isDrillEligibleNow: isDrillEligibleNow,
+    forceDrill: startDrill,
+    resolveDrillOption: resolveDrillOption,
+    dismissDrillDebrief: dismissDrillDebrief,
+    tryTriggerDrill: tryTriggerDrill,
+    drawDrillOverlay: function() { drawDrillOverlay(); },
+    drawDrillDebrief: function() { drawDrillDebrief(); }
 };
