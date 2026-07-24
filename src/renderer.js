@@ -7682,7 +7682,10 @@ function drawDiveComputer() {
         var tbY = innerY + s(2);
         var chipH = s(15);
         var modeLabel = diveMode === 'ccr' ? (ccrState.onBailout ? 'BAIL' : 'CC\u00B7BO') : diveMode === 'tec' ? 'OC TEC' : 'REC';
-        var modeTone = diveMode === 'ccr' ? (ccrState.onBailout ? '#ff4b4b' : '#34e6ff') : diveMode === 'tec' ? '#34e6ff' : '#46f08f';
+        // Issue #39: bailout tone is a danger-tier status (mode is degraded);
+        // REC tone is an ok-tier status. #34e6ff (cyan) is a mode chip accent,
+        // not traffic-light \u2014 kept as a literal (out of HUD_COLORS scope).
+        var modeTone = diveMode === 'ccr' ? (ccrState.onBailout ? hudColor('danger') : '#34e6ff') : diveMode === 'tec' ? '#34e6ff' : hudColor('ok');
         cx.font = 'bold ' + s(11) + "px " + DCF;
         cx.textAlign = 'left';
         var mlW = cx.measureText(modeLabel).width;
@@ -7700,7 +7703,8 @@ function drawDiveComputer() {
         cx.beginPath(); cx.roundRect(batX, batY, batW, batH, s(2)); cx.stroke();
         cx.fillStyle = '#8694a1';
         cx.fillRect(batX + batW + s(1), batY + batH * 0.28, s(2), batH * 0.44);
-        cx.fillStyle = '#46f08f';
+        // Issue #39: battery is "full" indicator — ok tier.
+        cx.fillStyle = hudColor('ok');
         cx.fillRect(batX + s(1.5), batY + s(1.5), (batW - s(3)) * 0.82, batH - s(3));
         cx.textAlign = 'left';
     }
@@ -7732,9 +7736,12 @@ function drawDiveComputer() {
     var chevH = s(8);
     var chevGap = s(3);
     var numChevrons = Math.min(6, Math.max(0, Math.round(arRate / 3)));
+    // Issue #39: chevron count already encodes rate independently of colour
+    // (six chevrons at max, filled proportionally), and >18 m/min also
+    // blinks — two non-colour cues in addition to the tier colour swap.
     var chevColor = '#555';
-    if (arRate > 18) chevColor = '#ff3333';
-    else if (arRate > 9) chevColor = '#ffd24d';
+    if (arRate > 18) chevColor = hudColor('danger');
+    else if (arRate > 9) chevColor = hudColor('caution');
     else if (arRate > 0.5) chevColor = '#fff';
     var flashChev = arRate > 18 && Math.floor(Date.now() / 300) % 2 === 0;
 
@@ -7810,9 +7817,9 @@ function drawDiveComputer() {
     if (showStopBox) {
 
         if (inDeco) {
-            // DECO STOP title
+            // DECO STOP title — issue #39: deco is a danger-tier state.
             cx.font = s(14) + "px " + DCF;
-            cx.fillStyle = '#ff4b4b';
+            cx.fillStyle = hudColor('danger');
             cx.textAlign = 'left';
             cx.fillText('DECO STOP', rBX + s(6), rBTop + s(12));
             // Stop depth + time
@@ -7857,7 +7864,7 @@ function drawDiveComputer() {
             if (safetyStopCountdownStarted && !safetyStopComplete && !safetyStopPaused) {
                 var ssMin = Math.floor(safetyStopRemaining / 60);
                 var ssSec = Math.floor(safetyStopRemaining % 60);
-                cx.fillStyle = '#46f08f';
+                cx.fillStyle = hudColor('ok');
                 cx.fillText(ssTargetD, rBX + s(6), rBTop + s(38));
                 var ss5W = cx.measureText(ssTargetD).width;
                 cx.font = s(18) + "px " + DCF;
@@ -7870,7 +7877,7 @@ function drawDiveComputer() {
             } else if (safetyStopCountdownStarted && !safetyStopComplete && safetyStopPaused) {
                 var ssMin2 = Math.floor(safetyStopRemaining / 60);
                 var ssSec2 = Math.floor(safetyStopRemaining % 60);
-                cx.fillStyle = '#ffd24d';
+                cx.fillStyle = hudColor('caution');
                 cx.fillText(ssTargetD, rBX + s(6), rBTop + s(38));
                 var ss5W2 = cx.measureText(ssTargetD).width;
                 cx.font = s(18) + "px " + DCF;
@@ -7883,21 +7890,21 @@ function drawDiveComputer() {
             } else {
                 var ssDur = calculateSafetyStopDuration();
                 var ssMinPlan = Math.floor(ssDur / 60);
-                cx.fillStyle = '#ffd24d';
+                cx.fillStyle = hudColor('caution');
                 cx.fillText(ssTargetD, rBX + s(6), rBTop + s(38));
                 var ss5W3 = cx.measureText(ssTargetD).width;
                 cx.font = s(18) + "px " + DCF;
                 cx.fillStyle = '#a8b6cc';
                 cx.fillText('m', rBX + s(6) + ss5W3 + s(2), rBTop + s(38));
                 cx.font = 'bold ' + s(28) + "px " + DCF;
-                cx.fillStyle = '#ffd24d';
+                cx.fillStyle = hudColor('caution');
                 cx.font = s(18) + "px " + DCF;
                 var spUnitW = cx.measureText('min').width;
                 cx.font = 'bold ' + s(28) + "px " + DCF;
                 var spNumW = cx.measureText(String(ssMinPlan)).width;
                 var spGroupW = spNumW + s(3) + spUnitW;
                 var spGroupX = rBX + rBW * 0.60 - spGroupW / 2;
-                cx.fillStyle = '#ffd24d';
+                cx.fillStyle = hudColor('caution');
                 cx.textAlign = 'left';
                 cx.fillText(String(ssMinPlan), spGroupX, rBTop + s(38));
                 cx.font = s(18) + "px " + DCF;
@@ -7907,7 +7914,7 @@ function drawDiveComputer() {
         }
     } else if (safetyStopComplete) {
         cx.font = s(14) + "px " + DCF;
-        cx.fillStyle = '#46f08f';
+        cx.fillStyle = hudColor('ok');
         cx.textAlign = 'left';
         cx.fillText('SAFETY STOP', rBX + s(6), rBTop + s(12));
         cx.font = 'bold ' + s(28) + "px " + DCF;
@@ -7924,8 +7931,13 @@ function drawDiveComputer() {
         cx.textAlign = 'right';
         cx.fillText('NDL', ndlRightX, ndlLabelTop);
         cx.font = 'bold ' + s(ndlHero ? 46 : 34) + "px " + DCF;
-        cx.fillStyle = ndl < 5 ? '#ff3333' : ndl < 15 ? '#ffd24d' : '#46f08f';
-        cx.fillText(ndl >= 999 ? '---' : ndl > 99 ? '99' : String(ndl), ndlRightX, ndlLabelTop + s(ndlHero ? 44 : 30));
+        // Issue #39: NDL < 5 is danger tier — prefix with ⚠ so the state is
+        // identifiable in grayscale / for fully colour-blind users.
+        var ndlIsDanger = ndl < 5;
+        cx.fillStyle = ndlIsDanger ? hudColor('danger') : ndl < 15 ? hudColor('caution') : hudColor('ok');
+        var ndlText = ndl >= 999 ? '---' : ndl > 99 ? '99' : String(ndl);
+        if (ndlIsDanger && ndl < 999) ndlText = hudDangerPrefix() + ndlText;
+        cx.fillText(ndlText, ndlRightX, ndlLabelTop + s(ndlHero ? 44 : 30));
         if (ndlHero && ndl < 999) {
             cx.font = s(11) + "px " + DCF;
             cx.fillStyle = '#8694a1';
@@ -7956,12 +7968,25 @@ function drawDiveComputer() {
         cx.roundRect(n2BarX, n2BarTop, n2BarW, n2BarFullH, s(3));
         cx.clip();
         var n2VGrad = cx.createLinearGradient(0, n2BarBot, 0, n2FillTop);
-        n2VGrad.addColorStop(0, '#46f08f');
-        n2VGrad.addColorStop(1, n2LoadFill > 0.7 ? '#ff4b4b' : n2LoadFill > 0.4 ? '#ffd24d' : '#46f08f');
+        n2VGrad.addColorStop(0, hudColor('ok'));
+        n2VGrad.addColorStop(1, n2LoadFill > 0.7 ? hudColor('danger') : n2LoadFill > 0.4 ? hudColor('caution') : hudColor('ok'));
         cx.fillStyle = n2VGrad;
         cx.fillRect(n2BarX, n2FillTop, n2BarW, n2FillH);
         cx.restore();
     }
+    // Issue #39: threshold tick marks \u2014 caution (40 %) + danger (70 %) \u2014
+    // give the bar an unambiguous fill-vs-threshold reading that doesn't
+    // depend on the colour swap alone.
+    cx.strokeStyle = 'rgba(255,255,255,0.55)';
+    cx.lineWidth = 1;
+    var _n2Tick40Y = n2BarBot - 0.4 * n2BarFullH;
+    var _n2Tick70Y = n2BarBot - 0.7 * n2BarFullH;
+    cx.beginPath();
+    cx.moveTo(n2BarX - s(2), _n2Tick40Y);
+    cx.lineTo(n2BarX + n2BarW + s(2), _n2Tick40Y);
+    cx.moveTo(n2BarX - s(2), _n2Tick70Y);
+    cx.lineTo(n2BarX + n2BarW + s(2), _n2Tick70Y);
+    cx.stroke();
     cx.font = s(8) + "px " + DCF;
     cx.fillStyle = '#8694a1';
     cx.textAlign = 'center';
@@ -8000,8 +8025,11 @@ function drawDiveComputer() {
     }
 
     if (highestWarn) {
+        // Issue #39: banner already blinks + already carries a ⚠ prefix in
+        // the localised text (S('warnO2'), etc.) — two non-colour cues in
+        // addition to the tier colour swap.
         var wBlink = warnCritical && Math.floor(Date.now() / 380) % 2 === 0;
-        var wCol   = warnCritical ? '#ff4b4b' : '#ffd24d';
+        var wCol   = warnCritical ? hudColor('danger') : hudColor('caution');
         var wbx = contentX + s(4), wbw = contentW - s(8);
         var wby = warnBannerTop,   wbh = warnBannerH;
         // dark pill background
@@ -8078,15 +8106,17 @@ function drawDiveComputer() {
     if (infoPageMode === 0) {
 
     if (diveMode === 'ccr') {
-      // TASK-032D: CCR HUD Display
+      // TASK-032D: CCR HUD Display — issue #39: colours via hudColor().
       var po2Val = ccrState.actualPO2;
-      var ccrPO2Color = po2Val < 0.18 ? '#ff3333' : po2Val > 1.6 ? '#ff3333' : po2Val > 1.4 ? '#ff8800' : po2Val > 1.0 ? '#ffcc00' : '#33ff99';
+      var po2IsDangerCCR = po2Val < 0.18 || po2Val > 1.6;
+      var ccrPO2Color = po2IsDangerCCR ? hudColor('danger') : po2Val > 1.4 ? hudColor('warn') : po2Val > 1.0 ? hudColor('caution') : hudColor('ok');
       var o2Bar = Math.round(ccrState.o2CylPressure);
       var dilBar = Math.round(ccrState.dilCylPressure);
       var scrMin = Math.round(ccrState.scrubberRemaining);
-      var scrColor = scrMin < 10 ? '#ff3333' : scrMin < 30 ? '#ffcc00' : '#33ff99';
+      var scrIsDanger = scrMin < 10;
+      var scrColor = scrIsDanger ? hudColor('danger') : scrMin < 30 ? hudColor('caution') : hudColor('ok');
       var modeText = ccrState.onBailout ? 'BAIL' : 'CCR';
-      var modeColor = ccrState.onBailout ? '#ff3333' : '#33ff99';
+      var modeColor = ccrState.onBailout ? hudColor('danger') : hudColor('ok');
 
       // Row 1: Mode + SP
       cx.font = valueFont; cx.textAlign = 'left';
@@ -8095,39 +8125,42 @@ function drawDiveComputer() {
       cx.fillStyle = '#fff'; cx.textAlign = 'right';
       cx.fillText('SP:' + ccrState.targetSP.toFixed(1), box0X + box0W - padR, bY1);
 
-      // Row 2: PO2
+      // Row 2: PO2 (issue #39: ⚠ prefix on danger)
       cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
       cx.fillText('PO2', box0X + padL, bY2);
       cx.font = valueFont; cx.fillStyle = ccrPO2Color; cx.textAlign = 'right';
-      cx.fillText(po2Val.toFixed(2), box0X + box0W - padR, bY2);
+      cx.fillText((po2IsDangerCCR ? hudDangerPrefix() : '') + po2Val.toFixed(2), box0X + box0W - padR, bY2);
 
       // Row 3: O2 cylinder
-      var o2Color = o2Bar < 30 ? '#ff3333' : '#eaf2ff';
+      var o2IsDangerCCR = o2Bar < 30;
+      var o2Color = o2IsDangerCCR ? hudColor('danger') : '#eaf2ff';
       cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
       cx.fillText('O2', box0X + padL, bY3);
       cx.font = valueFont; cx.fillStyle = o2Color; cx.textAlign = 'right';
-      cx.fillText(o2Bar + ' bar', box0X + box0W - padR, bY3);
+      cx.fillText((o2IsDangerCCR ? hudDangerPrefix() : '') + o2Bar + ' bar', box0X + box0W - padR, bY3);
 
       // Row 4: Diluent cylinder
-      var dilColor = dilBar < 30 ? '#ff3333' : '#eaf2ff';
+      var dilIsDangerCCR = dilBar < 30;
+      var dilColor = dilIsDangerCCR ? hudColor('danger') : '#eaf2ff';
       cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
       cx.fillText('DIL', box0X + padL, bY4);
       cx.font = valueFont; cx.fillStyle = dilColor; cx.textAlign = 'right';
-      cx.fillText(dilBar + ' bar', box0X + box0W - padR, bY4);
+      cx.fillText((dilIsDangerCCR ? hudDangerPrefix() : '') + dilBar + ' bar', box0X + box0W - padR, bY4);
 
       // Row 5: Scrubber
       cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
       cx.fillText('SCR', box0X + padL, bY5);
       cx.font = valueFont; cx.fillStyle = scrColor; cx.textAlign = 'right';
-      cx.fillText(scrMin + ' min', box0X + box0W - padR, bY5);
+      cx.fillText((scrIsDanger ? hudDangerPrefix() : '') + scrMin + ' min', box0X + box0W - padR, bY5);
 
     } else {
-    // OC Gas Box (original)
+    // OC Gas Box (original) — issue #39: colours via hudColor().
     tank = getActiveTank();
     var bestIdx = recommendBestGas();
     var isBest = (activeTank === bestIdx);
     tBar = tankBar();
-    var barColor = tBar > 100 ? '#33ff33' : (tBar >= 50 ? '#ffff33' : '#ff3333');
+    var tankIsDanger = tBar < 50;
+    var barColor = tBar > 100 ? hudColor('ok') : (tBar >= 50 ? hudColor('caution') : hudColor('danger'));
 
     // Row 1: "Gas" label (left-aligned, consistent font)
     cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
@@ -8162,9 +8195,23 @@ function drawDiveComputer() {
         cx.fillRect(barX, barY, barW * barFrac, barH);
         cx.restore();
     }
-    // Numeric value (vertically centered with bar, right-aligned)
+    // Issue #39: threshold tick marks at 50 bar (danger→caution edge) and
+    // 100 bar (caution→ok edge). Renders on top of the fill so the bar is
+    // legible as "fill vs threshold" without relying on colour.
+    cx.strokeStyle = 'rgba(255,255,255,0.55)';
+    cx.lineWidth = 1;
+    var _tk50X = barX + (50 / 200) * barW;
+    var _tk100X = barX + (100 / 200) * barW;
+    cx.beginPath();
+    cx.moveTo(_tk50X, barY - s(1));
+    cx.lineTo(_tk50X, barY + barH + s(1));
+    cx.moveTo(_tk100X, barY - s(1));
+    cx.lineTo(_tk100X, barY + barH + s(1));
+    cx.stroke();
+    // Numeric value (vertically centered with bar, right-aligned) — issue #39
+    // prefixes ⚠ on danger so the value is unambiguous in grayscale.
     cx.font = valueFont; cx.fillStyle = barColor; cx.textAlign = 'right';
-    cx.fillText(Math.round(tBar) + ' bar', box0X + box0W - padR, barY + barH - s(1));
+    cx.fillText((tankIsDanger ? hudDangerPrefix() : '') + Math.round(tBar) + ' bar', box0X + box0W - padR, barY + barH - s(1));
 
     // Row 4: Tank dots (smaller, subtle, active/best highlighted)
     var dotCount = tankCount;
@@ -8177,7 +8224,10 @@ function drawDiveComputer() {
         var hasGas = tk.gasRemaining > 0;
         var isActive = (i === activeTank);
         var isBestDot = (i === bestIdx);
-        var dotColor = hasGas ? (isActive ? '#33ffcc' : (isBestDot ? '#33ff99' : '#aaa')) : '#444';
+        // #33ffcc (active) is an identity accent, not a status tier — kept
+        // as a literal. Issue #39: best-gas dot IS a "safe/available" cue,
+        // so it flips to the CVD palette's ok tone in colour-blind mode.
+        var dotColor = hasGas ? (isActive ? '#33ffcc' : (isBestDot ? hudColor('ok') : '#aaa')) : '#444';
         cx.beginPath();
         cx.arc(dotsStartX + i * dotGap, dotsY, dotR, 0, Math.PI * 2);
         cx.fillStyle = dotColor;
@@ -8199,16 +8249,18 @@ function drawDiveComputer() {
     cx.font = labelFont; cx.textAlign = 'right';
     var bestText;
     if (bestIdx === -1) {
-        bestText = 'NO SAFE GAS';
-        cx.fillStyle = '#ff9933';
+        // Issue #39: "no safe gas" is danger tier \u2014 no valid PO2 window.
+        bestText = hudDangerPrefix() + 'NO SAFE GAS';
+        cx.fillStyle = hudColor('danger');
     } else if (isBest) {
         bestText = 'Best: \u2713';
-        cx.fillStyle = '#33ff99';
+        cx.fillStyle = hudColor('ok');
     } else {
         bestText = 'Best: T' + (bestIdx + 1);
-        // Blink green/grey every 500ms if a better tank is available
+        // Blink ok/grey every 500ms if a better tank is available \u2014 the
+        // blink itself is the primary non-colour cue for "switch me".
         var blink = Math.floor(Date.now() / 500) % 2 === 0;
-        cx.fillStyle = blink ? '#33ff99' : '#888';
+        cx.fillStyle = blink ? hudColor('ok') : '#888';
     }
     cx.fillText(bestText, box0X + box0W - padR, bY5);
     } // end OC/CCR gas box
@@ -8230,7 +8282,8 @@ function drawDiveComputer() {
     cx.font = valueFont; cx.fillStyle = valueColor; cx.textAlign = 'right';
     cx.fillText(avgDepthVal.toFixed(1) + ' m', box1X + box1W - padL, bR2Y);
 
-    // Box 1 Row 3: AMV
+    // Box 1 Row 3: AMV — a configured user preference, not a status tier;
+    // keep the amber literal (not in HUD_COLORS scope).
     var bR3Y = slotY + rowH * 2 + s(14);
     cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
     cx.fillText('AMV', box1X + padL, bR3Y);
@@ -8240,34 +8293,37 @@ function drawDiveComputer() {
     // --- Box 2: GTR / TTS / CEIL ---
     drawSlot(box2X, box2W);
 
-    // Box 2 Row 1: GTR
+    // Box 2 Row 1: GTR (issue #39: colours + ⚠ prefix on danger)
     bR1Y = slotY + rowH * 0 + s(14);
     cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
     cx.fillText('GTR', box2X + padL, bR1Y);
-    var gtrColor2 = '#46f08f';
-    if (gtr < 10) gtrColor2 = '#ff3333';
-    else if (gtr < 30) gtrColor2 = '#ffd24d';
+    var gtrIsDanger = gtr < 10;
+    var gtrColor2 = hudColor('ok');
+    if (gtrIsDanger) gtrColor2 = hudColor('danger');
+    else if (gtr < 30) gtrColor2 = hudColor('caution');
     cx.font = valueFont; cx.fillStyle = gtrColor2; cx.textAlign = 'right';
-    cx.fillText(gtr >= 999 ? '---' : Math.floor(gtr) + ' min', box2X + box2W - padL, bR1Y);
+    var gtrText = gtr >= 999 ? '---' : Math.floor(gtr) + ' min';
+    if (gtrIsDanger && gtr < 999) gtrText = hudDangerPrefix() + gtrText;
+    cx.fillText(gtrText, box2X + box2W - padL, bR1Y);
 
-    // Box 2 Row 2: TTS
+    // Box 2 Row 2: TTS (in-deco is warn tier)
     bR2Y = slotY + rowH * 1 + s(14);
     cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
     cx.fillText('TTS', box2X + padL, bR2Y);
     var ttsVal = frameCalc.tts;
     cx.font = valueFont;
-    cx.fillStyle = ttsVal > 0 ? (inDeco ? '#ff9933' : '#eaf2ff') : '#555';
+    cx.fillStyle = ttsVal > 0 ? (inDeco ? hudColor('warn') : '#eaf2ff') : '#555';
     cx.textAlign = 'right';
     cx.fillText(ttsVal > 0 ? ttsVal + ' min' : '--', box2X + box2W - padL, bR2Y);
 
-    // Box 2 Row 3: PO2
+    // Box 2 Row 3: PO2 (issue #39: ⚠ prefix on danger)
     bR3Y = slotY + rowH * 2 + s(14);
     cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
     cx.fillText('PO2', box2X + padL, bR3Y);
     cx.font = valueFont;
     cx.fillStyle = po2Color(po2);
     cx.textAlign = 'right';
-    cx.fillText(po2.toFixed(2), box2X + box2W - padL, bR3Y);
+    cx.fillText((po2IsDanger(po2) ? hudDangerPrefix() : '') + po2.toFixed(2), box2X + box2W - padL, bR3Y);
     cx.textAlign = 'left';
 
     // Vertical dividers between bottom info boxes
@@ -8292,7 +8348,8 @@ function drawDiveComputer() {
             if (tankIdx < tankCount) {
                 tk = tanks[tankIdx];
                 var tkBar = Math.round(tk.gasRemaining / tk.volume);
-                var tkBarColor = tkBar > 100 ? '#33ff33' : tkBar >= 50 ? '#ffff33' : '#ff3333';
+                var tkIsDanger = tkBar < 50;
+                var tkBarColor = tkBar > 100 ? hudColor('ok') : tkBar >= 50 ? hudColor('caution') : hudColor('danger');
                 var tkMOD = Math.floor(((PO2_HIGH / tk.fO2) - 1) * 10);
                 // Row 1: Tank label
                 cx.font = valueFont; cx.fillStyle = (tankIdx === activeTank) ? '#33ffcc' : '#fff';
@@ -8314,8 +8371,19 @@ function drawDiveComputer() {
                     cx.fillStyle = tkBarColor; cx.fillRect(tBarX, tBarY, tBarW2 * tBarFrac, tBarH2);
                     cx.restore();
                 }
+                // Issue #39: threshold ticks at 50 / 100 bar (same as active-tank bar).
+                cx.strokeStyle = 'rgba(255,255,255,0.55)';
+                cx.lineWidth = 1;
+                var _tkT50X = tBarX + (50 / 200) * tBarW2;
+                var _tkT100X = tBarX + (100 / 200) * tBarW2;
+                cx.beginPath();
+                cx.moveTo(_tkT50X, tBarY - s(1));
+                cx.lineTo(_tkT50X, tBarY + tBarH2 + s(1));
+                cx.moveTo(_tkT100X, tBarY - s(1));
+                cx.lineTo(_tkT100X, tBarY + tBarH2 + s(1));
+                cx.stroke();
                 cx.font = valueFont; cx.fillStyle = tkBarColor; cx.textAlign = 'right';
-                cx.fillText(tkBar + 'b', bX + bW - padL, tBarY + tBarH2 - s(1));
+                cx.fillText((tkIsDanger ? hudDangerPrefix() : '') + tkBar + 'b', bX + bW - padL, tBarY + tBarH2 - s(1));
                 // Row 4: MOD
                 cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
                 cx.fillText('MOD', bX + padL, bY4);
@@ -8370,8 +8438,8 @@ function drawDiveComputer() {
             cx.fillStyle = 'rgba(255,255,255,0.06)';
             cx.fillRect(bx, barAreaTop, barW, barAreaH);
 
-            // Bar color based on ratio
-            var bColor = ratio >= 1.0 ? '#ff3333' : ratio >= 0.8 ? '#ffd24d' : '#46f08f';
+            // Bar color based on ratio — issue #39 via hudColor().
+            var bColor = ratio >= 1.0 ? hudColor('danger') : ratio >= 0.8 ? hudColor('caution') : hudColor('ok');
             cx.fillStyle = bColor;
             cx.fillRect(bx, by, barW, bh);
         }
@@ -8417,25 +8485,28 @@ function drawDiveComputer() {
         var gR2Y = slotY + rowH * 1 + s(14);
         var gR3Y = slotY + rowH * 2 + s(14);
 
-        // Box 0: GF99 / SurfGF / CNS
+        // Box 0: GF99 / SurfGF / CNS — issue #39 via hudColor() + ⚠ prefix.
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('GF99', box0X + padL, gR1Y);
-        var gf99Color = gf99 >= 100 ? '#ff3333' : gf99 >= 80 ? '#ffd24d' : '#46f08f';
+        var gf99IsDanger = gf99 >= 100;
+        var gf99Color = gf99IsDanger ? hudColor('danger') : gf99 >= 80 ? hudColor('caution') : hudColor('ok');
         cx.font = valueFont; cx.fillStyle = gf99Color; cx.textAlign = 'right';
-        cx.fillText(gf99 + '%', box0X + box0W - padL, gR1Y);
+        cx.fillText((gf99IsDanger ? hudDangerPrefix() : '') + gf99 + '%', box0X + box0W - padL, gR1Y);
 
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('SrfGF', box0X + padL, gR2Y);
-        var surfGFColor = surfGF >= 100 ? '#ff3333' : surfGF >= 80 ? '#ffd24d' : '#46f08f';
+        var surfGFIsDanger = surfGF >= 100;
+        var surfGFColor = surfGFIsDanger ? hudColor('danger') : surfGF >= 80 ? hudColor('caution') : hudColor('ok');
         cx.font = valueFont; cx.fillStyle = surfGFColor; cx.textAlign = 'right';
-        cx.fillText(surfGF + '%', box0X + box0W - padL, gR2Y);
+        cx.fillText((surfGFIsDanger ? hudDangerPrefix() : '') + surfGF + '%', box0X + box0W - padL, gR2Y);
 
         var cnsVal = Math.round(cnsPercent);
-        var cnsColor = cnsVal >= 80 ? '#ff3333' : cnsVal >= 50 ? '#ffd24d' : '#46f08f';
+        var cnsIsDanger = cnsVal >= 80;
+        var cnsColor = cnsIsDanger ? hudColor('danger') : cnsVal >= 50 ? hudColor('caution') : hudColor('ok');
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('CNS', box0X + padL, gR3Y);
         cx.font = valueFont; cx.fillStyle = cnsColor; cx.textAlign = 'right';
-        cx.fillText(cnsVal + '%', box0X + box0W - padL, gR3Y);
+        cx.fillText((cnsIsDanger ? hudDangerPrefix() : '') + cnsVal + '%', box0X + box0W - padL, gR3Y);
 
         // Box 1: CEIL / GF Lo / GF Hi
         // Issue #14: tissues are frozen once the dive ends (updateTissues()
@@ -8444,7 +8515,7 @@ function drawDiveComputer() {
         var ceilVal = frameCalc.ceiling;
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('CEIL', box1X + padL, gR1Y);
-        cx.font = valueFont; cx.fillStyle = ceilVal > 0 ? '#ff9933' : '#46f08f'; cx.textAlign = 'right';
+        cx.font = valueFont; cx.fillStyle = ceilVal > 0 ? hudColor('warn') : hudColor('ok'); cx.textAlign = 'right';
         cx.fillText(ceilVal > 0 ? ceilVal.toFixed(1) + 'm' : '0m', box1X + box1W - padL, gR1Y);
 
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
@@ -8457,26 +8528,29 @@ function drawDiveComputer() {
         cx.font = valueFont; cx.fillStyle = valueColor; cx.textAlign = 'right';
         cx.fillText(gfHigh + '%', box1X + box1W - padL, gR3Y);
 
-        // Box 2: TTS / NDL / PO2 (additional useful metrics)
+        // Box 2: TTS / NDL / PO2 (additional useful metrics) — issue #39 via hudColor().
         var ttsVal2 = frameCalc.tts;
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('TTS', box2X + padL, gR1Y);
         cx.font = valueFont;
-        cx.fillStyle = ttsVal2 > 0 ? '#ff9933' : '#555';
+        cx.fillStyle = ttsVal2 > 0 ? hudColor('warn') : '#555';
         cx.textAlign = 'right';
         cx.fillText(ttsVal2 > 0 ? ttsVal2 + ' min' : '--', box2X + box2W - padL, gR1Y);
 
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('NDL', box2X + padL, gR2Y);
         cx.font = valueFont;
-        var ndlColor2 = ndl < 5 ? '#ff3333' : ndl < 15 ? '#ffd24d' : '#46f08f';
+        var ndlIsDanger2 = ndl < 5;
+        var ndlColor2 = ndlIsDanger2 ? hudColor('danger') : ndl < 15 ? hudColor('caution') : hudColor('ok');
         cx.fillStyle = ndlColor2; cx.textAlign = 'right';
-        cx.fillText(ndl >= 999 ? '---' : (ndl > 99 ? '99' : ndl) + ' min', box2X + box2W - padL, gR2Y);
+        var ndlText2 = ndl >= 999 ? '---' : (ndl > 99 ? '99' : ndl) + ' min';
+        if (ndlIsDanger2 && ndl < 999) ndlText2 = hudDangerPrefix() + ndlText2;
+        cx.fillText(ndlText2, box2X + box2W - padL, gR2Y);
 
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('PO2', box2X + padL, gR3Y);
         cx.font = valueFont; cx.fillStyle = po2Color(po2); cx.textAlign = 'right';
-        cx.fillText(po2.toFixed(2), box2X + box2W - padL, gR3Y);
+        cx.fillText((po2IsDanger(po2) ? hudDangerPrefix() : '') + po2.toFixed(2), box2X + box2W - padL, gR3Y);
 
         // Vertical dividers
         cx.strokeStyle = '#8694a1';
@@ -8497,22 +8571,25 @@ function drawDiveComputer() {
         var ccrInfoR3Y = slotY + rowH * 2 + s(14);
 
         var po2Actual = ccrState.actualPO2;
-        var po2ActualColor = po2Actual < PO2_HYPOXIA ? '#ff3333'
-            : po2Actual > PO2_HIGH ? '#ff3333'
-            : po2Actual > PO2_ELEVATED ? '#ff8800'
-            : po2Actual > PO2_SAFE ? '#ffcc00' : '#33ff99';
+        var po2ActualIsDanger = po2Actual < PO2_HYPOXIA || po2Actual > PO2_HIGH;
+        var po2ActualColor = po2ActualIsDanger ? hudColor('danger')
+            : po2Actual > PO2_ELEVATED ? hudColor('warn')
+            : po2Actual > PO2_SAFE ? hudColor('caution') : hudColor('ok');
         var o2Bar5 = Math.round(ccrState.o2CylPressure);
         var dilBar5 = Math.round(ccrState.dilCylPressure);
         var scrMin5 = Math.round(ccrState.scrubberRemaining);
-        var scrColor5 = scrMin5 < 10 ? '#ff3333' : scrMin5 < 30 ? '#ffcc00' : '#33ff99';
-        var o2Color5 = o2Bar5 < 30 ? '#ff3333' : '#eaf2ff';
-        var dilColor5 = dilBar5 < 30 ? '#ff3333' : '#eaf2ff';
+        var scrIsDanger5 = scrMin5 < 10;
+        var scrColor5 = scrIsDanger5 ? hudColor('danger') : scrMin5 < 30 ? hudColor('caution') : hudColor('ok');
+        var o2IsDanger5 = o2Bar5 < 30;
+        var dilIsDanger5 = dilBar5 < 30;
+        var o2Color5 = o2IsDanger5 ? hudColor('danger') : '#eaf2ff';
+        var dilColor5 = dilIsDanger5 ? hudColor('danger') : '#eaf2ff';
 
-        // Box 0: PO2 actual / SP target / mode (CCR or BAIL)
+        // Box 0: PO2 actual / SP target / mode (CCR or BAIL) — issue #39 ⚠ on danger.
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('PO2', box0X + padL, ccrInfoR1Y);
         cx.font = valueFont; cx.fillStyle = po2ActualColor; cx.textAlign = 'right';
-        cx.fillText(po2Actual.toFixed(2), box0X + box0W - padL, ccrInfoR1Y);
+        cx.fillText((po2ActualIsDanger ? hudDangerPrefix() : '') + po2Actual.toFixed(2), box0X + box0W - padL, ccrInfoR1Y);
 
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('SP', box0X + padL, ccrInfoR2Y);
@@ -8522,15 +8599,15 @@ function drawDiveComputer() {
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('MODE', box0X + padL, ccrInfoR3Y);
         cx.font = valueFont;
-        cx.fillStyle = ccrState.onBailout ? '#ff3333' : '#33ff99';
+        cx.fillStyle = ccrState.onBailout ? hudColor('danger') : hudColor('ok');
         cx.textAlign = 'right';
-        cx.fillText(ccrState.onBailout ? 'BAIL' : 'CCR', box0X + box0W - padL, ccrInfoR3Y);
+        cx.fillText((ccrState.onBailout ? hudDangerPrefix() : '') + (ccrState.onBailout ? 'BAIL' : 'CCR'), box0X + box0W - padL, ccrInfoR3Y);
 
-        // Box 1: O2 cyl pressure / O2 cyl volume / scrubber
+        // Box 1: O2 cyl pressure / O2 cyl volume / scrubber (⚠ prefix on danger)
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('O2 P', box1X + padL, ccrInfoR1Y);
         cx.font = valueFont; cx.fillStyle = o2Color5; cx.textAlign = 'right';
-        cx.fillText(o2Bar5 + 'b', box1X + box1W - padL, ccrInfoR1Y);
+        cx.fillText((o2IsDanger5 ? hudDangerPrefix() : '') + o2Bar5 + 'b', box1X + box1W - padL, ccrInfoR1Y);
 
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('O2 V', box1X + padL, ccrInfoR2Y);
@@ -8540,13 +8617,13 @@ function drawDiveComputer() {
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('SCR', box1X + padL, ccrInfoR3Y);
         cx.font = valueFont; cx.fillStyle = scrColor5; cx.textAlign = 'right';
-        cx.fillText(scrMin5 + 'm', box1X + box1W - padL, ccrInfoR3Y);
+        cx.fillText((scrIsDanger5 ? hudDangerPrefix() : '') + scrMin5 + 'm', box1X + box1W - padL, ccrInfoR3Y);
 
         // Box 2: diluent pressure / diluent volume / diluent mix label
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('DIL P', box2X + padL, ccrInfoR1Y);
         cx.font = valueFont; cx.fillStyle = dilColor5; cx.textAlign = 'right';
-        cx.fillText(dilBar5 + 'b', box2X + box2W - padL, ccrInfoR1Y);
+        cx.fillText((dilIsDanger5 ? hudDangerPrefix() : '') + dilBar5 + 'b', box2X + box2W - padL, ccrInfoR1Y);
 
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('DIL V', box2X + padL, ccrInfoR2Y);
@@ -8576,12 +8653,12 @@ function drawDiveComputer() {
     // ================================================================
     if (diveMode === 'ccr') {
       var ccrWarnText = '';
-      var ccrWarnColor = '#ff3333';
+      var ccrWarnColor = hudColor('danger');
       if (ccrState.actualPO2 < 0.18 && !ccrState.onBailout) ccrWarnText = 'LOW PO2';
       else if (ccrState.actualPO2 > 1.5 && !ccrState.onBailout) ccrWarnText = 'HIGH PO2';
       if (ccrState.scrubberFailed && !ccrState.onBailout) ccrWarnText = 'CO2!';
       if (!ccrState.scrubberFailed && ccrState.scrubberRemaining < 10 && ccrState.scrubberRemaining > 0 && !ccrState.onBailout) {
-        ccrWarnText = 'SCR LOW'; ccrWarnColor = '#ffcc00';
+        ccrWarnText = 'SCR LOW'; ccrWarnColor = hudColor('caution');
       }
       if (ccrWarnText && Math.floor(Date.now() / 500) % 2 === 0) {
         cx.font = 'bold ' + s(14) + "px " + DCF;
@@ -8661,9 +8738,9 @@ function drawDiveProfileChart(cx, x, y, w, h) {
     }
     cx.stroke();
 
-    // Draw ceiling polyline (red, only where ceiling > 0)
+    // Draw ceiling polyline (danger tier, only where ceiling > 0)
     cx.beginPath();
-    cx.strokeStyle = '#ff3333';
+    cx.strokeStyle = hudColor('danger');
     cx.lineWidth = 1.5;
     var inCeiling = false;
     for (i = 0; i < diveProfile.length; i++) {
@@ -8773,7 +8850,7 @@ function drawPostDive() {
     cx.fillText('DIVE LOG', centerX, y);
     y += 30;
     cx.font = 'bold 38px ' + DCF;
-    cx.fillStyle = '#46f08f';
+    cx.fillStyle = hudColor('ok');
     cx.fillText(S('diveComplete'), centerX, y);
     y += 30;
 
@@ -8893,7 +8970,7 @@ function drawPostDive() {
         cx.fillText(S('ccrScrubber') + ': ' + scrubUsed.toFixed(0) + ' min ' + S('gasUsed'), centerX, y);
         y += 24;
         if (ccrState.onBailout) {
-            cx.fillStyle = '#ffd24d';
+            cx.fillStyle = hudColor('caution');
             cx.fillText(S('ccrBailout'), centerX, y);
             cx.fillStyle = '#a8b6cc';
             y += 24;
@@ -8911,7 +8988,7 @@ function drawPostDive() {
     // Safety stop skipped warning
     if (safetyStopNeeded && !safetyStopComplete) {
         cx.font = 'bold 16px monospace';
-        cx.fillStyle = '#ffd24d';
+        cx.fillStyle = hudColor('caution');
         cx.fillText(S('safetySkipped'), centerX, y);
         y += 22;
         cx.font = '12px monospace';
@@ -8956,10 +9033,10 @@ function drawPostDive() {
         cx.fillStyle = 'rgba(130,160,180,0.14)';
         cx.fillRect(bx, y, barW, barMaxH);
 
-        // N2 fill
-        var color = '#46f08f';
-        if (loading > 0.9) color = '#ff4b4b';
-        else if (loading > 0.7) color = '#ffd24d';
+        // N2 fill — issue #39 via hudColor().
+        var color = hudColor('ok');
+        if (loading > 0.9) color = hudColor('danger');
+        else if (loading > 0.7) color = hudColor('caution');
         cx.fillStyle = color;
         cx.fillRect(bx, y + barMaxH - n2H, barW, n2H);
 
@@ -8987,7 +9064,7 @@ function drawPostDive() {
     y += barMaxH + 25;
     cx.font = '10px monospace';
     cx.textAlign = 'center';
-    cx.fillStyle = '#46f08f';
+    cx.fillStyle = hudColor('ok');
     cx.fillText('\u25A0', centerX - 40, y);
     cx.fillStyle = '#8694a1';
     cx.fillText('N\u2082', centerX - 28, y);
@@ -9074,7 +9151,7 @@ function drawGameOver() {
     cx.fillText('— DIVE TERMINATED —', centerX, y);
     y += 30;
     cx.font = 'bold 46px ' + DCF;
-    cx.fillStyle = '#ff4b4b';
+    cx.fillStyle = hudColor('danger');
     cx.fillText(S('gameOver'), centerX, y);
     y += 40;
 
@@ -9111,7 +9188,7 @@ function drawGameOver() {
 
         // HOW TO AVOID
         cx.font = 'bold 14px monospace';
-        cx.fillStyle = '#46f08f';
+        cx.fillStyle = hudColor('ok');
         cx.fillText(S('howToAvoid'), textX, y);
         y += 20;
         cx.font = '12px monospace';

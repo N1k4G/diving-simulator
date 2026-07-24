@@ -83,6 +83,12 @@ const gameGlobals = {
   DEPTH_GRADIENT_MAX: "readonly",
   COLOR_SURFACE_WATER: "readonly", COLOR_DEEP_WATER: "readonly",
   REEF_PAL: "readonly",
+  // Issue #39: HUD colour-blind accessibility (constants.js)
+  HUD_COLORS_DEFAULT: "readonly", HUD_COLORS_CVD: "readonly",
+  HUD_COLORS_STORAGE_KEY: "readonly", HUD_DANGER_PREFIX: "readonly",
+  hudColorMode: "writable",
+  hudColor: "readonly", hudDangerPrefix: "readonly",
+  setHudColorMode: "readonly", toggleHudColorMode: "readonly",
   SAVE_KEY: "readonly", SAVE_INTERVAL_MS: "readonly",
   SAVE_STATE_VERSION: "readonly", _isValidSaveState: "readonly",
   GAME_OVER_INFO: "readonly",
@@ -230,7 +236,7 @@ const gameGlobals = {
   drawGameOver: "readonly", drawSurface: "readonly",
   drawFish: "readonly", drawWildlife: "readonly",
   drawHelpOverlay: "readonly", drawWrappedText: "readonly",
-  po2Color: "readonly", waterColor: "readonly",
+  po2Color: "readonly", po2IsDanger: "readonly", waterColor: "readonly",
   tankBar: "readonly", tankColor: "readonly",
   smoothstep: "readonly", formatTime: "readonly",
   // Issue #52: Visual Surface Layer helpers (renderer.js)

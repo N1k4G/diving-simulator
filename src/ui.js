@@ -413,6 +413,26 @@ function buildHtmlGasSetup() {
             _gsBuilt = false;
         });
 
+        // Issue #39: HUD palette toggle — sits next to the language button
+        // in every mode (rec / tec / ccr). Persists via localStorage inside
+        // setHudColorMode(). id lets tests locate the button without a
+        // language-dependent text query.
+        var colorsBtn = mkEl('button', 'gs-btn', extrasRow);
+        colorsBtn.id = 'gs-colors-toggle';
+        colorsBtn.style.fontSize = '13px';
+        colorsBtn.style.flexDirection = 'column';
+        colorsBtn.style.minHeight = '56px';
+        _gsNodes.colorsBtn = colorsBtn;
+        colorsBtn.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            toggleHudColorMode();
+            _gsBuilt = false;
+        }, { passive: false });
+        colorsBtn.addEventListener('click', function() {
+            toggleHudColorMode();
+            _gsBuilt = false;
+        });
+
         // Start dive button — BUG-CCR-5: call startDiveAction() directly.
         _gsNodes.startBtn = mkEl('button', 'gs-btn gs-accent', extrasRow);
         _gsNodes.startBtn.addEventListener('touchstart', function(e) {
@@ -527,4 +547,12 @@ function buildHtmlGasSetup() {
     _gsNodes.startBtn.textContent = S('startDive');
     _gsNodes.langBtn.textContent = currentLang === 'en' ? 'Sprache' : 'Language';
     document.getElementById('touch-setup-lang').textContent = currentLang === 'en' ? 'Sprache' : 'Language';
+    // Issue #39: colour-mode label follows the same two-string EN/DE pattern.
+    // Text shows the mode you would SWITCH TO on tap (mirrors langBtn's UX).
+    if (_gsNodes.colorsBtn) {
+        var _isDefault = hudColorMode === 'default';
+        _gsNodes.colorsBtn.textContent = currentLang === 'en'
+            ? (_isDefault ? 'Colors: Standard' : 'Colors: Colorblind')
+            : (_isDefault ? 'Farben: Standard' : 'Farben: Farbenblind');
+    }
 }

@@ -1308,6 +1308,21 @@ window.gameAPI = {
     set diveMode(v) { if (['rec','tec','ccr'].includes(v)) switchMode(v); },
     get currentLang() { return currentLang; },
     set currentLang(v) { if (v === 'en' || v === 'de') currentLang = v; },
+    // Issue #39: HUD colour palette test hooks. `hudColorMode` is declared
+    // with `let` in constants.js — classic-script quirk: only top-level
+    // `function`/`var` become window/iframe properties, `let`/`const` do
+    // NOT — so tests must go through these accessors instead of poking
+    // window.hudColorMode directly (which would be undefined and silently
+    // no-op the write). `HUD_COLORS_DEFAULT` / `HUD_COLORS_CVD` are also
+    // `const` so exposed here for test-side palette shape assertions.
+    get colorMode() { return hudColorMode; },
+    set colorMode(v) { setHudColorMode(v); },
+    toggleColorMode: toggleHudColorMode,
+    hudColor: hudColor,
+    hudDangerPrefix: hudDangerPrefix,
+    get HUD_COLORS_DEFAULT() { return HUD_COLORS_DEFAULT; },
+    get HUD_COLORS_CVD() { return HUD_COLORS_CVD; },
+    get HUD_COLORS_STORAGE_KEY() { return HUD_COLORS_STORAGE_KEY; },
     get amvRate() { return amvRate; },
     set amvRate(v) { amvRate = Math.max(AMV_MIN, Math.min(AMV_MAX, v)); },
     get tankVolume() { return tankVolume; },
