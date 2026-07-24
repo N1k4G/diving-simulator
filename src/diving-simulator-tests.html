@@ -173,6 +173,10 @@ iframe { display: none; }
     <button class="individual" data-tc="X1" disabled>TC-X1</button>
     <button class="individual" data-tc="X2" disabled>TC-X2</button>
     <button class="individual" data-tc="X3" disabled>TC-X3</button>
+    <button class="individual" data-tc="44A" disabled>TC-44A</button>
+    <button class="individual" data-tc="44B" disabled>TC-44B</button>
+    <button class="individual" data-tc="44C" disabled>TC-44C</button>
+    <button class="individual" data-tc="44D" disabled>TC-44D</button>
 </div>
 
 <div class="summary" id="summary">
@@ -9454,6 +9458,140 @@ tests = [
                 realCtx.fillText = origFillText;
             }
             return 'PASS — no-op outside diving; while diving emits ticks + at least one label';
+        }
+    },
+    // ============================================================
+    //  Issue #44 — Post-dive debriefing
+    // ============================================================
+    {
+        id: 'TC-44-FAST-ASCENT-EVENT',
+        name: 'Issue #44 — a provoked fast ascent records exactly one fastAscent event with the right time/depth',
+        fn: function() {
+            // Isolation: pin diveMode + diveSite so a leaked shallow-floor site
+            // from an earlier test cannot clamp our synthetic depth updates and
+            // trigger a false barotrauma / floor-hit gameover.
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(30);
+            api.maxDepth = 30;
+            api.diveProfile.length = 0;
+            api._profileSampleTimer = 0;
+            api.diveEvents = [];
+            // Provoke a real ascent through the buoyancy pipeline: pin
+            // verticalVelocity to the clamp each frame (BP.maxAscentRate = 25
+            // m/min → clamps at -25) and inflate BCD so buoyancy sustains the
+            // motion instead of drag bleeding it off. ascentRate is then
+            // computed by updateDiving from actual depth change, and the
+            // debouncer sees the same value the game would in real play.
+            api.bcdGasSurfaceLiters = 40;
+            var maxFrames = 5;
+            for (var f = 0; f < maxFrames; f++) {
+                api.verticalVelocity = -25;
+                api.updateDiving(0.25);
+                if (api.gameState !== 'diving') break;
+            }
+            var fastEvents = api.diveEvents.filter(function(e) { return e.kind === 'fastAscent'; });
+            assert(fastEvents.length === 1,
+                'expected exactly one fastAscent event, got ' + fastEvents.length +
+                ' (all events: ' + JSON.stringify(api.diveEvents) + ', gameState=' + api.gameState + ')');
+            assert(fastEvents[0].value > 9,
+                'peak ascent rate should exceed 9 m/min, got ' + fastEvents[0].value);
+            assert(fastEvents[0].t > 0,
+                'event timestamp should be positive dive-time minutes, got ' + fastEvents[0].t);
+            return 'PASS — one fastAscent event captured, peak ' + fastEvents[0].value.toFixed(1) +
+                ' m/min at t=' + fastEvents[0].t.toFixed(3) + ' min';
+        }
+    },
+    {
+        id: 'TC-44-TEXTBOOK-DIVE-3-STARS',
+        name: 'Issue #44 — a textbook dive (clean events, completed safety stop, gas reserve) grades 3 stars with all subs >= 90',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            // Fabricate a clean profile directly rather than simulating a
+            // 30-min dive. Two "holding" phases (18m + 5m safety stop) with
+            // sub-half-metre bobbing so trim scores ~100.
+            api.maxDepth = 18;
+            api.diveProfile = [];
+            // 40 samples at 18m (over ~80 dive-sec = 4/3 min), tight ±0.2 m
+            for (var i = 0; i < 40; i++) {
+                api.diveProfile.push({ t: i * (2 / 60), depth: 18 + (i % 2 === 0 ? 0.15 : -0.15), ceiling: 0 });
+            }
+            // 40 samples at 5m (safety stop), same tight bob
+            for (var j = 0; j < 40; j++) {
+                api.diveProfile.push({ t: (40 + j) * (2 / 60), depth: 5 + (j % 2 === 0 ? 0.15 : -0.15), ceiling: 0 });
+            }
+            api.diveEvents = [];
+            api.minNdlSeen = 15;
+            api.tanks[0].pressure = 60; // >= GRADE_GAS_RESERVE_FULL_BAR
+            api.safetyStopNeeded = true;
+            api.safetyStopComplete = true;
+            var g = api.gradeDive();
+            assert(g.stars === 3,
+                'expected 3 stars, got ' + g.stars + ' (overall=' + g.overall +
+                ', subs=' + JSON.stringify(g.subs.map(function(x){return x.score;})) + ')');
+            for (var s = 0; s < g.subs.length; s++) {
+                assert(g.subs[s].score >= 90,
+                    'sub-score ' + s + ' (' + g.subs[s].label + ') expected >=90, got ' + g.subs[s].score);
+            }
+            return 'PASS — ' + g.stars + ' stars, overall ' + g.overall +
+                ', subs [' + g.subs.map(function(x){return x.score;}).join(', ') + ']';
+        }
+    },
+    {
+        id: 'TC-44-SAFETY-SKIPPED-SUB2',
+        name: 'Issue #44 — a dive that skipped a needed safety stop scores the Safety Stop sub as 30',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.maxDepth = 18;
+            api.diveProfile = [];
+            for (var i = 0; i < 10; i++) api.diveProfile.push({ t: i * 0.05, depth: 18, ceiling: 0 });
+            api.diveEvents = [];
+            api.minNdlSeen = 20;
+            api.tanks[0].pressure = 80;
+            api.safetyStopNeeded = true;
+            api.safetyStopComplete = false;
+            var g = api.gradeDive();
+            assert(g.subs[1].score === 30,
+                'Safety Stop sub expected 30, got ' + g.subs[1].score);
+            return 'PASS — safety-stop sub scored ' + g.subs[1].score;
+        }
+    },
+    {
+        id: 'TC-44-LANG-TOGGLE-DE',
+        name: 'Issue #44 — DE language yields translated debriefing labels',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.maxDepth = 18;
+            api.diveProfile = [];
+            for (var i = 0; i < 10; i++) api.diveProfile.push({ t: i * 0.05, depth: 18, ceiling: 0 });
+            api.diveEvents = [];
+            api.minNdlSeen = 20;
+            api.tanks[0].pressure = 80;
+            api.safetyStopNeeded = true;
+            api.safetyStopComplete = true;
+            var prevLang = api.currentLang;
+            api.currentLang = 'de';
+            try {
+                var gDe = api.gradeDive();
+                assert(gDe.subs[0].label === 'Aufstiegsdisziplin',
+                    'DE ascent label expected "Aufstiegsdisziplin", got "' + gDe.subs[0].label + '"');
+                assert(gDe.subs[3].label === 'Dekodisziplin',
+                    'DE deco label expected "Dekodisziplin", got "' + gDe.subs[3].label + '"');
+                api.currentLang = 'en';
+                var gEn = api.gradeDive();
+                assert(gEn.subs[0].label === 'Ascent Discipline',
+                    'EN ascent label expected "Ascent Discipline", got "' + gEn.subs[0].label + '"');
+            } finally {
+                api.currentLang = prevLang;
+            }
+            return 'PASS — DE + EN labels both localised';
         }
     }
 ];

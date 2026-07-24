@@ -8679,6 +8679,40 @@ function drawDiveProfileChart(cx, x, y, w, h) {
     }
     if (inCeiling) cx.stroke();
 
+    // Issue #44: Violation markers — small dots at (t, depth-at-that-t) for
+    // each diveEvents entry so the player can see WHERE in the profile the
+    // mistake happened. Depth is looked up from the nearest diveProfile
+    // sample by timestamp. safetyStopSkipped is drawn amber at the surface
+    // end of the chart (~5 m) since "where" isn't meaningful for it.
+    if (typeof diveEvents !== 'undefined' && diveEvents.length > 0) {
+        for (var ei = 0; ei < diveEvents.length; ei++) {
+            var ev = diveEvents[ei];
+            var evT = ev.t;
+            var evDepth;
+            if (ev.kind === 'safetyStopSkipped') {
+                evT = diveProfile[diveProfile.length - 1].t;
+                evDepth = 5;
+            } else {
+                var bestIdx = 0;
+                var bestDt = Math.abs(diveProfile[0].t - evT);
+                for (var pj = 1; pj < diveProfile.length; pj++) {
+                    var dtp = Math.abs(diveProfile[pj].t - evT);
+                    if (dtp < bestDt) { bestDt = dtp; bestIdx = pj; }
+                }
+                evDepth = diveProfile[bestIdx].depth;
+            }
+            var mx = chartX + (evT / maxT) * chartW;
+            var my = chartY + (evDepth / maxD) * chartH;
+            cx.beginPath();
+            cx.arc(mx, my, 4, 0, Math.PI * 2);
+            cx.fillStyle = ev.kind === 'safetyStopSkipped' ? '#ffb84d' : '#ff3b3b';
+            cx.fill();
+            cx.strokeStyle = 'rgba(0,0,0,0.6)';
+            cx.lineWidth = 1;
+            cx.stroke();
+        }
+    }
+
     // Labels
     cx.font = '11px monospace';
     cx.fillStyle = '#ccc';
@@ -8772,7 +8806,75 @@ function drawPostDive() {
         cx.fillStyle = '#eaf2ff';
         cx.fillText(statCells[sc][1], sccx, y + 63);
     }
-    y += cardH + 26;
+    y += cardH + 20;
+
+    // Issue #44: Debriefing card — graded scoring with 5 sub-scores + stars.
+    // Same gsPanel() style as the stats card. Only shown for successful
+    // surfaces (drawPostDive is the successful-surface renderer; game-over
+    // uses drawGameOver()). gradeDive() lives in physics.js.
+    var grade = gradeDive();
+    var dbH = 218;
+    gsPanel(cx, cardX, y, cardW, dbH, 16);
+    // Title
+    cx.textAlign = 'left';
+    cx.font = 'bold 12px monospace';
+    cx.fillStyle = '#8694a1';
+    cx.fillText(S('debriefTitle'), cardX + 16, y + 22);
+    // Stars + overall score, right-aligned
+    var stars = grade.stars;
+    cx.textAlign = 'right';
+    cx.font = 'bold 22px ' + DCF;
+    // Use precomposed '★' + '☆' padding so both filled + empty positions
+    // render at the same width (unicode monospace-in-'monospace' still
+    // varies slightly, but a 3-char run keeps the visual weight consistent).
+    var starStr = '';
+    for (var st = 0; st < 3; st++) starStr += (st < stars ? '★' : '☆');
+    cx.fillStyle = stars >= 2 ? '#ffd24d' : (stars >= 1 ? '#a8b6cc' : '#6b7a8d');
+    cx.fillText(starStr, cardX + cardW - 66, y + 24);
+    cx.font = 'bold 16px monospace';
+    cx.fillStyle = '#eaf2ff';
+    cx.fillText(String(grade.overall), cardX + cardW - 16, y + 24);
+    // Rows — 5 sub-scores. Each row: label (left), bar + score (right).
+    var rowY = y + 48;
+    var rowH = 33;
+    for (var gi = 0; gi < grade.subs.length; gi++) {
+        var sub = grade.subs[gi];
+        var scoreCol = sub.score >= 75 ? '#46f08f' : (sub.score >= 50 ? '#ffd24d' : '#ff4b4b');
+        // Label
+        cx.textAlign = 'left';
+        cx.font = 'bold 12px monospace';
+        cx.fillStyle = '#eaf2ff';
+        cx.fillText(sub.label, cardX + 16, rowY);
+        // Score bar
+        var barX = cardX + 190;
+        var barTotalW = cardW - 190 - 60;
+        var barHpx = 6;
+        cx.fillStyle = 'rgba(130,160,180,0.16)';
+        cx.fillRect(barX, rowY - 6, barTotalW, barHpx);
+        cx.fillStyle = scoreCol;
+        cx.fillRect(barX, rowY - 6, barTotalW * (sub.score / 100), barHpx);
+        // Numeric score
+        cx.textAlign = 'right';
+        cx.font = 'bold 12px monospace';
+        cx.fillStyle = scoreCol;
+        cx.fillText(String(sub.score), cardX + cardW - 16, rowY);
+        // One-line hint (ellipsised if too wide for the card)
+        cx.textAlign = 'left';
+        cx.font = '10px monospace';
+        cx.fillStyle = '#8694a1';
+        var noteText = sub.note;
+        var maxNoteW = cardW - 32;
+        if (cx.measureText(noteText).width > maxNoteW) {
+            while (noteText.length > 4 && cx.measureText(noteText + '…').width > maxNoteW) {
+                noteText = noteText.slice(0, -1);
+            }
+            noteText = noteText + '…';
+        }
+        cx.fillText(noteText, cardX + 16, rowY + 14);
+        rowY += rowH;
+    }
+    y += dbH + 18;
+
     cx.textAlign = 'center';
     cx.font = '15px monospace';
     cx.fillStyle = '#a8b6cc';

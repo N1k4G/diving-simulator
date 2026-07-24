@@ -637,3 +637,165 @@ function tankColor() {
     if (bar >= 50) return '#ffff33';
     return '#ff3333';
 }
+// SECTION: Post-dive grading (issue #44)
+// SEARCH TERMS: gradeDive, debriefing, score, stars, ascent discipline
+//
+// gradeDive() returns { subs: [...5 sub-scores], overall, stars }. It's a
+// pure function of state left after the dive: diveEvents (populated by
+// updateDiving()'s debounced capture blocks), diveProfile (already used by
+// the profile chart), the safetyStop flags, tank pressures, and site
+// context. Placed in physics.js next to calculateNDL / calculateTTS /
+// calculateGTR because it's the same shape — a read-only computation over
+// dive state — not DOM/UI plumbing.
+//
+// Scoring rules per issue #44:
+//   1. Ascent discipline — 100 - GRADE_FAST_ASCENT_PENALTY per fastAscent event.
+//   2. Safety stop      — 100 if completed or not needed; GRADE_SAFETY_SKIPPED_SCORE if skipped.
+//   3. Gas reserve      — open-water: linear 0..100 across 0..GRADE_GAS_RESERVE_FULL_BAR
+//                         end-of-dive minimum bar (CCR = diluent cyl). Overhead sites
+//                         (hasOverhead) grade by whether the diver dipped into thirds
+//                         reserve — the rule-of-thirds gauge from issue #27.
+//   4. Deco discipline  — 100 - GRADE_CEILING_PENALTY per ceilingViolation event; bonus
+//                         hint when minNdlSeen < GRADE_LOW_NDL_HINT_MIN.
+//   5. Trim/buoyancy    — stddev of depth from the 60-s rolling mean during "holding"
+//                         phases (rolling-window range < GRADE_TRIM_HOLD_DELTA_M).
+//                         <=0.5m stddev => 100, >=3.0m stddev => 0, linear between.
+//                         No holding phases in the profile (bounce dive) => 100.
+// Overall = mean of the 5. Stars: >=92 => 3, >=75 => 2, >=50 => 1, else 0.
+function gradeDive() {
+    var labels = S('gradeLabels');
+    var notes  = S('gradeNotes');
+
+    // 1. Ascent discipline
+    var fastAscentCount = 0;
+    var worstAscent = 0;
+    for (var i = 0; i < diveEvents.length; i++) {
+        if (diveEvents[i].kind === 'fastAscent') {
+            fastAscentCount++;
+            if (diveEvents[i].value > worstAscent) worstAscent = diveEvents[i].value;
+        }
+    }
+    var s1 = Math.max(0, 100 - GRADE_FAST_ASCENT_PENALTY * fastAscentCount);
+    var n1 = fastAscentCount === 0
+        ? notes.ascentClean
+        : notes.ascentBad
+            .replace('{count}', fastAscentCount)
+            .replace('{peak}', worstAscent.toFixed(1));
+
+    // 2. Safety stop
+    var s2, n2;
+    if (!safetyStopNeeded || safetyStopComplete) {
+        s2 = 100;
+        n2 = safetyStopNeeded ? notes.safetyDone : notes.safetyNotNeeded;
+    } else {
+        s2 = GRADE_SAFETY_SKIPPED_SCORE;
+        n2 = notes.safetySkipped;
+    }
+
+    // 3. Gas reserve — separate rule per site type.
+    var s3, n3;
+    var site = activeSite();
+    var isOverhead = !!(site && site.hasOverhead);
+    if (isOverhead) {
+        // Rule-of-thirds (issue #27): if the diver dropped into reserve phase
+        // at any point, they blew through their gas plan. thirdsReserveActive
+        // latches on threshold cross and only clears when leaving the overhead.
+        if (thirdsReserveActive) {
+            s3 = 40;
+            n3 = notes.gasReserveHit;
+        } else {
+            s3 = 100;
+            n3 = notes.gasThirdsClean;
+        }
+    } else {
+        var endBar;
+        if (diveMode === 'ccr') {
+            endBar = ccrState.dilCylPressure;
+        } else {
+            endBar = Infinity;
+            for (var ti = 0; ti < tankCount; ti++) {
+                if (tanks[ti].pressure < endBar) endBar = tanks[ti].pressure;
+            }
+            if (!isFinite(endBar)) endBar = 0;
+        }
+        s3 = Math.max(0, Math.min(100, (endBar / GRADE_GAS_RESERVE_FULL_BAR) * 100));
+        n3 = notes.gasEnd.replace('{bar}', endBar.toFixed(0));
+    }
+
+    // 4. Deco discipline
+    var ceilCount = 0;
+    for (var j = 0; j < diveEvents.length; j++) {
+        if (diveEvents[j].kind === 'ceilingViolation') ceilCount++;
+    }
+    var s4 = Math.max(0, 100 - GRADE_CEILING_PENALTY * ceilCount);
+    var n4;
+    if (ceilCount > 0) {
+        n4 = notes.decoBad.replace('{count}', ceilCount);
+    } else if (isFinite(minNdlSeen) && minNdlSeen < GRADE_LOW_NDL_HINT_MIN) {
+        n4 = notes.decoNdlClose.replace('{ndl}', minNdlSeen.toFixed(0));
+    } else {
+        n4 = notes.decoClean;
+    }
+
+    // 5. Trim / buoyancy — stddev during "holding" phases.
+    //
+    // Curve: linear ramp from 0.5m stddev (score 100) to 3.0m stddev (score 0).
+    // Choice rationale: 0.5m matches "textbook stop" trim; 3.0m corresponds to
+    // a diver bobbing an entire body-length up and down, which is roughly the
+    // point at which a real instructor would fail the stop. Below 0.5m is
+    // capped at 100 (further precision doesn't add educational value); above
+    // 3.0m is capped at 0. If NO 60-s window in the profile qualifies as
+    // "holding" (fewer than 3 qualifying samples), we return 100 — a pure
+    // bounce dive with no stop to grade is neutral, not penalised.
+    var s5, n5;
+    var winMinutes = GRADE_TRIM_HOLD_WINDOW_SEC / 60;
+    var residSum = 0, residSumSq = 0, residN = 0;
+    if (diveProfile.length >= 2) {
+        var head = 0;
+        for (var k = 0; k < diveProfile.length; k++) {
+            var tk = diveProfile[k].t;
+            while (head < k && (tk - diveProfile[head].t) > winMinutes) head++;
+            var wCount = k - head + 1;
+            if (wCount < 2) continue;
+            var wSum = 0, wMin = Infinity, wMax = -Infinity;
+            for (var w = head; w <= k; w++) {
+                var wd = diveProfile[w].depth;
+                wSum += wd;
+                if (wd < wMin) wMin = wd;
+                if (wd > wMax) wMax = wd;
+            }
+            var wAvg = wSum / wCount;
+            if ((wMax - wMin) < GRADE_TRIM_HOLD_DELTA_M) {
+                var r = diveProfile[k].depth - wAvg;
+                residSum += r;
+                residSumSq += r * r;
+                residN++;
+            }
+        }
+    }
+    if (residN < 3) {
+        s5 = 100;
+        n5 = notes.trimNoHold;
+    } else {
+        var mean = residSum / residN;
+        var variance = (residSumSq / residN) - mean * mean;
+        if (variance < 0) variance = 0;
+        var stddev = Math.sqrt(variance);
+        var trimT = (stddev - GRADE_TRIM_STDDEV_FULL_M) / (GRADE_TRIM_STDDEV_ZERO_M - GRADE_TRIM_STDDEV_FULL_M);
+        s5 = Math.max(0, Math.min(100, 100 * (1 - trimT)));
+        n5 = notes.trimReport.replace('{stddev}', stddev.toFixed(2));
+    }
+
+    var subs = [
+        { label: labels[0], score: Math.round(s1), note: n1 },
+        { label: labels[1], score: Math.round(s2), note: n2 },
+        { label: labels[2], score: Math.round(s3), note: n3 },
+        { label: labels[3], score: Math.round(s4), note: n4 },
+        { label: labels[4], score: Math.round(s5), note: n5 }
+    ];
+    var overall = Math.round((subs[0].score + subs[1].score + subs[2].score + subs[3].score + subs[4].score) / 5);
+    var stars = overall >= GRADE_STAR_3_MIN ? 3
+              : overall >= GRADE_STAR_2_MIN ? 2
+              : overall >= GRADE_STAR_1_MIN ? 1 : 0;
+    return { subs: subs, overall: overall, stars: stars };
+}
