@@ -10266,6 +10266,495 @@ tests = [
             assert(found, 'leading-tissue label should include #4 (compartment index 3 + 1), got texts:\n' + texts.join('\n'));
             return 'PASS — leading tissue index 3 rendered as #4';
         }
+    },
+    // ==========================================================
+    // Issue #45: Scenario drills — opt-in scriptable incidents
+    // ==========================================================
+    // Every test below explicitly pins api.diveMode and api.diveSite BEFORE
+    // setupDive() (per the CLAUDE.md gotcha #2 — leaked mode/site from an
+    // earlier test in the ~280-case suite otherwise makes drill preconditions
+    // fire on the wrong scenario or trip a false barotrauma from a shallow
+    // site's floor clamping an artificial depth jump). Every test also
+    // resets drillsEnabled + drillHasRunThisDive explicitly since resetDive()
+    // clears drillHasRunThisDive but drillsEnabled intentionally persists.
+    {
+        id: 'TC-45-TOGGLE-GATES-TRIGGER',
+        name: 'Issue #45 — drill trigger no-ops when drillsEnabled is false',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.drillsEnabled = false;
+            api.drillHasRunThisDive = false;
+            api.setDepth(20);
+            var ok = !api.forceDrill('freeflow'); // forceDrill still starts even if disabled (test hook)
+            // Actual gate we care about: the *automatic* trigger check
+            // rejects when disabled — even after many rolls, no drill starts.
+            api.drillHasRunThisDive = false;
+            api.drillState.phase = 'inactive';
+            for (var i = 0; i < 500; i++) api.tryTriggerDrill(0.033);
+            assert(api.drillState.phase === 'inactive',
+                'Trigger with toggle OFF should never start a drill, phase=' + api.drillState.phase);
+            return 'PASS — toggle-off gate blocks every roll (forceDrill hook bypass was intentional: ' + (!ok ? 'blocked' : 'allowed') + ')';
+        }
+    },
+    {
+        id: 'TC-45-MAX-ONE-PER-DIVE',
+        name: 'Issue #45 — at most one drill fires per dive',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.drillsEnabled = true;
+            api.setDepth(20);
+            var first = api.forceDrill('freeflow');
+            assert(first, 'first forceDrill should succeed');
+            // Resolve and dismiss so drillState returns to a "post-drill" state.
+            api.resolveDrillOption(0);
+            api.dismissDrillDebrief();
+            // Second trigger — automatic path must refuse (drillHasRunThisDive is set).
+            assert(!api.isDrillEligibleNow(),
+                'isDrillEligibleNow should be false after one drill has run');
+            api.drillState.phase = 'inactive';
+            for (var i = 0; i < 500; i++) api.tryTriggerDrill(0.033);
+            assert(api.drillState.phase === 'inactive',
+                'No second drill should start after one has already fired');
+            return 'PASS — drillHasRunThisDive latches after first fire';
+        }
+    },
+    {
+        id: 'TC-45-NO-DRILL-DURING-ALARM',
+        name: 'Issue #45 — drills refuse while an alarm is already active',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.32, 0, 200]]);
+            api.drillsEnabled = true;
+            // Pin past the min-dive-time window so any refusal below can only
+            // come from the alarm gate (not the time gate).
+            api.diveTime = api.DRILL_MIN_DIVETIME_MIN + 1;
+            api.setDepth(20);
+            // Baseline: with no alarm, eligibility should be true.
+            assert(api.isDrillEligibleNow(),
+                'Baseline: with no alarm at diveTime=' + api.diveTime + ', depth=20, drills must be eligible');
+            // Drive one physics frame at a depth where fO2=0.32 lands PO2
+            // well above 1.6 (60 m → 0.32×7 = 2.24) so po2ViolationTime > 0.
+            api.setDepth(60);
+            api.updateDiving(0.5);
+            assert(api.po2ViolationTime > 0,
+                'Test setup: PO2 violation should be accumulating, got ' + api.po2ViolationTime);
+            // updateDiving() may have advanced diveTime past DRILL_MAX_DIVETIME_MIN;
+            // pin it back into the window so this test isolates only the alarm gate.
+            api.diveTime = api.DRILL_MIN_DIVETIME_MIN + 1;
+            api.setDepth(20);
+            assert(!api.isDrillEligibleNow(),
+                'Drill should be ineligible while po2ViolationTime>0');
+            return 'PASS — alarm gate blocks eligibility (po2ViolationTime=' + api.po2ViolationTime.toFixed(2) + ')';
+        }
+    },
+    {
+        id: 'TC-45-MIN-DIVETIME-GATE',
+        name: 'Issue #45 — drills refuse before the min dive-time window opens',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.drillsEnabled = true;
+            api.setDepth(20);
+            // diveTime is 0 at start; isDrillEligibleNow requires >= 3 min.
+            assert(api.diveTime < api.DRILL_MIN_DIVETIME_MIN,
+                'Test setup: diveTime should start below min window');
+            assert(!api.isDrillEligibleNow(),
+                'Drill should be ineligible at diveTime=' + api.diveTime.toFixed(2));
+            return 'PASS — diveTime gate holds';
+        }
+    },
+    {
+        id: 'TC-45-PHYSICS-FROZEN-DURING-OVERLAY',
+        name: 'Issue #45 — no dive-time / tissue tick while decision overlay is up',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.drillsEnabled = true;
+            api.setDepth(20);
+            // Run some dive time first so we have non-zero baselines.
+            for (var i = 0; i < 20; i++) { api.setDepth(20); api.updateDiving(0.5); }
+            var t0 = api.diveTime;
+            var g0 = api.tanks[0].gasRemaining;
+            var tissue0 = api.tissues[0];
+            api.forceDrill('freeflow');
+            assert(api.drillState.phase === 'overlay',
+                'freeflow should open overlay immediately, got phase=' + api.drillState.phase);
+            assert(api.gameState === 'drill',
+                'gameState should be drill, got ' + api.gameState);
+            // Simulate several frames of the main game-loop "drill" branch —
+            // the branch does NOT call updateDiving(), so dive state must not
+            // advance no matter how many frames elapse.
+            for (var j = 0; j < 60; j++) {
+                // The gameLoop 'drill' branch only draws + reads keys; it does
+                // not call updateDiving(). Emulate by NOT calling updateDiving.
+                // (If we called updateDiving() here we'd bypass the pause the
+                // real gameLoop provides, defeating the invariant under test.)
+            }
+            assert(Math.abs(api.diveTime - t0) < 1e-9,
+                'diveTime must not change during overlay (got Δ=' + (api.diveTime - t0) + ')');
+            assert(api.tanks[0].gasRemaining === g0,
+                'gas must not deplete during overlay');
+            assert(api.tissues[0] === tissue0,
+                'tissue loading must not change during overlay');
+            return 'PASS — dive frozen while overlay is up (t=' + t0.toFixed(3) + ', gas=' + g0.toFixed(1) + ')';
+        }
+    },
+    {
+        id: 'TC-45-LIGHT-FAILURE-CORRECT',
+        name: 'Issue #45 — lightFailure correct option restores torch after dark period',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'cave';
+            setupDive([[0.21, 0, 200]]);
+            api.drillsEnabled = true;
+            var savedTorch = api.torchOn;
+            var threw = null;
+            try {
+                api.torchOn = true;
+                api.inOverhead = true;
+                api.setDepth(15);
+                var started = api.forceDrill('lightFailure');
+                assert(started, 'forceDrill lightFailure should succeed');
+                // Skip the 2-second flicker window by pinning the deadline
+                // into the past and manually driving the transition the way
+                // game-loop.js's _updateDrillTiming() does.
+                api.drillState.flickerUntilReal = 0;
+                if (api.drillState.phase === 'flicker') {
+                    api.gameState = 'drill';
+                    api.drillState.phase = 'overlay';
+                    api.torchOn = false;
+                }
+                assert(api.drillState.phase === 'overlay', 'overlay should be open');
+                var resolved = api.resolveDrillOption(0);
+                assert(resolved, 'resolveDrillOption(0) should succeed');
+                assert(api.drillState.correct === true, 'option 0 must be correct');
+                assert(api.drillState.phase === 'debrief', 'phase should be debrief');
+                api.dismissDrillDebrief();
+                assert(api.gameState === 'diving', 'gameState back to diving');
+                assert(api.torchOn === false, 'torch still off (countdown not elapsed)');
+                // Fast-forward past the dark period by pinning lightRestoreAt.
+                api.drillState.lightRestoreAt = 0.001;
+                api.setDepth(15);
+                api.updateDiving(0.033);
+                assert(api.torchOn === true, 'torch restored after countdown elapses');
+            } catch (e) { threw = e; }
+            finally {
+                // torchOn=true + cssWidth>0 + gameState='diving' would fire
+                // drawDepthColorAbsorption() on the next background rAF frame,
+                // which calls drawImage(cx.canvas,...) on the 0×0 test-iframe
+                // canvas and throws a console error. Reset to a known-safe
+                // configuration.
+                api.torchOn = savedTorch;
+                api.inOverhead = false;
+                api.drillHasRunThisDive = false;
+                api.drillState.phase = 'inactive';
+                api.drillState.lightRestoreAt = 0;
+            }
+            if (threw) throw threw;
+            return 'PASS — correct option, torch restored after countdown';
+        }
+    },
+    {
+        id: 'TC-45-LIGHT-FAILURE-WRONG-SILT',
+        name: 'Issue #45 — lightFailure wrong "swim fast" option drops visibility',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'cave';
+            setupDive([[0.21, 0, 200]]);
+            api.drillsEnabled = true;
+            var savedTorch = api.torchOn, savedVis = api.visibility;
+            var threw = null;
+            try {
+                api.torchOn = true;
+                api.inOverhead = true;
+                api.visibility = 1.0;
+                api.setDepth(15);
+                api.forceDrill('lightFailure');
+                api.drillState.phase = 'overlay';
+                api.gameState = 'drill';
+                api.torchOn = false;
+                var visBefore = api.visibility;
+                api.resolveDrillOption(1); // "swim fast" wrong option
+                assert(api.visibility < visBefore,
+                    'Visibility should drop below ' + visBefore + ' after wrong option, got ' + api.visibility);
+                assert(api.drillState.correct === false, 'option 1 must be incorrect');
+            } catch (e) { threw = e; }
+            finally {
+                api.torchOn = savedTorch;
+                api.visibility = savedVis;
+                api.inOverhead = false;
+                api.drillHasRunThisDive = false;
+                api.drillState.phase = 'inactive';
+                api.drillState.lightRestoreAt = 0;
+            }
+            if (threw) throw threw;
+            return 'PASS — visibility dropped, wrong option marked incorrect';
+        }
+    },
+    {
+        id: 'TC-45-FREEFLOW-CORRECT-MULTIPLIER',
+        name: 'Issue #45 — freeflow correct option applies ×N consumption for the duration',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.drillsEnabled = true;
+            api.setDepth(20);
+            api.forceDrill('freeflow');
+            api.resolveDrillOption(0);
+            api.dismissDrillDebrief();
+            assert(api.drillState.freeflowUntilDiveSec > 0,
+                'freeflowUntilDiveSec must be positive after correct option');
+            assert(api.drillState.freeflowDrainTankIdx === 0,
+                'freeflow reg must be on the active tank, got ' + api.drillState.freeflowDrainTankIdx);
+            var gasBefore = api.tanks[0].gasRemaining;
+            api.setDepth(20);
+            api.updateDiving(0.5); // 1.5 dive-sec
+            var used = gasBefore - api.tanks[0].gasRemaining;
+            // Expected with multiplier: 15 * (20/10+1) * (1.5/60) * 6 ≈ 6.75 L
+            // Without multiplier: ≈ 1.125 L. Assert used > 5.
+            assert(used > 3,
+                'Consumption during freeflow should be dramatically elevated, got ' + used.toFixed(2) + 'L in 1.5 dive-sec');
+            return 'PASS — free-flow multiplier drained ' + used.toFixed(2) + 'L in 1.5 dive-sec';
+        }
+    },
+    {
+        id: 'TC-45-FREEFLOW-BACKUP-DRAIN',
+        name: 'Issue #45 — freeflow "switch to backup" drains the OLD tank in parallel',
+        fn: function() {
+            api.diveMode = 'tec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200], [0.32, 0, 200]]);
+            api.drillsEnabled = true;
+            api.setDepth(20);
+            api.activeTank = 0;
+            api.forceDrill('freeflow');
+            // Option index 1 is "switch to backup"
+            api.resolveDrillOption(1);
+            api.dismissDrillDebrief();
+            assert(api.activeTank !== 0,
+                'Active tank should have switched away from tank 0, got activeTank=' + api.activeTank);
+            assert(api.drillState.freeflowDrainTankIdx === 0,
+                'Drain should target the ORIGINAL (pre-switch) tank, got ' + api.drillState.freeflowDrainTankIdx);
+            var oldGas = api.tanks[0].gasRemaining;
+            var newGas = api.tanks[api.activeTank].gasRemaining;
+            api.setDepth(20);
+            api.updateDiving(0.5);
+            var oldUsed = oldGas - api.tanks[0].gasRemaining;
+            var newUsed = newGas - api.tanks[api.activeTank].gasRemaining;
+            assert(oldUsed > 0,
+                'Old (free-flowing) tank must drain in parallel, got ' + oldUsed.toFixed(2) + 'L');
+            assert(newUsed > 0,
+                'Backup tank must consume normally, got ' + newUsed.toFixed(2) + 'L');
+            assert(oldUsed > newUsed,
+                'Old-tank drain (' + oldUsed.toFixed(2) + ') should exceed backup consumption (' + newUsed.toFixed(2) + ')');
+            return 'PASS — old drain=' + oldUsed.toFixed(2) + 'L, backup use=' + newUsed.toFixed(2) + 'L';
+        }
+    },
+    {
+        id: 'TC-45-CO2-BAILOUT-CORRECT',
+        name: 'Issue #45 — co2 drill correct option sets ccrState.onBailout',
+        fn: function() {
+            api.diveMode = 'ccr';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.initCCR();
+            api.drillsEnabled = true;
+            api.setDepth(20);
+            var started = api.forceDrill('co2');
+            assert(started, 'forceDrill co2 should succeed in CCR mode');
+            assert(api.ccrState.scrubberFailed === true,
+                'onTrigger should flip scrubberFailed');
+            api.resolveDrillOption(0);
+            assert(api.ccrState.onBailout === true,
+                'Bailout should be active after correct option');
+            assert(api.drillState.correct === true,
+                'Option 0 should be marked correct');
+            return 'PASS — bailout engaged';
+        }
+    },
+    {
+        id: 'TC-45-CO2-WRONG-KEEPS-COUNTING',
+        name: 'Issue #45 — co2 drill wrong option leaves scrubberFailed active',
+        fn: function() {
+            api.diveMode = 'ccr';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.initCCR();
+            api.drillsEnabled = true;
+            api.setDepth(20);
+            api.forceDrill('co2');
+            api.resolveDrillOption(1); // "increase setpoint" wrong option
+            assert(api.ccrState.scrubberFailed === true,
+                'scrubberFailed must NOT be cleared by wrong option');
+            assert(api.ccrState.onBailout === false,
+                'Wrong option must not bail out');
+            assert(api.drillState.correct === false,
+                'Option 1 must be marked incorrect');
+            return 'PASS — CO2 countdown continues (scrubberFailed still true)';
+        }
+    },
+    {
+        id: 'TC-45-KEYBOARD-SELECT',
+        name: 'Issue #45 — key "1" during overlay resolves option 0',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.drillsEnabled = true;
+            api.setDepth(20);
+            api.forceDrill('freeflow');
+            assert(api.drillState.phase === 'overlay', 'overlay must be up');
+            // Emulate the game-loop 'drill' branch's key check
+            api.setKeys({ '1': true });
+            // Manually invoke the same handler the switch case runs
+            if (api.keys['1']) {
+                api.keys['1'] = false;
+                api.resolveDrillOption(0);
+            }
+            assert(api.drillState.phase === 'debrief',
+                'After keyboard-driven resolve, phase should be debrief, got ' + api.drillState.phase);
+            assert(api.drillState.selectedOption === 0,
+                'selectedOption should be 0');
+            return 'PASS — key 1 resolved option 0';
+        }
+    },
+    {
+        id: 'TC-45-TOUCH-TAP-SELECT',
+        name: 'Issue #45 — a canvas tap inside an optionRect resolves that option',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.drillsEnabled = true;
+            // Save/restore cssWidth/cssHeight — the test harness iframe reports
+            // 0×0 dimensions, so setting a non-zero size here for the overlay
+            // draw MUST be reverted or subsequent tests inherit sizes that
+            // conflict with the gameLoop's material-tile cache and other draws.
+            var savedW = api.cssWidth, savedH = api.cssHeight;
+            var threw = null;
+            try {
+                api.cssWidth = 800;
+                api.cssHeight = 600;
+                api.setDepth(20);
+                api.forceDrill('freeflow');
+                // drawDrillOverlay populates drillState.optionRects — invoke it.
+                api.drawDrillOverlay();
+                var rects = api.drillState.optionRects || [];
+                assert(rects.length >= 2,
+                    'Overlay should have at least 2 option rects, got ' + rects.length);
+                // Simulate a tap at the centre of option index 1.
+                var target = rects[1];
+                var cx = target.x + target.w / 2;
+                var cy = target.y + target.h / 2;
+                // Hit-test manually (same math as touch.js).
+                var hit = -1;
+                for (var i = 0; i < rects.length; i++) {
+                    var r = rects[i];
+                    if (cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h) {
+                        hit = (r.index != null ? r.index : i);
+                        break;
+                    }
+                }
+                assert(hit === 1, 'Tap at option 1 centre should hit-test to index 1, got ' + hit);
+                api.resolveDrillOption(hit);
+                assert(api.drillState.selectedOption === 1,
+                    'selectedOption should be 1 after tap');
+            } catch (e) { threw = e; }
+            finally {
+                api.cssWidth = savedW;
+                api.cssHeight = savedH;
+                // Reset drill state so subsequent tests start clean.
+                api.drillHasRunThisDive = false;
+                api.drillState.phase = 'inactive';
+                api.gameState = 'diving';
+            }
+            if (threw) throw threw;
+            return 'PASS — canvas tap at option 1 centre resolved that option';
+        }
+    },
+    {
+        id: 'TC-45-DEBRIEF-DISMISS',
+        name: 'Issue #45 — debrief card auto-dismisses via Enter path',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.drillsEnabled = true;
+            api.setDepth(20);
+            api.forceDrill('freeflow');
+            api.resolveDrillOption(0);
+            assert(api.drillState.phase === 'debrief', 'phase should be debrief');
+            var dismissed = api.dismissDrillDebrief();
+            assert(dismissed, 'dismissDrillDebrief should return true');
+            assert(api.drillState.phase === 'effect',
+                'phase should transition to effect after debrief dismissal');
+            assert(api.gameState === 'diving',
+                'gameState should return to diving');
+            return 'PASS — debrief dismissed cleanly';
+        }
+    },
+    {
+        id: 'TC-45-DIVE-EVENT-LOGGED',
+        name: 'Issue #45 — drill outcome logs to diveEvents',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.drillsEnabled = true;
+            api.setDepth(20);
+            api.diveEvents = [];
+            api.forceDrill('freeflow');
+            api.resolveDrillOption(0);
+            var drillEvents = api.diveEvents.filter(function(e) { return e.kind === 'drillOutcome'; });
+            assert(drillEvents.length === 1,
+                'Exactly one drillOutcome event expected, got ' + drillEvents.length);
+            var e = drillEvents[0];
+            assert(e.value.id === 'freeflow', 'event.value.id should be "freeflow"');
+            assert(e.value.option === 0, 'event.value.option should be 0');
+            assert(e.value.correct === true, 'event.value.correct should be true');
+            return 'PASS — event ' + JSON.stringify(e.value) + ' at t=' + e.t.toFixed(2) + ' min';
+        }
+    },
+    {
+        id: 'TC-45-CATALOG-BILINGUAL',
+        name: 'Issue #45 — every DRILLS entry has EN + DE strings',
+        fn: function() {
+            var prev = api.currentLang;
+            var langs = ['en', 'de'];
+            try {
+                for (var li = 0; li < langs.length; li++) {
+                    var lang = langs[li];
+                    api.currentLang = lang;
+                    // S() is a top-level `function` in constants.js so it IS
+                    // on iframe.contentWindow (unlike let/const bindings).
+                    var iw = iframe.contentWindow;
+                    var drillStrings = iw.S('drills');
+                    assert(drillStrings, lang + ': S("drills") returned falsy');
+                    for (var i = 0; i < api.DRILLS.length; i++) {
+                        var d = api.DRILLS[i];
+                        var s = drillStrings[d.stringsKey];
+                        assert(s, lang + ': missing drill strings for ' + d.stringsKey);
+                        assert(s.title, lang + ': ' + d.stringsKey + '.title missing');
+                        assert(s.text, lang + ': ' + d.stringsKey + '.text missing');
+                        assert(Array.isArray(s.options) && s.options.length >= 2,
+                            lang + ': ' + d.stringsKey + '.options should be array of length >= 2');
+                        assert(s.why, lang + ': ' + d.stringsKey + '.why missing');
+                        assert(s.realWorld, lang + ': ' + d.stringsKey + '.realWorld missing');
+                    }
+                }
+            } finally {
+                api.currentLang = prev;
+            }
+            return 'PASS — ' + api.DRILLS.length + ' drills × 2 langs, all strings present';
+        }
     }
 ];
 

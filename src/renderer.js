@@ -308,6 +308,18 @@ function drawDepthColorAbsorption() {
 
     var cx = ctx;
     var restoring = !!torchOn;
+    // Issue #45 (test-harness robustness): the torch-lit restore path calls
+    // drawImage(cx.canvas, 0, 0, W, H) below — if the underlying physical
+    // canvas buffer has 0 width or height (test iframe with display:none,
+    // window.innerWidth === 0), drawImage throws
+    //   "The image argument is a canvas element with a width or height of 0."
+    // to the browser console, which Playwright's console-error assertion
+    // treats as a real bug even though nothing is visible. Skip the
+    // restore-mask branch (plain tint still applies as a solid fill, no
+    // drawImage) whenever the physical buffer is zero-sized.
+    if (restoring && (cx.canvas.width === 0 || cx.canvas.height === 0)) {
+        restoring = false;
+    }
     var beamAngle, halfA, exceptionR;
     if (restoring) {
         beamAngle = torchBeamAngle(_diverFacing);
@@ -9526,6 +9538,213 @@ function drawGameOver() {
     }
 
     cx.textAlign = 'left';
+}
+
+// SECTION: Issue #45 — Scenario-drill overlays (decision + debrief + flicker)
+// SEARCH TERMS: drawDrillOverlay, drawDrillDebrief, drawDrillFlicker, drillState
+
+// Shared: return the currently-visible option list for a drill (filters
+// out multi-tank-only options if tankCount === 1). Duplicates the logic
+// from game-loop.js's _visibleDrillOptions() so the renderer does not
+// depend on a helper the classic-script load order might not have wired
+// yet at first paint.
+function _drillVisibleOptions(drill) {
+    var out = [];
+    for (var i = 0; i < drill.options.length; i++) {
+        var o = drill.options[i];
+        if (o.requiresMultiTank && tankCount <= 1) continue;
+        out.push(o);
+    }
+    return out;
+}
+
+function _drillById(id) {
+    if (!id || typeof DRILLS === 'undefined') return null;
+    for (var i = 0; i < DRILLS.length; i++) if (DRILLS[i].id === id) return DRILLS[i];
+    return null;
+}
+
+// Decision overlay — styled as an amber-bordered card that occupies the
+// centre of the screen. Option rows are recorded in drillState.optionRects
+// (CSS-pixel bounds) so touch.js can hit-test taps against the same coords
+// the diver sees. Kept visually distinct from drawGameOver() (which uses a
+// red palette) to avoid confusion — a drill is a training pause, not a
+// fatal outcome.
+function drawDrillOverlay() {
+    if (!drillState || drillState.phase !== 'overlay') return;
+    var drill = _drillById(drillState.id);
+    if (!drill) return;
+    var strs = S('drills')[drill.stringsKey];
+    if (!strs) return;
+    var options = _drillVisibleOptions(drill);
+
+    var cx = ctx;
+    var W = cssWidth, H = cssHeight;
+    var DCF = "'Barlow Semi Condensed', monospace";
+
+    // Dim the frozen scene behind the card so text stays readable.
+    cx.fillStyle = 'rgba(6,10,16,0.72)';
+    cx.fillRect(0, 0, W, H);
+
+    var panelW = Math.min(640, W - 48);
+    var panelH = Math.min(H - 60, 320 + options.length * 44);
+    var panelX = (W - panelW) / 2;
+    var panelY = (H - panelH) / 2;
+
+    // Amber card
+    cx.fillStyle = 'rgba(30,20,10,0.94)';
+    cx.strokeStyle = 'rgba(255,180,80,0.85)';
+    cx.lineWidth = 2;
+    cx.beginPath();
+    cx.roundRect(panelX, panelY, panelW, panelH, 12);
+    cx.fill();
+    cx.stroke();
+
+    var y = panelY + 22;
+    cx.textAlign = 'center';
+
+    // Header + title
+    cx.font = 'bold 11px monospace';
+    cx.fillStyle = '#ffb84d';
+    cx.fillText('⚠ ' + S('drillHeader'), W / 2, y);
+    y += 22;
+    cx.font = 'bold 26px ' + DCF;
+    cx.fillStyle = '#ffd9a0';
+    cx.fillText(strs.title, W / 2, y);
+    y += 24;
+
+    // Situation text (wrapped)
+    cx.textAlign = 'left';
+    var textX = panelX + 24;
+    var textMaxW = panelW - 48;
+    cx.font = '14px monospace';
+    cx.fillStyle = '#f0e6d6';
+    y = drawWrappedText(cx, strs.text, textX, y + 12, textMaxW, 18);
+    y += 18;
+
+    // Options — record CSS-pixel bounds for touch hit-testing.
+    drillState.optionRects = [];
+    for (var i = 0; i < options.length; i++) {
+        var label = (i + 1) + '. ' + strs.options[i];
+        var rowH = 40;
+        var rowX = textX;
+        var rowY = y;
+        var rowW = textMaxW;
+        cx.fillStyle = 'rgba(60,45,25,0.7)';
+        cx.strokeStyle = 'rgba(255,180,80,0.55)';
+        cx.lineWidth = 1;
+        cx.beginPath();
+        cx.roundRect(rowX, rowY, rowW, rowH, 6);
+        cx.fill();
+        cx.stroke();
+        cx.font = 'bold 14px monospace';
+        cx.fillStyle = '#ffe4b8';
+        cx.fillText(label, rowX + 14, rowY + 26);
+        drillState.optionRects.push({ x: rowX, y: rowY, w: rowW, h: rowH, index: i });
+        y += rowH + 8;
+    }
+
+    // Footer prompt
+    cx.textAlign = 'center';
+    cx.font = '12px monospace';
+    cx.fillStyle = 'rgba(255,220,180,0.55)';
+    cx.fillText(S('drillPromptFooter'), W / 2, panelY + panelH - 14);
+    cx.textAlign = 'left';
+}
+
+// Debrief card — green-bordered card summarising the choice + WHY +
+// REAL-WORLD context. Auto-dismisses after DRILL_DEBRIEF_DURATION_SEC or
+// on Enter. Same visual language as drawGameOver()'s "HOW TO AVOID" pass
+// so returning divers recognise the shape.
+function drawDrillDebrief() {
+    if (!drillState || drillState.phase !== 'debrief') return;
+    var drill = _drillById(drillState.id);
+    if (!drill) return;
+    var strs = S('drills')[drill.stringsKey];
+    if (!strs) return;
+
+    var cx = ctx;
+    var W = cssWidth, H = cssHeight;
+    var DCF = "'Barlow Semi Condensed', monospace";
+
+    cx.fillStyle = 'rgba(6,10,16,0.75)';
+    cx.fillRect(0, 0, W, H);
+
+    var panelW = Math.min(640, W - 48);
+    var panelH = Math.min(H - 60, 340);
+    var panelX = (W - panelW) / 2;
+    var panelY = (H - panelH) / 2;
+    var ok = drillState.correct;
+    var borderCol = ok ? 'rgba(70,240,143,0.85)' : 'rgba(255,140,80,0.85)';
+    var bg = ok ? 'rgba(12,26,18,0.94)' : 'rgba(30,20,12,0.94)';
+
+    cx.fillStyle = bg;
+    cx.strokeStyle = borderCol;
+    cx.lineWidth = 2;
+    cx.beginPath();
+    cx.roundRect(panelX, panelY, panelW, panelH, 12);
+    cx.fill();
+    cx.stroke();
+
+    var y = panelY + 22;
+    cx.textAlign = 'center';
+    cx.font = 'bold 11px monospace';
+    cx.fillStyle = ok ? '#46f08f' : '#ffb060';
+    cx.fillText(S('drillDebriefHeader') + ' — ' + strs.title, W / 2, y);
+    y += 22;
+    cx.font = 'bold 20px ' + DCF;
+    cx.fillStyle = ok ? '#a6f9c8' : '#ffcda0';
+    cx.fillText(ok ? S('drillDebriefCorrect') : S('drillDebriefWrong'), W / 2, y);
+    y += 24;
+
+    cx.textAlign = 'left';
+    var textX = panelX + 24;
+    var textMaxW = panelW - 48;
+
+    cx.font = 'bold 12px monospace';
+    cx.fillStyle = '#fff';
+    cx.fillText(S('drillDebriefWhyLabel'), textX, y);
+    y += 16;
+    cx.font = '12px monospace';
+    cx.fillStyle = ok ? '#c9e8d4' : '#e8d1b8';
+    y = drawWrappedText(cx, strs.why, textX, y, textMaxW, 15);
+    y += 12;
+
+    cx.font = 'bold 12px monospace';
+    cx.fillStyle = '#67d4ff';
+    cx.fillText(S('drillDebriefRealLabel'), textX, y);
+    y += 16;
+    cx.font = '12px monospace';
+    cx.fillStyle = '#9fd8ff';
+    y = drawWrappedText(cx, strs.realWorld, textX, y, textMaxW, 15);
+
+    cx.textAlign = 'center';
+    cx.font = '11px monospace';
+    cx.fillStyle = 'rgba(200,220,240,0.55)';
+    cx.fillText(S('drillDebriefDismiss'), W / 2, panelY + panelH - 14);
+    cx.textAlign = 'left';
+}
+
+// Torch flicker overlay — only relevant during the lightFailure drill's
+// 2-second flicker phase (gameState still 'diving', physics ticking). A
+// simple sin-based alpha modulation painted over the whole scene reads as
+// a failing torch without requiring changes to drawSiltAndTorch()'s
+// existing torch pipeline.
+function drawDrillFlicker() {
+    if (!drillState || drillState.phase !== 'flicker') return;
+    if (drillState.id !== 'lightFailure') return;
+    var cx = ctx;
+    var t = (typeof performance !== 'undefined' && performance.now)
+        ? performance.now() / 1000
+        : Date.now() / 1000;
+    // High-frequency flicker: three overlaid sines to avoid a mechanical
+    // beat pattern. Alpha stays in [0, 0.6] so the scene is never fully
+    // black — the diver still needs to perceive that the light is failing.
+    var a = 0.32 + 0.22 * Math.sin(t * 24) + 0.10 * Math.sin(t * 60 + 1.3) + 0.08 * Math.sin(t * 11 + 0.7);
+    if (a < 0) a = 0;
+    if (a > 0.65) a = 0.65;
+    cx.fillStyle = 'rgba(0,0,0,' + a.toFixed(3) + ')';
+    cx.fillRect(0, 0, cssWidth, cssHeight);
 }
 
 // SECTION: Surface / pre-dive screen
