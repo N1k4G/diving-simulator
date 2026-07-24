@@ -644,6 +644,30 @@ const STRINGS = {
     hintOverhead: 'Overhead: the guideline marks the way back, T = torch',
     hintCurrent: 'Current! Swim against it with A/D',
     hintDismissBtn: 'Don\u2019t show hints again',
+    // Issue #46: Instructor overlay (\u201cLearn\u201d mode). All strings the
+    // panel prints come from here so a language switch mid-dive updates the
+    // overlay on the next frame. Keep every subtext single-line \u2014 the
+    // panel is deliberately narrow (230px) and rows are laid out on a fixed
+    // vertical stride, not word-wrapped.
+    instructorTitle:      'PHYSICS LIVE',
+    instructorPressureRow: 'Ambient pressure',
+    instructorPressureFormula: 'P = 1 + depth/10 bar',
+    instructorBcdRow:      'BCD (Boyle\u2019s law)',
+    instructorBcdFormula:  'same gas \u2192 double pressure = half volume',
+    instructorBcdSurf:     'surface-equiv',
+    instructorBcdEff:      'effective now',
+    instructorBubbleRow:   'Bubble expansion',
+    instructorBubbleFormula: 'r_now = r_emit \u00d7 (P_emit / P_now)^(1/3)',
+    instructorBubbleNone:  'no bubble in flight yet',
+    instructorTissueRow:   'Leading tissue',
+    instructorTissueFormula: 'saturation vs. M-value at surface',
+    instructorTissueNone:  'compartments still washing in',
+    instructorConsRow:     'Gas consumption',
+    instructorConsFormula: 'SAC = AMV \u00d7 P (at 30m: 4\u00d7 surface rate)',
+    instructorGasRow:      'Current gas',
+    instructorGasFormula:  'MOD = (1.4/fO\u2082 \u2212 1) \u00d7 10, END with He',
+    instructorHintOff:     '[L] toggle',
+    instructorTouchLabel:  'LEARN',
     // Issue #44: Post-dive debriefing labels + hints. {count}/{peak}/{bar}/
     // {ndl}/{stddev} are simple placeholders replaced by gradeDive() in
     // physics.js (no full template engine \u2014 String.prototype.replace only).
@@ -807,6 +831,30 @@ const STRINGS = {
     hintOverhead: '\u00DCberkopf: die Leine markiert den R\u00FCckweg, T = Lampe',
     hintCurrent: 'Str\u00F6mung! Mit A/D dagegen anschwimmen',
     hintDismissBtn: 'Hinweise nicht mehr anzeigen',
+    // Issue #46: Instruktor-Overlay („Lern"-Modus). Alle Strings, die das
+    // Panel anzeigt, kommen hier her; ein Sprachwechsel während des
+    // Tauchgangs aktualisiert das Overlay im nächsten Frame. Jeder
+    // Untertitel bleibt einzeilig — das Panel ist bewusst schmal (230px)
+    // und Zeilen werden auf einem festen vertikalen Raster ausgelegt.
+    instructorTitle:      'PHYSIK LIVE',
+    instructorPressureRow: 'Umgebungsdruck',
+    instructorPressureFormula: 'P = 1 + Tiefe/10 bar',
+    instructorBcdRow:      'Tarierweste (Gesetz von Boyle)',
+    instructorBcdFormula:  'gleiche Gasmenge → doppelter Druck = halbes Volumen',
+    instructorBcdSurf:     'Oberflächen-äquiv.',
+    instructorBcdEff:      'effektiv jetzt',
+    instructorBubbleRow:   'Blasenexpansion',
+    instructorBubbleFormula: 'r_jetzt = r_emit × (P_emit / P_jetzt)^(1/3)',
+    instructorBubbleNone:  'noch keine Blase unterwegs',
+    instructorTissueRow:   'Führendes Gewebe',
+    instructorTissueFormula: 'Sättigung vs. M-Wert an Oberfläche',
+    instructorTissueNone:  'Kompartimente sättigen noch',
+    instructorConsRow:     'Gasverbrauch',
+    instructorConsFormula: 'SAC = AMV × P (auf 30m: 4× Oberflächenrate)',
+    instructorGasRow:      'Aktuelles Gas',
+    instructorGasFormula:  'MOD = (1,4/fO₂ − 1) × 10, END mit He',
+    instructorHintOff:     '[L] umschalten',
+    instructorTouchLabel:  'LERN',
     // Issue #44: Post-Dive-Debriefing — Labels + Hinweise (mirrors EN keys).
     debriefTitle: 'AUSWERTUNG',
     gradeLabels: ['Aufstiegsdisziplin', 'Sicherheitsstopp', 'Gasreserve', 'Dekodisziplin', 'Trimm & Tarierung'],

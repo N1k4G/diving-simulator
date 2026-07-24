@@ -135,6 +135,16 @@ function bindHold(btn, keyName) {
         e.preventDefault();
         if (gameState !== 'gas-setup') { showHelp = !showHelp; if (showHelp) showGasInfo = false; }
     }, { passive: false });
+    // Issue #46: Instructor overlay toggle. Mirror of the L key path in
+    // state.js — only active while diving so a tap during setup / surface
+    // / gameover / post-dive is a silent no-op (same guard as the L key).
+    var learnBtn = document.getElementById('touch-dive-learn');
+    if (learnBtn) {
+        learnBtn.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            if (gameState === 'diving') instructorMode = !instructorMode;
+        }, { passive: false });
+    }
     // TASK-031D: Gas info touch button
     document.getElementById('touch-gas-info').addEventListener('touchstart', function(e) {
         e.preventDefault();

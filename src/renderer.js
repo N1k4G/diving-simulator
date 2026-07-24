@@ -1233,6 +1233,20 @@ function drawScene() {
     // enabled paints translucent zone rectangles + current-zone id text so
     // future consumers can verify the map/zone assignment visually.
     if (debugVisualZones) drawVisualZoneDebug();
+
+    // Issue #46: Instructor overlay ("Learn" mode). Painted LAST inside
+    // drawScene so it stays legible on top of every darkness/silt/torch/
+    // narcosis pass — this is instructional UI, not a world object. Only
+    // reads pre-computed per-frame values (bcdGasSurfaceLiters, tissues,
+    // amvRate, narcosisIndex, bubbles[]) — it must NEVER call
+    // calculateNDL()/calculateCeiling()/etc from here (they're expensive
+    // and are already cached in frameCalc, which the panel would use if
+    // it needed them). Hidden while help / gas-info / info-page is up so
+    // it never fights the full-screen overlays for space.
+    if (instructorMode && gameState === 'diving'
+        && !showHelp && !showGasInfo && infoPageMode === 0) {
+        drawInstructorOverlay();
+    }
 }
 
 // Issue #54: local atmosphere composite pass. One pass, one canvas
@@ -8831,6 +8845,266 @@ function gsPanel(cx, x, y, w, h, r) {
     cx.strokeStyle = '#18242a';
     cx.lineWidth = 1;
     cx.stroke();
+}
+
+// ============================================================
+// Issue #46: Instructor overlay ("Learn" mode)
+// ============================================================
+// Narrow (~230px) semi-transparent left-edge panel of six live-physics
+// rows. Called from drawScene() after every darkness/silt/torch pass so
+// it stays fully readable regardless of the world tint.
+//
+// Contract:
+//   - No expensive calculations. Reads existing per-tick state:
+//     bcdGasSurfaceLiters, tissues[], tissuesHe[], bubbles[],
+//     narcosisIndex, amvRate, ccrState. When it needs a schedule/ceiling
+//     it reads frameCalc (populated by updateDiving()) rather than
+//     calling calculateCeiling() fresh.
+//   - Values equal what the dive computer / grade / MOD readout show —
+//     the panel is a WINDOW onto the existing physics, not a second
+//     source of truth.
+//   - All display strings via S(...) so a mid-dive language toggle
+//     updates the overlay on the next frame.
+const INSTRUCTOR_PANEL_W = 230;
+const INSTRUCTOR_ROW_H   = 46;    // px per row (title + value + subtext)
+const INSTRUCTOR_ROWS    = 6;
+const INSTRUCTOR_PAD_X   = 10;
+const INSTRUCTOR_TOP_Y_FRAC = 0.12;   // top edge as fraction of cssHeight
+// Rounded to the same 4-halftime buckets the ZHL16C table uses for its
+// row labels in the tissue-bar page; keeps the panel's compartment label
+// consistent with what a diver already sees on the Info page.
+const INSTRUCTOR_TISSUE_MIN_LOAD = 0.001;  // ignore compartments essentially at 0
+// Highlight thresholds for the leading-tissue % row. Same three-bucket
+// pattern that the existing GF99 row uses on the info page (46f08f /
+// ffd24d / ff3333) — matched deliberately so a diver reading both at
+// once gets the same colour code for the same underlying saturation.
+const INSTRUCTOR_TISSUE_WARN_PCT = 80;
+const INSTRUCTOR_TISSUE_CRIT_PCT = 100;
+
+// Pick the leading compartment (highest saturation as % of surface
+// M-value). Returns { i, pct, ht } or null if no compartment is loaded.
+// Runs the same combinedAB() math the ceiling/GF99 pages use, so a
+// SurfGF row of, e.g., 42% on the info page yields the same pct here for
+// the same tick — this is what the "no double-calculation" requirement
+// in the issue asks for.
+function _instructorLeadingTissue() {
+    var pSurf = 1.0;
+    var lead = -1;
+    var leadPct = -1;
+    for (var i = 0; i < 16; i++) {
+        var ptTotal = tissues[i] + tissuesHe[i];
+        if (ptTotal <= INSTRUCTOR_TISSUE_MIN_LOAD) continue;
+        var ab = combinedAB(i);
+        var mVal = ab.a + pSurf / ab.b;
+        var denom = mVal - pSurf;
+        var pct = denom > 0.0001 ? (ptTotal - pSurf) / denom * 100 : 0;
+        if (pct > leadPct) { leadPct = pct; lead = i; }
+    }
+    if (lead < 0) return null;
+    return { i: lead, pct: leadPct, ht: ZHL16C_N2[lead].ht };
+}
+
+function drawInstructorOverlay() {
+    var cx = ctx;
+    var W = cssWidth;
+    var H = cssHeight;
+
+    var panelW = INSTRUCTOR_PANEL_W;
+    var rowH   = INSTRUCTOR_ROW_H;
+    var panelH = rowH * INSTRUCTOR_ROWS + 46; // + title header
+    var panelX = 8;
+    var panelY = Math.max(8, Math.floor(H * INSTRUCTOR_TOP_Y_FRAC));
+
+    // Panel background — a bit darker than gsPanel + explicit alpha so
+    // it doesn't hide the dive-computer HUD if they ever overlap (they
+    // won't at default HUD placement, but the panel scales with viewport
+    // height and this defends against a small-window edge case).
+    cx.save();
+    cx.beginPath();
+    cx.roundRect(panelX, panelY, panelW, panelH, 10);
+    cx.fillStyle = 'rgba(10, 18, 24, 0.82)';
+    cx.fill();
+    cx.strokeStyle = 'rgba(52, 230, 255, 0.35)';
+    cx.lineWidth = 1;
+    cx.stroke();
+
+    cx.textAlign = 'left';
+    var padX = panelX + INSTRUCTOR_PAD_X;
+
+    // Title
+    cx.font = 'bold 12px monospace';
+    cx.fillStyle = '#34e6ff';
+    cx.fillText(S('instructorTitle'), padX, panelY + 18);
+    cx.font = '9px monospace';
+    cx.fillStyle = '#6b8a95';
+    cx.fillText(S('instructorHintOff'), padX, panelY + 32);
+
+    var rowTopY = panelY + 46;
+
+    // Precompute the values ONCE — the overlay must never trigger a
+    // second calculateCeiling()/calculateNDL() call this frame.
+    var P    = ambientPressure(depth);
+    var gas  = activeGas();
+    var fO2  = gas.fO2;
+    var mod  = calculateMOD(fO2);          // cheap: arithmetic only
+    var end  = calculateEND();             // cheap: arithmetic only
+    var bcdSurf = bcdGasSurfaceLiters;
+    var bcdEff  = P > 0 ? bcdSurf / P : 0;
+    var bcdMax  = (typeof BUOYANCY_PARAMS !== 'undefined' && BUOYANCY_PARAMS.bcdMaxCapacity)
+        ? BUOYANCY_PARAMS.bcdMaxCapacity : 18;
+    var sac  = amvRate * P;                 // surface-liters/min at depth
+    var lead = _instructorLeadingTissue();
+    // Newest bubble in flight (last emitted with depth > 0). We scan
+    // from the end because updateBubbles() splices out surfaced bubbles
+    // in reverse order — the last live entry is the youngest.
+    var newest = null;
+    for (var bi = bubbles.length - 1; bi >= 0; bi--) {
+        if (bubbles[bi].depth > 0.1) { newest = bubbles[bi]; break; }
+    }
+    var bubblePctGain = null;
+    if (newest) {
+        // bubbleDisplayRadius() already applies the (Pe/Pn)^(1/3) growth;
+        // don't reinvent the exponent here.
+        var r0 = newest.emissionRadius;
+        var r1 = bubbleDisplayRadius(newest);
+        if (r0 > 0) bubblePctGain = (r1 / r0 - 1) * 100;
+    }
+
+    var y = rowTopY;
+
+    // Fonts / colours shared across rows
+    var labelFont   = 'bold 10px monospace';
+    var valueFont   = 'bold 13px monospace';
+    var subFont     = '9px monospace';
+    var labelColor  = '#8fb2bd';
+    var valueColor  = '#e0f4fb';
+    var subColor    = '#6b8a95';
+
+    function drawRow(label, value, sub, valColor) {
+        cx.font = labelFont;
+        cx.fillStyle = labelColor;
+        cx.fillText(label, padX, y + 12);
+        cx.font = valueFont;
+        cx.fillStyle = valColor || valueColor;
+        cx.fillText(value, padX, y + 28);
+        cx.font = subFont;
+        cx.fillStyle = subColor;
+        cx.fillText(sub, padX, y + 40);
+        y += rowH;
+    }
+
+    // Row 1 — Ambient pressure
+    drawRow(
+        S('instructorPressureRow'),
+        P.toFixed(2) + ' bar',
+        S('instructorPressureFormula')
+    );
+
+    // Row 2 — BCD Boyle's law (with an inline bar)
+    cx.font = labelFont; cx.fillStyle = labelColor;
+    cx.fillText(S('instructorBcdRow'), padX, y + 12);
+    cx.font = valueFont; cx.fillStyle = valueColor;
+    cx.fillText(bcdSurf.toFixed(1) + 'L / ' + bcdEff.toFixed(1) + 'L', padX, y + 28);
+    // Mini bar: full-width = bcdMaxCapacity effective volume. Uses the
+    // effective (depth-corrected) volume as the bar length so a diver at
+    // depth SEES their BCD shrink under pressure. Surface-equivalent is
+    // shown as a faint outline behind it.
+    var barX = padX;
+    var barY = y + 34;
+    var barW = panelW - INSTRUCTOR_PAD_X * 2;
+    var barH = 5;
+    cx.fillStyle = 'rgba(80, 100, 110, 0.35)';
+    cx.fillRect(barX, barY, barW, barH);
+    var effFrac  = Math.max(0, Math.min(1, bcdEff  / bcdMax));
+    var surfFrac = Math.max(0, Math.min(1, bcdSurf / bcdMax));
+    cx.fillStyle = 'rgba(52, 230, 255, 0.35)';
+    cx.fillRect(barX, barY, barW * surfFrac, barH);
+    cx.fillStyle = '#34e6ff';
+    cx.fillRect(barX, barY, barW * effFrac, barH);
+    cx.font = subFont; cx.fillStyle = subColor;
+    cx.fillText(S('instructorBcdFormula'), padX, y + rowH - 4);
+    y += rowH;
+
+    // Row 3 — Bubble expansion (annotated on the newest live bubble)
+    if (newest && bubblePctGain !== null) {
+        cx.font = labelFont; cx.fillStyle = labelColor;
+        cx.fillText(S('instructorBubbleRow'), padX, y + 12);
+        cx.font = valueFont; cx.fillStyle = '#a0f0ff';
+        var sign = bubblePctGain >= 0 ? '+' : '';
+        cx.fillText(sign + bubblePctGain.toFixed(0) + '% since exhale', padX, y + 28);
+        cx.font = subFont; cx.fillStyle = subColor;
+        cx.fillText(S('instructorBubbleFormula'), padX, y + 40);
+        // Draw a thin annotation line from the panel to that bubble's
+        // on-screen position. Kept subtle (alpha 0.35, 1px) so it reads
+        // as instructional marginalia, not a game HUD element.
+        var metersPerPixel = 0.05;
+        var diverScreenY = H * 0.45;
+        // Issue #100: diver screen anchor moved from W * 0.25 to
+        // W * DIVER_SCREEN_X_FRACTION (0.5). Use the same constant so the
+        // bubble-annotation line lands on the actual bubble sprite.
+        var diverScreenX = W * DIVER_SCREEN_X_FRACTION;
+        var bubScreenX = diverScreenX + newest.x;
+        var bubScreenY = diverScreenY - (depth - newest.depth) / metersPerPixel;
+        if (bubScreenX > panelX + panelW &&
+            bubScreenX < W && bubScreenY > 0 && bubScreenY < H) {
+            cx.save();
+            cx.strokeStyle = 'rgba(160, 240, 255, 0.35)';
+            cx.lineWidth = 1;
+            cx.beginPath();
+            cx.moveTo(panelX + panelW, y + 22);
+            cx.lineTo(bubScreenX, bubScreenY);
+            cx.stroke();
+            cx.restore();
+        }
+        y += rowH;
+    } else {
+        drawRow(
+            S('instructorBubbleRow'),
+            S('instructorBubbleNone'),
+            S('instructorBubbleFormula'),
+            subColor
+        );
+    }
+
+    // Row 4 — Leading tissue compartment
+    if (lead) {
+        var tissueColor = lead.pct >= INSTRUCTOR_TISSUE_CRIT_PCT ? '#ff3333'
+                        : lead.pct >= INSTRUCTOR_TISSUE_WARN_PCT ? '#ffd24d'
+                        : '#46f08f';
+        drawRow(
+            S('instructorTissueRow') + ' #' + (lead.i + 1) + '  (t½=' + lead.ht.toFixed(0) + 'min)',
+            Math.max(0, Math.round(lead.pct)) + '% of M-value',
+            S('instructorTissueFormula'),
+            tissueColor
+        );
+    } else {
+        drawRow(
+            S('instructorTissueRow'),
+            '—',
+            S('instructorTissueNone'),
+            subColor
+        );
+    }
+
+    // Row 5 — Gas consumption
+    drawRow(
+        S('instructorConsRow'),
+        sac.toFixed(1) + ' L/min  (×' + P.toFixed(1) + ')',
+        S('instructorConsFormula')
+    );
+
+    // Row 6 — MOD / END
+    var modColor = depth >= mod ? '#ff9933' : valueColor;
+    var narcPct = Math.round(narcosisIndex * 100);
+    drawRow(
+        S('instructorGasRow'),
+        'MOD ' + Math.round(mod) + 'm | END ' + Math.round(end) + 'm | N ' + narcPct + '%',
+        S('instructorGasFormula'),
+        modColor
+    );
+
+    cx.restore();
+    cx.textAlign = 'left';
 }
 
 function drawPostDive() {

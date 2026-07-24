@@ -1676,5 +1676,15 @@ window.gameAPI = {
     get HINT_BCD_MIN_DEPTH() { return HINT_BCD_MIN_DEPTH; },
     showHintOnce: showHintOnce,
     dismissAllHints: dismissAllHints,
-    resetAllHintsForTests: resetAllHintsForTests
+    resetAllHintsForTests: resetAllHintsForTests,
+    // Issue #46: Instructor overlay ("Learn" mode). `instructorMode` is
+    // declared with `let` in state.js so it never became a window
+    // property — tests must go through this accessor to observe or set
+    // it. drawInstructorOverlay + its constants are exposed so tests can
+    // stub CanvasRenderingContext2D and assert the render guards behave.
+    get instructorMode() { return instructorMode; },
+    set instructorMode(v) { instructorMode = !!v; },
+    drawInstructorOverlay: drawInstructorOverlay,
+    get INSTRUCTOR_PANEL_W() { return INSTRUCTOR_PANEL_W; },
+    get INSTRUCTOR_ROWS() { return INSTRUCTOR_ROWS; }
 };
