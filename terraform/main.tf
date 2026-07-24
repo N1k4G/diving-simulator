@@ -7,7 +7,8 @@ resource "cloudflare_pages_project" "this" {
 resource "cloudflare_pages_domain" "this" {
   account_id   = var.cloudflare_account_id
   project_name = cloudflare_pages_project.this.name
-  domain       = var.custom_domain
+  # Issue #23: v5 renamed this argument from `domain` to `name`.
+  name         = var.custom_domain
 }
 
 # CNAME that routes the custom domain to the Pages project

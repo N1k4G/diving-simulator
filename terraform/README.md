@@ -18,11 +18,11 @@ live workspace:
 1. Run `terraform plan` in the HCP workspace and confirm it reports a
    resource *move* (via the `moved` block), not a destroy+create, for
    `cloudflare_dns_record.pages_cname`.
-2. Double-check `cloudflare_pages_project`/`cloudflare_pages_domain` against
-   the actual v5 provider schema — they weren't renamed, but attribute-level
-   changes are possible and weren't independently verified here.
-3. Only apply once the plan output confirms no destructive change to the
+2. Only apply once the plan output confirms no destructive change to the
    production DNS record.
 
-`cloudflare_pages_project`/`cloudflare_pages_domain` (`account_id`, custom
-domain default in `variables.tf`) are unchanged.
+`cloudflare_pages_project` is unchanged. `cloudflare_pages_domain` needed one
+attribute rename beyond the resource-type renames above: v5 renamed its
+`domain` argument to `name` (verified via `terraform validate` against the
+real v5.22.0 provider schema, fetched locally with `terraform init
+-backend=false -upgrade` — no state or live infrastructure touched).
