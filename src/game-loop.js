@@ -651,8 +651,8 @@ function updateDiving(dtReal) {
             var W = cssWidth;
             // Spawn just off the visible screen edge in world metres
             var sharkStartX = sharkDir > 0
-                ? diverX - (W * 0.25 + 100) * 0.05
-                : diverX + (W * 0.75 + 100) * 0.05;
+                ? diverX - (W * DIVER_SCREEN_X_FRACTION + 100) * 0.05
+                : diverX + (W * (1 - DIVER_SCREEN_X_FRACTION) + 100) * 0.05;
             shark = {
                 x: sharkStartX,  // world metres
                 depth: Math.max(0, Math.min(MAX_DEPTH, depth + (Math.random() * 20 - 10))),
@@ -691,8 +691,8 @@ function updateDiving(dtReal) {
         }
         // Remove once it has passed well beyond the visible area
         var W2 = cssWidth;
-        if ((shark.direction > 0 && shark.x > diverX + (W2 * 0.75 + 150) * 0.05) ||
-            (shark.direction < 0 && shark.x < diverX - (W2 * 0.25 + 150) * 0.05)) {
+        if ((shark.direction > 0 && shark.x > diverX + (W2 * (1 - DIVER_SCREEN_X_FRACTION) + 150) * 0.05) ||
+            (shark.direction < 0 && shark.x < diverX - (W2 * DIVER_SCREEN_X_FRACTION + 150) * 0.05)) {
             shark = null;
         }
     }
@@ -1332,6 +1332,7 @@ window.gameAPI = {
     calculateMOD: calculateMOD,
     calculateTTS: calculateTTS,
     bestGasForDepth: bestGasForDepth,
+    get DIVER_SCREEN_X_FRACTION() { return DIVER_SCREEN_X_FRACTION; },
     get SAFETY_STOP_ACTIVE_MIN_D() { return SAFETY_STOP_ACTIVE_MIN_D; },
     get SAFETY_STOP_ACTIVE_MAX_D() { return SAFETY_STOP_ACTIVE_MAX_D; },
     get DECO_PLANNING_ASCENT_RATE_MPM() { return DECO_PLANNING_ASCENT_RATE_MPM; },

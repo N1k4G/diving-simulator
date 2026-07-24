@@ -26,6 +26,13 @@
 
 const TIME_ACCELERATION = 3;
 const FAST_FORWARD_MULTIPLIER = 10;
+// Issue #100: the diver's horizontal screen anchor as a fraction of canvas
+// width, used by every world-to-screen projection in renderer.js
+// (screenX = W * DIVER_SCREEN_X_FRACTION + (worldX - diverX) / metersPerPixel).
+// Previously inlined as the literal 0.25 (25% from the left — a "look-ahead"
+// framing) at 35+ separate call sites; centralized here per the decision to
+// center the diver unconditionally (0.5 = screen-center).
+const DIVER_SCREEN_X_FRACTION = 0.5;
 // Issue #65: physics integrator sub-step cap. `updateBuoyancyPhysics()` and
 // `updateHorizontalPhysics()` both do explicit Euler with per-step drag
 // factors of ~0.4-0.8 * dt — at dt = 3s (fast-forward + a frame drop) the

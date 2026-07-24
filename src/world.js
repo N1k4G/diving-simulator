@@ -192,8 +192,8 @@ function spawnFish() {
     // Spawn just off the visible screen edge in world metres
     var W = cssWidth;
     var startX = direction > 0
-        ? diverX - (W * 0.25 + ft.size * 2) * 0.05
-        : diverX + (W * 0.75 + ft.size * 2) * 0.05;
+        ? diverX - (W * DIVER_SCREEN_X_FRACTION + ft.size * 2) * 0.05
+        : diverX + (W * (1 - DIVER_SCREEN_X_FRACTION) + ft.size * 2) * 0.05;
     // Issue #42: reject spawns that would appear inside terrain — next
     // spawn timer tick will simply try again.
     if (faunaBlockedAt(startX, fishDepth)) return;
@@ -304,8 +304,8 @@ function updateFish(dtReal) {
             fishes.splice(i, 1);
             continue;
         }
-        var rightEdge = diverX + (W * 0.75 + f.type.size * 2) * 0.05;
-        var leftEdge  = diverX - (W * 0.25 + f.type.size * 2) * 0.05;
+        var rightEdge = diverX + (W * (1 - DIVER_SCREEN_X_FRACTION) + f.type.size * 2) * 0.05;
+        var leftEdge  = diverX - (W * DIVER_SCREEN_X_FRACTION + f.type.size * 2) * 0.05;
         if (f.direction > 0 && f.x > rightEdge) {
             fishes.splice(i, 1);
         } else if (f.direction < 0 && f.x < leftEdge) {
@@ -429,8 +429,8 @@ function spawnWildlife() {
     var speed = (wt.speedMin + Math.random() * (wt.speedMax - wt.speedMin)) * WORLD_MPS; // m/s
     var W = cssWidth;
     var startX = direction > 0
-        ? diverX - (W * 0.25 + wt.size * 2) * 0.05
-        : diverX + (W * 0.75 + wt.size * 2) * 0.05;
+        ? diverX - (W * DIVER_SCREEN_X_FRACTION + wt.size * 2) * 0.05
+        : diverX + (W * (1 - DIVER_SCREEN_X_FRACTION) + wt.size * 2) * 0.05;
     // Issue #42: reject spawns that would appear inside terrain.
     if (faunaBlockedAt(startX, wDepth)) return;
     wildlife.push({
@@ -468,8 +468,8 @@ function updateWildlife(dtReal) {
             wildlife.splice(i, 1);
             continue;
         }
-        var rightEdge = diverX + (W * 0.75 + w.type.size * 3) * 0.05;
-        var leftEdge  = diverX - (W * 0.25 + w.type.size * 3) * 0.05;
+        var rightEdge = diverX + (W * (1 - DIVER_SCREEN_X_FRACTION) + w.type.size * 3) * 0.05;
+        var leftEdge  = diverX - (W * DIVER_SCREEN_X_FRACTION + w.type.size * 3) * 0.05;
         if (w.direction > 0 && w.x > rightEdge) {
             wildlife.splice(i, 1);
         } else if (w.direction < 0 && w.x < leftEdge) {

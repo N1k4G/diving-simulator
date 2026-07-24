@@ -14,6 +14,7 @@ const gameGlobals = {
   // Tuning constants
   TIME_ACCELERATION: "readonly", FAST_FORWARD_MULTIPLIER: "readonly",
   PHYSICS_MAX_SUBSTEP_SEC: "readonly",
+  DIVER_SCREEN_X_FRACTION: "readonly",
   DECO_PLANNING_ASCENT_RATE_MPM: "readonly",
   MAX_DEPTH: "readonly",
   MAX_DEVICE_PIXEL_RATIO: "readonly",

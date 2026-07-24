@@ -301,7 +301,7 @@ function drawDepthColorAbsorption() {
     if (f.r > 0.995 && f.g > 0.995) return; // negligible — skip the fill entirely
 
     var W = cssWidth, H = cssHeight, mpp = 0.05;
-    var diverScreenX = W * 0.25, diverScreenY = H * 0.45;
+    var diverScreenX = W * DIVER_SCREEN_X_FRACTION, diverScreenY = H * 0.45;
     var surfaceScreenY = diverScreenY - depth / mpp;
     var top = Math.max(0, surfaceScreenY);
     if (top >= H) return; // nothing below the surface is on screen
@@ -901,7 +901,7 @@ function drawScene() {
     if (surfaceScreenY > -80 && surfaceScreenY < H) {
         cx.save();
         var _boatWorldX = (_activeSiteD5 && _activeSiteD5.boatX != null) ? _activeSiteD5.boatX : 0;
-        var shipX = W * 0.25 + (_boatWorldX - diverX) / metersPerPixel;
+        var shipX = W * DIVER_SCREEN_X_FRACTION + (_boatWorldX - diverX) / metersPerPixel;
         var bob = Math.sin(waveTime * 0.9) * 2.2;
         var rock = Math.sin(waveTime * 0.75) * 0.022;
         cx.translate(shipX, surfaceScreenY + bob);
@@ -938,8 +938,8 @@ function drawScene() {
     // hand-placed features). Runs AFTER terrain/material passes so props sit
     // on top of the surface, and BEFORE structures/features so hand-placed
     // landmarks visually dominate.
-    var _visLeftM  = (0 - W * 0.25) * metersPerPixel + diverX;
-    var _visRightM = (W - W * 0.25) * metersPerPixel + diverX;
+    var _visLeftM  = (0 - W * DIVER_SCREEN_X_FRACTION) * metersPerPixel + diverX;
+    var _visRightM = (W - W * DIVER_SCREEN_X_FRACTION) * metersPerPixel + diverX;
     drawSetDressing(activeSite(), _visLeftM, _visRightM, metersPerPixel);
     // Cenote-only: refractive halocline band at ~7 m
     if (_isCave) drawHalocline(cx, W, H, diverScreenY, metersPerPixel);
@@ -1016,7 +1016,7 @@ function drawScene() {
         var f = fishes[fi];
         var fy = diverScreenY + (f.depth - depth) / metersPerPixel;
         if (fy < -40 || fy > H + 40) continue;
-        var fsx = W * 0.25 + (f.x - diverX) / metersPerPixel;
+        var fsx = W * DIVER_SCREEN_X_FRACTION + (f.x - diverX) / metersPerPixel;
         if (fsx < -f.type.size * 3 || fsx > W + f.type.size * 3) continue;
         drawFish(cx, fsx, fy, f);
     }
@@ -1025,7 +1025,7 @@ function drawScene() {
     for (var wi = 0; wi < wildlife.length; wi++) {
         var w = wildlife[wi];
         var wScreenY = diverScreenY + (w.depth - depth) / metersPerPixel;
-        var wsx = W * 0.25 + (w.x - diverX) / metersPerPixel;
+        var wsx = W * DIVER_SCREEN_X_FRACTION + (w.x - diverX) / metersPerPixel;
         if (wScreenY > -100 && wScreenY < H + 100 && wsx > -w.type.size * 3 && wsx < W + w.type.size * 3) {
             drawWildlife(cx, wsx, wScreenY, w);
         }
@@ -1034,7 +1034,7 @@ function drawScene() {
     // TASK-044: Shark rendering — world-space x
     if (shark) {
         var sharkScreenY = diverScreenY + (shark.depth - depth) / metersPerPixel;
-        var sharkScreenX = W * 0.25 + (shark.x - diverX) / metersPerPixel;
+        var sharkScreenX = W * DIVER_SCREEN_X_FRACTION + (shark.x - diverX) / metersPerPixel;
         if (sharkScreenY > -100 && sharkScreenY < H + 100) {
             cx.save();
             cx.translate(sharkScreenX, sharkScreenY + Math.sin(shark.phase) * 4);
@@ -1096,7 +1096,7 @@ function drawScene() {
         var b = bubbles[bi];
         var by = diverScreenY + (b.depth - depth) / metersPerPixel;
         if (by < -20 || by > H + 20) continue;
-        var bx = W * 0.25 + b.x;
+        var bx = W * DIVER_SCREEN_X_FRACTION + b.x;
         var r = bubbleDisplayRadius(b);
         var alpha = Math.max(0, 1 - b.age / BUBBLE_MAX_AGE) * 0.6;
         cx.beginPath();
@@ -1153,14 +1153,14 @@ function drawScene() {
     // as an atmospheric layer over the scene, and BEFORE the diver so
     // the diver stays crisp. HUD is on a separate DOM layer, so it's
     // physically unable to be touched by this pass.
-    drawLocalAtmospherePass(_localAtmo, W, H, W * 0.25, diverScreenY, metersPerPixel);
+    drawLocalAtmospherePass(_localAtmo, W, H, W * DIVER_SCREEN_X_FRACTION, diverScreenY, metersPerPixel);
 
     // Diver (Phase B: tilt toward current direction proportional to current.level)
     var diverTilt = 0;
     if (current.active && current.level > 0) {
         diverTilt = current.direction * Math.min(current.level / CURRENT_PARAMS.maxStrength, 1) * 0.25;
     }
-    drawDiver(W * 0.25, diverScreenY, diverTilt);
+    drawDiver(W * DIVER_SCREEN_X_FRACTION, diverScreenY, diverTilt);
     drawForegroundLayer();
 
     // Phase C: Bad-air warning banner (cave unbreathable dome)
@@ -1597,7 +1597,7 @@ function paintShip(cx, isRefl) {
 
 function drawTerrain() {
     var W = cssWidth, H = cssHeight;
-    var diverScreenX = W * 0.25;
+    var diverScreenX = W * DIVER_SCREEN_X_FRACTION;
     var diverScreenY = H * 0.45;
     var mpp = 0.05;
     var cx = ctx;
@@ -2848,7 +2848,7 @@ function drawSetDressing(site, visibleWorldLeft, visibleWorldRight, mpp) {
     _setDressingLastFrameCount = 0;
 
     var W = cssWidth, H = cssHeight;
-    var diverScreenX = W * 0.25, diverScreenY = H * 0.45;
+    var diverScreenX = W * DIVER_SCREEN_X_FRACTION, diverScreenY = H * 0.45;
     var cx = ctx;
 
     _forEachDecorationCandidate(site, visibleWorldLeft, visibleWorldRight, function(cand) {
@@ -2927,7 +2927,7 @@ function _nearSurfaceSiteMultiplier(siteId) {
 function drawCausticsOnVisibleFloor(site, lightFactor) {
     if (lightFactor <= 0.01) return;
     var W = cssWidth, H = cssHeight;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     var surfaceY = dsy - depth / mpp;
     var cx = ctx;
     cx.save();
@@ -2963,7 +2963,7 @@ function _drawSurfaceUnderside(surfaceY, W, H, lightFactor) {
     cx.lineWidth = 1;
     cx.beginPath();
     for (var x = 0; x <= W; x += 6) {
-        var worldX = diverX + (x - W * 0.25) * 0.05;
+        var worldX = diverX + (x - W * DIVER_SCREEN_X_FRACTION) * 0.05;
         var y = surfaceY + 2 + Math.sin(worldX * 0.45 + waveTime * 2.2) * 1.4 +
                 Math.sin(worldX * 0.9 + waveTime * 1.4) * 0.6;
         if (x === 0) cx.moveTo(x, y); else cx.lineTo(x, y);
@@ -2979,12 +2979,12 @@ function _drawSurfaceUnderside(surfaceY, W, H, lightFactor) {
         cx.fillStyle = 'rgba(180,220,235,' + (b.a * lightFactor).toFixed(3) + ')';
         cx.beginPath();
         for (var bx = 0; bx <= W; bx += 6) {
-            var bwx = diverX + (bx - W * 0.25) * 0.05;
+            var bwx = diverX + (bx - W * DIVER_SCREEN_X_FRACTION) * 0.05;
             var by = surfaceY + b.off + Math.sin(bwx * b.kx + waveTime * b.spd) * 2;
             if (bx === 0) cx.moveTo(bx, by); else cx.lineTo(bx, by);
         }
         for (var bx2 = W; bx2 >= 0; bx2 -= 6) {
-            var bwx2 = diverX + (bx2 - W * 0.25) * 0.05;
+            var bwx2 = diverX + (bx2 - W * DIVER_SCREEN_X_FRACTION) * 0.05;
             var by2 = surfaceY + b.off + b.w + Math.sin(bwx2 * b.kx + waveTime * b.spd + 0.9) * 2;
             cx.lineTo(bx2, by2);
         }
@@ -3005,7 +3005,7 @@ function _drawGodRays(surfaceY, W, H, lightFactor, siteMult) {
     var cx = ctx;
     cx.save();
     cx.globalCompositeOperation = 'lighter';
-    var mpp = 0.05, dsx = W * 0.25;
+    var mpp = 0.05, dsx = W * DIVER_SCREEN_X_FRACTION;
     // Visible world-x range → snap to a 15 m grid to anchor rays.
     var worldXLeft  = diverX + (0 - dsx) * mpp - 8;
     var worldXRight = diverX + (W - dsx) * mpp + 8;
@@ -3058,7 +3058,7 @@ function _drawBoatShadow(surfaceY, W, H, lightFactor, siteMult) {
     if (surfaceY <= -20 || surfaceY >= H + 20) return;
     var mpp = 0.05;
     var boatWorldX = s.boatX;
-    var shipX = W * 0.25 + (boatWorldX - diverX) / mpp;
+    var shipX = W * DIVER_SCREEN_X_FRACTION + (boatWorldX - diverX) / mpp;
     // Fallback: skip work for boats far outside the visible world-x range.
     if (shipX < -180 || shipX > W + 180) return;
     var cx = ctx;
@@ -3192,7 +3192,7 @@ function drawSiteAtmosphere() {
     var s = activeSite();
     if (!s) return;
     var W = cssWidth, H = cssHeight;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     var cx = ctx;
     var surfaceY = dsy - depth / mpp;
     cx.save();
@@ -3588,7 +3588,7 @@ function drawSiteDetailPass() {
 
 function drawTerrainEdgeAccents(s) {
     var W = cssWidth, H = cssHeight;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     var xLeftM = diverX + (0 - dsx) * mpp - 2;
     var xRightM = diverX + (W - dsx) * mpp + 2;
     var cx = ctx;
@@ -3645,7 +3645,7 @@ function drawTerrainEdgeAccents(s) {
 
 function drawShoreSandDetails() {
     var W = cssWidth, H = cssHeight;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     var xLeftM = diverX + (0 - dsx) * mpp - 2;
     var xRightM = diverX + (W - dsx) * mpp + 2;
     var cx = ctx;
@@ -3711,7 +3711,7 @@ function drawShoreAnchoredGrass(cx, xLeftM, xRightM, dsx, dsy, mpp, H) {
 
 function drawReefTextureDetails() {
     var W = cssWidth, H = cssHeight;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     var xLeftM = diverX + (0 - dsx) * mpp - 2;
     var xRightM = diverX + (W - dsx) * mpp + 2;
     var cx = ctx;
@@ -3757,7 +3757,7 @@ function drawWreckExteriorDetails() {
     var s = activeSite();
     if (!s || s.id !== 'wreck') return;
     var W = cssWidth, H = cssHeight, cx = ctx;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     var exteriorFade = Math.max(0.18, 1 - _wreckMetal * 0.78);
 
     cx.save();
@@ -3957,7 +3957,7 @@ function drawWreckShipCues(cx, dsx, dsy, mpp, W, H, alpha) {
 
 function drawCaveMineralDetails() {
     var W = cssWidth, H = cssHeight;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     var xLeftM = diverX + (0 - dsx) * mpp - 2;
     var xRightM = diverX + (W - dsx) * mpp + 2;
     var cx = ctx;
@@ -4114,7 +4114,7 @@ function drawCaveSiltCloud() {
     if (!s || s.id !== 'cave') return;
     if (!(visibility < 1 - SILT_CLOUD_MIN_VIS)) return;   // essentially clear → cheap early-out
     var W = cssWidth, H = cssHeight;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     var xLeftM = diverX + (0 - dsx) * mpp - 2;
     var xRightM = diverX + (W - dsx) * mpp + 2;
     var cx = ctx;
@@ -4181,7 +4181,7 @@ function drawCaveExitLightShaft() {
     }
     if (!exitZone) return;
     var W = cssWidth, H = cssHeight;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     // Approach factor: 1 when diver is right at/inside the exit opening,
     // fading to a base intensity at EXIT_LIGHT_FAR_M metres away.
     var approachDx;
@@ -4317,7 +4317,7 @@ function drawForegroundLayer() {
     var s = activeSite();
     if (!s) return;
     var W = cssWidth, H = cssHeight;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     var cx = ctx;
     cx.save();
     if (s.id === 'shore') {
@@ -4633,7 +4633,7 @@ function drawWreckSteelBack() {
     var s = activeSite();
     if (!s || s.id !== 'wreck') return;
     var W = cssWidth, H = cssHeight, cx = ctx;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     cx.save();
     _buildWreckSilhouette(cx, dsx, dsy, mpp);
     cx.clip();
@@ -4653,7 +4653,7 @@ function drawWreckHullSkin() {
     var s = activeSite();
     if (!s || s.id !== 'wreck') return;
     var W = cssWidth, H = cssHeight, cx = ctx;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     var rad = (torchOn ? 165 : 100) * Math.max(0.55, visibility) * _wreckMetal;
     var haveTorchLight = !!torchOn && rad > 1;
     // With torch OFF the plain circular bubble is the only line of sight.
@@ -4742,7 +4742,7 @@ function drawWreckEntryMarkers() {
     var vis = 1 - _wreckMetal;
     if (vis < 0.05) return;
     var W = cssWidth, H = cssHeight, cx = ctx;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     var deckD = 27.5;                       // main-deck line (top of the openings)
     var entries = [
         { x1: 16,  x2: 22,  label: 'BOW' },
@@ -4965,7 +4965,7 @@ function _paintRockStruct(cx, sx1, sy1, sw, sh, seed, tone) {
 //    so they don't shimmer while the camera scrolls. ──
 function drawBedrockStruct(cx, wx1, wx2, wdTop, wdBottom, accum) {
     var W = cssWidth, H = cssHeight;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     var sy1 = dsy + (wdTop - depth) / mpp, sy2 = dsy + (wdBottom - depth) / mpp;
     var sx1 = dsx + (wx1 - diverX) / mpp, sx2 = dsx + (wx2 - diverX) / mpp;
     if (sx2 < -60 || sx1 > W + 60 || sy2 < -60 || sy1 > H + 60) return;
@@ -5907,7 +5907,7 @@ function drawStructures() {
     var s = activeSite();
     if (!s || !s.structures.length) return;
     var W = cssWidth, H = cssHeight;
-    var diverScreenX = W * 0.25, diverScreenY = H * 0.45, mpp = 0.05;
+    var diverScreenX = W * DIVER_SCREEN_X_FRACTION, diverScreenY = H * 0.45, mpp = 0.05;
     var cx = ctx;
     for (var i = 0; i < s.structures.length; i++) {
         var w = s.structures[i];
@@ -6021,7 +6021,7 @@ function drawFeatures() {
     var s = activeSite();
     if (!s || !s.features.length) return;
     var W = cssWidth, H = cssHeight;
-    var diverScreenX = W * 0.25, diverScreenY = H * 0.45, mpp = 0.05;
+    var diverScreenX = W * DIVER_SCREEN_X_FRACTION, diverScreenY = H * 0.45, mpp = 0.05;
     var cx = ctx;
     for (var i = 0; i < s.features.length; i++) {
         var f = s.features[i];
@@ -7212,7 +7212,7 @@ function drawPond(cx, x, y) {
     var W = cssWidth, H = cssHeight;
     var mpp = 0.05;
     var diverScreenY = H * 0.45;
-    var floorD = floorAt(x ? (diverX + (x - W * 0.25) * mpp) : diverX);
+    var floorD = floorAt(x ? (diverX + (x - W * DIVER_SCREEN_X_FRACTION) * mpp) : diverX);
     // sunbeam cone — narrows at surface, fans out as it descends
     var beamTop = y - 6;
     var beamBot = diverScreenY + (Math.min(floorD, depth + 22) - depth) / mpp;
@@ -7279,7 +7279,7 @@ function drawPond(cx, x, y) {
 function drawGuideline() {
     if (guidelineNodes.length < 2) return;
     var W = cssWidth, H = cssHeight;
-    var diverScreenX = W * 0.25, diverScreenY = H * 0.45, mpp = 0.05;
+    var diverScreenX = W * DIVER_SCREEN_X_FRACTION, diverScreenY = H * 0.45, mpp = 0.05;
     var cx = ctx;
     cx.save();
     cx.strokeStyle = 'rgba(255,230,130,0.75)';
@@ -7377,7 +7377,7 @@ function drawSiltAndTorch() {
     if (s && s.id === 'wreck') return;
 
     var W = cssWidth, H = cssHeight;
-    var diverScreenX = W * 0.25, diverScreenY = H * 0.45, mpp = 0.05;
+    var diverScreenX = W * DIVER_SCREEN_X_FRACTION, diverScreenY = H * 0.45, mpp = 0.05;
     var cx = ctx;
 
     // Cave gloom is a FLAT, uniform darkness — never a diver-centred vignette
@@ -7539,7 +7539,7 @@ function drawLightShafts() {
     var beamFade = (s.id === 'wreck') ? _wreckMetal : 1;
     if (beamFade < 0.02) return;
     var W = cssWidth, H = cssHeight;
-    var diverScreenX = W * 0.25, diverScreenY = H * 0.45, mpp = 0.05;
+    var diverScreenX = W * DIVER_SCREEN_X_FRACTION, diverScreenY = H * 0.45, mpp = 0.05;
     var cx = ctx;
     for (var i = 0; i < s.features.length; i++) {
         var f = s.features[i];

@@ -5149,7 +5149,7 @@ tests = [
             }
             function runOnce(helper, ctx, W, H) {
                 log = [];
-                helper(ctx, W, H, W * 0.25, H * 0.45, 0.05);
+                helper(ctx, W, H, W * api.DIVER_SCREEN_X_FRACTION, H * 0.45, 0.05);
                 return log.slice();
             }
             var savedState = api.gameState;
@@ -7148,8 +7148,8 @@ tests = [
                     if (zones[z].id === 'cave_exit') { zone = zones[z]; break; }
                 }
                 assert(zone, 'cave_exit visualZone should exist in sites.js');
-                // Screen mapping: worldX = diverX + (screenX - W*0.25) * mpp
-                var W = api.cssWidth, mpp = 0.05, dsx = W * 0.25;
+                // Screen mapping: worldX = diverX + (screenX - W*DIVER_SCREEN_X_FRACTION) * mpp
+                var W = api.cssWidth, mpp = 0.05, dsx = W * api.DIVER_SCREEN_X_FRACTION;
                 C.moveTo = function(x, _y) { recordX.push(x); };
                 recordX.length = 0;
                 api.drawCaveExitLightShaft();
@@ -7248,7 +7248,7 @@ tests = [
                 api.diverX = 90; api.setDepth(60);       // deep in the cathedral
                 api.waveTime = 3.14;
                 var W = api.cssWidth, H = api.cssHeight, mpp = 0.05;
-                var dsx = W * 0.25, dsy = H * 0.45;
+                var dsx = W * api.DIVER_SCREEN_X_FRACTION, dsy = H * 0.45;
                 var xLeftM = api.diverX + (0 - dsx) * mpp - 2;
                 var xRightM = api.diverX + (W - dsx) * mpp + 2;
                 var rec = [];
@@ -7298,7 +7298,7 @@ tests = [
                 Math.random    = function() { trip++; return 0.5; };
                 iw.Math.random = function() { trip++; return 0.5; };
                 var W = api.cssWidth, H = api.cssHeight, mpp = 0.05;
-                var dsx = W * 0.25, dsy = H * 0.45;
+                var dsx = W * api.DIVER_SCREEN_X_FRACTION, dsy = H * 0.45;
                 api.drawCaveSpeleothems(api.ctx,
                     api.diverX + (0 - dsx) * mpp - 2,
                     api.diverX + (W - dsx) * mpp + 2,
@@ -9610,6 +9610,42 @@ tests = [
                 api.currentLang = prevLang;
             }
             return 'PASS — DE + EN labels both localised';
+        }
+    },
+    {
+        id: 'TC-100-DIVER-CENTERED',
+        name: 'Issue #100 — diver screen anchor is centered (0.5), not the old 25%-from-left offset',
+        fn: function() {
+            assert(api.DIVER_SCREEN_X_FRACTION === 0.5,
+                'DIVER_SCREEN_X_FRACTION should be 0.5 (centered), got ' + api.DIVER_SCREEN_X_FRACTION);
+            // Sanity-check the drawDiver() call site actually uses it: drive a
+            // real frame and confirm drawScene() positions the diver at
+            // screen-x = W * DIVER_SCREEN_X_FRACTION, not the old W*0.25.
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.cssWidth = 1280;
+            api.cssHeight = 800;
+            var iw = iframe.contentWindow;
+            var C = iw.CanvasRenderingContext2D && iw.CanvasRenderingContext2D.prototype;
+            if (!C || !C.translate) return 'PASS — no CanvasRenderingContext2D available; skipping';
+            var savedTranslate = C.translate;
+            var seenX = null;
+            C.translate = function(x, y) { if (seenX === null) seenX = x; return savedTranslate.call(this, x, y); };
+            try {
+                api.gameState = 'diving';
+                api.setDepth(10);
+                // drawScene() is a top-level function (classic script), so it's
+                // a window property even though it isn't on gameAPI directly.
+                iw.drawScene();
+            } finally {
+                C.translate = savedTranslate;
+            }
+            assert(seenX !== null, 'expected at least one ctx.translate call while drawing the diver');
+            var expected = 1280 * api.DIVER_SCREEN_X_FRACTION;
+            assert(Math.abs(seenX - expected) < 5,
+                'diver should be drawn near screen-x=' + expected + ' (centered), got ' + seenX);
+            return 'PASS — diver drawn at the centered screen anchor, x≈' + seenX.toFixed(1);
         }
     }
 ];
