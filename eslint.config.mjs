@@ -279,6 +279,12 @@ const gameGlobals = {
   SILT_CLOUD_MAX_ALPHA: "readonly", SILT_CLOUD_MIN_VIS: "readonly",
   EXIT_LIGHT_NEAR_M: "readonly", EXIT_LIGHT_FAR_M: "readonly",
   EXIT_LIGHT_BASE_ALPHA: "readonly", EXIT_LIGHT_TORCH_BOOST_ALPHA: "readonly",
+  // Issue #37: Orientation aids (constants.js, game-loop.js, renderer.js)
+  BACKWAY_MIN_DISTANCE_M: "readonly",
+  DEPTH_SCALE_TICK_INTERVAL_M: "readonly",
+  DEPTH_SCALE_LABEL_INTERVAL_M: "readonly",
+  computeBackwayState: "readonly", drawDepthScale: "readonly",
+
   // Issue #36: depth-dependent color absorption (renderer.js)
   depthColorFactors: "readonly", drawDepthColorAbsorption: "readonly",
   DEPTH_COLOR_R_NEAR: "readonly", DEPTH_COLOR_R_FAR: "readonly", DEPTH_COLOR_R_LOSS: "readonly",

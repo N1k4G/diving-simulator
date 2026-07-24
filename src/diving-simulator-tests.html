@@ -9235,6 +9235,226 @@ tests = [
             api.diveSite = 'open';
             return 'PASS — every rock AABB still solid inside, open water above dTop';
         }
+    },
+    // Issue #37 — Orientation aids: back-way chip + depth ruler
+    // ==========================================================
+    // computeBackwayState() is a pure function of activeSite() +
+    // inOverhead + diverX, so these tests drive the exact same
+    // predicate the DOM update path reads without touching HTML.
+    {
+        id: 'TC-37-BACKWAY-SHORE-DIRECTION-DISTANCE',
+        name: 'Issue #37 — back-way chip: shore site, correct direction + distance from boat',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            api.diveSite = 'shore';
+            api.inOverhead = false;
+            // Shore boatX = 100. Diver at x = 30 → dx = +70, arrow ► toward boat.
+            api.diverX = 30;
+            var s1 = api.computeBackwayState();
+            assert(s1.visible === true, 'shore + diverX=30: chip should be visible; got ' + JSON.stringify(s1));
+            assert(s1.direction === 1, 'boat is to the right (dx>0), expected direction 1, got ' + s1.direction);
+            assert(s1.distance === 70, 'distance should be 70 m, got ' + s1.distance);
+            assert(s1.boatX === 100, 'boatX should surface as 100, got ' + s1.boatX);
+            // Diver beyond the boat: x = 150 → dx = -50, arrow ◄ toward boat.
+            api.diverX = 150;
+            var s2 = api.computeBackwayState();
+            assert(s2.visible === true, 'shore + diverX=150: chip should be visible; got ' + JSON.stringify(s2));
+            assert(s2.direction === -1, 'boat is to the left (dx<0), expected direction -1, got ' + s2.direction);
+            assert(s2.distance === 50, 'distance should be 50 m, got ' + s2.distance);
+            return 'PASS — shore chip points toward boat with correct sign + integer distance';
+        }
+    },
+    {
+        id: 'TC-37-BACKWAY-REEF-VISIBLE',
+        name: 'Issue #37 — back-way chip: reef site (open water) shows chip past threshold',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            api.diveSite = 'reef';
+            api.inOverhead = false;
+            // Reef boatX = 60. Diver at x = 0 → dx = 60 > 25 → visible.
+            api.diverX = 0;
+            var s = api.computeBackwayState();
+            assert(s.visible === true, 'reef + diverX=0: chip should be visible; got ' + JSON.stringify(s));
+            assert(s.direction === 1, 'reef boat is to the right of x=0, expected direction 1, got ' + s.direction);
+            assert(s.distance === 60, 'distance should be 60 m, got ' + s.distance);
+            return 'PASS — reef chip visible past the threshold, correct heading + distance';
+        }
+    },
+    {
+        id: 'TC-37-BACKWAY-HIDDEN-NEAR-BOAT',
+        name: 'Issue #37 — back-way chip hidden when |diverX-boatX| <= BACKWAY_MIN_DISTANCE_M',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            api.diveSite = 'shore';
+            api.inOverhead = false;
+            var thresh = api.BACKWAY_MIN_DISTANCE_M;
+            assert(thresh === 25, 'threshold constant should be 25 m, got ' + thresh);
+            // Diver right at the boat.
+            api.diverX = 100;
+            var sAt = api.computeBackwayState();
+            assert(sAt.visible === false, 'chip should be hidden when |dx|=0, got ' + JSON.stringify(sAt));
+            // Diver exactly at the threshold — hidden (rule is |dx| > 25).
+            api.diverX = 100 - thresh;
+            var sBoundary = api.computeBackwayState();
+            assert(sBoundary.visible === false,
+                'chip should be hidden when |dx| == threshold, got ' + JSON.stringify(sBoundary));
+            // Just past the threshold — visible.
+            api.diverX = 100 - thresh - 1;
+            var sPast = api.computeBackwayState();
+            assert(sPast.visible === true,
+                'chip should be visible when |dx| > threshold, got ' + JSON.stringify(sPast));
+            return 'PASS — chip hidden at + inside threshold, visible just past';
+        }
+    },
+    {
+        id: 'TC-37-BACKWAY-HIDDEN-OVERHEAD-SITES',
+        name: 'Issue #37 — back-way chip hidden in cave and wreck sites (overhead / guideline serves)',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            // Wreck HAS a boatX (=5) but hasOverhead=true → chip must stay hidden.
+            api.diveSite = 'wreck';
+            api.inOverhead = false;
+            api.diverX = 100;
+            var sWreck = api.computeBackwayState();
+            assert(sWreck.visible === false,
+                'wreck (overhead site) must never show the back-way chip, got ' + JSON.stringify(sWreck));
+            // Cave: no boatX and hasOverhead=true → chip must stay hidden.
+            api.diveSite = 'cave';
+            api.inOverhead = false;
+            api.diverX = 100;
+            var sCave = api.computeBackwayState();
+            assert(sCave.visible === false,
+                'cave (overhead site) must never show the back-way chip, got ' + JSON.stringify(sCave));
+            // Shore + inOverhead=true (defensive belt-and-braces): still hidden.
+            api.diveSite = 'shore';
+            api.inOverhead = true;
+            api.diverX = 30;
+            var sShoreOh = api.computeBackwayState();
+            assert(sShoreOh.visible === false,
+                'inOverhead=true must hide the chip even on shore, got ' + JSON.stringify(sShoreOh));
+            api.inOverhead = false;
+            return 'PASS — chip suppressed in wreck, cave, and any inOverhead=true frame';
+        }
+    },
+    {
+        id: 'TC-37-BACKWAY-HIDDEN-OPEN-AND-NOT-DIVING',
+        name: 'Issue #37 — back-way chip hidden in "open" site and outside gameState=diving',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            // "open" — no site anchor at all; activeSite() returns null.
+            api.diveSite = 'open';
+            api.diverX = 500;
+            api.inOverhead = false;
+            var sOpen = api.computeBackwayState();
+            assert(sOpen.visible === false,
+                'open water has no anchor — chip must stay hidden, got ' + JSON.stringify(sOpen));
+            // gameState != diving suppresses the chip (surface / gas-setup / postdive).
+            api.diveSite = 'shore';
+            api.diverX = 30;
+            api.gameState = 'surface';
+            var sSurface = api.computeBackwayState();
+            assert(sSurface.visible === false,
+                'gameState=surface must hide the chip, got ' + JSON.stringify(sSurface));
+            api.gameState = 'diving';
+            return 'PASS — chip hidden in open water and outside gameState=diving';
+        }
+    },
+    {
+        id: 'TC-37-BACKWAY-DOM-UPDATE',
+        name: 'Issue #37 — updateDiving() drives the #hud-backway DOM correctly',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            api.diveSite = 'shore';
+            api.inOverhead = false;
+            var doc = iframe.contentDocument;
+            var el = doc.getElementById('hud-backway');
+            assert(el, '#hud-backway element must exist in the DOM');
+            // Beyond threshold: chip visible, arrow reflects heading.
+            api.diverX = 30;                    // shore boatX=100 → dx = +70
+            api.setDepth(10);
+            api.updateDiving(0.033);
+            assert(el.style.display !== 'none',
+                'chip should be visible after tick at diverX=30; display=' + el.style.display);
+            assert(el.getAttribute('data-dir') === '1',
+                'data-dir should be "1" (right); got ' + el.getAttribute('data-dir'));
+            assert(el.getAttribute('data-distance') === '70',
+                'data-distance should be "70"; got ' + el.getAttribute('data-distance'));
+            var arrowEl = el.querySelector('[data-bind="arrow"]');
+            var distEl = el.querySelector('[data-bind="distance"]');
+            assert(arrowEl && arrowEl.textContent === '►',
+                'arrow should be "►" pointing right; got ' + (arrowEl ? arrowEl.textContent : '(missing)'));
+            assert(distEl && distEl.textContent === '70 m',
+                'distance label should be "70 m"; got ' + (distEl ? distEl.textContent : '(missing)'));
+            // Move inside the threshold: chip hides.
+            api.diverX = 90;                    // |90-100|=10 < 25
+            api.updateDiving(0.033);
+            assert(el.style.display === 'none',
+                'chip should hide when inside threshold; display=' + el.style.display);
+            return 'PASS — DOM chip mirrors computeBackwayState() (dir, arrow glyph, distance, visibility)';
+        }
+    },
+    {
+        id: 'TC-37-DEPTH-SCALE-DRAWS-ONLY-WHILE-DIVING',
+        name: 'Issue #37 — drawDepthScale() is a no-op outside gameState=diving',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            // Constants sanity: label interval must be a multiple of tick interval.
+            assert(api.DEPTH_SCALE_TICK_INTERVAL_M === 5,
+                'tick interval should be 5 m, got ' + api.DEPTH_SCALE_TICK_INTERVAL_M);
+            assert(api.DEPTH_SCALE_LABEL_INTERVAL_M === 10,
+                'label interval should be 10 m, got ' + api.DEPTH_SCALE_LABEL_INTERVAL_M);
+            assert(api.DEPTH_SCALE_LABEL_INTERVAL_M % api.DEPTH_SCALE_TICK_INTERVAL_M === 0,
+                'label interval must be a whole multiple of tick interval');
+            // ctx is declared `const` in state.js (const ctx = canvas.getContext('2d')),
+            // so unlike `var`-declared globals it can't be reassigned at all — a
+            // setter would throw, and swapping iframe.contentWindow.ctx just
+            // creates a disconnected property that drawDepthScale() never reads
+            // (same class of gotcha as issue #38's fastForwardActive). Instead,
+            // monkey-patch the two methods being counted directly on the real
+            // ctx object (its own-property assignment shadows the prototype
+            // method, which canvas contexts support) and restore them after.
+            var strokeCount = 0, labelCount = 0;
+            var realCtx = api.ctx;
+            var origStroke = realCtx.stroke;
+            var origFillText = realCtx.fillText;
+            realCtx.stroke = function() { strokeCount++; };
+            realCtx.fillText = function() { labelCount++; };
+            // Pin a realistic viewport — the hidden test iframe otherwise
+            // reports cssWidth/cssHeight=0, which collapses drawDepthScale()'s
+            // visible-depth-range math to a single degenerate iteration
+            // instead of exercising multiple ticks/labels.
+            api.cssWidth = 1280;
+            api.cssHeight = 800;
+            try {
+                api.gameState = 'surface';
+                api.drawDepthScale();
+                assert(strokeCount === 0 && labelCount === 0,
+                    'depth scale must not draw when gameState=surface; strokes=' + strokeCount + ' labels=' + labelCount);
+                api.gameState = 'diving';
+                api.setDepth(20);
+                api.drawDepthScale();
+                assert(strokeCount > 0,
+                    'depth scale should emit tick strokes while diving; got 0 strokes');
+                assert(labelCount > 0,
+                    'depth scale should emit at least one label while diving; got 0 labels');
+                // Every label must correspond to an integer multiple of the label interval,
+                // and every tick to an integer multiple of the tick interval — so labels
+                // <= strokes and both are bounded by the visible range plus a small margin.
+                assert(labelCount <= strokeCount,
+                    'labels should never exceed ticks (' + labelCount + ' vs ' + strokeCount + ')');
+            } finally {
+                realCtx.stroke = origStroke;
+                realCtx.fillText = origFillText;
+            }
+            return 'PASS — no-op outside diving; while diving emits ticks + at least one label';
+        }
     }
 ];
 

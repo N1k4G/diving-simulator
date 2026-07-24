@@ -94,6 +94,12 @@
 <div id="hud-thirds" data-phase="outbound" data-pct="100" style="display:none;">
   <span class="hud-thirds-phase-label"></span>
 </div>
+<!-- Issue #37: back-way chip — direction + distance to boat/entry.
+     Shown in open-water sites (shore/reef) only, hidden entirely in
+     overhead sites where the guideline already serves this purpose. -->
+<div id="hud-backway" data-dir="0" data-distance="0" style="display:none;">
+  <span data-bind="arrow">◄</span><span data-bind="anchor">⚓</span><span data-bind="distance">0 m</span>
+</div>
 <script src="version.js"></script>
 <script src="constants.js"></script>
 <script src="state.js"></script>
