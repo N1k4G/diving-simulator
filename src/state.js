@@ -272,6 +272,14 @@ let thirdsCurrentPhase = 'outbound';       // 'outbound' | 'turn' | 'reserve'
 let thirdsPct = 100;                       // integer 0..100 for HUD data-pct
 let thirdsTurnWarned = false;
 let thirdsReserveActive = false;
+// Issue #44/#27: thirdsReserveActive is a live HUD/excursion flag that
+// clears the moment the diver leaves the overhead (see the "left overhead"
+// branch below) — by the time gradeDive() runs post-dive, the diver has
+// always long since surfaced, so that flag can never reflect what happened
+// during the dive. This latch mirrors it but only ever resets on
+// resetDive(), so gradeDive() can see whether reserve was hit at ANY point
+// across ANY excursion this dive, not just the most recent one.
+let thirdsReserveHitThisDive = false;
 // D6: Player torch — ON by default for overhead sites, OFF in open water
 let torchOn = false;
 
@@ -344,6 +352,10 @@ let drillState = {
     freeflowUntilDiveSec: 0,
     freeflowDrainTankIdx: -1,
     lightRestoreAt: 0,
+    // Issue #45 (review follow-up): set by the freeflow drill's "hold
+    // breath" wrong option — while > 0 and unexpired, any positive
+    // ascent rate (not just a fast one) accumulates barotraumaTime.
+    breathHoldUntilDiveSec: 0,
     optionRects: []
 };
 
@@ -467,8 +479,20 @@ function updateCCRLoop(dtSec, prevDepth) {
   // ever approach targetSP from below and could only drop via an empty O2
   // cylinder, making both hyperoxia (>1.6, descent spike) and hypoxia from
   // a fast ascent unreachable regardless of setpoint.
+  //
+  // Issue #25: on descent, updateCCRDiluent() (called earlier this same
+  // tick, before updateCCRLoop) already applies the combined
+  // compression-plus-topoff mass balance to actualPO2, including the
+  // diluent's own O2 fraction — a plain p2/p1 multiply here on top of that
+  // would double-apply the compression and drop the diluent's O2
+  // contribution (see the comment there for the derivation). On
+  // ascent/flat there is no diluent topoff (the ADV only fires on
+  // descent), so the loop gas simply expands and vents through the OPV at
+  // constant mole fraction — the plain ratio multiply is exact there.
   var pAmbPrev = ambientPressure(prevDepth === undefined ? depth : prevDepth);
-  ccrState.actualPO2 *= pAmb / pAmbPrev;
+  if (prevDepth === undefined || depth <= prevDepth) {
+    ccrState.actualPO2 *= pAmb / pAmbPrev;
+  }
 
   // If O2 cylinder has gas, solenoid injects to maintain setpoint. BUG-25:
   // the injected O2 must be deducted from the cylinder like any other
@@ -525,6 +549,26 @@ function updateCCRDiluent(prevD, newD) {
   if (dilSurfEquiv > dilAvailable) dilSurfEquiv = dilAvailable;
   ccrState.dilCylPressure -= dilSurfEquiv / ccrState.dilCylVolume;
   if (ccrState.dilCylPressure < 0) ccrState.dilCylPressure = 0;
+
+  // Issue #25: actualPO2 must reflect this same top-off, not just the
+  // cylinder depletion above — otherwise the compression multiply in
+  // updateCCRLoop() models the loop as sealed (no gas exchanged), which
+  // both overstates the PO2 spike and ignores the diluent's own O2
+  // fraction entirely. Combined mass balance: the O2 amount already in the
+  // loop (actualPO2 * loopVolume, bar-liters) is conserved through
+  // compression; the top-off adds dilSurfEquiv surface-liters of gas at
+  // fO2 = dilFO2, i.e. dilFO2 * dilSurfEquiv bar-liters of O2 and
+  // dilSurfEquiv bar-liters of total gas. Dividing new O2 amount by new
+  // total-gas ambient-volume-at-p2 gives:
+  //   newPO2 = p2 * (oldPO2*loopVolume + dilFO2*dilSurfEquiv)
+  //            / (p1*loopVolume + dilSurfEquiv)
+  // This reduces to oldPO2*p2/p1 (the old sealed-loop formula) when
+  // dilSurfEquiv = 0 (cylinder empty — no top-off happened), and to
+  // oldPO2 + dilFO2*(p2-p1) when the loop is fully topped off, matching
+  // both known-correct limit cases.
+  var oldPO2 = ccrState.actualPO2;
+  ccrState.actualPO2 = p2 * (oldPO2 * ccrState.loopVolume + ccrState.dilFO2 * dilSurfEquiv) /
+                        (p1 * ccrState.loopVolume + dilSurfEquiv);
 }
 
 function saveModeSettings() {
@@ -971,6 +1015,7 @@ function resetDive() {
     thirdsPct = 100;
     thirdsTurnWarned = false;
     thirdsReserveActive = false;
+    thirdsReserveHitThisDive = false;
     torchOn = !!(DIVE_SITES[diveSite] && DIVE_SITES[diveSite].hasOverhead);
     current.active = false;
     current.direction = 1;
@@ -1012,6 +1057,10 @@ function resetDive() {
         freeflowUntilDiveSec: 0,
         freeflowDrainTankIdx: -1,
         lightRestoreAt: 0,
+        // Issue #45 (review follow-up): set by the freeflow drill's "hold
+        // breath" wrong option — while > 0 and unexpired, any positive
+        // ascent rate (not just a fast one) accumulates barotraumaTime.
+        breathHoldUntilDiveSec: 0,
         optionRects: []
     };
     for (var i = 0; i < tanks.length; i++) {

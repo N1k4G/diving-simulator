@@ -320,8 +320,15 @@ function decoStop(ceilDepth) {
 }
 
 // TASK-016: Deco schedule with combined N2+He (TASK-038: GF interpolation)
-function calculateDecoSchedule() {
-    var ceilDepth = calculateCeiling();
+// Issue #14: cachedCeilDepth lets a caller that already has this tick's
+// calculateCeiling() result (frameCalc.ceiling) pass it straight through,
+// instead of this function recomputing the exact same thing internally —
+// calculateCeiling() is cheap by itself, but this function's own simulation
+// loop below (up to 500 stops x 3000 sub-iterations) is not, and used to
+// run a second time whenever calculateTTS() also needed a schedule this
+// same tick (see calculateTTS() below).
+function calculateDecoSchedule(cachedCeilDepth) {
+    var ceilDepth = (cachedCeilDepth !== undefined) ? cachedCeilDepth : calculateCeiling();
     if (ceilDepth <= 0) return { stops: [], tts: 0 };
 
     var gas;
@@ -368,26 +375,38 @@ function calculateDecoSchedule() {
         return Math.max(0, (maxCeil - 1.0) * 10.0);
     }
 
+    // Issue #70: bestGasForDepth() returns null when every OC tank is empty
+    // — there is no real gas left to simulate breathing. Rather than
+    // silently falling back to a phantom empty tank's mix, abort the
+    // simulation at that point and flag the result as incomplete; whatever
+    // stops/time were already accumulated are still returned (better than
+    // nothing), just not extended past the point gas ran out.
+    var outOfGas = false;
+
     if (simDepth > firstStop) {
         var ascentTime = (simDepth - firstStop) / DECO_PLANNING_ASCENT_RATE_MPM;
         var steps = Math.ceil(ascentTime / 0.1);
         var stepTime = ascentTime / steps;
         var stepDepthChange = (simDepth - firstStop) / steps;
-        for (var s = 0; s < steps; s++) {
+        for (var s = 0; s < steps && !outOfGas; s++) {
             simDepth -= stepDepthChange;
             if (diveMode === 'ccr' && !ccrState.onBailout) {
                 gas = getCCRInspiredGas(simDepth, ccrState.targetSP);
             } else {
                 gas = bestGasForDepth(simDepth);
+                if (!gas) { outOfGas = true; break; }
             }
             simUpdate(simDepth, stepTime);
+            // Accumulated per-step (rather than added as a single ascentTime
+            // lump sum after the loop) so an out-of-gas abort partway
+            // through only counts the steps that actually ran.
+            totalTime += stepTime;
         }
-        totalTime += ascentTime;
     }
 
     var stopDepth = firstStop;
     var safetyIter = 0;
-    while (stopDepth > 0 && safetyIter < 500) {
+    while (!outOfGas && stopDepth > 0 && safetyIter < 500) {
         safetyIter++;
         var stopTime = 0;
         var nextStop = stopDepth - 3;
@@ -396,6 +415,7 @@ function calculateDecoSchedule() {
             gas = getCCRInspiredGas(stopDepth, ccrState.targetSP);
         } else {
             gas = bestGasForDepth(stopDepth);
+            if (!gas) { outOfGas = true; break; }
         }
         while (iter < 3000) {
             iter++;
@@ -414,6 +434,7 @@ function calculateDecoSchedule() {
                 gas = getCCRInspiredGas(nextStop, ccrState.targetSP);
             } else {
                 gas = bestGasForDepth(nextStop);
+                if (!gas) { outOfGas = true; break; }
             }
             simUpdate(nextStop, 1.0);
             totalTime += 1.0;
@@ -422,6 +443,7 @@ function calculateDecoSchedule() {
                 gas = getCCRInspiredGas(0, ccrState.targetSP);
             } else {
                 gas = bestGasForDepth(0);
+                if (!gas) { outOfGas = true; break; }
             }
             simUpdate(0, stopDepth / DECO_PLANNING_ASCENT_RATE_MPM);
             totalTime += stopDepth / DECO_PLANNING_ASCENT_RATE_MPM;
@@ -430,7 +452,9 @@ function calculateDecoSchedule() {
         stopDepth = nextStop;
     }
 
-    return { stops: stops, tts: Math.ceil(totalTime) };
+    var result = { stops: stops, tts: Math.ceil(totalTime) };
+    if (outOfGas) result.outOfGas = true;
+    return result;
 }
 
 // SECTION: O2 and gas math
@@ -481,12 +505,18 @@ function calculateGTR() {
     return tank.gasRemaining / consumptionRate;
 }
 
-function calculateTTS() {
+// Issue #14: cachedCeilDepth/cachedSchedule let a caller that already ran
+// calculateCeiling()/calculateDecoSchedule() this tick (frameCalc) pass
+// those results straight through instead of this function recomputing the
+// ceiling AND re-running the full deco-schedule simulation a second time.
+function calculateTTS(cachedCeilDepth, cachedSchedule) {
     if (depth < 0.5) return 0;
-    var ceilDepth = calculateCeiling();
+    var ceilDepth = (cachedCeilDepth !== undefined) ? cachedCeilDepth : calculateCeiling();
     var inDecoTTS = decoStop(ceilDepth) > 0;
     if (inDecoTTS) {
-        var sched = calculateDecoSchedule();
+        var sched = (cachedSchedule !== undefined && cachedSchedule !== null)
+            ? cachedSchedule
+            : calculateDecoSchedule(ceilDepth);
         return sched.tts;
     }
     var ascentTime = depth / DECO_PLANNING_ASCENT_RATE_MPM;
@@ -590,9 +620,12 @@ function bestGasForDepth(d) {
     // Issue #70: when no tank satisfies the PO2 window, fall back to the
     // best NON-EMPTY tank rather than blindly using tanks[activeTank] —
     // that tank may itself be empty, which fed a nonexistent gas into the
-    // deco plan/TTS calculation. Only fall all the way back to activeTank
-    // if every tank is empty.
-    if (!best) best = fallback || tanks[activeTank];
+    // deco plan/TTS calculation. If EVERY tank is empty (fallback is also
+    // null), there is no real gas to simulate breathing at all — return
+    // null rather than pretending the empty active tank is still available;
+    // callers must treat null as "cannot continue the simulation".
+    if (!best) best = fallback;
+    if (!best) return null;
     return { fO2: best.fO2, fHe: best.fHe, fN2: best.fN2 };
 }
 
@@ -706,9 +739,14 @@ function gradeDive() {
     var isOverhead = !!(site && site.hasOverhead);
     if (isOverhead) {
         // Rule-of-thirds (issue #27): if the diver dropped into reserve phase
-        // at any point, they blew through their gas plan. thirdsReserveActive
-        // latches on threshold cross and only clears when leaving the overhead.
-        if (thirdsReserveActive) {
+        // at any point, they blew through their gas plan. Issue #44:
+        // thirdsReserveActive is a live excursion flag that clears on
+        // leaving the overhead — by post-dive grading time the diver has
+        // always left, so that flag reads false here regardless of what
+        // happened mid-dive. thirdsReserveHitThisDive is the same signal but
+        // latched for the whole dive (any excursion), only reset by
+        // resetDive().
+        if (thirdsReserveHitThisDive) {
             s3 = 40;
             n3 = notes.gasReserveHit;
         } else {
@@ -722,7 +760,12 @@ function gradeDive() {
         } else {
             endBar = Infinity;
             for (var ti = 0; ti < tankCount; ti++) {
-                if (tanks[ti].pressure < endBar) endBar = tanks[ti].pressure;
+                // Issue #44: tanks[ti].pressure is the static configured fill
+                // pressure set once at tank creation — it never changes as gas
+                // is consumed. gasRemaining is the field that actually
+                // depletes, so the remaining pressure is gasRemaining/volume.
+                var tiEndBar = tanks[ti].gasRemaining / tanks[ti].volume;
+                if (tiEndBar < endBar) endBar = tiEndBar;
             }
             if (!isFinite(endBar)) endBar = 0;
         }

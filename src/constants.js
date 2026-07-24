@@ -517,6 +517,13 @@ const DRILL_LIGHT_DARK_SEC              = 8;    // dark period after correct "ba
 const DRILL_LIGHT_WRONG_VIS             = 0.15; // visibility floor forced by "swim fast" wrong option
 const DRILL_FREEFLOW_MULT               = 6;    // consumption multiplier for a free-flowing regulator
 const DRILL_FREEFLOW_DURATION_SEC       = 45;   // dive-seconds the free-flow lasts
+// Issue #45 (review follow-up): the freeflow drill's "hold breath" wrong
+// option and the lightFailure drill's "ascend" wrong option previously had
+// no guaranteed effect of their own — the consequence only existed if the
+// player happened to also ascend fast afterwards. Both now produce an
+// immediate, guaranteed, testable state change using existing mechanics.
+const DRILL_BREATHHOLD_DURATION_SEC     = 30;   // dive-seconds any ascent at all (not just a fast one) risks barotrauma
+const DRILL_LIGHT_PANIC_ASCENT_MPM      = 20;   // immediate panicked-ascent verticalVelocity kick (m/min, negative = up)
 
 // SECTION: i18n string tables (EN/DE)
 // SEARCH TERMS: STRINGS, S(), currentLang, EN, DE, language
@@ -1125,10 +1132,16 @@ const DRILLS = [
             {
                 correct: false,
                 effect: function() {
-                    // Ascend wrong option: no drill-side effect. The existing
-                    // overhead-ceiling collision + fast-ascent barotrauma
-                    // system handles the consequence when the player follows
-                    // through with W after the drill closes.
+                    // Ascend wrong option (review follow-up): bolting blind
+                    // for open water both kicks up silt (same floor as the
+                    // "swim fast" option) AND actually starts the panicked
+                    // ascent immediately, rather than depending on the
+                    // player separately choosing to hold W afterwards — an
+                    // instant verticalVelocity kick lets the existing
+                    // ceiling-collision clamp and fast-ascent barotrauma
+                    // check both engage for real.
+                    visibility = Math.min(visibility, DRILL_LIGHT_WRONG_VIS);
+                    verticalVelocity = -DRILL_LIGHT_PANIC_ASCENT_MPM;
                     drillState.lightRestoreAt = diveTime * 60 + DRILL_LIGHT_DARK_SEC;
                 }
             }
@@ -1181,9 +1194,13 @@ const DRILLS = [
             {
                 correct: false,
                 effect: function() {
-                    // Hold-breath option: no drill-side mechanic. Barotrauma
-                    // physics handles the consequence on the next ascent.
-                    // Nothing to schedule.
+                    // Hold-breath wrong option (review follow-up): breath-
+                    // holding is dangerous on ANY ascent, not just a fast
+                    // one (trapped gas expands with Boyle's law regardless
+                    // of rate) — this widens the existing barotraumaTime
+                    // accumulator's trigger condition for the window below
+                    // instead of requiring a fast-ascent rate specifically.
+                    drillState.breathHoldUntilDiveSec = diveTime * 60 + DRILL_BREATHHOLD_DURATION_SEC;
                 }
             }
         ]

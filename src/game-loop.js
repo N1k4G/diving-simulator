@@ -466,8 +466,13 @@ function updateDiving(dtReal) {
     // previously invoked up to 3x per frame across game-loop.js + renderer.js).
     frameCalc.ceiling = calculateCeiling();
     frameCalc.ndl = calculateNDL();
-    frameCalc.schedule = decoStop(frameCalc.ceiling) > 0 ? calculateDecoSchedule() : null;
-    frameCalc.tts = calculateTTS();
+    // Issue #14: pass the ceiling just computed above straight through so
+    // calculateDecoSchedule() doesn't call calculateCeiling() again
+    // internally, and pass the resulting schedule into calculateTTS() so it
+    // doesn't re-run the entire (expensive) schedule simulation a second
+    // time this same tick — it previously did both unconditionally.
+    frameCalc.schedule = decoStop(frameCalc.ceiling) > 0 ? calculateDecoSchedule(frameCalc.ceiling) : null;
+    frameCalc.tts = calculateTTS(frameCalc.ceiling, frameCalc.schedule);
 
     // WP-038: Update CNS tracking
     updateCNS(dtDiveMinutes);
@@ -522,6 +527,7 @@ function updateDiving(dtReal) {
         } else {
             thirdsCurrentPhase = 'reserve';
             thirdsReserveActive = true;
+            thirdsReserveHitThisDive = true;
         }
     } else if (thirdsStartingGas > 0) {
         // Left the overhead — clear snapshot + latches so the next penetration
@@ -737,8 +743,14 @@ function updateDiving(dtReal) {
         dcsViolationTime = Math.max(0, dcsViolationTime - dtDiveSeconds);
     }
 
-    // Barotrauma check — rapid ascent
-    if (ascentRate >= BAROTRAUMA_RATE) {
+    // Barotrauma check — rapid ascent, OR any ascent at all while
+    // breath-holding (issue #45 review follow-up: the freeflow drill's
+    // "hold breath" wrong option sets drillState.breathHoldUntilDiveSec —
+    // trapped gas expands with Boyle's law on any ascent, not just a fast
+    // one, so a held breath makes even a slow ascent dangerous).
+    var _breathHolding = drillState.breathHoldUntilDiveSec > 0 &&
+        diveTime * 60 < drillState.breathHoldUntilDiveSec;
+    if (ascentRate >= BAROTRAUMA_RATE || (_breathHolding && ascentRate > 0)) {
         barotraumaTime += dtDiveSeconds;
     } else {
         barotraumaTime = Math.max(0, barotraumaTime - dtDiveSeconds * 2);
@@ -910,7 +922,15 @@ function updateDiving(dtReal) {
       for (var gi = 0; gi < tankCount; gi++) {
           if (tanks[gi].gasRemaining > 0) { allEmpty = false; break; }
       }
-      if (allEmpty) {
+      // Issue #51: an empty active tank with no safe switch target is
+      // functionally the same emergency as every tank being empty. Without
+      // this, an empty active tank whose only non-empty alternative is
+      // unsafe at the current depth (recommendBestGas() correctly refuses
+      // to auto-switch to it) was left silently active — calculatePO2()
+      // keeps reading its fO2 as if gas were still flowing, so no PO2/
+      // hypoxia timer ever detects that the diver has nothing to breathe.
+      var activeEmptyNoSafeAlt = tanks[activeTank].gasRemaining <= 0 && recommendBestGas() === -1;
+      if (allEmpty || activeEmptyNoSafeAlt) {
           gameOverReason = 'OUT OF GAS';
           gameState = 'gameover';
           return;
@@ -935,7 +955,11 @@ function updateDiving(dtReal) {
         return;
     }
 
-    if (hypoxiaTime >= 10) {
+    // Issue #4: in an active CCR loop (not on bailout), calculatePO2() reads
+    // ccrState.actualPO2 \u2014 the same value the CCR-specific 30s hypoxia check
+    // above accumulates from. This generic 10s threshold is tuned for an OC
+    // diver's faster PO2 drop and must not pre-empt the CCR-specific check.
+    if (hypoxiaTime >= 10 && !(diveMode === 'ccr' && !ccrState.onBailout)) {
         gameOverReason = 'HYPOXIA \u2014 LOSS OF CONSCIOUSNESS';
         gameState = 'gameover';
         return;
@@ -1200,6 +1224,57 @@ function _isValidSaveState(state) {
     if (!state.tissues.every(isFinite) || !state.tissuesHe.every(isFinite)) return false;
     if (!Array.isArray(state.tanks) || state.tanks.length < 1) return false;
     if (!isFinite(state.depth) || !isFinite(state.maxDepth)) return false;
+
+    // Issue #66 (review follow-up): the checks above only covered depth and
+    // the tissue arrays — every other field restoreDiveState() assigns
+    // directly with no fallback (time/average fields, velocities, GF/AMV,
+    // per-tank contents, mode-dependent CCR state) passed straight through
+    // unvalidated. A payload missing any of these fed `undefined` into
+    // live physics/consumption math, propagating NaN from the very next
+    // tick onward.
+    var finiteFields = [
+        'diveTime', 'avgDepthAccum', 'avgDepthSamples',
+        'ascentRate', 'verticalVelocity', 'currentVerticalRate', 'bcdGasSurfaceLiters',
+        'barotraumaTime', 'hypoxiaTime', 'po2ViolationTime', 'dcsViolationTime',
+        'safetyStopRemaining', 'narcosisIndex', 'narcosisKOTime', 'narcDrift',
+        'gfLow', 'gfHigh', 'amvRate', 'tankCount', 'activeTank',
+        'sharkTimer', 'ccrHypoxiaTime', 'ccrHyperoxiaTime'
+    ];
+    for (var fi = 0; fi < finiteFields.length; fi++) {
+        if (!isFinite(state[finiteFields[fi]])) return false;
+    }
+    // tanks.length is always kept exactly equal to tankCount (gsAddTank()/
+    // gsRemoveTank() push/pop in lockstep) — a mismatch means a malformed
+    // or hand-edited payload.
+    if (state.tankCount < 1 || state.tankCount !== state.tanks.length) return false;
+    if (state.activeTank < 0 || state.activeTank >= state.tankCount) return false;
+    if (['rec', 'tec', 'ccr'].indexOf(state.diveMode) === -1) return false;
+
+    // Per-tank contents.
+    var tankFields = ['fO2', 'fHe', 'fN2', 'pressure', 'volume', 'totalGas', 'gasRemaining'];
+    for (var ti = 0; ti < state.tanks.length; ti++) {
+        var t = state.tanks[ti];
+        if (!t || typeof t !== 'object') return false;
+        for (var tfi = 0; tfi < tankFields.length; tfi++) {
+            if (!isFinite(t[tankFields[tfi]])) return false;
+        }
+    }
+
+    // Mode-dependent CCR state — restoreDiveState() assigns state.ccrState
+    // wholesale with no per-field fallback, so a missing/malformed field
+    // here (e.g. actualPO2) would feed NaN straight into calculatePO2()
+    // and the tissue-loading loop on the very next CCR tick.
+    var ccrFields = [
+        'o2CylVolume', 'o2CylPressure', 'dilCylVolume', 'dilCylPressure',
+        'dilFO2', 'dilFN2', 'dilFHe', 'loopVolume', 'targetSP', 'actualPO2',
+        'scrubberTotal', 'scrubberRemaining', 'metabolicO2Rate', 'po2ResponseRate',
+        'co2BuildupTime'
+    ];
+    if (!state.ccrState || typeof state.ccrState !== 'object') return false;
+    for (var ci = 0; ci < ccrFields.length; ci++) {
+        if (!isFinite(state.ccrState[ccrFields[ci]])) return false;
+    }
+
     return true;
 }
 
@@ -1256,6 +1331,10 @@ function saveDiveState() {
         // encode the "no NDL observed yet" sentinel as null.
         diveEvents: diveEvents.slice(),
         minNdlSeen: isFinite(minNdlSeen) ? minNdlSeen : null,
+        // Issue #44/#27: per-dive latch consumed by gradeDive() — must
+        // survive a reload mid-dive the same as the rest of the debrief
+        // event log above.
+        thirdsReserveHitThisDive: thirdsReserveHitThisDive,
         diverX: diverX,
         horizontalVelocity: horizontalVelocity,
         current: { active: current.active, direction: current.direction, strength: current.strength, level: current.level, depthMin: current.depthMin, depthMax: current.depthMax, timer: current.timer, rolledThisDive: current.rolledThisDive },
@@ -1337,6 +1416,7 @@ function restoreDiveState(state) {
     // back to the resetDive() defaults so an older payload doesn't crash.
     diveEvents = Array.isArray(state.diveEvents) ? state.diveEvents : [];
     minNdlSeen = (state.minNdlSeen == null) ? Infinity : state.minNdlSeen;
+    thirdsReserveHitThisDive = !!state.thirdsReserveHitThisDive;
     diverX = state.diverX || 0;
     horizontalVelocity = state.horizontalVelocity || 0;
     // Phase C
@@ -1692,6 +1772,8 @@ window.gameAPI = {
     set thirdsTurnWarned(v) { thirdsTurnWarned = !!v; },
     get thirdsReserveActive() { return thirdsReserveActive; },
     set thirdsReserveActive(v) { thirdsReserveActive = !!v; },
+    get thirdsReserveHitThisDive() { return thirdsReserveHitThisDive; },
+    set thirdsReserveHitThisDive(v) { thirdsReserveHitThisDive = !!v; },
     get THIRDS_TURN_FRACTION() { return THIRDS_TURN_FRACTION; },
     get THIRDS_RESERVE_FRACTION() { return THIRDS_RESERVE_FRACTION; },
     floorAt: floorAt,
@@ -1954,6 +2036,8 @@ window.gameAPI = {
     get DRILL_FREEFLOW_MULT() { return DRILL_FREEFLOW_MULT; },
     get DRILL_FREEFLOW_DURATION_SEC() { return DRILL_FREEFLOW_DURATION_SEC; },
     get DRILL_DEBRIEF_DURATION_SEC() { return DRILL_DEBRIEF_DURATION_SEC; },
+    get DRILL_BREATHHOLD_DURATION_SEC() { return DRILL_BREATHHOLD_DURATION_SEC; },
+    get DRILL_LIGHT_PANIC_ASCENT_MPM() { return DRILL_LIGHT_PANIC_ASCENT_MPM; },
     isDrillEligibleNow: isDrillEligibleNow,
     forceDrill: startDrill,
     resolveDrillOption: resolveDrillOption,

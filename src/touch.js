@@ -282,7 +282,11 @@ function touchUpdateUI() {
             // TASK-031D: Show gas info button only in Tec mode
             // BUG-CCR-3: gas-info button is visible in CCR as well as Tec.
             document.getElementById('touch-gas-info').style.display = (isAdvanced() || diveMode === 'ccr') ? 'flex' : 'none';
-            var decoStopFF = decoStop(calculateCeiling());
+            // Issue #14: touchUpdateUI() runs after updateDiving() within the
+            // same gameLoop() frame (see the monkey-patch below), so
+            // frameCalc.ceiling is already fresh for this tick — no need to
+            // call calculateCeiling() again.
+            var decoStopFF = decoStop(frameCalc.ceiling);
             var atDecoFF = decoStopFF > 0 && Math.abs(depth - decoStopFF) <= 1.5;
             var atSafetyFF = safetyStopCountdownStarted && !safetyStopComplete && depth >= SAFETY_STOP_ACTIVE_MIN_D && depth <= SAFETY_STOP_ACTIVE_MAX_D;
             var isStationary = Math.abs(ascentRate) < 0.5;

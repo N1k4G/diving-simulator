@@ -2523,6 +2523,16 @@ tests = [
     // that can exceed the hyperoxia threshold, even with the loop already
     // sitting at a moderate setpoint. This is the previously-dead
     // "Hyperoxia" game-over path (actualPO2 > 1.6 for 30s).
+    //
+    // Review follow-up: the original compression-only formula
+    // (actualPO2 *= p2/p1) double-counted against the diluent top-off's own
+    // O2 contribution and has been replaced by a combined mass balance in
+    // updateCCRDiluent() — see its comment for the derivation. That function
+    // must now be called (as the real per-tick order in game-loop.js does,
+    // before updateCCRLoop()) for the descent PO2 change to apply at all;
+    // updateCCRLoop()'s own compression multiply now deliberately skips
+    // descent (it would double-apply the compression on top of what
+    // updateCCRDiluent() already did).
     // ----------------------------------------------------------
     {
         id: 'TC-CCR-DYN-2',
@@ -2535,23 +2545,26 @@ tests = [
             api.ccrState.targetSP = 0.9;
             api.ccrState.actualPO2 = 0.9;
             api.ccrState.o2CylPressure = 200;
+            api.ccrState.dilCylPressure = 200; // ample diluent — full top-off affordable
 
-            // Instant rapid descent to 70m (pAmb = 8.0). Small dtSec (0.1s) keeps
-            // the solenoid's own response-rate correction negligible (max 0.005
-            // bar) so the assertion isolates the compression-scaling effect,
-            // not the control loop reacting to it in the same tick.
+            // Instant rapid descent to 70m (pAmb = 8.0). Small dtSec (0.1s) on
+            // updateCCRLoop keeps the solenoid's own response-rate correction
+            // negligible (max 0.005 bar) so the assertion isolates the
+            // descent PO2 update, not the control loop reacting to it.
             api.setDepth(70);
+            api.updateCCRDiluent(6, 70);
             api.updateCCRLoop(0.1, 6);
 
-            // Expected: actualPO2 *= pAmb_new/pAmb_old = 0.9 * (8.0/1.6) = 4.5,
-            // clamped only by pAmb (8.0) — well above both targetSP and the
-            // CCR_SP_MAX / hyperoxia threshold of 1.6.
+            // Expected (fully topped-off limit case): newPO2 = oldPO2 +
+            // dilFO2*(p2-p1) = 0.9 + 0.21*(8.0-1.6) = 2.244 — still well
+            // above the hyperoxia threshold (1.6), just no longer the old
+            // sealed-loop 0.9*8.0/1.6=4.5 (which ignored the diluent's O2).
             assert(api.ccrState.actualPO2 > 1.6,
                 'Rapid descent must produce a transient PO2 spike above the hyperoxia threshold (1.6), got ' +
                 api.ccrState.actualPO2.toFixed(2));
-            assert(approx(api.ccrState.actualPO2, 4.5, 0.3),
-                'Expected actualPO2 ~= 4.5 (0.9 * 8.0/1.6) after the compression spike, got ' +
-                api.ccrState.actualPO2.toFixed(2));
+            assert(approx(api.ccrState.actualPO2, 2.244, 0.05),
+                'Expected actualPO2 ~= 2.244 (0.9 + 0.21*6.4 combined mass balance) after the descent spike, got ' +
+                api.ccrState.actualPO2.toFixed(3));
             return 'PASS — rapid descent spikes actualPO2 to ' + api.ccrState.actualPO2.toFixed(2) +
                 ' (hyperoxia now reachable)';
         }
@@ -7800,12 +7813,15 @@ tests = [
             // PO2-valid at this depth.
             assert(Math.abs(gas.fO2 - 1.0) < 0.001,
                 'fallback should pick the non-empty tank (fO2=1.0), not the empty active tank (fO2=0.21); got fO2=' + gas.fO2);
-            // Last-resort: if EVERY tank is empty, still return something
-            // (the pre-existing activeTank fallback) rather than throwing.
+            // Last-resort (review follow-up): if EVERY tank is empty, there
+            // is no real gas left to simulate breathing at all — returning
+            // the empty active tank's mix here would feed a phantom gas
+            // into the deco plan/TTS calculation (issue #70). null is the
+            // correct "cannot continue" signal, not a bug to work around.
             api.tanks[1].gasRemaining = 0;
             var gasAllEmpty = api.bestGasForDepth(40);
-            assert(gasAllEmpty && gasAllEmpty.fO2 !== undefined, 'bestGasForDepth must not throw/return nothing when every tank is empty');
-            return 'PASS — fallback prefers non-empty tank (fO2=' + gas.fO2 + '), degrades gracefully when all empty';
+            assert(gasAllEmpty === null, 'bestGasForDepth must return null (not the empty active tank\'s mix) when every tank is empty, got ' + JSON.stringify(gasAllEmpty));
+            return 'PASS — fallback prefers non-empty tank (fO2=' + gas.fO2 + '), returns null when all empty';
         }
     },
     {
@@ -9551,7 +9567,11 @@ tests = [
             }
             api.diveEvents = [];
             api.minNdlSeen = 15;
-            api.tanks[0].pressure = 60; // >= GRADE_GAS_RESERVE_FULL_BAR
+            // Issue #44 (review follow-up): gradeDive() now reads remaining
+            // pressure as gasRemaining/volume (the field that actually
+            // depletes), not the static configured fill pressure — set
+            // gasRemaining directly rather than the unused .pressure field.
+            api.tanks[0].gasRemaining = 60 * api.tanks[0].volume; // >= GRADE_GAS_RESERVE_FULL_BAR
             api.safetyStopNeeded = true;
             api.safetyStopComplete = true;
             var g = api.gradeDive();
@@ -9578,7 +9598,9 @@ tests = [
             for (var i = 0; i < 10; i++) api.diveProfile.push({ t: i * 0.05, depth: 18, ceiling: 0 });
             api.diveEvents = [];
             api.minNdlSeen = 20;
-            api.tanks[0].pressure = 80;
+            // Issue #44 (review follow-up): gasRemaining is what gradeDive()
+            // reads now, not the static .pressure field.
+            api.tanks[0].gasRemaining = 80 * api.tanks[0].volume;
             api.safetyStopNeeded = true;
             api.safetyStopComplete = false;
             var g = api.gradeDive();
@@ -9599,7 +9621,9 @@ tests = [
             for (var i = 0; i < 10; i++) api.diveProfile.push({ t: i * 0.05, depth: 18, ceiling: 0 });
             api.diveEvents = [];
             api.minNdlSeen = 20;
-            api.tanks[0].pressure = 80;
+            // Issue #44 (review follow-up): gasRemaining is what gradeDive()
+            // reads now, not the static .pressure field.
+            api.tanks[0].gasRemaining = 80 * api.tanks[0].volume;
             api.safetyStopNeeded = true;
             api.safetyStopComplete = true;
             var prevLang = api.currentLang;
@@ -10754,6 +10778,379 @@ tests = [
                 api.currentLang = prev;
             }
             return 'PASS — ' + api.DRILLS.length + ' drills × 2 langs, all strings present';
+        }
+    },
+    // ============================================================
+    //  PR #102 review follow-up fixes
+    // ============================================================
+    {
+        id: 'TC-4-CCR-HYPOXIA-30S-NOT-10S',
+        name: 'Issue #4 — CCR hypoxia game-over waits for the 30s CCR-specific check, not the generic 10s OC one',
+        fn: function() {
+            api.diveMode = 'ccr';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.initCCR();
+            api.setDepth(10);
+            api.ccrState.actualPO2 = 0.1; // well below PO2_HYPOXIA (0.16)
+            api.ccrState.o2CylPressure = 0; // no O2 to correct it
+            // 15 dive-seconds: the old generic hypoxiaTime>=10 check would
+            // already have ended the dive here; the CCR-specific check needs 30.
+            for (var i = 0; i < 15; i++) {
+                api.setDepth(10);
+                api.ccrState.actualPO2 = 0.1;
+                api.updateDiving(1 / 3); // 1 real-sec / 3x accel = 1 dive-sec
+                if (api.gameState === 'gameover') break;
+            }
+            assert(api.gameState !== 'gameover',
+                'CCR hypoxia must not fire before 30 CCR-hypoxia-seconds; fired at ~15s with reason: ' + api.gameOverReason);
+            for (var j = 0; j < 20; j++) {
+                api.setDepth(10);
+                api.ccrState.actualPO2 = 0.1;
+                api.updateDiving(1 / 3);
+                if (api.gameState === 'gameover') break;
+            }
+            assert(api.gameState === 'gameover',
+                'CCR hypoxia must eventually fire once ccrHypoxiaTime reaches 30s');
+            return 'PASS — CCR hypoxia waited for the 30s CCR-specific check (reason: ' + api.gameOverReason + ')';
+        }
+    },
+    {
+        id: 'TC-25-CCR-DESCENT-PARTIAL-TOPOFF',
+        name: 'Issue #25 — combined PO2 mass balance degrades gracefully when diluent is insufficient for a full top-off',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.diveMode = 'ccr';
+            api.initCCR();
+            api.setDepth(6); // pAmb = 1.6
+            api.ccrState.targetSP = 0.9;
+            api.ccrState.actualPO2 = 0.9;
+            api.ccrState.dilCylVolume = 3;
+            // Only enough diluent for HALF the wanted top-off:
+            // wanted = loopVolume*(p2-p1) = 6.0*(8.0-1.6) = 38.4L -> at
+            // dilCylVolume=3L that's 12.8 bar; give it exactly half (6.4 bar).
+            api.ccrState.dilCylPressure = 6.4;
+            api.setDepth(70); // pAmb = 8.0
+            api.updateCCRDiluent(6, 70);
+
+            // Diluent cylinder must be fully drained (all of it was affordable
+            // and used, since it's less than the wanted amount).
+            assert(approx(api.ccrState.dilCylPressure, 0, 0.05),
+                'Insufficient diluent cylinder should be fully drained, got ' + api.ccrState.dilCylPressure.toFixed(2) + ' bar');
+            // Result must lie strictly between the two known limit cases:
+            // no-topoff (0.9*8.0/1.6=4.5) and full-topoff (0.9+0.21*6.4=2.244).
+            assert(api.ccrState.actualPO2 > 2.244 && api.ccrState.actualPO2 < 4.5,
+                'Partial top-off PO2 must lie between the full-topoff (2.244) and no-topoff (4.5) limits, got ' +
+                api.ccrState.actualPO2.toFixed(3));
+            return 'PASS — partial top-off produced actualPO2=' + api.ccrState.actualPO2.toFixed(3) +
+                ' (between the two limit cases)';
+        }
+    },
+    {
+        id: 'TC-44-GAS-RESERVE-USES-REMAINING-NOT-CONFIGURED',
+        name: 'Issue #44 — gas reserve sub-score reads gasRemaining/volume, not the static configured fill pressure',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.maxDepth = 18;
+            api.diveProfile = [{ t: 0, depth: 18, ceiling: 0 }, { t: 0.05, depth: 18, ceiling: 0 }];
+            api.diveEvents = [];
+            api.minNdlSeen = 20;
+            api.safetyStopNeeded = false;
+            // Configured fill pressure stays at the full 200 bar — only
+            // gasRemaining (the field that actually depletes) drops to ~10 bar.
+            assert(api.tanks[0].pressure === 200, 'sanity: configured pressure should remain 200');
+            api.tanks[0].gasRemaining = 10 * api.tanks[0].volume;
+            var g = api.gradeDive();
+            var gasSub = g.subs[2]; // ascent, safety-stop, [gas reserve], deco, trim
+            assert(gasSub.score < 30,
+                'A tank down to ~10 bar (configured pressure still 200) should score low on gas reserve, got ' + gasSub.score);
+            return 'PASS — gas reserve sub-score reflects gasRemaining (score=' + gasSub.score + '), not the unchanged 200 bar fill pressure';
+        }
+    },
+    {
+        id: 'TC-44-27-THIRDS-LATCH-SURVIVES-OVERHEAD-EXIT',
+        name: 'Issue #44/#27 — a rule-of-thirds reserve violation is still graded after leaving the overhead',
+        fn: function() {
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            api.maxDepth = 18;
+            api.diveProfile = [{ t: 0, depth: 18, ceiling: 0 }, { t: 0.05, depth: 18, ceiling: 0 }];
+            api.diveEvents = [];
+            api.minNdlSeen = 20;
+            api.safetyStopNeeded = false;
+
+            // Enter the overhead (proven recipe from TC-27-PHASE-TRANSITIONS:
+            // cave site, diverX=50, depth=17 is a real overhead position) and
+            // drop into reserve phase.
+            api.diveSite = 'cave';
+            api.diverX = 50;
+            api.setDepth(17);
+            api.updateDiving(0.033);
+            assert(api.inOverhead === true, 'sanity: should be inOverhead in cave');
+            var snap = api.thirdsStartingGas;
+            assert(snap > 0, 'sanity: snapshot should be > 0, got ' + snap);
+            api.tanks[0].gasRemaining = snap * 0.2; // well below THIRDS_RESERVE_FRACTION
+            api.setDepth(17);
+            api.updateDiving(0.033);
+            assert(api.thirdsReserveHitThisDive === true, 'sanity: latch should be set while still in the overhead');
+
+            // Leave the overhead passage (diveSite itself never changes
+            // mid-dive in real play — 'cave' still hasOverhead structurally,
+            // it's the diver's inOverhead POSITION that toggles). Drive that
+            // transition directly rather than depending on exact cave
+            // geometry for a non-overhead spot: thirdsReserveActive is the
+            // live/HUD flag gradeDive() must NOT read; thirdsReserveHitThisDive
+            // is the latch it must.
+            api.thirdsReserveActive = false;
+            assert(api.thirdsReserveHitThisDive === true,
+                'per-dive latch must survive leaving the overhead');
+
+            var g = api.gradeDive();
+            var gasSub = g.subs[2];
+            assert(gasSub.score === 40,
+                'Gas reserve sub-score must reflect the reserve violation (40) even though thirdsReserveActive has since cleared, got ' + gasSub.score);
+
+            // Contrast: without the latch (only the now-false live flag),
+            // gradeDive() must NOT show a violation — proves the assertion
+            // above is actually exercising the latch, not some other path.
+            api.thirdsReserveHitThisDive = false;
+            var gClean = api.gradeDive();
+            assert(gClean.subs[2].score === 100,
+                'Without the latch, gas reserve sub-score should be clean (100), got ' + gClean.subs[2].score);
+            return 'PASS — gas reserve sub-score stayed at ' + gasSub.score + ' via the latch after thirdsReserveActive cleared';
+        }
+    },
+    {
+        id: 'TC-51-EMPTY-ACTIVE-NO-SAFE-ALT-ENDS-DIVE',
+        name: 'Issue #51 — an empty active tank with no safe switch target ends the dive instead of silently continuing',
+        fn: function() {
+            // Same scenario as TC-51-AUTO-SWITCH-NEVER-SILENTLY-HYPOXIC: Air
+            // active tank drained, only a hypoxic-at-surface Tx 10/70 spare.
+            api.diveMode = 'tec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200], [0.10, 0.70, 200]]);
+            api.setDepth(0);
+            api.activeTank = 0;
+            api.tanks[0].gasRemaining = 0;
+            api.updateDiving(0.033);
+            assert(api.activeTank === 0, 'sanity: auto-switch must not jump to the unsafe alternative');
+            assert(api.gameState === 'gameover',
+                'An empty active tank with no safe alternative must end the dive, got gameState=' + api.gameState);
+            assert(api.gameOverReason === 'OUT OF GAS',
+                'Expected OUT OF GAS reason, got ' + api.gameOverReason);
+            return 'PASS — empty active tank with no safe alternative correctly ended the dive';
+        }
+    },
+    {
+        id: 'TC-70-DECO-SIM-FLAGS-OUT-OF-GAS',
+        name: 'Issue #70 — calculateDecoSchedule() flags outOfGas and stops extending the plan instead of using an empty tank\'s mix',
+        fn: function() {
+            api.diveMode = 'tec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            // Force a real deco obligation via heavy tissue loading.
+            var loaded = [], loadedHe = [];
+            for (var i = 0; i < 16; i++) { loaded.push(3.0); loadedHe.push(0); }
+            api.tissues = loaded;
+            api.tissuesHe = loadedHe;
+            api.setDepth(40);
+            var ceil = api.calculateCeiling();
+            assert(ceil > 0, 'sanity: heavy tissue loading should produce a real ceiling, got ' + ceil);
+
+            // Empty every tank — nothing left to breathe at all.
+            api.tanks[0].gasRemaining = 0;
+            assert(api.bestGasForDepth(10) === null,
+                'bestGasForDepth() must return null when every tank is empty, not fall back to the empty tank\'s mix');
+
+            var sched = api.calculateDecoSchedule();
+            assert(sched.outOfGas === true,
+                'calculateDecoSchedule() must flag outOfGas when the simulation cannot find any real gas to continue with');
+            return 'PASS — deco schedule correctly flags outOfGas=' + sched.outOfGas + ' instead of fabricating a plan on empty-tank gas';
+        }
+    },
+    {
+        id: 'TC-14-FRAMECALC-NO-DOUBLE-CALC-IN-DECO-TICK',
+        name: 'Issue #14 — a single deco tick computes the ceiling once and the deco schedule once, not multiple times',
+        fn: function() {
+            api.diveMode = 'tec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            var loaded = [], loadedHe = [];
+            for (var i = 0; i < 16; i++) { loaded.push(3.0); loadedHe.push(0); }
+            api.tissues = loaded;
+            api.tissuesHe = loadedHe;
+            api.setDepth(40);
+            // The one-time onboarding-hint check (game-loop.js, "deco" edge)
+            // intentionally reads the PREVIOUS tick's calculateCeiling() —
+            // a documented, deliberate lag, not the redundancy this test
+            // targets. Pre-mark it seen so it doesn't add its own call and
+            // this test isolates exactly the frameCalc population fix.
+            api.hintEdges.deco = true;
+
+            var iw = iframe.contentWindow;
+            var origCeiling = iw.calculateCeiling;
+            var origSchedule = iw.calculateDecoSchedule;
+            var ceilCalls = 0, schedCalls = 0;
+            iw.calculateCeiling = function() { ceilCalls++; return origCeiling.apply(this, arguments); };
+            iw.calculateDecoSchedule = function() { schedCalls++; return origSchedule.apply(this, arguments); };
+            try {
+                api.updateDiving(0.033);
+            } finally {
+                iw.calculateCeiling = origCeiling;
+                iw.calculateDecoSchedule = origSchedule;
+            }
+            assert(ceilCalls === 1,
+                'Expected exactly 1 calculateCeiling() call in a deco tick (frameCalc population), got ' + ceilCalls);
+            assert(schedCalls === 1,
+                'Expected exactly 1 calculateDecoSchedule() call in a deco tick (the expensive simulation must not run twice), got ' + schedCalls);
+            return 'PASS — deco tick called calculateCeiling() ' + ceilCalls + 'x and calculateDecoSchedule() ' + schedCalls + 'x';
+        }
+    },
+    {
+        id: 'TC-45-LIGHT-FAILURE-WRONG-ASCEND-HAS-EFFECT',
+        name: 'Issue #45 (review follow-up) — lightFailure "ascend" wrong option immediately starts a real ascent and drops visibility',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'cave';
+            setupDive([[0.21, 0, 200]]);
+            api.drillsEnabled = true;
+            var savedTorch = api.torchOn, savedVis = api.visibility, savedVV = api.verticalVelocity;
+            var threw = null;
+            try {
+                api.torchOn = true;
+                api.inOverhead = true;
+                api.visibility = 1.0;
+                api.verticalVelocity = 0;
+                api.setDepth(15);
+                api.forceDrill('lightFailure');
+                api.drillState.phase = 'overlay';
+                api.gameState = 'drill';
+                api.torchOn = false;
+                api.resolveDrillOption(2); // "ascend" wrong option
+                assert(api.drillState.correct === false, 'option 2 must be incorrect');
+                assert(api.visibility < 1.0, 'Ascend option should also drop visibility, got ' + api.visibility);
+                assert(api.verticalVelocity < 0,
+                    'Ascend option must immediately start a real (negative = up) ascent, got verticalVelocity=' + api.verticalVelocity);
+            } catch (e) { threw = e; }
+            finally {
+                api.torchOn = savedTorch;
+                api.visibility = savedVis;
+                api.verticalVelocity = savedVV;
+                api.inOverhead = false;
+                api.drillHasRunThisDive = false;
+                api.drillState.phase = 'inactive';
+                api.drillState.lightRestoreAt = 0;
+            }
+            if (threw) throw threw;
+            return 'PASS — ascend option dropped visibility and kicked off a real ascent';
+        }
+    },
+    {
+        id: 'TC-45-FREEFLOW-WRONG-BREATHHOLD-RISKS-BAROTRAUMA',
+        name: 'Issue #45 (review follow-up) — freeflow "hold breath" wrong option makes ANY subsequent ascent risk barotrauma, not just a fast one',
+        fn: function() {
+            api.diveMode = 'tec';
+            api.diveSite = 'open';
+            // Two tanks: the catalog's "switch to backup" option
+            // (requiresMultiTank) stays visible so option index 2 ("hold
+            // breath") isn't shifted down by _visibleDrillOptions() filtering
+            // it out, as it would be in a single-tank setup.
+            setupDive([[0.21, 0, 200], [0.21, 0, 200]]);
+            api.drillsEnabled = true;
+            api.setDepth(20);
+            api.forceDrill('freeflow');
+            api.drillState.phase = 'overlay';
+            api.gameState = 'drill';
+            api.resolveDrillOption(2); // "hold breath" wrong option
+            assert(api.drillState.correct === false, 'option 2 must be incorrect');
+            assert(api.drillState.breathHoldUntilDiveSec > api.diveTime * 60,
+                'breathHoldUntilDiveSec must be set to a future dive-second');
+
+            api.gameState = 'diving';
+            api.barotraumaTime = 0;
+            api.setDepth(20);
+            // Provoke a real, but SLOW, ascent through the buoyancy pipeline
+            // (same proven approach as TC-71's fastAscent-event test: pin
+            // verticalVelocity each frame rather than teleporting depth via
+            // setDepth() — ascentRate is computed by updateDiving() from the
+            // actual depth change). dtReal is kept at/below
+            // PHYSICS_MAX_SUBSTEP_SEC (0.1s dive-seconds / 3x accel ≈ 0.033s
+            // real) so each call is a SINGLE physics substep — otherwise the
+            // pin only applies to the first of several internal substeps and
+            // buoyancy accel compounds across the rest, overshooting well
+            // past the pinned rate. Near-neutral BCD lift (~11L actual
+            // balances this diver's default negative buoyancy at 20m) keeps
+            // gravity from fighting the forced velocity. Resulting rate is
+            // well under BAROTRAUMA_RATE (18 m/min) — normally harmless, but
+            // must accumulate barotraumaTime while breath-holding.
+            api.bcdGasSurfaceLiters = 11; // ~3.7L actual volume at pAmb=3 (20m) ≈ neutral
+            for (var i = 0; i < 60; i++) {
+                api.verticalVelocity = -3;
+                api.updateDiving(0.03);
+            }
+            assert(api.ascentRate > 0 && api.ascentRate < 18, // BAROTRAUMA_RATE
+                'sanity: forced ascent should be real but below BAROTRAUMA_RATE (18), got ascentRate=' + api.ascentRate.toFixed(1));
+            assert(api.barotraumaTime > 0,
+                'A slow ascent (ascentRate=' + api.ascentRate.toFixed(1) + ' m/min) while breath-holding must still accumulate barotraumaTime, got ' + api.barotraumaTime);
+
+            // Control: without the breath-hold flag, the same slow ascent
+            // must NOT accumulate barotraumaTime.
+            api.drillState.breathHoldUntilDiveSec = 0;
+            api.barotraumaTime = 0;
+            api.setDepth(20);
+            api.bcdGasSurfaceLiters = 11;
+            for (var j = 0; j < 60; j++) {
+                api.verticalVelocity = -3;
+                api.updateDiving(0.03);
+            }
+            assert(api.barotraumaTime === 0,
+                'Control: the same slow ascent (ascentRate=' + api.ascentRate.toFixed(1) + ' m/min) WITHOUT breath-holding must not accumulate barotraumaTime, got ' + api.barotraumaTime);
+            return 'PASS — breath-holding turned a normally-harmless slow ascent into a barotrauma risk';
+        }
+    },
+    {
+        id: 'TC-66-VALIDATOR-REJECTS-MISSING-REQUIRED-FIELDS',
+        name: 'Issue #66 (review follow-up) — _isValidSaveState() rejects payloads missing numeric/structural fields beyond depth and tissues',
+        fn: function() {
+            api.diveMode = 'ccr';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.initCCR();
+            api.setDepth(20);
+            api.updateDiving(0.033); // populate a realistic live state
+            var iw = iframe.contentWindow;
+            iw.saveDiveState();
+            var raw = iw.localStorage.getItem(iw.SAVE_KEY);
+            assert(raw, 'sanity: saveDiveState() should have written a payload');
+            var basePayload = JSON.parse(raw);
+            assert(iw._isValidSaveState(basePayload) === true,
+                'sanity: a genuine, complete payload must validate as true');
+
+            // Each of these fields is assigned directly in restoreDiveState()
+            // with no fallback — a payload missing any of them must be rejected.
+            var mustHaveFields = ['diveTime', 'avgDepthAccum', 'ascentRate', 'verticalVelocity',
+                'barotraumaTime', 'gfLow', 'amvRate', 'tankCount', 'activeTank'];
+            for (var i = 0; i < mustHaveFields.length; i++) {
+                var f = mustHaveFields[i];
+                var payload = JSON.parse(raw);
+                delete payload[f];
+                assert(iw._isValidSaveState(payload) === false,
+                    'A payload missing "' + f + '" must be rejected, but validated as true');
+            }
+            // Mode-dependent CCR state: missing actualPO2 must also be rejected.
+            var ccrPayload = JSON.parse(raw);
+            delete ccrPayload.ccrState.actualPO2;
+            assert(iw._isValidSaveState(ccrPayload) === false,
+                'A payload with ccrState missing actualPO2 must be rejected');
+            // Per-tank contents: missing gasRemaining on a tank must be rejected.
+            var tankPayload = JSON.parse(raw);
+            delete tankPayload.tanks[0].gasRemaining;
+            assert(iw._isValidSaveState(tankPayload) === false,
+                'A payload with a tank missing gasRemaining must be rejected');
+            iw.localStorage.removeItem(iw.SAVE_KEY);
+            return 'PASS — validator rejected ' + (mustHaveFields.length + 2) + ' distinct missing-field payloads, accepted the complete one';
         }
     }
 ];
