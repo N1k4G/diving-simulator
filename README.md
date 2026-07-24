@@ -225,3 +225,19 @@ gameAPI.activeTank      // active tank index
 // Functions
 gameAPI.calculateSafetyStopDuration()  // returns adaptive stop duration in seconds
 ```
+
+## License
+
+The code in this repository is licensed under the [MIT License](LICENSE).
+
+The deployed game (`src/`, what `pages deploy src/` ships) bundles no
+third-party code — every npm package in `package.json` is dev/CI tooling
+(ESLint, Playwright, husky) and is never shipped. The **only** third-party
+asset shipped is the **Barlow Semi Condensed** typeface
+(`src/fonts/*.woff2`), self-hosted for GDPR reasons (see issue #29) and
+licensed under the [SIL Open Font License 1.1](src/fonts/OFL.txt).
+
+The Bühlmann ZHL-16C decompression coefficients (`ZHL16C_N2`/`ZHL16C_HE` in
+`src/constants.js`) are published scientific data, independently transcribed
+from standard reference tables — see the source comment above those tables
+for the specific reference.

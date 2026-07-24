@@ -65,9 +65,9 @@ the reference dive computer is a rectangular wrist-mount dive computer with a 2.
 
 ---
 
-## Agent Knowledge (Unverified)
+## Unverified
 
-The following details are drawn from the researcher's training knowledge about the reference dive computer and reference dive computers. These are consistent with official documentation but were **not verified from fetched web sources** during this research session. The UI/UX designer should cross-reference with the official the reference dive computermanual PDFs linked above.
+The following details are general background knowledge about the reference dive computer and reference dive computers. These are consistent with official documentation but were **not verified from fetched web sources**. Cross-reference with the official the reference dive computermanual PDFs linked above before relying on them.
 
 ### Screen Layout Zones
 

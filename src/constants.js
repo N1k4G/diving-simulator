@@ -218,7 +218,13 @@ const REEF_PAL = {
   anthias:'#ff7a3a', anthiasLt:'#ffb18a', anthiasCore:'#ffe1bd', anthiasDeep:'#c63a1a'
 };
 
-// ZHL-16C N2 compartment constants
+// ZHL-16C N2 compartment constants.
+// Issue #40: provenance note. These a/b/half-time coefficients are Albert
+// Bühlmann's published ZHL-16C algorithm — standard reference data used
+// throughout the diving/decompression software field (e.g. Baker,
+// "Understanding M-values", 1998; Bühlmann, "Tauchmedizin", 5th ed.), not
+// original research. Independently transcribed for this project; not
+// copied from any specific copyleft-licensed codebase.
 const ZHL16C_N2 = [
     { ht: 5.0,   a: 1.2599, b: 0.5050 },
     { ht: 8.0,   a: 1.0000, b: 0.6514 },

@@ -20,6 +20,23 @@ your commit will be blocked if lint fails.
 | `npm run lint` | ESLint over `src/*.js` |
 | `npm test` | Runs the in-browser test suite headless via Playwright |
 | `npm run screenshots` | Captures review screenshots to `screenshots/` |
+| `npm run license-check` | Fails if any dependency's license isn't in the allowlist below |
+
+### License allowlist (issue #40)
+
+None of this project's npm packages are shipped (`pages deploy src/` only
+deploys `src/`, and every current dependency is dev/CI tooling), so there's
+no legal *requirement* to vet their licenses — but a copyleft dev dependency
+(GPL/LGPL/AGPL/MPL) sneaking in via `npm install some-tool` is still worth
+catching early, since it complicates the story even for tooling. `npm run
+license-check` (backed by `license-checker`, CI-gated in both `pr.yml` and
+`deploy.yml`) allowlists: `MIT, ISC, BSD-2-Clause, BSD-3-Clause, Apache-2.0,
+0BSD, CC0-1.0, CC-BY-3.0, Python-2.0, WTFPL, Unlicense, BlueOak-1.0.0` — all
+permissive, matching what's actually present in the current dependency tree
+plus a couple of common permissive licenses left in as headroom. If a
+legitimate new dependency needs a license outside this list, extend the
+allowlist in `package.json`'s `license-check` script with justification in
+the PR description rather than removing the check.
 
 ## Tests
 

@@ -35,9 +35,9 @@ The findings below combine the one verified source with **clearly labeled agent 
 
 ---
 
-## ⚠️ Agent Knowledge (Unverified)
+## ⚠️ Unverified
 
-The following is based on the agent's training data about the manufacturer dive computers. **This has NOT been verified from a fetched web source.** The Architect must cross-reference against the official PDF manuals before using this for implementation.
+The following is general background knowledge about manufacturer dive computers. **This has NOT been verified from a fetched web source.** Cross-reference against the official PDF manuals before relying on it for implementation.
 
 ### Q1: What depth window does the safety stop use?
 

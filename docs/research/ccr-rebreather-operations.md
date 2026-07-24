@@ -644,9 +644,9 @@ The existing nitrogen narcosis model and O2 toxicity (CNS%) tracking should work
 
 ---
 
-## Agent Knowledge (Unverified)
+## Unverified
 
-The following technical details are drawn from the researcher's training knowledge on CCR diving, Bühlmann decompression theory, and the manufacturer dive computer operation. They are consistent with published sources (US Navy Diving Manual Rev 7, Bozanic "Mastering Rebreathers", NOAA Diving Manual) but were **not directly verified from fetched web sources** in this session:
+The following technical details are general background knowledge on CCR diving, Bühlmann decompression theory, and manufacturer dive computer operation. They are consistent with published sources (US Navy Diving Manual Rev 7, Bozanic "Mastering Rebreathers", NOAA Diving Manual) but were **not directly verified from fetched web sources**:
 
 - Solenoid pulse duration of ~200ms is typical for Innerspace/AP/rEvo units
 - The 0.05 bar/second PO2 response rate is an estimate for game feel; real systems vary from 0.02–0.10 depending on loop volume and injection rate

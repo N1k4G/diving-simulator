@@ -729,10 +729,14 @@ function showHtmlGasInfo() {
     html += '</div></div>';
   }
   html += '<div style="text-align:center;margin-top:16px;">';
-  html += '<button onclick="showGasInfo=false;" style="background:rgba(255,255,255,0.12);border:1px solid #556;color:#cde;font-family:monospace;font-size:13px;padding:8px 24px;border-radius:4px;cursor:pointer;">[I] / [Esc] ' + S('gasInfoClose') + '</button>';
+  html += '<button id="gas-info-close-btn" style="background:rgba(255,255,255,0.12);border:1px solid #556;color:#cde;font-family:monospace;font-size:13px;padding:8px 24px;border-radius:4px;cursor:pointer;">[I] / [Esc] ' + S('gasInfoClose') + '</button>';
   html += '</div></div>';
   overlay.innerHTML = html;
   overlay.style.display = 'block';
+  // Issue #29: no inline onclick (CSP script-src doesn't allow 'unsafe-inline').
+  document.getElementById('gas-info-close-btn').addEventListener('click', function() {
+      showGasInfo = false;
+  });
 }
 
 function hideHtmlGasInfo() {

@@ -30,6 +30,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: License check
+        run: npm run license-check
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 

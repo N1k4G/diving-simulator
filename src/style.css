@@ -1,4 +1,29 @@
-﻿* { margin: 0; padding: 0; box-sizing: border-box; }
+﻿/* Issue #29/#40: self-hosted (was Google Fonts CDN — DSGVO/GDPR risk for a
+   publicly reachable site: the visitor's IP went to Google without consent).
+   Barlow Semi Condensed is licensed under the SIL OFL 1.1 — see
+   src/fonts/OFL.txt, which must ship alongside these files per the license. */
+@font-face {
+  font-family: 'Barlow Semi Condensed';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('fonts/BarlowSemiCondensed-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow Semi Condensed';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('fonts/BarlowSemiCondensed-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow Semi Condensed';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('fonts/BarlowSemiCondensed-700.woff2') format('woff2');
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
 canvas { display: block; }
 /* WP-014: Touch control styles */

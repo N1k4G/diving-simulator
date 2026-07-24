@@ -9455,6 +9455,24 @@ tests = [
             }
             return 'PASS — no-op outside diving; while diving emits ticks + at least one label';
         }
+    },
+    {
+        id: 'TC-29-GAS-INFO-CLOSE-BTN-NO-INLINE-HANDLER',
+        name: 'Issue #29 — gas-info overlay close button has no inline onclick (CSP script-src compat) and still closes on click',
+        fn: function() {
+            var win = document.getElementById('gameFrame').contentWindow;
+            var doc = win.document;
+            setupDive([[0.21, 0, 200]]);
+            win.showGasInfo = true;
+            win.showHtmlGasInfo();
+            var btn = doc.getElementById('gas-info-close-btn');
+            assert(btn !== null, 'gas-info overlay must render a close button with a stable id');
+            assert(!btn.hasAttribute('onclick'),
+                'close button must not use an inline onclick attribute (violates a script-src CSP without unsafe-inline)');
+            btn.click();
+            assert(win.showGasInfo === false, 'clicking the close button must still set showGasInfo = false via addEventListener');
+            return 'PASS — close button has no inline handler and addEventListener-based click still closes the overlay';
+        }
     }
 ];
 
