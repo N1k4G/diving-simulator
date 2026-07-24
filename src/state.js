@@ -239,7 +239,15 @@ let _guidelineTimer = 0;     // accumulates dive-seconds between samples
 let visibility = 1.0;        // 1 = clear, 0 = full silt-out
 let inOverhead = false;      // cached overheadAt(diverX, depth) for this tick
 let badAirWarning = false;   // diver's head is in an unbreathable dome
-// Rule-of-thirds warning flags (cave/wreck only)
+// Issue #27: Rule-of-thirds gas planning (cave/wreck overhead only).
+// thirdsStartingGas is snapshotted from the total across all tanks on
+// first entry into the overhead and cleared when the diver leaves (so a
+// second penetration re-snapshots against whatever gas remains at that
+// point). The turn/reserve flags latch on threshold cross so the alert
+// beep fires exactly once per overhead excursion.
+let thirdsStartingGas = 0;                 // surface-litre reference "full" gas
+let thirdsCurrentPhase = 'outbound';       // 'outbound' | 'turn' | 'reserve'
+let thirdsPct = 100;                       // integer 0..100 for HUD data-pct
 let thirdsTurnWarned = false;
 let thirdsReserveActive = false;
 // D6: Player torch — ON by default for overhead sites, OFF in open water
@@ -866,6 +874,9 @@ function resetDive() {
     visibility = 1.0;
     inOverhead = false;
     badAirWarning = false;
+    thirdsStartingGas = 0;
+    thirdsCurrentPhase = 'outbound';
+    thirdsPct = 100;
     thirdsTurnWarned = false;
     thirdsReserveActive = false;
     torchOn = !!(DIVE_SITES[diveSite] && DIVE_SITES[diveSite].hasOverhead);

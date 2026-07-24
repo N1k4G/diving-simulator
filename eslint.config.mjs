@@ -104,7 +104,10 @@ const gameGlobals = {
   // Phase C state (state.js)
   diveSite: "writable", guidelineNodes: "writable", _guidelineTimer: "writable",
   visibility: "writable", inOverhead: "writable", badAirWarning: "writable",
-  thirdsTurnWarned: "writable", thirdsReserveActive: "writable", torchOn: "writable",
+  thirdsTurnWarned: "writable", thirdsReserveActive: "writable",
+  thirdsStartingGas: "writable", thirdsCurrentPhase: "writable", thirdsPct: "writable",
+  THIRDS_TURN_FRACTION: "readonly", THIRDS_RESERVE_FRACTION: "readonly",
+  torchOn: "writable",
   currentVerticalRate: "writable", bcdGasSurfaceLiters: "writable",
   barotraumaTime: "writable", hypoxiaTime: "writable",
   bubbles: "writable", breathPhase: "writable",

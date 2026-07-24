@@ -92,6 +92,14 @@ const SILT_DECAY            = 0.25;  // visibility lost per dive-second at thres
 const SILT_RECOVER          = 0.08;  // visibility gained per dive-second while calm
 const TORCH_RADIUS_M        = 5;     // torch light cone radius in metres
 
+// Issue #27: Rule-of-thirds gas planning (overhead environments only).
+// Standard tec/cave-diving convention: one third of the starting gas for
+// the outbound leg, one third for the return leg, one third as reserve.
+// Fractions are of the "starting gas" snapshotted on first entry into
+// the overhead — see updateDiving()'s rule-of-thirds block.
+const THIRDS_TURN_FRACTION    = 2 / 3;   // > 2/3 remaining -> outbound
+const THIRDS_RESERVE_FRACTION = 1 / 3;   // < 1/3 remaining -> reserve
+
 // Issue #68: the safety-stop countdown's own active-tick range (2.4-8.3m)
 // was duplicated as a narrower ±1.5m-around-5m band in two separate
 // fast-forward-eligibility checks (game-loop.js, touch.js), so at e.g. 7.5m
