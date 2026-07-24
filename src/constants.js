@@ -11,13 +11,13 @@
 // KEY SYMBOLS (grep to find):
 //   S(key)               — i18n string lookup, language set by currentLang
 //   STRINGS              — full EN/DE string table
-//   ZHL16C_N2_A/B/HT     — Bühlmann N2 compartment coefficients (16 compartments)
-//   ZHL16C_HE_A/B/HT     — Bühlmann He compartment coefficients
+//   ZHL16C_N2[]          — Bühlmann N2 compartment coefficients, {ht, a, b} × 16
+//   ZHL16C_HE[]          — Bühlmann He compartment coefficients, {ht, a, b} × 16
 //   BUOYANCY_PARAMS.maxAscentRate/maxDescentRate — physical ascent/descent clamps (m/min)
 //   TIME_ACCELERATION    — 3x real-time default
 //   FAST_FORWARD_MULTIPLIER — 10x skip multiplier
 // SECTION: Game constants and tuning parameters
-// SEARCH TERMS: TIME_ACCELERATION, BUOYANCY_PARAMS, FAST_FORWARD_MULTIPLIER, ZHL16C_N2_A, ZHL16C_HE_A
+// SEARCH TERMS: TIME_ACCELERATION, BUOYANCY_PARAMS, FAST_FORWARD_MULTIPLIER, ZHL16C_N2, ZHL16C_HE
 
 // ============================================================
 // ============================================================
@@ -487,7 +487,7 @@ const STRINGS = {
     warnCeiling: '\u26A0 ABOVE CEILING \u2014 DESCEND',
     warnNarc: '\u26A0 NARCOSIS',
     helpNarc: 'Nitrogen narcosis impairs brain function at depth. The \u26A0 NARCOSIS warning appears when narcotic partial pressure is high. Symptoms: tunnel vision (vignette), colour desaturation, screen wobble, delayed controls, random drift. Use trimix (helium) to reduce narcosis. END (Equivalent Narcotic Depth) shows the air-equivalent depth for narcotic effect. Ascending reverses narcosis, but with a short delay.',
-    helpTec: 'Tec (Technical) mode unlocks advanced features: up to 4 tanks with different gas mixes (Trimix, Heliox), configurable gradient factors (GF Low/High), AMV adjustment, and tank size selection. Use TAB to cycle tanks in gas setup, +/\u2212 to add/remove tanks. During the dive, press 1\u20134 to switch tanks. Plan your gas switches based on MOD \u2014 the dive computer shows the BEST gas indicator when a better tank is available. Trimix reduces narcosis and O2 toxicity risk for deep dives.',
+    helpTec: 'Tec (Technical) mode unlocks advanced features: up to 6 tanks with different gas mixes (Trimix, Heliox), configurable gradient factors (GF Low/High), AMV adjustment, and tank size selection. Use TAB to cycle tanks in gas setup, +/\u2212 to add/remove tanks. During the dive, press 1\u20136 to switch tanks. Plan your gas switches based on MOD \u2014 the dive computer shows the BEST gas indicator when a better tank is available. Trimix reduces narcosis and O2 toxicity risk for deep dives.',
     helpCcr: 'CCR (Closed Circuit Rebreather) mode simulates a rebreather with electronic PO2 control. The unit maintains a target setpoint (SP) by injecting O2 from a small cylinder. You breathe from a loop \u2014 exhaled CO2 is removed by a scrubber. Gas consumption is minimal compared to OC. Adjust setpoint with [ / ] keys (\u00B10.1 bar). Monitor: actual PO2, O2 cylinder pressure, diluent cylinder pressure, and scrubber time remaining. Failures: scrubber exhaustion causes CO2 buildup, O2 depletion causes hypoxia, high SP causes hyperoxia. Press B for bailout (irreversible switch to open-circuit using diluent).',
     // Game over reasons (display text)
     gameOverReasons: {
@@ -629,7 +629,7 @@ const STRINGS = {
     warnCeiling: '\u26A0 \u00DCBER CEILING \u2014 ABTAUCHEN',
     warnNarc: '\u26A0 NARKOSE',
     helpNarc: 'Stickstoffnarkose beeintr\u00E4chtigt die Hirnfunktion in der Tiefe. Die \u26A0 NARKOSE-Warnung erscheint bei hohem narkotischem Partialdruck. Symptome: Tunnelblick (Vignette), Farbverlust, Bildschirmwackeln, verz\u00F6gerte Steuerung, zuf\u00E4lliges Abdriften. Verwende Trimix (Helium) zur Narkosereduktion. END (Equivalent Narcotic Depth) zeigt die \u00E4quivalente Luft-Tiefe f\u00FCr den narkotischen Effekt. Aufsteigen hebt die Narkose auf, aber mit kurzer Verz\u00F6gerung.',
-    helpTec: 'Tec (Technisches Tauchen) schaltet erweiterte Funktionen frei: bis zu 4 Flaschen mit verschiedenen Gasmischungen (Trimix, Heliox), konfigurierbare Gradientenfaktoren (GF Low/High), AMV-Einstellung und Flaschengr\u00F6\u00DFe. TAB zum Wechseln der Flaschen im Gas-Setup, +/\u2212 zum Hinzuf\u00FCgen/Entfernen. W\u00E4hrend des Tauchgangs 1\u20134 zum Flaschenwechsel. Plane deine Gaswechsel anhand der MOD \u2014 der Tauchcomputer zeigt den BEST-Gasindikator wenn eine bessere Flasche verf\u00FCgbar ist. Trimix reduziert Narkose und O2-Toxizit\u00E4tsrisiko bei Tieftauchg\u00E4ngen.',
+    helpTec: 'Tec (Technisches Tauchen) schaltet erweiterte Funktionen frei: bis zu 6 Flaschen mit verschiedenen Gasmischungen (Trimix, Heliox), konfigurierbare Gradientenfaktoren (GF Low/High), AMV-Einstellung und Flaschengr\u00F6\u00DFe. TAB zum Wechseln der Flaschen im Gas-Setup, +/\u2212 zum Hinzuf\u00FCgen/Entfernen. W\u00E4hrend des Tauchgangs 1\u20136 zum Flaschenwechsel. Plane deine Gaswechsel anhand der MOD \u2014 der Tauchcomputer zeigt den BEST-Gasindikator wenn eine bessere Flasche verf\u00FCgbar ist. Trimix reduziert Narkose und O2-Toxizit\u00E4tsrisiko bei Tieftauchg\u00E4ngen.',
     helpCcr: 'CCR (Closed Circuit Rebreather) simuliert einen Kreislauftauchger\u00E4t mit elektronischer PO2-Steuerung. Das Ger\u00E4t h\u00E4lt einen Ziel-Sollwert (SP) durch O2-Injektion aus einer kleinen Flasche. Du atmest aus einem Kreislauf \u2014 ausgeatmetes CO2 wird vom Scrubber entfernt. Gasverbrauch ist minimal im Vergleich zu OC. Sollwert mit [ / ] Tasten anpassen (\u00B10,1 bar). \u00DCberwache: tats\u00E4chlichen PO2, O2-Flaschendruck, Diluent-Flaschendruck und Scrubber-Restzeit. Ausf\u00E4lle: Scrubber-Ersch\u00F6pfung verursacht CO2-Aufbau, O2-Mangel verursacht Hypoxie, hoher SP verursacht Hyperoxie. B f\u00FCr Bailout (irreversibler Wechsel zu Open-Circuit mit Diluent).',
     // Game over reasons
     gameOverReasons: {

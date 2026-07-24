@@ -4,8 +4,8 @@
 //          buoyancy physics, O2/CNS toxicity tracking.
 //
 // DEPENDS ON:
-//   constants.js — ZHL16C_N2_A/B/HT, ZHL16C_HE_A/B/HT, BUOYANCY_PARAMS,
-//                  CNS_* thresholds
+//   constants.js — ZHL16C_N2[], ZHL16C_HE[] (per-compartment {ht, a, b}),
+//                  BUOYANCY_PARAMS, CNS_* thresholds
 //   state.js     — tissues, tissuesHe, depth, tanks, activeTank,
 //                  diveMode, ccrState, cnsPercent, dcsViolationTime,
 //                  safetyStopNeeded, safetyStopRemaining, diver
