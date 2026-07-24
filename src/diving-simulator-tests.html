@@ -9611,6 +9611,313 @@ tests = [
             }
             return 'PASS — DE + EN labels both localised';
         }
+    },
+
+    // ============================================================
+    //  Issue #39 — HUD colour-blind accessibility
+    // ============================================================
+    // Every test guards the ambient hudColorMode + localStorage entry so
+    // the harness can run them in any order without polluting the palette
+    // for a later test. The gas-setup button, palette-swap behaviour, ⚠
+    // prefix on danger, threshold ticks and localStorage persistence all
+    // get their own case for a clean pass/fail signal.
+
+    {
+        id: 'TC-39-HUD-COLORS-SHAPE',
+        name: 'Issue #39 — HUD_COLORS_DEFAULT and HUD_COLORS_CVD both expose ok/caution/warn/danger as hex strings',
+        fn: function() {
+            var tiers = ['ok', 'caution', 'warn', 'danger'];
+            var palettes = { 'default': api.HUD_COLORS_DEFAULT, 'cvd': api.HUD_COLORS_CVD };
+            for (var name in palettes) {
+                var pal = palettes[name];
+                assert(pal && typeof pal === 'object', name + ' palette must be an object, got ' + typeof pal);
+                for (var i = 0; i < tiers.length; i++) {
+                    var t = tiers[i];
+                    assert(typeof pal[t] === 'string', name + '.' + t + ' must be a string, got ' + typeof pal[t]);
+                    assert(/^#[0-9a-fA-F]{3,8}$/.test(pal[t]), name + '.' + t + ' must be a hex colour, got ' + pal[t]);
+                }
+            }
+            // Palettes must NOT collide tier-for-tier — otherwise the CVD
+            // mode wouldn't actually swap anything.
+            var samePairs = 0;
+            for (var j = 0; j < tiers.length; j++) {
+                if (api.HUD_COLORS_DEFAULT[tiers[j]].toLowerCase() === api.HUD_COLORS_CVD[tiers[j]].toLowerCase()) samePairs++;
+            }
+            assert(samePairs === 0, 'CVD palette must differ from default at every tier; identical tiers=' + samePairs);
+            return 'PASS — both palettes expose ok/caution/warn/danger hex values, CVD differs at every tier';
+        }
+    },
+
+    {
+        id: 'TC-39-COLOR-MODE-TOGGLE-SWAPS-PALETTE',
+        name: 'Issue #39 — flipping gameAPI.colorMode swaps every colour-reading function to the CVD palette',
+        fn: function() {
+            var savedMode = api.colorMode;
+            try {
+                api.colorMode = 'default';
+                var defOk = api.hudColor('ok');
+                var defDanger = api.hudColor('danger');
+                assert(defOk === api.HUD_COLORS_DEFAULT.ok, 'hudColor(ok) in default mode should equal palette.ok');
+                assert(defDanger === api.HUD_COLORS_DEFAULT.danger, 'hudColor(danger) in default mode should equal palette.danger');
+
+                // po2Color() and tankColor() must both read through hudColor(),
+                // so a mode flip has to swap their return values too.
+                setupDive([[0.21, 0, 200]]);
+                api.setDepth(30);
+                var defPo2 = api.calculatePO2();
+                // Cache the palette colour that maps to whatever tier 30m/air lands on.
+                var expectedDefaultPo2Color = iframe.contentWindow.po2Color(defPo2);
+
+                api.colorMode = 'cvd';
+                assert(api.colorMode === 'cvd', 'colorMode setter should persist "cvd"');
+                assert(api.hudColor('ok') === api.HUD_COLORS_CVD.ok, 'hudColor(ok) in cvd mode should equal cvd palette');
+                assert(api.hudColor('danger') === api.HUD_COLORS_CVD.danger, 'hudColor(danger) in cvd mode should equal cvd palette');
+
+                var cvdPo2Color = iframe.contentWindow.po2Color(defPo2);
+                assert(cvdPo2Color !== expectedDefaultPo2Color,
+                    'po2Color() should return a different colour after the mode flip; before=' + expectedDefaultPo2Color + ' after=' + cvdPo2Color);
+                // The new colour must come from the CVD palette.
+                var cvdVals = [api.HUD_COLORS_CVD.ok, api.HUD_COLORS_CVD.caution, api.HUD_COLORS_CVD.warn, api.HUD_COLORS_CVD.danger];
+                assert(cvdVals.indexOf(cvdPo2Color) !== -1,
+                    'po2Color() in cvd mode must return one of the cvd palette values, got ' + cvdPo2Color);
+
+                // tankColor() same story — force it into the danger tier.
+                api.tanks[0].gasRemaining = 10 * api.tanks[0].volume; // ~10 bar → danger
+                var cvdTankCol = iframe.contentWindow.tankColor();
+                assert(cvdTankCol === api.HUD_COLORS_CVD.danger, 'tankColor() in cvd should hit cvd.danger, got ' + cvdTankCol);
+
+                api.colorMode = 'default';
+                assert(iframe.contentWindow.tankColor() === api.HUD_COLORS_DEFAULT.danger,
+                    'tankColor() must swap back to default palette after flipping mode back');
+            } finally {
+                api.colorMode = savedMode;
+            }
+            return 'PASS — colorMode flip swaps hudColor(), po2Color() and tankColor() palettes';
+        }
+    },
+
+    {
+        id: 'TC-39-INVALID-COLOR-MODE-IGNORED',
+        name: 'Issue #39 — invalid colorMode values leave the current palette unchanged',
+        fn: function() {
+            var savedMode = api.colorMode;
+            try {
+                api.colorMode = 'default';
+                api.colorMode = 'not-a-mode';
+                assert(api.colorMode === 'default', 'invalid mode should be a no-op; got ' + api.colorMode);
+                api.colorMode = '';
+                assert(api.colorMode === 'default', 'empty string should be a no-op; got ' + api.colorMode);
+                api.colorMode = null;
+                assert(api.colorMode === 'default', 'null should be a no-op; got ' + api.colorMode);
+            } finally {
+                api.colorMode = savedMode;
+            }
+            return 'PASS — setter rejects anything other than "default"/"cvd"';
+        }
+    },
+
+    {
+        id: 'TC-39-DANGER-PREFIX-VALUE',
+        name: 'Issue #39 — hudDangerPrefix() returns a non-empty string starting with the ⚠ glyph',
+        fn: function() {
+            var pfx = api.hudDangerPrefix();
+            assert(typeof pfx === 'string' && pfx.length > 0, 'prefix must be a non-empty string');
+            assert(pfx.charCodeAt(0) === 0x26A0, 'prefix must start with the U+26A0 warning sign; got charCode=' + pfx.charCodeAt(0));
+            return 'PASS — hudDangerPrefix() = ' + JSON.stringify(pfx);
+        }
+    },
+
+    {
+        id: 'TC-39-LOCALSTORAGE-PERSISTS-CHOICE',
+        name: 'Issue #39 — colorMode toggle is written to localStorage under HUD_COLORS_STORAGE_KEY',
+        fn: function() {
+            var win = iframe.contentWindow;
+            var key = api.HUD_COLORS_STORAGE_KEY;
+            assert(typeof key === 'string' && key.length > 0, 'HUD_COLORS_STORAGE_KEY must be a non-empty string');
+            var savedMode = api.colorMode;
+            var savedStorage = win.localStorage.getItem(key);
+            try {
+                api.colorMode = 'default';
+                assert(win.localStorage.getItem(key) === 'default',
+                    'localStorage should hold "default" after setting default; got ' + win.localStorage.getItem(key));
+                api.colorMode = 'cvd';
+                assert(win.localStorage.getItem(key) === 'cvd',
+                    'localStorage should hold "cvd" after setting cvd; got ' + win.localStorage.getItem(key));
+                // toggle() is the button-tap path — must also persist.
+                api.toggleColorMode();
+                assert(api.colorMode === 'default', 'toggle from cvd should land on default');
+                assert(win.localStorage.getItem(key) === 'default', 'localStorage should hold "default" after toggle back');
+            } finally {
+                api.colorMode = savedMode;
+                if (savedStorage === null) win.localStorage.removeItem(key);
+                else win.localStorage.setItem(key, savedStorage);
+            }
+            return 'PASS — localStorage["' + key + '"] tracks colorMode set + toggle paths';
+        }
+    },
+
+    {
+        id: 'TC-39-COLORS-TOGGLE-BUTTON-PRESENT',
+        name: 'Issue #39 — gas-setup exposes a "colors" toggle button whose click flips colorMode',
+        fn: function() {
+            // The gas-setup HTML overlay is built lazily on the first setup
+            // frame — force a build by flipping into surface state and letting
+            // buildHtmlGasSetup() run.
+            var savedState = api.gameState;
+            var savedMode = api.colorMode;
+            try {
+                api.gameState = 'setup';
+                iframe.contentWindow.buildHtmlGasSetup();
+                iframe.contentWindow.updateGasSetup();
+                var btn = iframe.contentWindow.document.getElementById('gs-colors-toggle');
+                assert(btn !== null, 'gas-setup must render a #gs-colors-toggle button');
+                assert(typeof btn.textContent === 'string' && btn.textContent.length > 0,
+                    'button label must be non-empty; got "' + btn.textContent + '"');
+                api.colorMode = 'default';
+                var beforeMode = api.colorMode;
+                btn.click();
+                assert(api.colorMode !== beforeMode,
+                    'clicking the colours button should flip the mode; before=' + beforeMode + ' after=' + api.colorMode);
+                btn.click();
+                assert(api.colorMode === beforeMode,
+                    'a second click should flip back; expected ' + beforeMode + ' got ' + api.colorMode);
+            } finally {
+                api.colorMode = savedMode;
+                api.gameState = savedState;
+            }
+            return 'PASS — #gs-colors-toggle exists, is labelled, and each tap flips colorMode';
+        }
+    },
+
+    {
+        id: 'TC-39-DANGER-PO2-PREFIX-RENDERS',
+        name: 'Issue #39 — the dive-computer HUD prepends ⚠ to danger-tier PO2 readings',
+        fn: function() {
+            // Push the diver deep on high-O2 gas so PO2 exceeds PO2_HIGH (1.6)
+            // and drawDiveComputer() renders the danger-prefixed value. Capture
+            // the fillText calls to look for a "⚠" beside the numeric PO2 string.
+            setupDive([[0.32, 0, 200]]); // EAN32
+            api.setDepth(60); // pAmb ≈ 7 → PO2 ≈ 2.24 → danger
+            api.cssWidth = 1280; api.cssHeight = 800;
+            iframe.contentWindow.frameCalc = { tts: 0, ceiling: 0, schedule: null };
+
+            var win = iframe.contentWindow;
+            var ctxRef = api.ctx;
+            var origFill = ctxRef.fillText;
+            var seen = [];
+            ctxRef.fillText = function(s) { seen.push(String(s)); return origFill.apply(this, arguments); };
+            try {
+                win.drawDiveComputer();
+            } finally {
+                ctxRef.fillText = origFill;
+            }
+            var joined = seen.join('|');
+            assert(joined.indexOf('⚠') !== -1,
+                'expected ⚠ glyph in a fillText call during danger-PO2 render; captured=' + joined.slice(0, 400));
+            return 'PASS — ⚠ prefix rendered on danger PO2';
+        }
+    },
+
+    {
+        id: 'TC-39-N2-BAR-DRAWS-THRESHOLD-TICKS',
+        name: 'Issue #39 — the vertical N₂ loading bar renders two horizontal threshold ticks',
+        fn: function() {
+            // Instrument stroke() and record the last (moveTo, lineTo) pair
+            // before each stroke — the N2 tick marks emit horizontal segments
+            // (matching Y) via explicit moveTo/lineTo calls before a stroke().
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            api.cssWidth = 1280; api.cssHeight = 800;
+            iframe.contentWindow.frameCalc = { tts: 0, ceiling: 0, ndl: 999, schedule: null };
+            var win = iframe.contentWindow;
+            var ctxRef = api.ctx;
+            var origMove = ctxRef.moveTo;
+            var origLine = ctxRef.lineTo;
+            var origBegin = ctxRef.beginPath;
+            // Per-path collections: reset on beginPath, so we can find any
+            // path whose moveTo/lineTo sequence produces N horizontal segments.
+            var pathMoves = [], pathLines = [];
+            var horizontalSegmentsMax = 0;
+            function scorePath() {
+                var h = 0;
+                for (var i = 0; i < Math.min(pathMoves.length, pathLines.length); i++) {
+                    if (Math.abs(pathMoves[i][1] - pathLines[i][1]) < 0.5 && Math.abs(pathMoves[i][0] - pathLines[i][0]) > 1) h++;
+                }
+                if (h > horizontalSegmentsMax) horizontalSegmentsMax = h;
+            }
+            ctxRef.beginPath = function() { scorePath(); pathMoves = []; pathLines = []; return origBegin.apply(this, arguments); };
+            ctxRef.moveTo = function(x, y) { pathMoves.push([x, y]); return origMove.apply(this, arguments); };
+            ctxRef.lineTo = function(x, y) { pathLines.push([x, y]); return origLine.apply(this, arguments); };
+            try {
+                win.drawDiveComputer();
+                scorePath(); // score the final path
+            } finally {
+                ctxRef.moveTo = origMove;
+                ctxRef.lineTo = origLine;
+                ctxRef.beginPath = origBegin;
+            }
+            assert(horizontalSegmentsMax >= 2,
+                'some N₂ / tick path must emit at least 2 horizontal segments; max seen=' + horizontalSegmentsMax);
+            return 'PASS — a path in drawDiveComputer drew ' + horizontalSegmentsMax + ' horizontal segments (>=2)';
+        }
+    },
+
+    {
+        id: 'TC-39-TANK-BAR-DRAWS-THRESHOLD-TICKS',
+        name: 'Issue #39 — the horizontal gas/tank pressure bar renders two vertical threshold ticks at 50/100 bar',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(15);
+            api.cssWidth = 1280; api.cssHeight = 800;
+            iframe.contentWindow.frameCalc = { tts: 0, ceiling: 0, ndl: 999, schedule: null };
+            var win = iframe.contentWindow;
+            var ctxRef = api.ctx;
+            var origMove = ctxRef.moveTo;
+            var origLine = ctxRef.lineTo;
+            var origBegin = ctxRef.beginPath;
+            var pathMoves = [], pathLines = [];
+            var verticalSegmentsMax = 0;
+            function scorePath() {
+                var v = 0;
+                for (var i = 0; i < Math.min(pathMoves.length, pathLines.length); i++) {
+                    if (Math.abs(pathMoves[i][0] - pathLines[i][0]) < 0.5 && Math.abs(pathMoves[i][1] - pathLines[i][1]) > 1) v++;
+                }
+                if (v > verticalSegmentsMax) verticalSegmentsMax = v;
+            }
+            ctxRef.beginPath = function() { scorePath(); pathMoves = []; pathLines = []; return origBegin.apply(this, arguments); };
+            ctxRef.moveTo = function(x, y) { pathMoves.push([x, y]); return origMove.apply(this, arguments); };
+            ctxRef.lineTo = function(x, y) { pathLines.push([x, y]); return origLine.apply(this, arguments); };
+            try {
+                win.drawDiveComputer();
+                scorePath();
+            } finally {
+                ctxRef.moveTo = origMove;
+                ctxRef.lineTo = origLine;
+                ctxRef.beginPath = origBegin;
+            }
+            assert(verticalSegmentsMax >= 2,
+                'some tank-bar path must emit at least 2 vertical segments; max seen=' + verticalSegmentsMax);
+            return 'PASS — a path in drawDiveComputer drew ' + verticalSegmentsMax + ' vertical segments (>=2)';
+        }
+    },
+
+    {
+        id: 'TC-39-HUDCOLOR-UNKNOWN-TIER-FALLBACK',
+        name: 'Issue #39 — hudColor(unknownTier) safely falls back to the ok tone rather than returning undefined',
+        fn: function() {
+            var savedMode = api.colorMode;
+            try {
+                api.colorMode = 'default';
+                assert(api.hudColor('this-tier-does-not-exist') === api.HUD_COLORS_DEFAULT.ok,
+                    'unknown tier should fall back to ok tone');
+                api.colorMode = 'cvd';
+                assert(api.hudColor('this-tier-does-not-exist') === api.HUD_COLORS_CVD.ok,
+                    'unknown tier should fall back to ok tone in cvd mode too');
+            } finally {
+                api.colorMode = savedMode;
+            }
+            return 'PASS — unknown tier falls back to hudColor("ok") in both palettes';
+        }
     }
 ];
 

@@ -618,12 +618,20 @@ function recommendBestGas() {
     return bestIdx;
 }
 
+// Issue #39: colour resolves through hudColor() so the alt CVD-safe palette
+// swaps in without touching every call site.
 function po2Color(po2) {
-    if (po2 < PO2_HYPOXIA) return '#ff3333';
-    if (po2 <= PO2_SAFE)    return '#33ff33';
-    if (po2 <= PO2_ELEVATED) return '#ffff33';
-    if (po2 <= PO2_HIGH)    return '#ff9933';
-    return '#ff3333';
+    if (po2 < PO2_HYPOXIA) return hudColor('danger');
+    if (po2 <= PO2_SAFE)    return hudColor('ok');
+    if (po2 <= PO2_ELEVATED) return hudColor('caution');
+    if (po2 <= PO2_HIGH)    return hudColor('warn');
+    return hudColor('danger');
+}
+
+// Issue #39: danger tier if hypoxic OR over PO2_HIGH — used by callers that
+// need to know whether to prepend the ⚠ prefix / blink the value.
+function po2IsDanger(po2) {
+    return po2 < PO2_HYPOXIA || po2 > PO2_HIGH;
 }
 
 function tankBar() {
@@ -633,9 +641,9 @@ function tankBar() {
 
 function tankColor() {
     var bar = tankBar();
-    if (bar > 100) return '#33ff33';
-    if (bar >= 50) return '#ffff33';
-    return '#ff3333';
+    if (bar > 100) return hudColor('ok');
+    if (bar >= 50) return hudColor('caution');
+    return hudColor('danger');
 }
 // SECTION: Post-dive grading (issue #44)
 // SEARCH TERMS: gradeDive, debriefing, score, stars, ascent discipline

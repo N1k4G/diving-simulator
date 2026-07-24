@@ -229,6 +229,75 @@ const COLOR_SURFACE_WATER = [135, 206, 235];
 const COLOR_DEEP_WATER    = [0, 17, 51];
 const DEPTH_GRADIENT_MAX  = 200;
 
+// Issue #39: HUD status colours — colour-blind accessibility.
+// -----------------------------------------------------------------------
+// Every semantic status readout on the dive-computer HUD (PO2, NDL, GTR,
+// tank pressure, N2 loading, GF99/SurfGF/CNS, ceiling, ascent chevrons,
+// tissue bars, safety-stop text, CCR PO2/SCR/O2/dil pressure) resolves
+// its colour through hudColor(tier) instead of a hardcoded '#ff3333' /
+// '#46f08f' / etc. literal. Two palettes ship:
+//
+//   HUD_COLORS_DEFAULT  — traffic-light (green / yellow / orange / red),
+//                         matches the visual identity divers coming from
+//                         real dive computers expect.
+//   HUD_COLORS_CVD      — colour-vision-deficient safe palette. Uses a
+//                         blue → yellow → orange → magenta-red axis so
+//                         deuteranopes / protanopes / tritanopes still
+//                         see a clear tier progression (Wong 2011 style,
+//                         adjusted for HUD contrast on a dark canvas).
+//
+// Danger-tier VALUES additionally get a '⚠ ' prefix via hudDangerPrefix()
+// (redundant coding — the state remains identifiable in grayscale even
+// when colour vision fails entirely). Blink was already used for the
+// warning banner and >18 m/min ascent chevrons; those keep working
+// unchanged and continue to serve as the second non-colour cue.
+//
+// Persistence: the chosen mode is stored under HUD_COLORS_STORAGE_KEY.
+// gameAPI.colorMode exposes get/set for tests.
+const HUD_COLORS_DEFAULT = {
+    ok:      '#46f08f',
+    caution: '#ffd24d',
+    warn:    '#ff9933',
+    danger:  '#ff3333'
+};
+const HUD_COLORS_CVD = {
+    ok:      '#3a86ff',   // saturated blue — clearly distinct from yellow/orange for all CVD types
+    caution: '#ffcc00',   // bright yellow — luminance separated from ok and warn even in grayscale
+    warn:    '#fb8500',   // orange — sits between yellow and magenta-red for a smooth ramp
+    danger:  '#e5383b'    // magenta-red — retains "red" identity but shifted off pure red so
+                          // deuteranopes/protanopes don't confuse it with the orange warn tier
+};
+const HUD_COLORS_STORAGE_KEY = 'hudColorMode';
+const HUD_DANGER_PREFIX = '⚠ ';   // ⚠ + space — redundant coding for grayscale readability
+
+let hudColorMode = 'default';   // 'default' | 'cvd'
+try {
+    const _stored = localStorage.getItem(HUD_COLORS_STORAGE_KEY);
+    if (_stored === 'cvd' || _stored === 'default') hudColorMode = _stored;
+} catch { /* private mode / storage disabled — fall back to in-memory default */ }
+
+function hudColor(tier) {
+    const pal = hudColorMode === 'cvd' ? HUD_COLORS_CVD : HUD_COLORS_DEFAULT;
+    return pal[tier] || pal.ok;
+}
+
+// Prepend to danger-tier text values so the state is unambiguously
+// identifiable even in grayscale or by fully colour-blind users.
+function hudDangerPrefix() {
+    return HUD_DANGER_PREFIX;
+}
+
+function setHudColorMode(mode) {
+    if (mode !== 'default' && mode !== 'cvd') return false;
+    hudColorMode = mode;
+    try { localStorage.setItem(HUD_COLORS_STORAGE_KEY, mode); } catch { /* swallow */ }
+    return true;
+}
+
+function toggleHudColorMode() {
+    return setHudColorMode(hudColorMode === 'default' ? 'cvd' : 'default');
+}
+
 // Reef palette — used by reef coral/sponge/cloud drawers and warm rock tone.
 const REEF_PAL = {
   rockShade:'#3a2415', rockMid:'#5a3623', rockWarm:'#7a4a32', rockLite:'#a87355',
