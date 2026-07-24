@@ -8569,19 +8569,26 @@ tests = [
                 'label interval should be 10 m, got ' + api.DEPTH_SCALE_LABEL_INTERVAL_M);
             assert(api.DEPTH_SCALE_LABEL_INTERVAL_M % api.DEPTH_SCALE_TICK_INTERVAL_M === 0,
                 'label interval must be a whole multiple of tick interval');
-            // Stub the ctx so we can count stroke/fillText calls without a real canvas.
+            // ctx is declared `const` in state.js (const ctx = canvas.getContext('2d')),
+            // so unlike `var`-declared globals it can't be reassigned at all — a
+            // setter would throw, and swapping iframe.contentWindow.ctx just
+            // creates a disconnected property that drawDepthScale() never reads
+            // (same class of gotcha as issue #38's fastForwardActive). Instead,
+            // monkey-patch the two methods being counted directly on the real
+            // ctx object (its own-property assignment shadows the prototype
+            // method, which canvas contexts support) and restore them after.
             var strokeCount = 0, labelCount = 0;
-            var origCtx = api.ctx;
-            var stubCtx = {
-                save: function() {}, restore: function() {},
-                beginPath: function() {}, moveTo: function() {}, lineTo: function() {},
-                stroke: function() { strokeCount++; },
-                fillText: function() { labelCount++; },
-                strokeStyle: '', fillStyle: '', lineWidth: 1,
-                font: '', textBaseline: '', textAlign: ''
-            };
-            // Swap ctx via the writable global (state.js's `var ctx`).
-            iframe.contentWindow.ctx = stubCtx;
+            var realCtx = api.ctx;
+            var origStroke = realCtx.stroke;
+            var origFillText = realCtx.fillText;
+            realCtx.stroke = function() { strokeCount++; };
+            realCtx.fillText = function() { labelCount++; };
+            // Pin a realistic viewport — the hidden test iframe otherwise
+            // reports cssWidth/cssHeight=0, which collapses drawDepthScale()'s
+            // visible-depth-range math to a single degenerate iteration
+            // instead of exercising multiple ticks/labels.
+            api.cssWidth = 1280;
+            api.cssHeight = 800;
             try {
                 api.gameState = 'surface';
                 api.drawDepthScale();
@@ -8600,7 +8607,8 @@ tests = [
                 assert(labelCount <= strokeCount,
                     'labels should never exceed ticks (' + labelCount + ' vs ' + strokeCount + ')');
             } finally {
-                iframe.contentWindow.ctx = origCtx;
+                realCtx.stroke = origStroke;
+                realCtx.fillText = origFillText;
             }
             return 'PASS — no-op outside diving; while diving emits ticks + at least one label';
         }
