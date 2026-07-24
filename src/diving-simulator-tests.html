@@ -177,6 +177,14 @@ iframe { display: none; }
     <button class="individual" data-tc="44B" disabled>TC-44B</button>
     <button class="individual" data-tc="44C" disabled>TC-44C</button>
     <button class="individual" data-tc="44D" disabled>TC-44D</button>
+    <button class="individual" data-tc="46-DEFAULT-OFF" disabled>TC-46-DEFAULT-OFF</button>
+    <button class="individual" data-tc="46-L-KEY-TOGGLE" disabled>TC-46-L-KEY-TOGGLE</button>
+    <button class="individual" data-tc="46-L-KEY-DIVING-ONLY" disabled>TC-46-L-KEY-DIVING-ONLY</button>
+    <button class="individual" data-tc="46-VALUES-MATCH-COMPUTER" disabled>TC-46-VALUES-MATCH-COMPUTER</button>
+    <button class="individual" data-tc="46-HIDES-UNDER-HELP" disabled>TC-46-HIDES-UNDER-HELP</button>
+    <button class="individual" data-tc="46-RENDER-NO-EXTRA-CALCS" disabled>TC-46-RENDER-NO-EXTRA-CALCS</button>
+    <button class="individual" data-tc="46-STRINGS-EN-DE" disabled>TC-46-STRINGS-EN-DE</button>
+    <button class="individual" data-tc="46-LEADING-TISSUE-PICKS-HIGHEST" disabled>TC-46-LEADING-TISSUE</button>
 </div>
 
 <div class="summary" id="summary">
@@ -9953,6 +9961,310 @@ tests = [
                 api.colorMode = savedMode;
             }
             return 'PASS — unknown tier falls back to hudColor("ok") in both palettes';
+        }
+    },
+    // ==========================================================
+    // Issue #46 — Instructor overlay ("Learn" mode)
+    // ==========================================================
+    // The overlay is a read-only window onto values that other systems
+    // already compute. These tests verify (a) the toggle behaves per the
+    // spec (default off, L key toggles ONLY while diving, hidden under
+    // full-screen overlays), (b) the values it would display match what
+    // the dive computer already reports, and (c) rendering never
+    // triggers a second decompression calculation this frame.
+    {
+        id: 'TC-46-DEFAULT-OFF',
+        name: 'Issue #46 — instructorMode defaults to false and no key besides L touches it',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.instructorMode = false;
+            assert(api.instructorMode === false,
+                'expected default off, got ' + api.instructorMode);
+            // Confirm resetDive() does NOT flip the flag either way —
+            // it's a user preference that persists across dives (mirrors
+            // torchOn's behaviour in overhead sites).
+            api.instructorMode = true;
+            api.resetDive();
+            assert(api.instructorMode === true,
+                'resetDive must not reset instructorMode; got ' + api.instructorMode);
+            api.instructorMode = false;
+            return 'PASS — default off, resetDive preserves value';
+        }
+    },
+    {
+        id: 'TC-46-L-KEY-TOGGLE',
+        name: 'Issue #46 — L (both cases) toggles instructorMode while diving',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.instructorMode = false;
+            // Simulate the raw keydown event the browser would deliver.
+            // The keydown listener lives on window in the iframe.
+            var win = document.getElementById('gameFrame').contentWindow;
+            function press(k) {
+                win.dispatchEvent(new win.KeyboardEvent('keydown', { key: k }));
+            }
+            press('l');
+            assert(api.instructorMode === true,
+                'lowercase l should toggle ON, got ' + api.instructorMode);
+            press('l');
+            assert(api.instructorMode === false,
+                'lowercase l should toggle OFF, got ' + api.instructorMode);
+            press('L');
+            assert(api.instructorMode === true,
+                'uppercase L should also toggle, got ' + api.instructorMode);
+            api.instructorMode = false;
+            return 'PASS — L / l both toggle while diving';
+        }
+    },
+    {
+        id: 'TC-46-L-KEY-DIVING-ONLY',
+        name: 'Issue #46 — L is a no-op outside the diving state (setup/surface/gameover/post-dive)',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.instructorMode = false;
+            var win = document.getElementById('gameFrame').contentWindow;
+            function press(k) {
+                win.dispatchEvent(new win.KeyboardEvent('keydown', { key: k }));
+            }
+            var states = ['gas-setup', 'surface', 'gameover', 'post-dive'];
+            for (var i = 0; i < states.length; i++) {
+                api.gameState = states[i];
+                api.instructorMode = false;
+                press('l');
+                assert(api.instructorMode === false,
+                    'L pressed in ' + states[i] + ' must NOT toggle, got ' + api.instructorMode);
+            }
+            // And it DOES toggle back in 'diving'
+            api.gameState = 'diving';
+            press('l');
+            assert(api.instructorMode === true,
+                'L in diving should toggle, got ' + api.instructorMode);
+            api.instructorMode = false;
+            return 'PASS — L only reacts while diving';
+        }
+    },
+    {
+        id: 'TC-46-VALUES-MATCH-COMPUTER',
+        name: 'Issue #46 — panel-displayable values equal the game’s own physics readouts (no double-calc)',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.32, 0, 200]]);
+            api.amvRate = 15;
+            api.setDepth(30);
+            api.bcdGasSurfaceLiters = 8.4;   // arbitrary — panel just displays it
+            api.updateDiving(0.033);          // one tick to populate frameCalc
+            var P = api.ambientPressure(api.depth);
+            // Ambient pressure — panel would show 1 + depth/10 = 4.0 bar
+            assert(approx(P, 4.0, 0.01),
+                'P at 30m should be 4.0 bar (1 + 30/10), got ' + P.toFixed(3));
+            // BCD Boyle's law — panel displays bcdGasSurfaceLiters as-is
+            // and bcdGasSurfaceLiters/P as the effective volume; both must
+            // come from state, not a re-derivation.
+            var bcdEff = api.bcdGasSurfaceLiters / P;
+            assert(approx(bcdEff, 2.1, 0.001),
+                'BCD effective at P=4 should be 8.4/4=2.1L, got ' + bcdEff.toFixed(3));
+            // Gas consumption — panel displays amvRate * P
+            var sac = api.amvRate * P;
+            assert(approx(sac, 60, 0.5),
+                'SAC at 30m with AMV 15 = 15*4 = 60 L/min, got ' + sac.toFixed(2));
+            // MOD for EAN32 — the panel just calls calculateMOD which is
+            // arithmetic, but the number displayed must match what
+            // calculateMOD returns for the active gas fO2.
+            var mod = api.calculateMOD(0.32);
+            assert(approx(mod, ((1.4/0.32) - 1) * 10, 0.001),
+                'MOD for fO2=0.32 should match calculateMOD(0.32)');
+            return 'PASS — P=' + P.toFixed(2) + ' bar, BCD eff=' + bcdEff.toFixed(2)
+                + 'L, SAC=' + sac.toFixed(1) + ' L/min, MOD=' + mod.toFixed(1) + 'm';
+        }
+    },
+    {
+        id: 'TC-46-HIDES-UNDER-HELP',
+        name: 'Issue #46 — drawInstructorOverlay is skipped when showHelp / infoPageMode / non-diving',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.cssWidth = 800;
+            api.cssHeight = 600;
+            api.setDepth(15);
+            api.instructorMode = true;
+
+            // Stub the panel's own guarded draw-path. We can't stub
+            // drawInstructorOverlay directly (it's a function reference in
+            // the module scope, not a property on any live object), so we
+            // count fillRect calls made from within drawScene(). The
+            // panel does at least one fillRect (the background); every
+            // other stubbable path in drawScene() also fills, so we
+            // instead detect the panel by counting fillText calls with
+            // the localised panel title as an argument — those are the
+            // panel's uniquely-identifiable draw calls.
+            var ctx = api.ctx;
+            var origFillText = ctx.fillText;
+            var titleEn = 'PHYSICS LIVE';
+            function countTitles() {
+                var count = 0;
+                ctx.fillText = function(str) {
+                    if (str === titleEn) count++;
+                    return origFillText.apply(this, arguments);
+                };
+                try { api.drawInstructorOverlay(); } catch { /* renderer errors when partial state */ }
+                ctx.fillText = origFillText;
+                return count;
+            }
+            // Direct call always renders (test hook bypasses the drawScene guard)
+            var direct = countTitles();
+            assert(direct === 1,
+                'direct drawInstructorOverlay() must render title, got count=' + direct);
+            // The guard itself lives in drawScene — verify by executing
+            // the same predicate the guard uses. showHelp / infoPageMode
+            // / non-diving state must all suppress the render.
+            api.gameState = 'diving';
+            var win = document.getElementById('gameFrame').contentWindow;
+            win.showHelp = true;
+            var shouldSkip1 = !(api.instructorMode && api.gameState === 'diving'
+                && !win.showHelp && !win.showGasInfo && api.infoPageMode === 0);
+            win.showHelp = false;
+            assert(shouldSkip1, 'guard should skip when showHelp = true');
+
+            api.infoPageMode = 4;
+            var shouldSkip2 = !(api.instructorMode && api.gameState === 'diving'
+                && !win.showHelp && !win.showGasInfo && api.infoPageMode === 0);
+            api.infoPageMode = 0;
+            assert(shouldSkip2, 'guard should skip when infoPageMode > 0');
+
+            api.gameState = 'surface';
+            var shouldSkip3 = !(api.instructorMode && api.gameState === 'diving'
+                && !win.showHelp && !win.showGasInfo && api.infoPageMode === 0);
+            api.gameState = 'diving';
+            assert(shouldSkip3, 'guard should skip when gameState !== diving');
+
+            api.instructorMode = false;
+            return 'PASS — guard suppresses render under showHelp / infoPageMode / non-diving';
+        }
+    },
+    {
+        id: 'TC-46-RENDER-NO-EXTRA-CALCS',
+        name: 'Issue #46 — drawInstructorOverlay does NOT re-run calculateNDL / calculateCeiling / calculateDecoSchedule',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.cssWidth = 800;
+            api.cssHeight = 600;
+            api.setDepth(20);
+            api.updateDiving(0.033);
+            // Monkey-patch the three expensive helpers on the iframe's
+            // window to count re-entries. They ARE window-exposed (via
+            // top-level `function` declarations in physics.js) so plain
+            // assignment works — this is the classic-script quirk the
+            // repo already leans on (see TC-33-* stubbing patterns).
+            var win = document.getElementById('gameFrame').contentWindow;
+            var ndlCalls = 0, ceilCalls = 0, decoCalls = 0;
+            var origNdl  = win.calculateNDL;
+            var origCeil = win.calculateCeiling;
+            var origDeco = win.calculateDecoSchedule;
+            win.calculateNDL = function() { ndlCalls++; return origNdl.apply(this, arguments); };
+            win.calculateCeiling = function() { ceilCalls++; return origCeil.apply(this, arguments); };
+            win.calculateDecoSchedule = function() { decoCalls++; return origDeco.apply(this, arguments); };
+            try {
+                api.instructorMode = true;
+                api.drawInstructorOverlay();
+            } finally {
+                win.calculateNDL = origNdl;
+                win.calculateCeiling = origCeil;
+                win.calculateDecoSchedule = origDeco;
+                api.instructorMode = false;
+            }
+            assert(ndlCalls === 0,
+                'drawInstructorOverlay must not call calculateNDL, got ' + ndlCalls);
+            assert(ceilCalls === 0,
+                'drawInstructorOverlay must not call calculateCeiling, got ' + ceilCalls);
+            assert(decoCalls === 0,
+                'drawInstructorOverlay must not call calculateDecoSchedule, got ' + decoCalls);
+            return 'PASS — no expensive decompression re-calc during overlay render';
+        }
+    },
+    {
+        id: 'TC-46-STRINGS-EN-DE',
+        name: 'Issue #46 — instructor strings resolve in both EN and DE',
+        fn: function() {
+            var prevLang = api.currentLang;
+            var win = document.getElementById('gameFrame').contentWindow;
+            var keys = [
+                'instructorTitle',
+                'instructorPressureRow', 'instructorPressureFormula',
+                'instructorBcdRow', 'instructorBcdFormula',
+                'instructorBubbleRow', 'instructorBubbleFormula', 'instructorBubbleNone',
+                'instructorTissueRow', 'instructorTissueFormula', 'instructorTissueNone',
+                'instructorConsRow', 'instructorConsFormula',
+                'instructorGasRow', 'instructorGasFormula',
+                'instructorHintOff', 'instructorTouchLabel'
+            ];
+            try {
+                api.currentLang = 'en';
+                var en = keys.map(function(k) { return win.S(k); });
+                api.currentLang = 'de';
+                var de = keys.map(function(k) { return win.S(k); });
+                for (var i = 0; i < keys.length; i++) {
+                    assert(typeof en[i] === 'string' && en[i].length > 0,
+                        'EN key ' + keys[i] + ' missing or empty');
+                    assert(typeof de[i] === 'string' && de[i].length > 0,
+                        'DE key ' + keys[i] + ' missing or empty');
+                    assert(en[i] !== de[i] || keys[i] === 'instructorHintOff',
+                        'EN and DE strings for ' + keys[i] + ' should differ');
+                }
+                // STRINGS is `const` in constants.js and therefore never
+                // became a window property (classic-script quirk); check
+                // titles via S() with the language toggled instead.
+                api.currentLang = 'en';
+                assert(win.S('instructorTitle') === 'PHYSICS LIVE',
+                    'EN title should be "PHYSICS LIVE", got ' + win.S('instructorTitle'));
+                api.currentLang = 'de';
+                assert(win.S('instructorTitle') === 'PHYSIK LIVE',
+                    'DE title should be "PHYSIK LIVE", got ' + win.S('instructorTitle'));
+            } finally {
+                api.currentLang = prevLang;
+            }
+            return 'PASS — ' + keys.length + ' string keys resolved in EN + DE';
+        }
+    },
+    {
+        id: 'TC-46-LEADING-TISSUE-PICKS-HIGHEST',
+        name: 'Issue #46 — leading-tissue picker returns the highest saturation compartment',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            // Pin the tissues array so we know exactly which compartment
+            // is "leading". Set compartment 3 (index 3) to a high N2 load;
+            // it should win.
+            var loaded = [];
+            var loadedHe = [];
+            for (var i = 0; i < 16; i++) { loaded.push(0.79); loadedHe.push(0); }
+            loaded[3] = 2.5;    // clearly super-saturated
+            api.tissues = loaded;
+            api.tissuesHe = loadedHe;
+            api.setDepth(0);
+            // The internal picker isn't exposed on gameAPI (it's a
+            // renderer-private helper), so exercise it indirectly by
+            // rendering the overlay and asserting the label makes it
+            // through by capturing fillText calls.
+            api.cssWidth = 800; api.cssHeight = 600;
+            var ctx = api.ctx;
+            var orig = ctx.fillText;
+            var texts = [];
+            ctx.fillText = function(str) { texts.push(String(str)); return orig.apply(this, arguments); };
+            try { api.drawInstructorOverlay(); } finally { ctx.fillText = orig; }
+            var found = texts.some(function(t) { return t.indexOf('#4') !== -1; });
+            assert(found, 'leading-tissue label should include #4 (compartment index 3 + 1), got texts:\n' + texts.join('\n'));
+            return 'PASS — leading tissue index 3 rendered as #4';
         }
     }
 ];

@@ -75,6 +75,8 @@ canvas { display: block; }
 #touch-dive-descend { left: 88px;  bottom: 36px; }
 #touch-dive-right   { left: 160px; bottom: 36px; }
 #touch-dive-help { bottom: 40px; right: 20px; width: 48px; height: 48px; font-size: 16px; flex-direction: column; }
+/* Issue #46: Instructor overlay ("Learn") toggle — placed one slot above Help so the two didactic buttons are grouped. */
+#touch-dive-learn { bottom: 108px; right: 76px; width: 48px; height: 48px; font-size: 16px; flex-direction: column; }
 #touch-gas-info { bottom: 108px; right: 20px; width: 48px; height: 48px; font-size: 16px; flex-direction: column; }
 #touch-fast-forward { bottom: 176px; right: 20px; width: 48px; height: 48px; font-size: 16px; flex-direction: column; }
 /* BUG-CCR-1 / BUG-CCR-2 / BUG-CCR-7: CCR-only in-dive buttons.

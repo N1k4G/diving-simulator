@@ -98,6 +98,15 @@ window.addEventListener('keydown', e => {
     if (e.key === 'Escape' && infoPageMode > 0) {
         infoPageMode = 0;
     }
+    // Issue #46: Instructor overlay toggle (L for "Learn"). Only reacts
+    // in the diving state so the same key stays free in gas-setup / surface
+    // / gameover / post-dive — mirrors the `I` info-page and `H` help
+    // gates. The overlay itself hides when showHelp / infoPageMode > 0
+    // regardless of this flag (space conflict), so no extra guard is
+    // needed here for those overlays being open at press time.
+    if ((e.key === 'l' || e.key === 'L') && gameState === 'diving') {
+        instructorMode = !instructorMode;
+    }
 });
 window.addEventListener('keyup', e => {
     // Issue #9: if Shift is released before the letter (e.g. Shift+G), the
@@ -271,6 +280,15 @@ let torchOn = false;
 // current site's zone rectangles with a low-alpha overlay and prints the
 // current zone id as a small HUD line.
 let debugVisualZones = false;
+
+// Issue #46: Instructor overlay ("Learn" mode). Toggled by the `L` key or
+// the touch button while gameState === 'diving'. When true, drawScene()
+// paints a narrow left-edge panel showing live physics values (ambient
+// pressure, BCD Boyle expansion, bubble growth, leading tissue, gas
+// consumption ∝ depth, MOD/END) with mini-formulas. Persists across dives
+// intentionally — a user who wants it on for one dive almost always wants
+// it on for the next. Never affected by resetDive().
+let instructorMode = false;
 
 // Phase B: Current state
 let current = {
