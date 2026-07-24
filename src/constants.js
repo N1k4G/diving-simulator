@@ -110,6 +110,30 @@ const SAFETY_STOP_ACTIVE_MAX_D = 8.3;
 
 const BAROTRAUMA_RATE   = 18;   // m/min ascent threshold for injury
 const BAROTRAUMA_TIME   = 10;   // dive-seconds sustained to trigger game over
+
+// Issue #44: Post-dive debriefing thresholds. FAST_ASCENT_RATE is 9 m/min
+// (the yellow-caution line the ascent bar already uses). Sustained above
+// this for FAST_ASCENT_EVENT_SEC seconds records one fastAscent event.
+// Ceiling violation similarly needs to be sustained (0.3 m tolerance so
+// a one-frame overshoot doesn't count).
+const FAST_ASCENT_RATE            = 9;    // m/min — threshold for a debriefing "fast ascent" event
+const FAST_ASCENT_EVENT_SEC       = 2;    // sustained seconds required to record one event
+const CEILING_VIOLATION_TOL_M     = 0.3;  // m — depth below ceiling before a violation counts
+const CEILING_VIOLATION_EVENT_SEC = 2;    // sustained seconds required
+
+// Grading — see gradeDive() in physics.js
+const GRADE_STAR_1_MIN            = 50;
+const GRADE_STAR_2_MIN            = 75;
+const GRADE_STAR_3_MIN            = 92;
+const GRADE_FAST_ASCENT_PENALTY   = 15;   // points off per fastAscent event
+const GRADE_CEILING_PENALTY       = 30;   // points off per ceilingViolation event
+const GRADE_SAFETY_SKIPPED_SCORE  = 30;   // fixed score when needed stop was skipped
+const GRADE_GAS_RESERVE_FULL_BAR  = 50;   // min remaining bar for full "gas reserve" score
+const GRADE_LOW_NDL_HINT_MIN      = 3;    // min NDL seen below this adds "cut it close" note
+const GRADE_TRIM_HOLD_WINDOW_SEC  = 60;   // rolling-window seconds for "holding" detection
+const GRADE_TRIM_HOLD_DELTA_M     = 1.0;  // rolling window range < this m = holding phase
+const GRADE_TRIM_STDDEV_FULL_M    = 0.5;  // stddev at/below this m => score 100
+const GRADE_TRIM_STDDEV_ZERO_M    = 3.0;  // stddev at/above this m => score 0
 const MAX_DEPTH         = 300;
 const P_H2O             = 0.0627;
 const LN2               = Math.log(2);
@@ -544,6 +568,27 @@ const STRINGS = {
     hintOverhead: 'Overhead: the guideline marks the way back, T = torch',
     hintCurrent: 'Current! Swim against it with A/D',
     hintDismissBtn: 'Don\u2019t show hints again',
+    // Issue #44: Post-dive debriefing labels + hints. {count}/{peak}/{bar}/
+    // {ndl}/{stddev} are simple placeholders replaced by gradeDive() in
+    // physics.js (no full template engine \u2014 String.prototype.replace only).
+    debriefTitle: 'DEBRIEFING',
+    gradeLabels: ['Ascent Discipline', 'Safety Stop', 'Gas Reserve', 'Deco Discipline', 'Trim & Buoyancy'],
+    gradeNotes: {
+      ascentClean:     'Ascent rate stayed within the recommended 9 m/min limit.',
+      ascentBad:       'Fast ascent {count}x (peak {peak} m/min). Above 9 m/min, dissolved nitrogen has less time to off-gas \u2014 slower means fewer bubbles.',
+      safetyDone:      'Safety stop completed \u2014 well done.',
+      safetyNotNeeded: 'Dive was too shallow to need a safety stop.',
+      safetySkipped:   'Safety stop skipped. A 3-min pause at 5 m sharply cuts DCS risk on any dive that reached 12 m.',
+      gasReserveHit:   'Dropped into the reserve third of your gas inside the overhead. Turn earlier next time \u2014 the reserve is your buffer, not a target.',
+      gasThirdsClean:  'Rule-of-thirds respected inside the overhead \u2014 clean gas management.',
+      gasEnd:          'Surfaced with {bar} bar. Aim for 50 bar reserve on the boat \u2014 buddy assists and delayed ascents burn gas fast.',
+      decoClean:       'Stayed well clear of any deco ceiling.',
+      decoNdlClose:    'Cut it very close to the no-deco limit ({ndl} min NDL). Turn shallower earlier to keep a buffer.',
+      decoBad:         'Broke the deco ceiling {count}x. Above the ceiling, dissolved gas comes out of solution too fast and bubbles form in tissue.',
+      trimNoHold:      'No sustained depth-hold phases in this dive to grade trim.',
+      trimReport:      'Depth held to \u00b1{stddev} m stddev during your stops. Aim for \u00b10.5 m \u2014 bobbing wastes gas and stirs silt.'
+    },
+    debriefStarLabel: 'Rating',
     gameOverInfo: null // set below
   },
   de: {
@@ -686,6 +731,25 @@ const STRINGS = {
     hintOverhead: '\u00DCberkopf: die Leine markiert den R\u00FCckweg, T = Lampe',
     hintCurrent: 'Str\u00F6mung! Mit A/D dagegen anschwimmen',
     hintDismissBtn: 'Hinweise nicht mehr anzeigen',
+    // Issue #44: Post-Dive-Debriefing — Labels + Hinweise (mirrors EN keys).
+    debriefTitle: 'AUSWERTUNG',
+    gradeLabels: ['Aufstiegsdisziplin', 'Sicherheitsstopp', 'Gasreserve', 'Dekodisziplin', 'Trimm & Tarierung'],
+    gradeNotes: {
+      ascentClean:     'Aufstiegsrate blieb im empfohlenen Rahmen bis 9 m/min.',
+      ascentBad:       '{count}x zu schnell aufgestiegen (Spitze {peak} m/min). Über 9 m/min hat gelöster Stickstoff weniger Zeit zum Abatmen — langsamer aufsteigen, weniger Blasen.',
+      safetyDone:      'Sicherheitsstopp absolviert — sehr gut.',
+      safetyNotNeeded: 'Tauchgang war zu flach für einen Sicherheitsstopp.',
+      safetySkipped:   'Sicherheitsstopp ausgelassen. 3 Min auf 5 m senken das DCS-Risiko deutlich, sobald der Tauchgang über 12 m ging.',
+      gasReserveHit:   'In die Reserve-Drittel im Überkopf abgesunken. Umkehrpunkt früher setzen — die Reserve ist Puffer, kein Ziel.',
+      gasThirdsClean:  'Drittelregel im Überkopf eingehalten — sauberes Gasmanagement.',
+      gasEnd:          'Mit {bar} bar aufgetaucht. Ziel: mindestens 50 bar Reserve am Boot — Buddy-Hilfe und verzögerte Aufstiege verbrauchen schnell Gas.',
+      decoClean:       'Deckenhöhe sicher eingehalten.',
+      decoNdlClose:    'Sehr knapp an die Nullzeitgrenze ({ndl} min NDL) gegangen. Früher flacher werden, mehr Puffer lassen.',
+      decoBad:         '{count}x die Deko-Decke gerissen. Über der Decke perlt gelöstes Gas zu schnell aus und bildet Blasen im Gewebe.',
+      trimNoHold:      'Keine ausreichenden Halte-Phasen im Tauchgang, um die Tarierung zu bewerten.',
+      trimReport:      'Tiefe auf ±{stddev} m Streuung gehalten. Ziel: ±0,5 m — Auf-und-ab verbraucht Gas und wirbelt Silt auf.'
+    },
+    debriefStarLabel: 'Bewertung',
     gameOverInfo: {
       'OUT OF GAS': {
         cause: 'Alle Flaschen leer \u2014 kein Atemgas mehr vorhanden.',

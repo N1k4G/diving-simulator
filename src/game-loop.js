@@ -545,6 +545,41 @@ function updateDiving(dtReal) {
         barotraumaTime = Math.max(0, barotraumaTime - dtDiveSeconds * 2);
     }
 
+    // Issue #44: Post-dive debriefing — event capture (debounced).
+    // Same accumulator-crosses-threshold pattern as po2ViolationTime /
+    // barotraumaTime above: one event per sustained violation, not one per
+    // frame. _fastAscentAccum is set to -Infinity after firing so a longer
+    // sustained violation doesn't fire again until the diver briefly drops
+    // below FAST_ASCENT_RATE (which resets the accumulator to 0).
+    if (ascentRate > FAST_ASCENT_RATE) {
+        _fastAscentAccum += dtDiveSeconds;
+        if (ascentRate > _fastAscentPeak) _fastAscentPeak = ascentRate;
+        if (_fastAscentAccum >= FAST_ASCENT_EVENT_SEC && _fastAscentPeak > 0) {
+            diveEvents.push({ t: diveTime, kind: 'fastAscent', value: _fastAscentPeak });
+            _fastAscentAccum = -Infinity;
+        }
+    } else {
+        _fastAscentAccum = 0;
+        _fastAscentPeak = 0;
+    }
+    // Ceiling violation — depth shallower than ceiling minus tolerance,
+    // sustained. calculateCeiling() was cached into frameCalc.ceiling
+    // earlier this tick; reuse it.
+    var _dbCeil = frameCalc.ceiling;
+    if (_dbCeil > 0 && depth < _dbCeil - CEILING_VIOLATION_TOL_M) {
+        _ceilingViolationAccum += dtDiveSeconds;
+        if (_ceilingViolationAccum >= CEILING_VIOLATION_EVENT_SEC) {
+            diveEvents.push({ t: diveTime, kind: 'ceilingViolation', value: _dbCeil - depth });
+            _ceilingViolationAccum = -Infinity;
+        }
+    } else {
+        _ceilingViolationAccum = 0;
+    }
+    // Running minimum NDL — only while actually submerged and NDL is finite.
+    if (depth > 0.5 && isFinite(frameCalc.ndl) && frameCalc.ndl < minNdlSeen) {
+        minNdlSeen = frameCalc.ndl;
+    }
+
     // Adaptive safety stop
     // Track NDL dropping below 5 for duration determination
     if (depth > 0.5 && frameCalc.ndl < 5) {
@@ -722,6 +757,14 @@ function updateDiving(dtReal) {
 
     if (depth < 0.3 && diveTime > 0.5 && ceilDepth <= 0.1) {
         if (maxDepth > 2) {
+            // Issue #44: record the safety-stop-skipped debriefing event
+            // exactly once, at the moment of surfacing, if the diver's max
+            // depth crossed the safety-stop trigger but the stop wasn't
+            // completed. Recorded here so the debriefing card and the
+            // profile-chart marker both see the same log.
+            if (safetyStopNeeded && !safetyStopComplete) {
+                diveEvents.push({ t: diveTime, kind: 'safetyStopSkipped', value: 0 });
+            }
             gameState = 'post-dive';
             return;
         }
@@ -973,6 +1016,11 @@ function saveDiveState() {
         ccrHyperoxiaTime: ccrHyperoxiaTime,
         sharkTimer: sharkTimer,
         diveProfile: diveProfile,
+        // Issue #44: persist debriefing state so a reload mid-dive keeps the
+        // event log and running-min NDL. JSON can't round-trip Infinity, so
+        // encode the "no NDL observed yet" sentinel as null.
+        diveEvents: diveEvents.slice(),
+        minNdlSeen: isFinite(minNdlSeen) ? minNdlSeen : null,
         diverX: diverX,
         horizontalVelocity: horizontalVelocity,
         current: { active: current.active, direction: current.direction, strength: current.strength, level: current.level, depthMin: current.depthMin, depthMax: current.depthMax, timer: current.timer, rolledThisDive: current.rolledThisDive },
@@ -1050,6 +1098,10 @@ function restoreDiveState(state) {
     ccrHyperoxiaTime = state.ccrHyperoxiaTime;
     sharkTimer = state.sharkTimer;
     diveProfile = state.diveProfile || [];
+    // Issue #44: restore debriefing state; missing fields (older save) fall
+    // back to the resetDive() defaults so an older payload doesn't crash.
+    diveEvents = Array.isArray(state.diveEvents) ? state.diveEvents : [];
+    minNdlSeen = (state.minNdlSeen == null) ? Infinity : state.minNdlSeen;
     diverX = state.diverX || 0;
     horizontalVelocity = state.horizontalVelocity || 0;
     // Phase C
@@ -1238,10 +1290,15 @@ window.gameAPI = {
     get barotraumaTime() { return barotraumaTime; },
     get hypoxiaTime() { return hypoxiaTime; },
     get safetyStopNeeded() { return safetyStopNeeded; },
+    // Issue #44: setter added so tests can pin the safety-stop flags without
+    // having to run an actual 25-min dive. The property is `let` in state.js
+    // and never became a window property, so tests can't set it directly.
+    set safetyStopNeeded(v) { safetyStopNeeded = !!v; },
     get safetyStopRemaining() { return safetyStopRemaining; },
     get safetyStopCountdownStarted() { return safetyStopCountdownStarted; },
     get safetyStopPaused() { return safetyStopPaused; },
     get safetyStopComplete() { return safetyStopComplete; },
+    set safetyStopComplete(v) { safetyStopComplete = !!v; },
     get ndlDroppedBelow5() { return ndlDroppedBelow5; },
     calculateSafetyStopDuration: calculateSafetyStopDuration,
     get showHelp() { return showHelp; },
@@ -1291,6 +1348,14 @@ window.gameAPI = {
     set diveProfile(v) { diveProfile = v; },
     get _profileSampleTimer() { return _profileSampleTimer; },
     set _profileSampleTimer(v) { _profileSampleTimer = v; },
+    // Issue #44: debriefing accessors — tests inspect diveEvents / minNdlSeen
+    // and drive gradeDive() directly. minNdlSeen accepts null as the "not
+    // observed" sentinel to mirror the save/restore encoding.
+    get diveEvents() { return diveEvents; },
+    set diveEvents(v) { diveEvents = Array.isArray(v) ? v : []; },
+    get minNdlSeen() { return minNdlSeen; },
+    set minNdlSeen(v) { minNdlSeen = (v == null) ? Infinity : v; },
+    gradeDive: gradeDive,
     get TIME_ACCELERATION() { return TIME_ACCELERATION; },
     get FAST_FORWARD_MULTIPLIER() { return FAST_FORWARD_MULTIPLIER; },
     get verticalVelocity() { return verticalVelocity; },

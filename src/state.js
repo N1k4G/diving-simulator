@@ -163,6 +163,19 @@ let safetyStopCountdownStarted = false;
 let safetyStopPaused = false;
 let ndlDroppedBelow5 = false;
 
+// Issue #44: Post-dive debriefing — event log + running minimum NDL.
+// diveEvents entries are {t, kind, value}; kinds are 'fastAscent',
+// 'ceilingViolation', 'safetyStopSkipped'. Debounced via _fastAscentAccum /
+// _ceilingViolationAccum so a sustained violation records exactly one entry
+// (accumulator is set to -Infinity after firing and cleared once the
+// condition drops back below threshold — same debounce pattern used by
+// po2ViolationTime / barotraumaTime).
+let diveEvents = [];
+let minNdlSeen = Infinity;
+let _fastAscentAccum = 0;
+let _fastAscentPeak = 0;
+let _ceilingViolationAccum = 0;
+
 // Bubbles
 let bubbles = [];
 var breathPhase = 'inhale';
@@ -904,6 +917,12 @@ function resetDive() {
     cnsPercent = 0;
     diveProfile = [];
     _profileSampleTimer = 0;
+    // Issue #44: reset debriefing event log + accumulators
+    diveEvents = [];
+    minNdlSeen = Infinity;
+    _fastAscentAccum = 0;
+    _fastAscentPeak = 0;
+    _ceilingViolationAccum = 0;
     for (var i = 0; i < tanks.length; i++) {
         tanks[i].gasRemaining = tanks[i].totalGas;
     }
