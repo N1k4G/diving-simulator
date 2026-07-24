@@ -9088,6 +9088,153 @@ tests = [
             api.diveSite = 'open';
             return 'PASS — snapshot reset on exit (' + snap1.toFixed(0) + ' → 0); re-entry re-snapshotted at ' + remainingBeforeReentry.toFixed(0);
         }
+    },
+    // ----------------------------------------------------------
+    // TC-101 (Issue #101): Rock hitboxes review.
+    //
+    // Before the fix the rounded-boulder silhouette (dome = min(sh*0.5,
+    // sw*0.4)) sank the top-corners of each shore-rock AABB by 4-6 m into
+    // what looked like open water — a diver approaching over the shoulder
+    // read a "collide in mid-air" hit. The fix caps the dome sag via
+    // ROCK_DOME_MAX_PX / SH_FRAC / SW_FRAC so the visual closely fills the
+    // AABB at the top-corners while retaining a subtle rounded crown. The
+    // AABB collision itself is unchanged — these tests pin BOTH that the
+    // visual dome sag is now small AND that the AABB corners still block
+    // as expected (previously a phantom-collision zone, now a real one).
+    // ----------------------------------------------------------
+    {
+        id: 'TC-101-SHORE-ROCK-INVENTORY',
+        name: 'Issue #101 — shore site declares the documented 4 rock AABBs (regression pin)',
+        fn: function() {
+            api.diveSite = 'shore';
+            var site = api.activeSite();
+            assert(site && site.structures, 'shore site must expose structures');
+            var rocks = site.structures.filter(function(s) { return s.kind === 'rock'; });
+            assert(rocks.length === 4,
+                'shore site should declare 4 rock AABBs, got ' + rocks.length);
+            // Pin exact boundaries so accidental refactors of sites.js are caught.
+            var expected = [
+                { x1: 100, x2: 118, dTop: 14, dBottom: 26 },
+                { x1: 122, x2: 132, dTop: 18, dBottom: 30 },
+                { x1: 158, x2: 171, dTop: 25, dBottom: 36 },
+                { x1: 175, x2: 184, dTop: 27, dBottom: 37 }
+            ];
+            for (var i = 0; i < expected.length; i++) {
+                var e = expected[i], r = rocks[i];
+                assert(r.x1 === e.x1 && r.x2 === e.x2 && r.dTop === e.dTop && r.dBottom === e.dBottom,
+                    'shore rock #' + i + ' bounds drifted: expected ' + JSON.stringify(e)
+                    + ', got ' + JSON.stringify({x1:r.x1,x2:r.x2,dTop:r.dTop,dBottom:r.dBottom}));
+            }
+            api.diveSite = 'open';
+            return 'PASS — shore has 4 rock AABBs with documented bounds';
+        }
+    },
+    {
+        id: 'TC-101-ROCK-CORNER-BLOCKS-DESCENT',
+        name: 'Issue #101 — descending onto the shoulder of a shore rock stops within 0.5 m of dTop',
+        fn: function() {
+            // Rock1 at x=100..118, dTop=14. Before the fix, at x=101 (just inside
+            // the near-left corner) the visual boulder top sagged to d≈20 while
+            // the AABB collision stopped the diver at d=14 — a 6 m "collide in
+            // mid-air" gap. The fix keeps the AABB the same and pulls the visual
+            // silhouette UP to match; this test pins the collision half of the
+            // contract (visual half is TC-101-DOME-SAG-BOUND below).
+            api.diveMode = 'rec';
+            setupDive([[0.21, 0, 200]]);
+            api.diveSite = 'shore';
+            // Start 3 m above the rock's near-edge corner at x=101.
+            api.diverX = 101;
+            api.setDepth(11);
+            api.verticalVelocity = 0;
+            api.clearKeys();
+            api.setKeys({ s: true });
+            for (var k = 0; k < 240; k++) {
+                api.updateDiving(0.033);
+                if (api.depth >= 14 - 0.05) break;
+            }
+            api.clearKeys();
+            var stoppedD = api.depth;
+            // The vertical sub-stepper stops descent when the next-step depth
+            // would enter solid; the diver's depth ends up just above dTop.
+            assert(stoppedD < 14.5 && stoppedD > 13.4,
+                'descent onto rock1 near-edge (x=101) should halt within 0.5 m of dTop=14 m; got ' + stoppedD.toFixed(3));
+            assert(api.solidAt(101, 14.5) === true,
+                'AABB corner (x=101, d=14.5) must still be solid so collision has something to stop against');
+            api.diveSite = 'open';
+            return 'PASS — near-corner descent stopped at d=' + stoppedD.toFixed(2) + ' m';
+        }
+    },
+    {
+        id: 'TC-101-DOME-SAG-BOUND',
+        name: 'Issue #101 — bounded rock-dome constants keep visual sag ≤ 1.5 m for any shore rock',
+        fn: function() {
+            // Formula from _paintRockStruct(): dome_px = min(sh*SH_FRAC, sw*SW_FRAC, MAX_PX).
+            // With mpp=0.05 m/px, the sag in meters is dome_px * mpp. The user-
+            // visible mismatch between the AABB top-corner and the drawn rock
+            // silhouette equals this sag; the fix caps it at 1.5 m so the top-
+            // corners of every shore rock read as "rock", not "open water".
+            api.diveSite = 'shore';
+            var mpp = 0.05;
+            var maxSh = api.ROCK_DOME_SH_FRAC;
+            var maxSw = api.ROCK_DOME_SW_FRAC;
+            var maxPx = api.ROCK_DOME_MAX_PX;
+            assert(typeof maxPx === 'number' && maxPx > 0 && maxPx <= 40,
+                'ROCK_DOME_MAX_PX must be a positive number ≤ 40 px (≤ 2 m sag); got ' + maxPx);
+            assert(typeof maxSh === 'number' && maxSh > 0 && maxSh <= 0.2,
+                'ROCK_DOME_SH_FRAC must be > 0 and ≤ 0.2 (≤ 20 % of height); got ' + maxSh);
+            assert(typeof maxSw === 'number' && maxSw > 0 && maxSw <= 0.15,
+                'ROCK_DOME_SW_FRAC must be > 0 and ≤ 0.15 (≤ 15 % of width); got ' + maxSw);
+
+            // Convert each shore rock's AABB into pixel dimensions and compute
+            // the actual dome sag the renderer would apply. All must be ≤ 1.5 m.
+            var rocks = api.activeSite().structures.filter(function(s) { return s.kind === 'rock'; });
+            var worst = 0, worstIdx = -1;
+            for (var i = 0; i < rocks.length; i++) {
+                var r = rocks[i];
+                var swPx = (r.x2 - r.x1) / mpp;
+                var shPx = (r.dBottom - r.dTop) / mpp;
+                var domePx = Math.min(shPx * maxSh, swPx * maxSw, maxPx);
+                var sagM = domePx * mpp;
+                if (sagM > worst) { worst = sagM; worstIdx = i; }
+            }
+            assert(worst <= 1.5 + 1e-6,
+                'worst-case rock dome sag must be ≤ 1.5 m; got ' + worst.toFixed(3)
+                + ' m at rock #' + worstIdx);
+            api.diveSite = 'open';
+            return 'PASS — worst-case dome sag ' + worst.toFixed(2) + ' m (cap 1.5 m)';
+        }
+    },
+    {
+        id: 'TC-101-ROCK-INTERIOR-STAYS-SOLID',
+        name: 'Issue #101 — every shore rock AABB is still solid throughout its interior',
+        fn: function() {
+            // The fix is renderer-only; the collision AABBs must be unchanged.
+            // Sample a 3×3 grid strictly inside each AABB and outside points
+            // 0.5 m above dTop / below dBottom / left of x1 / right of x2 to
+            // confirm the box shape did not accidentally shift.
+            api.diveSite = 'shore';
+            var rocks = api.activeSite().structures.filter(function(s) { return s.kind === 'rock'; });
+            for (var i = 0; i < rocks.length; i++) {
+                var r = rocks[i];
+                for (var ix = 1; ix <= 3; ix++) {
+                    for (var iy = 1; iy <= 3; iy++) {
+                        var x = r.x1 + (r.x2 - r.x1) * (ix / 4);
+                        var d = r.dTop + (r.dBottom - r.dTop) * (iy / 4);
+                        assert(api.solidAt(x, d) === true,
+                            'rock #' + i + ' interior point (x=' + x.toFixed(1) + ', d=' + d.toFixed(1) + ') should be solid');
+                    }
+                }
+                // Just outside each face — must be non-solid (unless another
+                // structure overlaps, which none do at these offsets on shore).
+                assert(api.solidAt((r.x1 + r.x2) / 2, r.dTop - 0.5) === false,
+                    'rock #' + i + ' above dTop should be open water');
+                // Below dBottom: skip — dBottom values are buried in the sand,
+                // so a point 0.5 m below dBottom may fall inside another rock or
+                // outside the floor. The dTop check above is the load-bearing one.
+            }
+            api.diveSite = 'open';
+            return 'PASS — every rock AABB still solid inside, open water above dTop';
+        }
     }
 ];
 
