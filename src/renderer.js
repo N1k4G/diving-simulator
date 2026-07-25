@@ -937,7 +937,7 @@ function drawScene() {
     // Issue #58: shared near-surface optics — water underside highlight,
     // godrays and boat shadow. Runs at the same slot as drawSiteAtmosphere
     // (behind terrain) so it's part of the water/background layer.
-    drawNearSurfaceAtmosphere();
+    drawNearSurfaceAtmosphere(_localAtmo);
 
     // Phase C: Site terrain (floor + ceiling) drawn before entities
     drawTerrain();
@@ -945,7 +945,7 @@ function drawScene() {
     // Issue #58: caustics belong ON the terrain, so they run AFTER
     // drawTerrain()/drawSiteDetailPass() and BEFORE set-dressing so
     // decoration props sit on top of the light pattern.
-    drawSurfaceCaustics();
+    drawSurfaceCaustics(_localAtmo);
     // Issue #55: deterministic set dressing (small cosmetic filler between
     // hand-placed features). Runs AFTER terrain/material passes so props sit
     // on top of the surface, and BEFORE structures/features so hand-placed
@@ -1201,12 +1201,16 @@ function drawScene() {
     // Issue #38: Contextual onboarding hint toast. Rendered at
     // HINT_TOAST_Y_FRAC so it sits BELOW the gas-switch banner and both
     // can be visible simultaneously without overlap. Suppressed while
-    // any full-screen overlay is up (help/gas-info) and outside the
-    // diving state — drawScene() also runs in the game-over screen and
-    // the issue explicitly bans hints there. The last-second fade uses
-    // the same tail-alpha math as the gas-switch toast for visual
-    // consistency.
-    if (hintNotifyTime > 0 && hintNotifyText && gameState === 'diving' && !showHelp && !showGasInfo) {
+    // any full-screen overlay is up (help/gas-info/dive-computer info
+    // pages) and outside the diving state — drawScene() also runs in the
+    // game-over screen and the issue explicitly bans hints there. Also
+    // suppressed during fast-forward: the queue pump only refuses to
+    // *start* a new toast while fast-forwarding, so a toast already
+    // showing when FF is toggled on must still be hidden here, not just
+    // left to expire on its own timer. The last-second fade uses the
+    // same tail-alpha math as the gas-switch toast for visual consistency.
+    if (hintNotifyTime > 0 && hintNotifyText && gameState === 'diving' && !showHelp && !showGasInfo &&
+        !fastForwardActive && infoPageMode === 0) {
         cx.save();
         cx.textAlign = 'center';
         cx.font = 'bold 18px monospace';
@@ -1244,7 +1248,7 @@ function drawScene() {
     // Issue #53: opt-in visual-zone debug overlay. Off by default; when
     // enabled paints translucent zone rectangles + current-zone id text so
     // future consumers can verify the map/zone assignment visually.
-    if (debugVisualZones) drawVisualZoneDebug();
+    if (debugVisualZones) drawVisualZoneDebug(_localAtmo);
 
     // Issue #46: Instructor overlay ("Learn" mode). Painted LAST inside
     // drawScene so it stays legible on top of every darkness/silt/torch/
@@ -1342,7 +1346,12 @@ function drawLocalAtmospherePass(atmo, W, H, diverScreenX, diverScreenY, metersP
 // the diver is in, keeping decoration/lookup concerns separated.
 const VISUAL_ZONE_DEBUG = {
     mpp:        0.05,     // metres per pixel, matches drawScene() world scale
-    diverSx:    0.25,     // diver screen-x fraction, matches drawScene()
+    // Issue #53/#100 (review follow-up): this was still hardcoded to the
+    // pre-#100 0.25 look-ahead offset after drawScene() was recentered to
+    // DIVER_SCREEN_X_FRACTION (0.5) — the debug rectangles were drawn 320px
+    // off from the real world at 1280px width. Reference the shared
+    // constant directly so the two can never drift apart again.
+    diverSx:    DIVER_SCREEN_X_FRACTION, // diver screen-x fraction, matches drawScene()
     diverSy:    0.45,     // diver screen-y fraction, matches drawScene()
     fillAlpha:  0.10,     // translucent rectangle fill
     edgeAlpha:  0.45,     // rectangle outline
@@ -1358,7 +1367,7 @@ const VISUAL_ZONE_DEBUG = {
     ]
 };
 
-function drawVisualZoneDebug() {
+function drawVisualZoneDebug(cachedAtmo) {
     var s = activeSite();
     if (!s || !s.visualZones || !s.visualZones.length) return;
     var cx = ctx;
@@ -1397,7 +1406,10 @@ function drawVisualZoneDebug() {
     cx.globalAlpha = 1;
     // HUD text — current zone id + Issue #54 sampled atmosphere values.
     var here = visualZoneAt(diverX, depth, s);
-    var atmo = sampleLocalAtmosphere(s, diverX, depth);
+    // Issue #54 (review follow-up): reuse the frame's one sample when
+    // called from drawScene() (cachedAtmo param), same pass-through as
+    // drawNearSurfaceAtmosphere()/drawSurfaceCaustics() above.
+    var atmo = cachedAtmo !== undefined ? cachedAtmo : sampleLocalAtmosphere(s, diverX, depth);
     var label1 = 'ZONE: ' + (here ? here.id : '(none)');
     // Issue #54: sampled atmosphere values, one decimal each so the
     // overlay is short but still verifiable at a glance.
@@ -2963,12 +2975,29 @@ function drawCausticsOnVisibleFloor(site, lightFactor) {
     // World-anchored horizontal wavelength ≈ 2π/0.6 ≈ 10.5 m (matches
     // the original 0.03/pixel * 0.05 mpp period, just in world units).
     var kx = 0.6;
+    // Issue #58 (review follow-up): this used to draw fixed horizontal
+    // bands across the whole lower screen regardless of terrain — caustics
+    // showed up over open water and coral walls alike. Clip each sampled
+    // column to whether it's actually near the real floor (via floorAt()),
+    // and for Reef additionally require a locally flat floor — caustics
+    // form on sunlit flat/plateau seabed, not a steep coral wall.
+    var FLOOR_BAND_PX = 40;      // how close above the floor a row must be to draw
+    var REEF_MAX_SLOPE = 1.5;    // metres of depth change per metre — above this, treat as a wall
     for (var cy = Math.max(surfaceY + 36, -30); cy < H; cy += 44) {
         cx.beginPath();
+        var pathOpen = false;
         for (var sx = -20; sx <= W + 20; sx += 18) {
             var worldX = diverX + (sx - dsx) * mpp;
+            var floorD = floorAt(worldX);
+            var floorScreenY = dsy + (floorD - depth) / mpp;
+            var nearFloor = cy <= floorScreenY && (floorScreenY - cy) < FLOOR_BAND_PX;
+            if (nearFloor && site.id === 'reef') {
+                var slope = Math.abs(floorAt(worldX + 1) - floorAt(worldX - 1)) / 2;
+                nearFloor = slope < REEF_MAX_SLOPE;
+            }
+            if (!nearFloor) { pathOpen = false; continue; }
             var y = cy + Math.sin(worldX * kx + waveTime * 1.7 + cy * 0.02) * 5;
-            if (sx === -20) cx.moveTo(sx, y); else cx.lineTo(sx, y);
+            if (!pathOpen) { cx.moveTo(sx, y); pathOpen = true; } else { cx.lineTo(sx, y); }
         }
         cx.stroke();
     }
@@ -3111,7 +3140,12 @@ function _drawBoatShadow(surfaceY, W, H, lightFactor, siteMult) {
 // is the background/water side of the pass (godrays, boat shadow,
 // water-underside). The caustics on the floor are painted AFTER
 // terrain by drawSurfaceCaustics().
-function drawNearSurfaceAtmosphere() {
+// Issue #54 (review follow-up): cachedAtmo lets drawScene() pass through
+// the ONE sampleLocalAtmosphere() result it already computed this frame
+// (_localAtmo) instead of this function re-sampling the exact same
+// site/diverX/depth a second time. Undefined (the standalone/test-call
+// path — see TC-54 tests) falls back to sampling fresh, same as before.
+function drawNearSurfaceAtmosphere(cachedAtmo) {
     // No-op outside the live dive scene — no work in setup/post-dive/
     // game-over/surface screens.
     if (gameState !== 'diving') return;
@@ -3129,7 +3163,11 @@ function drawNearSurfaceAtmosphere() {
     // position and use visibility to dampen, ambient to nudge brightness.
     // Small effect only; #54 owns the real tint / fog work.
     var atmo = null;
-    try { atmo = sampleLocalAtmosphere(s, diverX, depth); } catch { atmo = null; }
+    if (cachedAtmo !== undefined) {
+        atmo = cachedAtmo;
+    } else {
+        try { atmo = sampleLocalAtmosphere(s, diverX, depth); } catch { atmo = null; }
+    }
     var atmoK = 1;
     if (atmo) {
         atmoK = (atmo.ambient || 1) * (0.6 + 0.4 * (atmo.visibility || 1));
@@ -3148,7 +3186,9 @@ function drawNearSurfaceAtmosphere() {
 // constraint in issue #58. Currently just Shore + Reef; Cave uses its
 // own pond sunbeam and Wreck exterior is deep enough that the depth
 // curve already zeroes this out.
-function drawSurfaceCaustics() {
+// Issue #54 (review follow-up): see drawNearSurfaceAtmosphere() above —
+// same cachedAtmo pass-through to avoid a third per-frame sample.
+function drawSurfaceCaustics(cachedAtmo) {
     if (gameState !== 'diving') return;
     var s = activeSite();
     if (!s) return;
@@ -3160,7 +3200,11 @@ function drawSurfaceCaustics() {
     var base = nearSurfaceLightFactor(depth, surfaceVisible);
     var siteMult = _nearSurfaceSiteMultiplier(s.id);
     var atmo = null;
-    try { atmo = sampleLocalAtmosphere(s, diverX, depth); } catch { atmo = null; }
+    if (cachedAtmo !== undefined) {
+        atmo = cachedAtmo;
+    } else {
+        try { atmo = sampleLocalAtmosphere(s, diverX, depth); } catch { atmo = null; }
+    }
     var atmoK = atmo ? Math.max(0.3, Math.min(1.6,
         (atmo.ambient || 1) * (0.6 + 0.4 * (atmo.visibility || 1))
     )) : 1;
@@ -7995,23 +8039,24 @@ function drawDiveComputer() {
         cx.clip();
         var n2VGrad = cx.createLinearGradient(0, n2BarBot, 0, n2FillTop);
         n2VGrad.addColorStop(0, hudColor('ok'));
-        n2VGrad.addColorStop(1, n2LoadFill > 0.7 ? hudColor('danger') : n2LoadFill > 0.4 ? hudColor('caution') : hudColor('ok'));
+        n2VGrad.addColorStop(1, n2LoadFill > 0.9 ? hudColor('danger') : n2LoadFill > 0.7 ? hudColor('caution') : hudColor('ok'));
         cx.fillStyle = n2VGrad;
         cx.fillRect(n2BarX, n2FillTop, n2BarW, n2FillH);
         cx.restore();
     }
-    // Issue #39: threshold tick marks \u2014 caution (40 %) + danger (70 %) \u2014
+    // Issue #39: threshold tick marks \u2014 caution (70 %) + danger (90 %) \u2014
     // give the bar an unambiguous fill-vs-threshold reading that doesn't
-    // depend on the colour swap alone.
+    // depend on the colour swap alone. Positions match issue #39's own
+    // spec (70/90 %) and the color-swap thresholds above.
     cx.strokeStyle = 'rgba(255,255,255,0.55)';
     cx.lineWidth = 1;
-    var _n2Tick40Y = n2BarBot - 0.4 * n2BarFullH;
     var _n2Tick70Y = n2BarBot - 0.7 * n2BarFullH;
+    var _n2Tick90Y = n2BarBot - 0.9 * n2BarFullH;
     cx.beginPath();
-    cx.moveTo(n2BarX - s(2), _n2Tick40Y);
-    cx.lineTo(n2BarX + n2BarW + s(2), _n2Tick40Y);
     cx.moveTo(n2BarX - s(2), _n2Tick70Y);
     cx.lineTo(n2BarX + n2BarW + s(2), _n2Tick70Y);
+    cx.moveTo(n2BarX - s(2), _n2Tick90Y);
+    cx.lineTo(n2BarX + n2BarW + s(2), _n2Tick90Y);
     cx.stroke();
     cx.font = s(8) + "px " + DCF;
     cx.fillStyle = '#8694a1';
@@ -9080,9 +9125,11 @@ function drawInstructorOverlay() {
 
     // Row 4 — Leading tissue compartment
     if (lead) {
-        var tissueColor = lead.pct >= INSTRUCTOR_TISSUE_CRIT_PCT ? '#ff3333'
-                        : lead.pct >= INSTRUCTOR_TISSUE_WARN_PCT ? '#ffd24d'
-                        : '#46f08f';
+        // Issue #39 (review follow-up): route through hudColor() like every
+        // other semantic HUD status colour, so this reacts to the CVD palette.
+        var tissueColor = lead.pct >= INSTRUCTOR_TISSUE_CRIT_PCT ? hudColor('danger')
+                        : lead.pct >= INSTRUCTOR_TISSUE_WARN_PCT ? hudColor('caution')
+                        : hudColor('ok');
         drawRow(
             S('instructorTissueRow') + ' #' + (lead.i + 1) + '  (t½=' + lead.ht.toFixed(0) + 'min)',
             Math.max(0, Math.round(lead.pct)) + '% of M-value',
@@ -9106,7 +9153,9 @@ function drawInstructorOverlay() {
     );
 
     // Row 6 — MOD / END
-    var modColor = depth >= mod ? '#ff9933' : valueColor;
+    // Issue #39 (review follow-up): route through hudColor() instead of a
+    // hardcoded literal so this reacts to the CVD palette.
+    var modColor = depth >= mod ? hudColor('warn') : valueColor;
     var narcPct = Math.round(narcosisIndex * 100);
     drawRow(
         S('instructorGasRow'),
@@ -9202,7 +9251,9 @@ function drawPostDive() {
     var rowH = 33;
     for (var gi = 0; gi < grade.subs.length; gi++) {
         var sub = grade.subs[gi];
-        var scoreCol = sub.score >= 75 ? '#46f08f' : (sub.score >= 50 ? '#ffd24d' : '#ff4b4b');
+        // Issue #39 (review follow-up): route through hudColor() instead of
+        // hardcoded literals so the debrief sub-scores react to the CVD palette.
+        var scoreCol = sub.score >= 75 ? hudColor('ok') : (sub.score >= 50 ? hudColor('caution') : hudColor('danger'));
         // Label
         cx.textAlign = 'left';
         cx.font = 'bold 12px monospace';

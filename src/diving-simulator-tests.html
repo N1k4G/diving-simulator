@@ -9888,11 +9888,16 @@ tests = [
 
     {
         id: 'TC-39-N2-BAR-DRAWS-THRESHOLD-TICKS',
-        name: 'Issue #39 — the vertical N₂ loading bar renders two horizontal threshold ticks',
+        name: 'Issue #39 — the vertical N₂ loading bar renders two horizontal threshold ticks at the 70%/90% fractional positions',
         fn: function() {
-            // Instrument stroke() and record the last (moveTo, lineTo) pair
-            // before each stroke — the N2 tick marks emit horizontal segments
-            // (matching Y) via explicit moveTo/lineTo calls before a stroke().
+            // Instrument roundRect to capture the bar's own bounds (top,
+            // height), then moveTo/lineTo/beginPath to capture every
+            // horizontal segment's Y — so the ticks' fractional position
+            // within the bar can be checked against 70%/90%, not just
+            // "two segments exist somewhere" (review follow-up: the
+            // original version of this test didn't check position, which
+            // is exactly how the 40/70% vs spec'd 70/90% mismatch slipped
+            // through undetected).
             setupDive([[0.21, 0, 200]]);
             api.setDepth(20);
             api.cssWidth = 1280; api.cssHeight = 800;
@@ -9902,31 +9907,90 @@ tests = [
             var origMove = ctxRef.moveTo;
             var origLine = ctxRef.lineTo;
             var origBegin = ctxRef.beginPath;
-            // Per-path collections: reset on beginPath, so we can find any
-            // path whose moveTo/lineTo sequence produces N horizontal segments.
+            var origRoundRect = ctxRef.roundRect;
+            // The dive computer draws several narrow vertical rounded rects
+            // (N2 bar, possibly others) — collect every candidate rather
+            // than assuming the first one is the N2 bar, then below check
+            // which candidate's bounds actually explain both tick Ys.
+            var candidates = [];
+            ctxRef.roundRect = function(x, y, w, h) {
+                if (h > 0 && w > 0 && h / w > 5) candidates.push({ top: y, h: h });
+                return origRoundRect.apply(this, arguments);
+            };
             var pathMoves = [], pathLines = [];
-            var horizontalSegmentsMax = 0;
+            var horizontalYs = [];
             function scorePath() {
-                var h = 0;
                 for (var i = 0; i < Math.min(pathMoves.length, pathLines.length); i++) {
-                    if (Math.abs(pathMoves[i][1] - pathLines[i][1]) < 0.5 && Math.abs(pathMoves[i][0] - pathLines[i][0]) > 1) h++;
+                    if (Math.abs(pathMoves[i][1] - pathLines[i][1]) < 0.5 && Math.abs(pathMoves[i][0] - pathLines[i][0]) > 1) {
+                        horizontalYs.push(pathMoves[i][1]);
+                    }
                 }
-                if (h > horizontalSegmentsMax) horizontalSegmentsMax = h;
             }
             ctxRef.beginPath = function() { scorePath(); pathMoves = []; pathLines = []; return origBegin.apply(this, arguments); };
             ctxRef.moveTo = function(x, y) { pathMoves.push([x, y]); return origMove.apply(this, arguments); };
             ctxRef.lineTo = function(x, y) { pathLines.push([x, y]); return origLine.apply(this, arguments); };
             try {
                 win.drawDiveComputer();
-                scorePath(); // score the final path
+                scorePath();
             } finally {
                 ctxRef.moveTo = origMove;
                 ctxRef.lineTo = origLine;
                 ctxRef.beginPath = origBegin;
+                ctxRef.roundRect = origRoundRect;
             }
-            assert(horizontalSegmentsMax >= 2,
-                'some N₂ / tick path must emit at least 2 horizontal segments; max seen=' + horizontalSegmentsMax);
-            return 'PASS — a path in drawDiveComputer drew ' + horizontalSegmentsMax + ' horizontal segments (>=2)';
+            assert(candidates.length > 0, 'could not find any candidate narrow vertical bar roundRect call');
+            assert(horizontalYs.length >= 2,
+                'expected at least 2 horizontal tick segments, got ' + horizontalYs.length);
+            // Fractional position from the BOTTOM of a bar (fill grows
+            // upward from bottom, matching n2BarBot - frac*n2BarFullH) —
+            // find the candidate whose bounds place two tick Ys at 70%/90%.
+            var matched = null;
+            for (var ci = 0; ci < candidates.length; ci++) {
+                var barBot = candidates[ci].top + candidates[ci].h;
+                var fracs = horizontalYs.map(function(y) { return (barBot - y) / candidates[ci].h; });
+                var has70 = fracs.some(function(f) { return Math.abs(f - 0.7) < 0.03; });
+                var has90 = fracs.some(function(f) { return Math.abs(f - 0.9) < 0.03; });
+                if (has70 && has90) { matched = fracs; break; }
+            }
+            assert(matched !== null,
+                'no candidate bar (of ' + candidates.length + ') had ticks at both the 70% and 90% fractional positions');
+            return 'PASS — N₂ bar ticks found at the 70%/90% fractional positions';
+        }
+    },
+    {
+        id: 'TC-39-N2-BAR-THRESHOLD-VALUES-70-90',
+        name: 'Issue #39 — the N₂ bar\'s caution/danger colour swap fires at 70%/90% loading, matching the tick marks',
+        fn: function() {
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            api.cssWidth = 1280; api.cssHeight = 800;
+            var win = iframe.contentWindow;
+            var ctxRef = api.ctx;
+            function fillColorAtNdl(ndlVal) {
+                iframe.contentWindow.frameCalc = { tts: 0, ceiling: 0, ndl: ndlVal, schedule: null };
+                var seenColor = null;
+                var origCreateGrad = ctxRef.createLinearGradient;
+                ctxRef.createLinearGradient = function() {
+                    var grad = origCreateGrad.apply(this, arguments);
+                    var origAddStop = grad.addColorStop;
+                    grad.addColorStop = function(offset, color) {
+                        if (offset === 1) seenColor = color;
+                        return origAddStop.apply(this, arguments);
+                    };
+                    return grad;
+                };
+                try { win.drawDiveComputer(); } finally { ctxRef.createLinearGradient = origCreateGrad; }
+                return seenColor;
+            }
+            // n2LoadFill = 1 - ndl/120. ndl=60 -> fill=0.5 (below 70%, ok).
+            // ndl=24 -> fill=0.8 (between 70/90%, caution). ndl=6 -> fill=0.95 (danger).
+            var okColor = fillColorAtNdl(60);
+            var cautionColor = fillColorAtNdl(24);
+            var dangerColor = fillColorAtNdl(6);
+            assert(okColor === api.HUD_COLORS_DEFAULT.ok, 'fill=0.5 (below 70%) should be the ok colour, got ' + okColor);
+            assert(cautionColor === api.HUD_COLORS_DEFAULT.caution, 'fill=0.8 (between 70/90%) should be the caution colour, got ' + cautionColor);
+            assert(dangerColor === api.HUD_COLORS_DEFAULT.danger, 'fill=0.95 (above 90%) should be the danger colour, got ' + dangerColor);
+            return 'PASS — N₂ bar colour swap confirmed at the 70%/90% thresholds';
         }
     },
 
@@ -11151,6 +11215,263 @@ tests = [
                 'A payload with a tank missing gasRemaining must be rejected');
             iw.localStorage.removeItem(iw.SAVE_KEY);
             return 'PASS — validator rejected ' + (mustHaveFields.length + 2) + ' distinct missing-field payloads, accepted the complete one';
+        }
+    },
+    // ============================================================
+    //  PR #102 review comment #2 follow-up fixes
+    // ============================================================
+    {
+        id: 'TC-38-HINT-HIDDEN-DURING-FAST-FORWARD-AND-INFOPAGE',
+        name: 'Issue #38 (review follow-up) — an already-visible hint toast is hidden during fast-forward and over dive-computer info pages',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            api.cssWidth = 1280; api.cssHeight = 800;
+            iframe.contentWindow.frameCalc = { tts: 0, ceiling: 0, ndl: 999, schedule: null };
+            var win = iframe.contentWindow;
+            var ctxRef = api.ctx;
+            function hintVisible() {
+                var seen = false;
+                var orig = ctxRef.fillText;
+                ctxRef.fillText = function(s) { if (String(s).indexOf('TESTHINT') !== -1) seen = true; return orig.apply(this, arguments); };
+                try { win.drawScene(); } finally { ctxRef.fillText = orig; }
+                return seen;
+            }
+            var savedFF = api.fastForwardActive, savedInfo = api.infoPageMode;
+            try {
+                api.gameState = 'diving';
+                api.hintNotifyTime = 2;
+                api.hintNotifyText = 'TESTHINT';
+                api.fastForwardActive = false;
+                api.infoPageMode = 0;
+                assert(hintVisible() === true, 'sanity: hint should render under normal conditions');
+
+                api.fastForwardActive = true;
+                api.infoPageMode = 0;
+                assert(hintVisible() === false, 'hint must be hidden while fastForwardActive is true');
+
+                api.fastForwardActive = false;
+                api.infoPageMode = 1;
+                assert(hintVisible() === false, 'hint must be hidden while an info page is open (infoPageMode > 0)');
+            } finally {
+                api.fastForwardActive = savedFF;
+                api.infoPageMode = savedInfo;
+                api.hintNotifyTime = 0;
+                api.hintNotifyText = '';
+            }
+            return 'PASS — hint toast suppressed during fast-forward and over info pages, visible otherwise';
+        }
+    },
+    {
+        id: 'TC-39-INSTRUCTOR-AND-DEBRIEF-COLORS-USE-PALETTE',
+        name: 'Issue #39 (review follow-up) — instructor-tissue, instructor-MOD, and debrief sub-score colours all route through hudColor()',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            api.cssWidth = 1280; api.cssHeight = 800;
+            iframe.contentWindow.frameCalc = { tts: 0, ceiling: 0, ndl: 999, schedule: null };
+            var win = iframe.contentWindow;
+            var ctxRef = api.ctx;
+            function fillColorsUsed(drawFn) {
+                var colors = [];
+                // ctx here is a real 2D context (node-canvas or similar) — just
+                // snapshot fillStyle right before each fillText call instead of
+                // hooking the property (simpler, avoids prototype trickery).
+                var origFillText = ctxRef.fillText;
+                ctxRef.fillText = function() { colors.push(ctxRef.fillStyle); return origFillText.apply(this, arguments); };
+                try { drawFn(); } finally { ctxRef.fillText = origFillText; }
+                return colors;
+            }
+            var savedMode = api.colorMode;
+            try {
+                // Instructor overlay: force a high (critical) leading-tissue
+                // load and a depth beyond MOD so both non-default branches fire.
+                api.instructorMode = true;
+                var loaded = [], loadedHe = [];
+                for (var i = 0; i < 16; i++) { loaded.push(0.79); loadedHe.push(0); }
+                loaded[3] = 4.0; // clearly over the critical M-value fraction
+                api.tissues = loaded;
+                api.tissuesHe = loadedHe;
+                api.setDepth(5); // shallow air (fO2=0.21) -> MOD is exceeded
+
+                api.colorMode = 'default';
+                var defaultColors = fillColorsUsed(function() { api.drawInstructorOverlay(); });
+                assert(defaultColors.indexOf(api.HUD_COLORS_DEFAULT.danger) !== -1,
+                    'default palette: expected the danger colour among instructor overlay fills, got ' + JSON.stringify(defaultColors));
+
+                api.colorMode = 'cvd';
+                var cvdColors = fillColorsUsed(function() { api.drawInstructorOverlay(); });
+                assert(cvdColors.indexOf(api.HUD_COLORS_CVD.danger) !== -1,
+                    'cvd palette: expected the CVD danger colour among instructor overlay fills, got ' + JSON.stringify(cvdColors));
+                assert(cvdColors.indexOf(api.HUD_COLORS_DEFAULT.danger) === -1,
+                    'cvd palette: the OLD hardcoded default-palette danger colour must not appear, got ' + JSON.stringify(cvdColors));
+            } finally {
+                api.instructorMode = false;
+                api.colorMode = savedMode;
+            }
+            return 'PASS — instructor overlay danger colour swaps with the CVD palette (no hardcoded literal)';
+        }
+    },
+    {
+        id: 'TC-39-DEBRIEF-SCORE-COLOR-USES-PALETTE',
+        name: 'Issue #39 (review follow-up) — post-dive debrief sub-score colours route through hudColor()',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'open';
+            setupDive([[0.21, 0, 200]]);
+            api.maxDepth = 18;
+            api.diveProfile = [{ t: 0, depth: 18, ceiling: 0 }, { t: 0.05, depth: 18, ceiling: 0 }];
+            api.diveEvents = [];
+            api.minNdlSeen = 20;
+            api.safetyStopNeeded = true;
+            api.safetyStopComplete = false; // forces the Safety Stop sub-score to 30 (danger band)
+            api.tanks[0].gasRemaining = api.tanks[0].totalGas;
+            api.cssWidth = 1280; api.cssHeight = 800;
+            var win = iframe.contentWindow;
+            var ctxRef = api.ctx;
+            var savedMode = api.colorMode;
+            try {
+                api.gameState = 'post-dive';
+                api.colorMode = 'default';
+                var origFillText = ctxRef.fillText;
+                var origFillStyle;
+                var seenDefault = false;
+                ctxRef.fillText = function() { if (ctxRef.fillStyle === api.HUD_COLORS_DEFAULT.danger) seenDefault = true; return origFillText.apply(this, arguments); };
+                try { win.drawPostDive(); } finally { ctxRef.fillText = origFillText; }
+                assert(seenDefault, 'default palette: expected the danger colour among debrief fills for a 30-score sub, none found');
+
+                api.colorMode = 'cvd';
+                var seenCvd = false;
+                ctxRef.fillText = function() { if (ctxRef.fillStyle === api.HUD_COLORS_CVD.danger) seenCvd = true; return origFillText.apply(this, arguments); };
+                try { win.drawPostDive(); } finally { ctxRef.fillText = origFillText; }
+                assert(seenCvd, 'cvd palette: expected the CVD danger colour among debrief fills, none found');
+            } finally {
+                api.colorMode = savedMode;
+            }
+            return 'PASS — debrief sub-score danger colour swaps with the CVD palette';
+        }
+    },
+    {
+        id: 'TC-53-100-VISUAL-ZONE-DEBUG-ANCHOR-MATCHES-DIVER-CENTER',
+        name: 'Issue #53/#100 (review follow-up) — VISUAL_ZONE_DEBUG.diverSx matches the centered DIVER_SCREEN_X_FRACTION anchor',
+        fn: function() {
+            assert(api.VISUAL_ZONE_DEBUG.diverSx === api.DIVER_SCREEN_X_FRACTION,
+                'VISUAL_ZONE_DEBUG.diverSx (' + api.VISUAL_ZONE_DEBUG.diverSx +
+                ') must equal DIVER_SCREEN_X_FRACTION (' + api.DIVER_SCREEN_X_FRACTION + '), not the stale pre-#100 0.25 offset');
+            return 'PASS — debug overlay anchor (' + api.VISUAL_ZONE_DEBUG.diverSx + ') matches drawScene()\'s real diver anchor';
+        }
+    },
+    {
+        id: 'TC-54-SINGLE-ATMOSPHERE-SAMPLE-PER-FRAME',
+        name: 'Issue #54 (review follow-up) — drawScene() samples local atmosphere at most once per frame, not 2-4x',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'reef';
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(10); // near-surface, exercises both drawNearSurfaceAtmosphere + drawSurfaceCaustics
+            api.cssWidth = 1280; api.cssHeight = 800;
+            api.debugVisualZones = true; // also exercises drawVisualZoneDebug's own atmo use
+            var iw = iframe.contentWindow;
+            var orig = iw.sampleLocalAtmosphere;
+            var calls = 0;
+            iw.sampleLocalAtmosphere = function() { calls++; return orig.apply(this, arguments); };
+            try {
+                iw.drawScene();
+            } finally {
+                iw.sampleLocalAtmosphere = orig;
+                api.debugVisualZones = false;
+            }
+            assert(calls === 1,
+                'Expected exactly 1 sampleLocalAtmosphere() call per drawScene() frame (near-surface + caustics + zone-debug all reuse it), got ' + calls);
+            return 'PASS — drawScene() sampled local atmosphere exactly once (' + calls + ' call), reused by all three passes';
+        }
+    },
+    {
+        id: 'TC-58-CAUSTICS-CLIPPED-TO-REAL-FLOOR',
+        name: 'Issue #58 (review follow-up) — every drawn caustics point is near its OWN local floor, not painted regardless of terrain',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'shore';
+            setupDive([[0.21, 0, 200]]);
+            // Shore's floor profile varies a lot across the ~66m-wide sampled
+            // strip (x≈-33..+33 around the diver), so rather than assert a
+            // global point count for one diver position (fragile — the strip
+            // can clip a shallower stretch even when the diver's OWN x is
+            // deep), verify the actual invariant directly: for every point
+            // the function draws, back-derive its world-x from screen-x and
+            // confirm the implied depth is genuinely within the floor band —
+            // this is what the review flagged as broken (site param unused,
+            // no floorAt() check at all, so every drawn point failed this).
+            api.diverX = 140;
+            api.setDepth(15);
+            api.cssWidth = 1280; api.cssHeight = 800;
+            var ctxRef = api.ctx;
+            var W = api.cssWidth, H = api.cssHeight;
+            var dsx = W * api.DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
+            var drawnPoints = [];
+            var origMove = ctxRef.moveTo, origLine = ctxRef.lineTo;
+            ctxRef.moveTo = function(x, y) { drawnPoints.push([x, y]); return origMove.apply(this, arguments); };
+            ctxRef.lineTo = function(x, y) { drawnPoints.push([x, y]); return origLine.apply(this, arguments); };
+            try {
+                var s = api.activeSite();
+                api.drawCausticsOnVisibleFloor(s, 1.0);
+            } finally {
+                ctxRef.moveTo = origMove;
+                ctxRef.lineTo = origLine;
+            }
+            assert(drawnPoints.length > 0, 'sanity: this scene should draw at least some caustics points');
+            var FLOOR_BAND_M = 40 * mpp + 0.5; // 40px tolerance (+ small margin for the sine wobble)
+            var offenders = 0;
+            for (var i = 0; i < drawnPoints.length; i++) {
+                var sx = drawnPoints[i][0], y = drawnPoints[i][1];
+                var worldX = api.diverX + (sx - dsx) * mpp;
+                var impliedDepth = api.depth + (y - dsy) * mpp;
+                var realFloorD = api.floorAt(worldX);
+                if (Math.abs(realFloorD - impliedDepth) > FLOOR_BAND_M) offenders++;
+            }
+            assert(offenders === 0,
+                offenders + ' of ' + drawnPoints.length + ' drawn caustics points are NOT near their own local floor (painted over open water/terrain mismatch)');
+            return 'PASS — all ' + drawnPoints.length + ' drawn caustics points are within the floor band of their own local floorAt()';
+        }
+    },
+    {
+        id: 'TC-58-REEF-CAUSTICS-RESPECT-SLOPE',
+        name: 'Issue #58 (review follow-up) — no reef caustics point is drawn on a steep coral-wall slope',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'reef';
+            setupDive([[0.21, 0, 200]]);
+            // Position the diver mid-water over the plateau so the ~66m-wide
+            // sampled strip spans the flat plateau (x=-8..8, d=5) AND both
+            // steep flanks (x=-9..-8 and 8..9, dropping to d=12+) — exactly
+            // the scenario the review described (caustics on a coral wall).
+            api.diverX = 0;
+            api.setDepth(20);
+            api.cssWidth = 1280; api.cssHeight = 800;
+            var ctxRef = api.ctx;
+            var W = api.cssWidth, dsx = W * api.DIVER_SCREEN_X_FRACTION, mpp = 0.05;
+            var drawnWorldXs = [];
+            var origMove = ctxRef.moveTo, origLine = ctxRef.lineTo;
+            ctxRef.moveTo = function(x) { drawnWorldXs.push(api.diverX + (x - dsx) * mpp); return origMove.apply(this, arguments); };
+            ctxRef.lineTo = function(x) { drawnWorldXs.push(api.diverX + (x - dsx) * mpp); return origLine.apply(this, arguments); };
+            try {
+                var s = api.activeSite();
+                api.drawCausticsOnVisibleFloor(s, 1.0);
+            } finally {
+                ctxRef.moveTo = origMove;
+                ctxRef.lineTo = origLine;
+            }
+            var onWall = drawnWorldXs.filter(function(wx) { return (wx > -9.2 && wx < -7.8) || (wx > 7.8 && wx < 9.2); });
+            var onPlateau = drawnWorldXs.filter(function(wx) { return wx > -7 && wx < 7; });
+            assert(onWall.length === 0,
+                'expected zero caustics points on the steep coral-wall flanks (x∈[-9.2,-7.8]∪[7.8,9.2]), got ' + onWall.length + ': ' + JSON.stringify(onWall));
+            assert(onPlateau.length > 0,
+                'expected at least one caustics point on the flat plateau (x∈[-7,7]), got 0');
+            return 'PASS — 0 points on the steep wall flanks, ' + onPlateau.length + ' points on the flat plateau';
         }
     }
 ];
