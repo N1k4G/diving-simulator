@@ -2966,7 +2966,6 @@ function drawCausticsOnVisibleFloor(site, lightFactor) {
     if (lightFactor <= 0.01) return;
     var W = cssWidth, H = cssHeight;
     var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
-    var surfaceY = dsy - depth / mpp;
     var cx = ctx;
     cx.save();
     var alpha = (0.16 * lightFactor).toFixed(3);
@@ -2975,29 +2974,41 @@ function drawCausticsOnVisibleFloor(site, lightFactor) {
     // World-anchored horizontal wavelength ≈ 2π/0.6 ≈ 10.5 m (matches
     // the original 0.03/pixel * 0.05 mpp period, just in world units).
     var kx = 0.6;
-    // Issue #58 (review follow-up): this used to draw fixed horizontal
-    // bands across the whole lower screen regardless of terrain — caustics
-    // showed up over open water and coral walls alike. Clip each sampled
-    // column to whether it's actually near the real floor (via floorAt()),
-    // and for Reef additionally require a locally flat floor — caustics
-    // form on sunlit flat/plateau seabed, not a steep coral wall.
-    var FLOOR_BAND_PX = 40;      // how close above the floor a row must be to draw
+    // Issue #58 (review follow-up): the previous version stepped through
+    // FIXED absolute screen-Y rows and only loosely checked whether each
+    // row happened to be within a wide (40px / 2m) band of the floor at
+    // that column — most drawn points still ended up hanging in open
+    // water above the seabed rather than on it. Rebuilt so every band is
+    // anchored to EACH COLUMN'S OWN local floorAt() depth (small, tight
+    // pixel offsets above it) instead of an absolute screen coordinate —
+    // every drawn point is therefore always within OFFSETS_PX of its own
+    // real floor, on Reef additionally gated by a local-slope check so
+    // the steep mesa flanks don't get the flat sunlit-floor treatment.
+    var OFFSETS_PX = [2, 9, 16, 23];
     var REEF_MAX_SLOPE = 1.5;    // metres of depth change per metre — above this, treat as a wall
-    for (var cy = Math.max(surfaceY + 36, -30); cy < H; cy += 44) {
+    // Precompute per-column floor data once, reused across every offset band.
+    var cols = [];
+    for (var sx = -20; sx <= W + 20; sx += 18) {
+        var worldX = diverX + (sx - dsx) * mpp;
+        var floorD = floorAt(worldX);
+        var floorScreenY = dsy + (floorD - depth) / mpp;
+        var ok = true;
+        if (site.id === 'reef') {
+            var slope = Math.abs(floorAt(worldX + 1) - floorAt(worldX - 1)) / 2;
+            ok = slope < REEF_MAX_SLOPE;
+        }
+        cols.push({ sx: sx, worldX: worldX, floorScreenY: floorScreenY, ok: ok });
+    }
+    for (var oi = 0; oi < OFFSETS_PX.length; oi++) {
+        var offset = OFFSETS_PX[oi];
         cx.beginPath();
         var pathOpen = false;
-        for (var sx = -20; sx <= W + 20; sx += 18) {
-            var worldX = diverX + (sx - dsx) * mpp;
-            var floorD = floorAt(worldX);
-            var floorScreenY = dsy + (floorD - depth) / mpp;
-            var nearFloor = cy <= floorScreenY && (floorScreenY - cy) < FLOOR_BAND_PX;
-            if (nearFloor && site.id === 'reef') {
-                var slope = Math.abs(floorAt(worldX + 1) - floorAt(worldX - 1)) / 2;
-                nearFloor = slope < REEF_MAX_SLOPE;
-            }
-            if (!nearFloor) { pathOpen = false; continue; }
-            var y = cy + Math.sin(worldX * kx + waveTime * 1.7 + cy * 0.02) * 5;
-            if (!pathOpen) { cx.moveTo(sx, y); pathOpen = true; } else { cx.lineTo(sx, y); }
+        for (var ci = 0; ci < cols.length; ci++) {
+            var col = cols[ci];
+            if (!col.ok) { pathOpen = false; continue; }
+            var cy = col.floorScreenY - offset;
+            var y = cy + Math.sin(col.worldX * kx + waveTime * 1.7 + cy * 0.02) * 5;
+            if (!pathOpen) { cx.moveTo(col.sx, y); pathOpen = true; } else { cx.lineTo(col.sx, y); }
         }
         cx.stroke();
     }

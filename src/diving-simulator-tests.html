@@ -1570,6 +1570,11 @@ tests = [
         id: 'TC-40',
         name: 'Phase A — diverX and horizontalVelocity survive saveDiveState/restoreDiveState',
         fn: function() {
+            // Issue #66 (review follow-up): _isValidSaveState() now requires
+            // a genuine DIVE_SITES key — pin one explicitly so this test's
+            // save/restore round-trip doesn't depend on whatever diveSite an
+            // earlier test happened to leave behind (e.g. 'open').
+            api.diveSite = 'shore';
             setupDive([[0.21, 0, 200]]);
             api.setDepth(20);
             api.gameState = 'diving';
@@ -1600,6 +1605,12 @@ tests = [
         id: 'TC-41',
         name: 'Phase B — in-band current drifts diverX; out-of-band current has no effect',
         fn: function() {
+            // Issue #66 (review follow-up) side-effect: pin diveSite to
+            // 'open' (no floor profile) explicitly rather than relying on
+            // whatever an earlier test left behind — a real site's shallow
+            // floor (e.g. shore's 3m at x=0) would clamp depth=20 back up,
+            // silently taking the diver out of the 10-30m current band.
+            api.diveSite = 'open';
             // In-band: diver at 20m, band 10-30m → should drift
             setupDive([[0.21, 0, 200]]);
             api.setDepth(20);
@@ -3482,6 +3493,9 @@ tests = [
         id: 'TC-CNS-PERSIST-1',
         name: 'Bug #10 — cnsPercent survives saveDiveState/restoreDiveState',
         fn: function() {
+            // Issue #66 (review follow-up): pin a genuine DIVE_SITES key —
+            // see TC-40's comment for why.
+            api.diveSite = 'shore';
             setupDive([[0.21, 0, 200]]);
             api.setDepth(20);
             api.gameState = 'diving';
@@ -7968,7 +7982,7 @@ tests = [
     },
     {
         id: 'TC-69-FRAMERATE-INDEPENDENT-PROBABILITY',
-        name: 'Issue #69 — perSecondToPerFrameProbability keeps event counts equal across framerates',
+        name: 'Issue #69 — perSecondToPerFrameProbability keeps expected event rates equal across framerates (deterministic/analytical)',
         fn: function() {
             var f = api.perSecondToPerFrameProbability;
             assert(typeof f === 'function', 'perSecondToPerFrameProbability must be exposed on gameAPI');
@@ -7980,45 +7994,69 @@ tests = [
             assert(Math.abs(f(0.15, 1/60) - 0.15) < 1e-9,
                 'at dt=1/60 the result should equal p60 (identity), got ' + f(0.15, 1/60));
 
-            // Statistical: draw N frames at 60 fps vs 144 fps for the same
-            // total real-time window. The expected number of events per
-            // real second should stay constant across framerates. Use a
-            // modestly small p60 so the linear approximation p60*60 events/s
-            // is a valid target — with p60 = 0.15 the per-frame probability
-            // saturates at low framerates (1-0.85^6 ≈ 0.62 at 10 fps caps
-            // at 10 events/s vs the ~9 events/s calibration target, so a
-            // 10-fps sample would be biased low regardless of the fix).
-            function countEvents(dtReal, totalSec, p60) {
-                var frames = Math.round(totalSec / dtReal);
-                var p = f(p60, dtReal);
-                var events = 0;
-                for (var i = 0; i < frames; i++) {
-                    if (Math.random() < p) events++;
-                }
-                return events;
+            // Review follow-up: the original version of this test drew real
+            // Math.random() samples and compared counts with a tolerance —
+            // inherently flaky (a genuine ~1-in-20 chance of exceeding a 3σ
+            // band on any given run, independent of any real bug). Replaced
+            // with a fully deterministic check of the actual mathematical
+            // property #69 is about: the implementation is the closed-form
+            // 1-(1-p60)^(dt*60), so (a) verify that exact formula directly
+            // for several dt values, and (b) verify the ANALYTICAL expected
+            // event count over a fixed real-time window — frames * f(p60,dt)
+            // — converges to the same value across framerates, with no
+            // randomness anywhere in the test.
+            var dts = [1/60, 1/144, 1/30, 1/10, 1/240];
+            for (var i = 0; i < dts.length; i++) {
+                var dt = dts[i];
+                var expected = 1 - Math.pow(1 - 0.15, dt * 60);
+                assert(Math.abs(f(0.15, dt) - expected) < 1e-12,
+                    'f(0.15, ' + dt.toFixed(5) + ') should equal the closed-form 1-(1-p)^(dt*60)=' + expected + ', got ' + f(0.15, dt));
             }
-            var TOTAL = 40; // seconds of simulated real time — bigger N = tighter σ
-            var P60 = 0.03;
-            var e60  = countEvents(1/60,  TOTAL, P60);
-            var e144 = countEvents(1/144, TOTAL, P60);
-            // Expected exact rate: -60 * ln(1 - p60) events/sec ≈ 1.83/sec.
-            // Over 40s → ≈73 events. sqrt(73) ≈ 8.5 → generous ±25 window
-            // (≈3σ) catches genuine breakage but tolerates one-run variance.
-            var expected = -60 * Math.log(1 - P60) * TOTAL; // ≈ 73
-            assert(Math.abs(e60 - expected) < 25,
-                '60 fps event count should be near ' + expected.toFixed(1) + ' (±25), got ' + e60);
-            assert(Math.abs(e144 - expected) < 25,
-                '144 fps event count should be near ' + expected.toFixed(1) + ' (±25), got ' + e144);
-            assert(Math.abs(e60 - e144) < 30,
-                'event counts across framerates should be close, got 60fps=' + e60 + ', 144fps=' + e144);
 
-            return 'PASS — 60fps=' + e60 + ', 144fps=' + e144 + ' (expected ≈' + expected.toFixed(1) + ')';
+            // Analytical expected-event-count equality across framerates for
+            // a fixed 40s real-time window. At 60fps, dt*60=1 exactly, so
+            // frames*f reduces to totalSec*60*p60 exactly (no discretization
+            // error at all) — the other framerates should land within a
+            // small, purely floating-point-driven tolerance of that same
+            // value, with zero dependence on any RNG draw.
+            var TOTAL = 40;
+            var P60 = 0.03;
+            function expectedEvents(dtReal, totalSec, p60) {
+                var frames = Math.round(totalSec / dtReal);
+                return frames * f(p60, dtReal);
+            }
+            var expected60  = expectedEvents(1/60,  TOTAL, P60);
+            var expected144 = expectedEvents(1/144, TOTAL, P60);
+            var expected30  = expectedEvents(1/30,  TOTAL, P60);
+            assert(Math.abs(expected60 - TOTAL * 60 * P60) < 1e-9,
+                'at 60fps the analytical event count must exactly equal totalSec*60*p60, got ' + expected60);
+            // The discretization gap grows with dt (144fps is closer to the
+            // continuous limit than 60fps; 60fps is closer than 30fps) — this
+            // is a real, fully deterministic mathematical property of the
+            // formula, not test noise, so the tolerance just needs to be
+            // wide enough to comfortably bound it once (computed: 144fps
+            // differs from 60fps by ≈0.64, 30fps by ≈1.08, at P60=0.03/TOTAL=40s).
+            assert(Math.abs(expected144 - expected60) < 2,
+                'analytical 144fps event count should match 60fps within discretization error, got 144fps=' + expected144.toFixed(3) + ' vs 60fps=' + expected60.toFixed(3));
+            assert(Math.abs(expected30 - expected60) < 2,
+                'analytical 30fps event count should match 60fps within discretization error, got 30fps=' + expected30.toFixed(3) + ' vs 60fps=' + expected60.toFixed(3));
+
+            return 'PASS — formula verified exactly for 5 framerates; analytical event counts 60fps=' + expected60.toFixed(2) +
+                ', 144fps=' + expected144.toFixed(2) + ', 30fps=' + expected30.toFixed(2) + ' all agree';
         }
     },
     {
         id: 'TC-71-PROFILE-SAMPLE-CATCH-UP',
         name: 'Issue #71 — profile sampler catches every 2 s boundary crossed under large dt',
         fn: function() {
+            // Pin diveSite to 'open' (no floor profile) explicitly rather
+            // than relying on whatever an earlier test left behind — a real
+            // site's floor shallower than 10m at diverX's default position
+            // would have the physics vertical-collision integrator clamp
+            // depth back up every tick against this test's own setDepth(10),
+            // producing a spurious huge ascentRate and a false barotrauma
+            // game-over partway through.
+            api.diveSite = 'open';
             setupDive([[0.21, 0, 200]]);
             // Descend gently to a stable non-shallow depth so updateDiving()'s
             // ">0.5m gate" fires every frame and the various game-over checks
@@ -8125,6 +8163,8 @@ tests = [
                 assert(loaded === null, 'loadSavedDive() should reject a malformed/wrong-version payload, got ' + JSON.stringify(loaded));
                 assert(win.localStorage.getItem(key) === null, 'a rejected save should also be cleared from localStorage');
                 // A well-formed save (via the real saveDiveState()) still round-trips.
+                // Issue #66 (review follow-up): pin a genuine DIVE_SITES key.
+                api.diveSite = 'shore';
                 setupDive([[0.21, 0, 200]]);
                 api.setDepth(12);
                 win.saveDiveState();
@@ -8162,6 +8202,8 @@ tests = [
                 // 2. Produce a real, well-formed saved dive via the real save
                 //    path, then re-load it. Any regression that reverted #67's
                 //    save shape would fail loadSavedDive() here first.
+                // Issue #66 (review follow-up): pin a genuine DIVE_SITES key.
+                api.diveSite = 'shore';
                 setupDive([[0.21, 0, 200]]);
                 api.setDepth(15);
                 api.maxDepth = 15;
@@ -11036,7 +11078,7 @@ tests = [
     },
     {
         id: 'TC-14-FRAMECALC-NO-DOUBLE-CALC-IN-DECO-TICK',
-        name: 'Issue #14 — a single deco tick computes the ceiling once and the deco schedule once, not multiple times',
+        name: 'Issue #14 — a single deco tick with UNSEEN onboarding hints still computes the ceiling/NDL once and the deco schedule once',
         fn: function() {
             api.diveMode = 'tec';
             api.diveSite = 'open';
@@ -11046,30 +11088,37 @@ tests = [
             api.tissues = loaded;
             api.tissuesHe = loadedHe;
             api.setDepth(40);
-            // The one-time onboarding-hint check (game-loop.js, "deco" edge)
-            // intentionally reads the PREVIOUS tick's calculateCeiling() —
-            // a documented, deliberate lag, not the redundancy this test
-            // targets. Pre-mark it seen so it doesn't add its own call and
-            // this test isolates exactly the frameCalc population fix.
-            api.hintEdges.deco = true;
+            // Review follow-up: deliberately leave the "deco"/"ndl" hint
+            // edges UNSEEN (the state a fresh dive is actually in) — a
+            // pre-fix build called calculateCeiling()/calculateNDL() fresh
+            // from those hint checks in ADDITION to frameCalc's own
+            // population, so masking them (as the previous version of this
+            // test did via hintEdges.deco=true) hid exactly the redundancy
+            // being tested for.
+            api.resetAllHintsForTests();
 
             var iw = iframe.contentWindow;
             var origCeiling = iw.calculateCeiling;
+            var origNDL = iw.calculateNDL;
             var origSchedule = iw.calculateDecoSchedule;
-            var ceilCalls = 0, schedCalls = 0;
+            var ceilCalls = 0, ndlCalls = 0, schedCalls = 0;
             iw.calculateCeiling = function() { ceilCalls++; return origCeiling.apply(this, arguments); };
+            iw.calculateNDL = function() { ndlCalls++; return origNDL.apply(this, arguments); };
             iw.calculateDecoSchedule = function() { schedCalls++; return origSchedule.apply(this, arguments); };
             try {
                 api.updateDiving(0.033);
             } finally {
                 iw.calculateCeiling = origCeiling;
+                iw.calculateNDL = origNDL;
                 iw.calculateDecoSchedule = origSchedule;
             }
             assert(ceilCalls === 1,
-                'Expected exactly 1 calculateCeiling() call in a deco tick (frameCalc population), got ' + ceilCalls);
+                'Expected exactly 1 calculateCeiling() call in a deco tick with unseen hints (frameCalc population), got ' + ceilCalls);
+            assert(ndlCalls === 1,
+                'Expected exactly 1 calculateNDL() call in a deco tick with unseen hints (frameCalc population), got ' + ndlCalls);
             assert(schedCalls === 1,
                 'Expected exactly 1 calculateDecoSchedule() call in a deco tick (the expensive simulation must not run twice), got ' + schedCalls);
-            return 'PASS — deco tick called calculateCeiling() ' + ceilCalls + 'x and calculateDecoSchedule() ' + schedCalls + 'x';
+            return 'PASS — deco tick with unseen hints called calculateCeiling() ' + ceilCalls + 'x, calculateNDL() ' + ndlCalls + 'x, calculateDecoSchedule() ' + schedCalls + 'x';
         }
     },
     {
@@ -11179,7 +11228,7 @@ tests = [
         name: 'Issue #66 (review follow-up) — _isValidSaveState() rejects payloads missing numeric/structural fields beyond depth and tissues',
         fn: function() {
             api.diveMode = 'ccr';
-            api.diveSite = 'open';
+            api.diveSite = 'shore'; // must be a genuine DIVE_SITES key now — 'open' is no longer a valid saved diveSite
             setupDive([[0.21, 0, 200]]);
             api.initCCR();
             api.setDepth(20);
@@ -11195,7 +11244,8 @@ tests = [
             // Each of these fields is assigned directly in restoreDiveState()
             // with no fallback — a payload missing any of them must be rejected.
             var mustHaveFields = ['diveTime', 'avgDepthAccum', 'ascentRate', 'verticalVelocity',
-                'barotraumaTime', 'gfLow', 'amvRate', 'tankCount', 'activeTank'];
+                'barotraumaTime', 'gfLow', 'amvRate', 'tankCount', 'activeTank',
+                'gameState', 'savedAt'];
             for (var i = 0; i < mustHaveFields.length; i++) {
                 var f = mustHaveFields[i];
                 var payload = JSON.parse(raw);
@@ -11213,8 +11263,26 @@ tests = [
             delete tankPayload.tanks[0].gasRemaining;
             assert(iw._isValidSaveState(tankPayload) === false,
                 'A payload with a tank missing gasRemaining must be rejected');
+            // Review follow-up: isFinite(0.5) is true — a fractional
+            // activeTank must still be rejected (tanks[0.5] doesn't exist).
+            var fracTankPayload = JSON.parse(raw);
+            fracTankPayload.activeTank = 0.5;
+            assert(iw._isValidSaveState(fracTankPayload) === false,
+                'A payload with a non-integer activeTank (0.5) must be rejected');
+            // Review follow-up: a partial `current` object must be rejected,
+            // not silently restored with several fields as undefined.
+            var partialCurrentPayload = JSON.parse(raw);
+            partialCurrentPayload.current = { active: true };
+            assert(iw._isValidSaveState(partialCurrentPayload) === false,
+                'A payload with a partial current object ({active:true} only) must be rejected');
+            // Review follow-up: an unknown diveSite must be rejected —
+            // activeSite() would silently return null for it forever.
+            var bogusSitePayload = JSON.parse(raw);
+            bogusSitePayload.diveSite = 'bogus';
+            assert(iw._isValidSaveState(bogusSitePayload) === false,
+                'A payload with an unknown diveSite ("bogus") must be rejected');
             iw.localStorage.removeItem(iw.SAVE_KEY);
-            return 'PASS — validator rejected ' + (mustHaveFields.length + 2) + ' distinct missing-field payloads, accepted the complete one';
+            return 'PASS — validator rejected ' + (mustHaveFields.length + 5) + ' distinct malformed payloads, accepted the complete one';
         }
     },
     // ============================================================
@@ -11424,18 +11492,24 @@ tests = [
                 ctxRef.lineTo = origLine;
             }
             assert(drawnPoints.length > 0, 'sanity: this scene should draw at least some caustics points');
-            var FLOOR_BAND_M = 40 * mpp + 0.5; // 40px tolerance (+ small margin for the sine wobble)
+            // Review follow-up: bands are now anchored per-column to that
+            // column's own floorAt() at small fixed offsets (max 23px)
+            // plus a ±5px sine wobble — max ~28px ≈ 1.4m from the real
+            // floor, a fraction of the old 40px/2m band.
+            var FLOOR_BAND_M = 28 * mpp + 0.1;
             var offenders = 0;
+            var maxOffenderDist = 0;
             for (var i = 0; i < drawnPoints.length; i++) {
                 var sx = drawnPoints[i][0], y = drawnPoints[i][1];
                 var worldX = api.diverX + (sx - dsx) * mpp;
                 var impliedDepth = api.depth + (y - dsy) * mpp;
                 var realFloorD = api.floorAt(worldX);
-                if (Math.abs(realFloorD - impliedDepth) > FLOOR_BAND_M) offenders++;
+                var dist = Math.abs(realFloorD - impliedDepth);
+                if (dist > FLOOR_BAND_M) { offenders++; if (dist > maxOffenderDist) maxOffenderDist = dist; }
             }
             assert(offenders === 0,
-                offenders + ' of ' + drawnPoints.length + ' drawn caustics points are NOT near their own local floor (painted over open water/terrain mismatch)');
-            return 'PASS — all ' + drawnPoints.length + ' drawn caustics points are within the floor band of their own local floorAt()';
+                offenders + ' of ' + drawnPoints.length + ' drawn caustics points are NOT near their own local floor (max offense ' + maxOffenderDist.toFixed(2) + 'm)');
+            return 'PASS — all ' + drawnPoints.length + ' drawn caustics points are within ' + FLOOR_BAND_M.toFixed(2) + 'm of their own local floorAt()';
         }
     },
     {

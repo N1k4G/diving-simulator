@@ -327,9 +327,13 @@ function updateDiving(dtReal) {
     }
     if (!hintEdges.ndl) {
         // Only meaningful once the diver is actually underwater — at the
-        // surface calculateNDL() returns 0 (surface pressure has no NDL),
-        // which would spuriously trip a "NDL dropping" hint on frame 0.
-        var _ndl = calculateNDL();
+        // surface NDL is 0 (surface pressure has no NDL), which would
+        // spuriously trip a "NDL dropping" hint on frame 0.
+        // Issue #14 (review follow-up): read frameCalc.ndl (still holding
+        // the previous tick's value at this point — see the NOTE above)
+        // instead of calling calculateNDL() fresh; numerically identical
+        // per that same NOTE, but without the redundant computation.
+        var _ndl = frameCalc.ndl;
         if (depth > HINT_BCD_MIN_DEPTH && _ndl > 0 && _ndl < HINT_NDL_MIN) {
             showHintOnce('ndl', 'hintNdl');
             hintEdges.ndl = true;
@@ -341,9 +345,11 @@ function updateDiving(dtReal) {
     }
     if (!hintEdges.deco) {
         // Deco obligation = there is a mandatory stop shallower than the
-        // diver. decoStop(calculateCeiling()) > 0 is the exact same check
+        // diver. decoStop(frameCalc.ceiling) > 0 is the exact same check
         // the dive computer uses to switch from NDL to STOP display.
-        if (decoStop(calculateCeiling()) > 0) {
+        // Issue #14 (review follow-up): frameCalc.ceiling instead of a
+        // fresh calculateCeiling() call, same reasoning as frameCalc.ndl above.
+        if (decoStop(frameCalc.ceiling) > 0) {
             showHintOnce('deco', 'hintDeco');
             hintEdges.deco = true;
         }
@@ -691,8 +697,19 @@ function updateDiving(dtReal) {
         po2ViolationTime = Math.max(0, po2ViolationTime - dtDiveSeconds * 0.5);
     }
 
-    // Hypoxia check
-    if (po2 < PO2_HYPOXIA) {
+    // Hypoxia check. Issue #4 (review follow-up): in an active (non-bailout)
+    // CCR loop, the CCR-specific 30s check below (ccrHypoxiaTime) is
+    // authoritative — but the generic accumulator here was still building
+    // up in parallel (both read the same po2/ccrState.actualPO2), so a
+    // diver who spent e.g. 12s hypoxic in the loop and then bailed out to
+    // a perfectly SAFE gas immediately tripped the generic 10s game-over
+    // off the stale pre-bailout value (it only decays at half rate, and
+    // the guard on the check below no longer applies once onBailout flips
+    // true). Held at 0 during the active loop so it always starts clean
+    // from the real bailout-gas PO2 the moment bailout happens.
+    if (diveMode === 'ccr' && !ccrState.onBailout) {
+        hypoxiaTime = 0;
+    } else if (po2 < PO2_HYPOXIA) {
         hypoxiaTime += dtDiveSeconds;
     } else {
         hypoxiaTime = Math.max(0, hypoxiaTime - dtDiveSeconds * 0.5);
@@ -1247,8 +1264,37 @@ function _isValidSaveState(state) {
     // gsRemoveTank() push/pop in lockstep) — a mismatch means a malformed
     // or hand-edited payload.
     if (state.tankCount < 1 || state.tankCount !== state.tanks.length) return false;
-    if (state.activeTank < 0 || state.activeTank >= state.tankCount) return false;
+    // Issue #66 (review follow-up): isFinite(0.5) is true, so a fractional
+    // activeTank previously slipped through — tanks[0.5] doesn't exist.
+    if (!Number.isInteger(state.activeTank) || state.activeTank < 0 || state.activeTank >= state.tankCount) return false;
     if (['rec', 'tec', 'ccr'].indexOf(state.diveMode) === -1) return false;
+    // Issue #66 (review follow-up): saveDiveState() only ever writes while
+    // gameState is one of these three (see its own guard) — anything else
+    // is not a payload this function could have produced.
+    if (['diving', 'surface', 'drill'].indexOf(state.gameState) === -1) return false;
+    // Issue #66 (review follow-up): loadSavedDive()'s staleness check
+    // (Date.now() - state.savedAt > 3600000) silently passes for a
+    // non-finite savedAt, since any comparison against NaN is false.
+    if (!isFinite(state.savedAt) || state.savedAt <= 0) return false;
+    // Issue #66 (review follow-up): an unknown diveSite makes activeSite()
+    // return null everywhere — every overhead/silt/thirds/guideline
+    // mechanic silently no-ops as if the diver were in open water forever,
+    // rather than restoring the real site the dive was actually on. Only
+    // genuine DIVE_SITES keys are ever written by a real save (the gas-
+    // setup site picker only offers these four).
+    if (!DIVE_SITES[state.diveSite]) return false;
+
+    // Issue #66 (review follow-up): restoreDiveState() copies state.current
+    // field-by-field with no fallback when state.current exists but is
+    // missing individual fields (e.g. a partial {active:true}) — each
+    // missing field becomes undefined on the live `current` object.
+    if (!state.current || typeof state.current !== 'object') return false;
+    if (typeof state.current.active !== 'boolean') return false;
+    if (typeof state.current.rolledThisDive !== 'boolean') return false;
+    var currentFiniteFields = ['direction', 'strength', 'level', 'depthMin', 'depthMax', 'timer'];
+    for (var cufi = 0; cufi < currentFiniteFields.length; cufi++) {
+        if (!isFinite(state.current[currentFiniteFields[cufi]])) return false;
+    }
 
     // Per-tank contents.
     var tankFields = ['fO2', 'fHe', 'fN2', 'pressure', 'volume', 'totalGas', 'gasRemaining'];
