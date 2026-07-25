@@ -11281,8 +11281,31 @@ tests = [
             bogusSitePayload.diveSite = 'bogus';
             assert(iw._isValidSaveState(bogusSitePayload) === false,
                 'A payload with an unknown diveSite ("bogus") must be rejected');
+
+            // Review follow-up round 2: the global isFinite() COERCES its
+            // argument before checking — isFinite("20"), isFinite(null) and
+            // isFinite(true) are all true. Number.isFinite() does not
+            // coerce, so these four (the exact reproduction from the
+            // review) must now be rejected where they previously passed.
+            var stringDepthPayload = JSON.parse(raw);
+            stringDepthPayload.depth = '20';
+            assert(iw._isValidSaveState(stringDepthPayload) === false,
+                'A payload with depth as a string ("20") must be rejected — isFinite("20") coerces to true, Number.isFinite must not');
+            var nullTissuePayload = JSON.parse(raw);
+            nullTissuePayload.tissues[0] = null;
+            assert(iw._isValidSaveState(nullTissuePayload) === false,
+                'A payload with tissues[0]=null must be rejected — isFinite(null) coerces to true, Number.isFinite must not');
+            var stringCurrentPayload = JSON.parse(raw);
+            stringCurrentPayload.current.strength = '1';
+            assert(iw._isValidSaveState(stringCurrentPayload) === false,
+                'A payload with current.strength as a string ("1") must be rejected');
+            var boolTankPayload = JSON.parse(raw);
+            boolTankPayload.tanks[0].pressure = true;
+            assert(iw._isValidSaveState(boolTankPayload) === false,
+                'A payload with tanks[0].pressure=true (boolean) must be rejected — isFinite(true) coerces to true, Number.isFinite must not');
+
             iw.localStorage.removeItem(iw.SAVE_KEY);
-            return 'PASS — validator rejected ' + (mustHaveFields.length + 5) + ' distinct malformed payloads, accepted the complete one';
+            return 'PASS — validator rejected ' + (mustHaveFields.length + 9) + ' distinct malformed payloads, accepted the complete one';
         }
     },
     // ============================================================
@@ -11460,20 +11483,20 @@ tests = [
     },
     {
         id: 'TC-58-CAUSTICS-CLIPPED-TO-REAL-FLOOR',
-        name: 'Issue #58 (review follow-up) — every drawn caustics point is near its OWN local floor, not painted regardless of terrain',
+        name: 'Issue #58 (review follow-up round 2) — every drawn caustics point is on the TERRAIN side of the actual visual floor drawTerrain() renders',
         fn: function() {
             api.diveMode = 'rec';
             api.diveSite = 'shore';
             setupDive([[0.21, 0, 200]]);
             // Shore's floor profile varies a lot across the ~66m-wide sampled
             // strip (x≈-33..+33 around the diver), so rather than assert a
-            // global point count for one diver position (fragile — the strip
-            // can clip a shallower stretch even when the diver's OWN x is
-            // deep), verify the actual invariant directly: for every point
-            // the function draws, back-derive its world-x from screen-x and
-            // confirm the implied depth is genuinely within the floor band —
-            // this is what the review flagged as broken (site param unused,
-            // no floorAt() check at all, so every drawn point failed this).
+            // global point count for one diver position, verify the actual
+            // invariant directly: for every point the function draws,
+            // back-derive its world-x from screen-x and confirm the implied
+            // depth is on the terrain side of (>=) drawTerrain()'s own
+            // visualProfileDepth() contour — not just "near" floorAt() by a
+            // symmetric distance, which a point still floating in open water
+            // could satisfy (exactly the round-1 gap the review caught).
             api.diverX = 140;
             api.setDepth(15);
             api.cssWidth = 1280; api.cssHeight = 800;
@@ -11492,24 +11515,35 @@ tests = [
                 ctxRef.lineTo = origLine;
             }
             assert(drawnPoints.length > 0, 'sanity: this scene should draw at least some caustics points');
-            // Review follow-up: bands are now anchored per-column to that
-            // column's own floorAt() at small fixed offsets (max 23px)
-            // plus a ±5px sine wobble — max ~28px ≈ 1.4m from the real
-            // floor, a fraction of the old 40px/2m band.
-            var FLOOR_BAND_M = 28 * mpp + 0.1;
-            var offenders = 0;
-            var maxOffenderDist = 0;
+            // Bands are anchored to visualProfileDepth() at small fixed
+            // offsets ADDED (max 24px, min 6px — deliberately above the
+            // ±5px sine wobble's amplitude so wobble can never push a point
+            // back to the water side) — every point must be at or past that
+            // visual floor line (impliedDepth >= visualFloorD), with the
+            // offset+wobble bounding how far INTO the terrain it can go
+            // (max ~29px ≈ 1.45m).
+            var MAX_INTO_TERRAIN_M = 29 * mpp + 0.1;
+            var waterSideOffenders = 0, tooDeepOffenders = 0;
+            var maxWaterSideDist = 0;
             for (var i = 0; i < drawnPoints.length; i++) {
                 var sx = drawnPoints[i][0], y = drawnPoints[i][1];
                 var worldX = api.diverX + (sx - dsx) * mpp;
                 var impliedDepth = api.depth + (y - dsy) * mpp;
-                var realFloorD = api.floorAt(worldX);
-                var dist = Math.abs(realFloorD - impliedDepth);
-                if (dist > FLOOR_BAND_M) { offenders++; if (dist > maxOffenderDist) maxOffenderDist = dist; }
+                var floorDCol = api.floorAt(worldX);
+                var visualFloorD = api.visualProfileDepth(s.id, 'floor', worldX, floorDCol);
+                var intoTerrain = impliedDepth - visualFloorD; // >=0 means on/into the rendered terrain
+                if (intoTerrain < -1e-6) {
+                    waterSideOffenders++;
+                    if (-intoTerrain > maxWaterSideDist) maxWaterSideDist = -intoTerrain;
+                } else if (intoTerrain > MAX_INTO_TERRAIN_M) {
+                    tooDeepOffenders++;
+                }
             }
-            assert(offenders === 0,
-                offenders + ' of ' + drawnPoints.length + ' drawn caustics points are NOT near their own local floor (max offense ' + maxOffenderDist.toFixed(2) + 'm)');
-            return 'PASS — all ' + drawnPoints.length + ' drawn caustics points are within ' + FLOOR_BAND_M.toFixed(2) + 'm of their own local floorAt()';
+            assert(waterSideOffenders === 0,
+                waterSideOffenders + ' of ' + drawnPoints.length + ' drawn caustics points are on the WATER side of the visual floor (max ' + maxWaterSideDist.toFixed(2) + 'm above it)');
+            assert(tooDeepOffenders === 0,
+                tooDeepOffenders + ' of ' + drawnPoints.length + ' drawn caustics points are more than ' + MAX_INTO_TERRAIN_M.toFixed(2) + 'm into the terrain');
+            return 'PASS — all ' + drawnPoints.length + ' drawn caustics points are on the terrain side of the real visual floor, within ' + MAX_INTO_TERRAIN_M.toFixed(2) + 'm of it';
         }
     },
     {
@@ -11546,6 +11580,127 @@ tests = [
             assert(onPlateau.length > 0,
                 'expected at least one caustics point on the flat plateau (x∈[-7,7]), got 0');
             return 'PASS — 0 points on the steep wall flanks, ' + onPlateau.length + ' points on the flat plateau';
+        }
+    },
+    // ============================================================
+    //  PR #102 review comment #4 follow-up fixes
+    // ============================================================
+    {
+        id: 'TC-45-66-DRILL-OVERLAY-SURVIVES-RESUME',
+        name: 'Issue #45/#66 (review follow-up, blocker) — a drill decision overlay is still resolvable after a save/reload/restore cycle',
+        fn: function() {
+            api.diveMode = 'rec';
+            // Issue #66 (review follow-up): must be a genuine DIVE_SITES key
+            // now — 'open' is no longer accepted by _isValidSaveState().
+            api.diveSite = 'shore';
+            setupDive([[0.21, 0, 200]]);
+            api.drillsEnabled = true;
+            api.setDepth(20);
+            var iw = iframe.contentWindow;
+            var savedRaw = iw.localStorage.getItem(iw.SAVE_KEY);
+            try {
+                api.forceDrill('freeflow');
+                api.drillState.phase = 'overlay';
+                api.gameState = 'drill';
+                assert(api.drillState.phase === 'overlay', 'sanity: drill overlay should be open before saving');
+
+                iw.saveDiveState();
+                var raw = iw.localStorage.getItem(iw.SAVE_KEY);
+                assert(raw, 'sanity: saveDiveState() should have written a payload');
+                var payload = JSON.parse(raw);
+                assert(payload.drillState && payload.drillState.phase === 'overlay',
+                    'saved payload must capture drillState.phase="overlay", got ' + JSON.stringify(payload.drillState));
+                assert(iw._isValidSaveState(payload) === true, 'a genuine mid-drill payload must validate as true');
+
+                // Simulate a real reload: reset the live drill state back to
+                // its fresh-page default (exactly what a hard refresh would
+                // produce) BEFORE restoring, matching the reviewer's repro.
+                api.resetDive();
+                assert(api.drillState.phase === 'inactive', 'sanity: resetDive should clear drillState back to inactive');
+                api.gameState = 'diving';
+
+                var loaded = iw.loadSavedDive();
+                assert(loaded !== null, 'loadSavedDive() must accept the mid-drill payload');
+                iw.restoreDiveState(loaded);
+
+                assert(api.gameState === 'drill', 'gameState must restore to "drill", got ' + api.gameState);
+                assert(api.drillState.phase === 'overlay', 'drillState.phase must restore to "overlay", got ' + api.drillState.phase);
+                assert(api.drillState.id === 'freeflow', 'drillState.id must restore to "freeflow", got ' + api.drillState.id);
+
+                // The actual bug: the diver must be able to interact again,
+                // not be stuck with an invisible, unresolvable overlay.
+                var resolved = api.resolveDrillOption(0);
+                assert(resolved === true, 'resolveDrillOption() must succeed after resume — a false here IS the stuck-forever bug');
+                assert(api.drillState.phase === 'debrief', 'resolving the option should advance to debrief, got ' + api.drillState.phase);
+            } finally {
+                api.drillState.phase = 'inactive';
+                api.drillHasRunThisDive = false;
+                api.gameState = 'diving';
+                if (savedRaw !== null) iw.localStorage.setItem(iw.SAVE_KEY, savedRaw);
+                else iw.localStorage.removeItem(iw.SAVE_KEY);
+            }
+            return 'PASS — drill overlay resumed correctly after save/reload and resolveDrillOption() succeeded';
+        }
+    },
+    {
+        id: 'TC-45-66-DRILL-EFFECT-TIMERS-SURVIVE-RESUME',
+        name: 'Issue #45/#66 (review follow-up, blocker) — an ongoing drill effect (freeflow multiplier) survives a save/reload/restore cycle',
+        fn: function() {
+            api.diveMode = 'rec';
+            // Issue #66 (review follow-up): must be a genuine DIVE_SITES key
+            // now — 'open' is no longer accepted by _isValidSaveState().
+            api.diveSite = 'shore';
+            setupDive([[0.21, 0, 200]]);
+            api.drillsEnabled = true;
+            api.setDepth(20);
+            var iw = iframe.contentWindow;
+            var savedRaw = iw.localStorage.getItem(iw.SAVE_KEY);
+            try {
+                api.forceDrill('freeflow');
+                api.drillState.phase = 'overlay';
+                api.gameState = 'drill';
+                api.resolveDrillOption(0); // correct "breathe through it" — starts the freeflow multiplier
+                api.dismissDrillDebrief();
+                assert(api.gameState === 'diving', 'sanity: dismissing debrief should return to diving');
+                assert(api.drillState.freeflowUntilDiveSec > api.diveTime * 60,
+                    'sanity: freeflowUntilDiveSec should be a future dive-second before saving');
+                var savedDeadline = api.drillState.freeflowUntilDiveSec;
+                var savedDrainIdx = api.drillState.freeflowDrainTankIdx;
+
+                iw.saveDiveState();
+                var raw = iw.localStorage.getItem(iw.SAVE_KEY);
+                var payload = JSON.parse(raw);
+                assert(Math.abs(payload.drillState.freeflowUntilDiveSec - savedDeadline) < 1e-9,
+                    'saved payload must capture the exact freeflowUntilDiveSec deadline');
+
+                // Simulate a real reload.
+                api.resetDive();
+                assert(api.drillState.freeflowUntilDiveSec === 0, 'sanity: resetDive should clear the freeflow deadline');
+
+                var loaded = iw.loadSavedDive();
+                assert(loaded !== null, 'loadSavedDive() must accept the payload with an ongoing effect');
+                iw.restoreDiveState(loaded);
+
+                assert(Math.abs(api.drillState.freeflowUntilDiveSec - savedDeadline) < 1e-9,
+                    'freeflowUntilDiveSec must survive resume unchanged (dive-time based, not wall-clock), expected ' + savedDeadline + ' got ' + api.drillState.freeflowUntilDiveSec);
+                assert(api.drillState.freeflowDrainTankIdx === savedDrainIdx,
+                    'freeflowDrainTankIdx must survive resume, expected ' + savedDrainIdx + ' got ' + api.drillState.freeflowDrainTankIdx);
+
+                // The consumption multiplier must still actually apply post-resume.
+                var tank = api.tanks[0];
+                var gasBefore = tank.gasRemaining;
+                api.updateDiving(0.5);
+                var used = gasBefore - tank.gasRemaining;
+                assert(used > 1.0, 'the freeflow multiplier must still be active after resume — consumption over 1.5 dive-sec was only ' + used.toFixed(3) + 'L');
+            } finally {
+                api.drillState.freeflowUntilDiveSec = 0;
+                api.drillState.freeflowDrainTankIdx = -1;
+                api.drillState.phase = 'inactive';
+                api.drillHasRunThisDive = false;
+                if (savedRaw !== null) iw.localStorage.setItem(iw.SAVE_KEY, savedRaw);
+                else iw.localStorage.removeItem(iw.SAVE_KEY);
+            }
+            return 'PASS — ongoing freeflow effect (deadline + drain target) survived save/reload/restore and the consumption multiplier still applies';
         }
     }
 ];

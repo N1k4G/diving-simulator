@@ -1238,9 +1238,16 @@ function _isValidSaveState(state) {
     if (state.saveVersion !== SAVE_STATE_VERSION) return false;
     if (!Array.isArray(state.tissues) || state.tissues.length !== 16) return false;
     if (!Array.isArray(state.tissuesHe) || state.tissuesHe.length !== 16) return false;
-    if (!state.tissues.every(isFinite) || !state.tissuesHe.every(isFinite)) return false;
+    // Issue #66 (review follow-up round 2): the global isFinite() coerces
+    // its argument first (isFinite("20")===true, isFinite(null)===true,
+    // isFinite(true)===true) — a string/null/boolean payload value would
+    // silently pass every check below and then, post-restore, corrupt
+    // physics via string concatenation (`depth += ...`) instead of a
+    // rejected save. Number.isFinite() does not coerce. Every check in
+    // this function now uses it.
+    if (!state.tissues.every(Number.isFinite) || !state.tissuesHe.every(Number.isFinite)) return false;
     if (!Array.isArray(state.tanks) || state.tanks.length < 1) return false;
-    if (!isFinite(state.depth) || !isFinite(state.maxDepth)) return false;
+    if (!Number.isFinite(state.depth) || !Number.isFinite(state.maxDepth)) return false;
 
     // Issue #66 (review follow-up): the checks above only covered depth and
     // the tissue arrays — every other field restoreDiveState() assigns
@@ -1258,12 +1265,13 @@ function _isValidSaveState(state) {
         'sharkTimer', 'ccrHypoxiaTime', 'ccrHyperoxiaTime'
     ];
     for (var fi = 0; fi < finiteFields.length; fi++) {
-        if (!isFinite(state[finiteFields[fi]])) return false;
+        if (!Number.isFinite(state[finiteFields[fi]])) return false;
     }
     // tanks.length is always kept exactly equal to tankCount (gsAddTank()/
     // gsRemoveTank() push/pop in lockstep) — a mismatch means a malformed
-    // or hand-edited payload.
-    if (state.tankCount < 1 || state.tankCount !== state.tanks.length) return false;
+    // or hand-edited payload. tankCount is a discrete count, not just any
+    // finite number.
+    if (!Number.isInteger(state.tankCount) || state.tankCount < 1 || state.tankCount !== state.tanks.length) return false;
     // Issue #66 (review follow-up): isFinite(0.5) is true, so a fractional
     // activeTank previously slipped through — tanks[0.5] doesn't exist.
     if (!Number.isInteger(state.activeTank) || state.activeTank < 0 || state.activeTank >= state.tankCount) return false;
@@ -1275,7 +1283,7 @@ function _isValidSaveState(state) {
     // Issue #66 (review follow-up): loadSavedDive()'s staleness check
     // (Date.now() - state.savedAt > 3600000) silently passes for a
     // non-finite savedAt, since any comparison against NaN is false.
-    if (!isFinite(state.savedAt) || state.savedAt <= 0) return false;
+    if (!Number.isFinite(state.savedAt) || state.savedAt <= 0) return false;
     // Issue #66 (review follow-up): an unknown diveSite makes activeSite()
     // return null everywhere — every overhead/silt/thirds/guideline
     // mechanic silently no-ops as if the diver were in open water forever,
@@ -1293,7 +1301,7 @@ function _isValidSaveState(state) {
     if (typeof state.current.rolledThisDive !== 'boolean') return false;
     var currentFiniteFields = ['direction', 'strength', 'level', 'depthMin', 'depthMax', 'timer'];
     for (var cufi = 0; cufi < currentFiniteFields.length; cufi++) {
-        if (!isFinite(state.current[currentFiniteFields[cufi]])) return false;
+        if (!Number.isFinite(state.current[currentFiniteFields[cufi]])) return false;
     }
 
     // Per-tank contents.
@@ -1302,7 +1310,7 @@ function _isValidSaveState(state) {
         var t = state.tanks[ti];
         if (!t || typeof t !== 'object') return false;
         for (var tfi = 0; tfi < tankFields.length; tfi++) {
-            if (!isFinite(t[tankFields[tfi]])) return false;
+            if (!Number.isFinite(t[tankFields[tfi]])) return false;
         }
     }
 
@@ -1318,8 +1326,40 @@ function _isValidSaveState(state) {
     ];
     if (!state.ccrState || typeof state.ccrState !== 'object') return false;
     for (var ci = 0; ci < ccrFields.length; ci++) {
-        if (!isFinite(state.ccrState[ccrFields[ci]])) return false;
+        if (!Number.isFinite(state.ccrState[ccrFields[ci]])) return false;
     }
+
+    // Issue #45/#66 (review follow-up, blocker): drill runtime state.
+    // restoreDiveState() assigns every drillState field directly with no
+    // fallback — a missing/malformed field here (or a payload from before
+    // this was added) would leave drillState half-restored, and a
+    // gameState==='drill' payload with drillState.phase !=='inactive'
+    // couldn't safely resume at all (no overlay to interact with).
+    if (!state.drillState || typeof state.drillState !== 'object') return false;
+    if (typeof state.drillHasRunThisDive !== 'boolean') return false;
+    var validDrillPhases = ['inactive', 'flicker', 'overlay', 'debrief', 'effect'];
+    if (validDrillPhases.indexOf(state.drillState.phase) === -1) return false;
+    if (state.drillState.id !== null && typeof state.drillState.id !== 'string') return false;
+    if (!Number.isInteger(state.drillState.selectedOption)) return false;
+    if (typeof state.drillState.correct !== 'boolean') return false;
+    if (!Number.isInteger(state.drillState.freeflowDrainTankIdx)) return false;
+    var drillFiniteFields = ['startedAt', 'flickerRemainingSec', 'debriefRemainingSec',
+        'freeflowUntilDiveSec', 'lightRestoreAt', 'breathHoldUntilDiveSec'];
+    for (var dfi = 0; dfi < drillFiniteFields.length; dfi++) {
+        if (!Number.isFinite(state.drillState[drillFiniteFields[dfi]])) return false;
+    }
+    // Cross-field consistency: gameState==='drill' only makes sense while
+    // the decision overlay (or its flicker/debrief neighbours) is up;
+    // 'diving'/'surface' can only coexist with 'inactive' or the ongoing
+    // post-decision 'effect' phase, never a phase that implies an overlay
+    // should be on screen right now.
+    var drillPhasesByGameState = {
+        drill: ['flicker', 'overlay', 'debrief'],
+        diving: ['inactive', 'effect'],
+        surface: ['inactive', 'effect']
+    };
+    var allowedPhases = drillPhasesByGameState[state.gameState];
+    if (allowedPhases && allowedPhases.indexOf(state.drillState.phase) === -1) return false;
 
     return true;
 }
@@ -1381,6 +1421,35 @@ function saveDiveState() {
         // survive a reload mid-dive the same as the rest of the debrief
         // event log above.
         thirdsReserveHitThisDive: thirdsReserveHitThisDive,
+        // Issue #45/#66 (review follow-up, blocker): saveDiveState() allows
+        // gameState==='drill' but never persisted drillState at all — on
+        // resume, gameState came back as 'drill' while drillState reset to
+        // its {phase:'inactive'} default, leaving the diver in a paused
+        // state with no visible overlay and no way to interact
+        // (resolveDrillOption/dismissDrillDebrief both refuse to act
+        // outside their expected phase). flickerUntilReal/debriefUntilReal
+        // are performance.now()-based real-time deadlines that mean nothing
+        // after a reload (the clock restarts at 0), so they're saved as a
+        // REMAINING duration instead of an absolute deadline; every other
+        // drillState timer is already dive-time based (survives via
+        // diveTime, already saved above) so it round-trips as-is.
+        // optionRects is a per-frame renderer hit-test cache, not state.
+        drillHasRunThisDive: drillHasRunThisDive,
+        drillState: {
+            phase: drillState.phase,
+            id: drillState.id,
+            startedAt: drillState.startedAt,
+            selectedOption: drillState.selectedOption,
+            correct: drillState.correct,
+            flickerRemainingSec: drillState.phase === 'flicker'
+                ? Math.max(0, drillState.flickerUntilReal - _drillRealTime()) : 0,
+            debriefRemainingSec: drillState.phase === 'debrief'
+                ? Math.max(0, drillState.debriefUntilReal - _drillRealTime()) : 0,
+            freeflowUntilDiveSec: drillState.freeflowUntilDiveSec,
+            freeflowDrainTankIdx: drillState.freeflowDrainTankIdx,
+            lightRestoreAt: drillState.lightRestoreAt,
+            breathHoldUntilDiveSec: drillState.breathHoldUntilDiveSec
+        },
         diverX: diverX,
         horizontalVelocity: horizontalVelocity,
         current: { active: current.active, direction: current.direction, strength: current.strength, level: current.level, depthMin: current.depthMin, depthMax: current.depthMax, timer: current.timer, rolledThisDive: current.rolledThisDive },
@@ -1463,6 +1532,27 @@ function restoreDiveState(state) {
     diveEvents = Array.isArray(state.diveEvents) ? state.diveEvents : [];
     minNdlSeen = (state.minNdlSeen == null) ? Infinity : state.minNdlSeen;
     thirdsReserveHitThisDive = !!state.thirdsReserveHitThisDive;
+    // Issue #45/#66 (review follow-up, blocker): restore the drill runtime
+    // state _isValidSaveState() now guarantees is present and well-formed.
+    // The two real-time deadlines were saved as a REMAINING duration (see
+    // saveDiveState()) — reconstruct a fresh absolute deadline against
+    // THIS page's own _drillRealTime() clock (performance.now() restarts
+    // at 0 on reload, so the old absolute value would be meaningless).
+    // optionRects is a per-frame renderer hit-test cache, not state —
+    // starts empty and gets repopulated on the next drill-overlay frame.
+    drillHasRunThisDive = !!state.drillHasRunThisDive;
+    drillState.phase = state.drillState.phase;
+    drillState.id = state.drillState.id;
+    drillState.startedAt = state.drillState.startedAt;
+    drillState.selectedOption = state.drillState.selectedOption;
+    drillState.correct = state.drillState.correct;
+    drillState.flickerUntilReal = _drillRealTime() + state.drillState.flickerRemainingSec;
+    drillState.debriefUntilReal = _drillRealTime() + state.drillState.debriefRemainingSec;
+    drillState.freeflowUntilDiveSec = state.drillState.freeflowUntilDiveSec;
+    drillState.freeflowDrainTankIdx = state.drillState.freeflowDrainTankIdx;
+    drillState.lightRestoreAt = state.drillState.lightRestoreAt;
+    drillState.breathHoldUntilDiveSec = state.drillState.breathHoldUntilDiveSec;
+    drillState.optionRects = [];
     diverX = state.diverX || 0;
     horizontalVelocity = state.horizontalVelocity || 0;
     // Phase C

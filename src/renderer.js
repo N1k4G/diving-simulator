@@ -2962,6 +2962,15 @@ function _nearSurfaceSiteMultiplier(siteId) {
 // horizontally. Extracted from the pre-#58 Shore atmosphere branch —
 // visuals are near-unchanged for Shore, and Reef now shares the exact
 // same helper (previously had no caustics at all).
+// Issue #58 (review follow-up): reused across drawCausticsOnVisibleFloor()
+// calls instead of allocating a fresh array/objects every frame — plain
+// parallel arrays (not an array of {sx,worldX,...} objects), truncated with
+// .length=0 and refilled by index each call rather than reallocated.
+var _causticsColSx = [];
+var _causticsColWorldX = [];
+var _causticsColFloorScreenY = [];
+var _causticsColOk = [];
+
 function drawCausticsOnVisibleFloor(site, lightFactor) {
     if (lightFactor <= 0.01) return;
     var W = cssWidth, H = cssHeight;
@@ -2974,41 +2983,56 @@ function drawCausticsOnVisibleFloor(site, lightFactor) {
     // World-anchored horizontal wavelength ≈ 2π/0.6 ≈ 10.5 m (matches
     // the original 0.03/pixel * 0.05 mpp period, just in world units).
     var kx = 0.6;
-    // Issue #58 (review follow-up): the previous version stepped through
-    // FIXED absolute screen-Y rows and only loosely checked whether each
-    // row happened to be within a wide (40px / 2m) band of the floor at
-    // that column — most drawn points still ended up hanging in open
-    // water above the seabed rather than on it. Rebuilt so every band is
-    // anchored to EACH COLUMN'S OWN local floorAt() depth (small, tight
-    // pixel offsets above it) instead of an absolute screen coordinate —
-    // every drawn point is therefore always within OFFSETS_PX of its own
-    // real floor, on Reef additionally gated by a local-slope check so
-    // the steep mesa flanks don't get the flat sunlit-floor treatment.
-    var OFFSETS_PX = [2, 9, 16, 23];
+    // Issue #58 (review follow-up, round 2): two bugs in the previous
+    // per-column rewrite. (1) Sign was backwards — `floorScreenY - offset`
+    // moves UP the screen (smaller y = shallower = further INTO the water
+    // column), the opposite of onto the terrain; drawTerrain()'s own floor
+    // polygon is filled at y >= its floor line (larger y = deeper/into the
+    // terrain), so the offset must be ADDED. (2) floorScreenY was derived
+    // from floorAt() (the collision floor), but drawTerrain() renders
+    // visualProfileDepth(site.id,'floor',worldX,floorAt(worldX)) — the
+    // organic visual contour, which is always at or shallower than the
+    // collision floor (issue #52) — so anchoring to the collision floor
+    // could still land caustics either in the water or underground
+    // relative to what's actually drawn. Both fixed: anchor to the same
+    // visualProfileDepth() drawTerrain() itself uses, offset added so
+    // every point lands on/into the rendered terrain side of that line.
+    // Minimum offset must exceed the sine wobble's amplitude (5px) below —
+    // otherwise a point with the smallest offset and a fully-negative
+    // wobble sample nets to less than 0 and lands back on the water side.
+    var OFFSETS_PX = [6, 12, 18, 24];
     var REEF_MAX_SLOPE = 1.5;    // metres of depth change per metre — above this, treat as a wall
     // Precompute per-column floor data once, reused across every offset band.
-    var cols = [];
+    _causticsColSx.length = 0;
+    _causticsColWorldX.length = 0;
+    _causticsColFloorScreenY.length = 0;
+    _causticsColOk.length = 0;
+    var n = 0;
     for (var sx = -20; sx <= W + 20; sx += 18) {
         var worldX = diverX + (sx - dsx) * mpp;
-        var floorD = floorAt(worldX);
-        var floorScreenY = dsy + (floorD - depth) / mpp;
+        var floorDCol = floorAt(worldX);
+        var floorDVis = visualProfileDepth(site.id, 'floor', worldX, floorDCol);
+        var floorScreenY = dsy + (floorDVis - depth) / mpp;
         var ok = true;
         if (site.id === 'reef') {
             var slope = Math.abs(floorAt(worldX + 1) - floorAt(worldX - 1)) / 2;
             ok = slope < REEF_MAX_SLOPE;
         }
-        cols.push({ sx: sx, worldX: worldX, floorScreenY: floorScreenY, ok: ok });
+        _causticsColSx[n] = sx;
+        _causticsColWorldX[n] = worldX;
+        _causticsColFloorScreenY[n] = floorScreenY;
+        _causticsColOk[n] = ok;
+        n++;
     }
     for (var oi = 0; oi < OFFSETS_PX.length; oi++) {
         var offset = OFFSETS_PX[oi];
         cx.beginPath();
         var pathOpen = false;
-        for (var ci = 0; ci < cols.length; ci++) {
-            var col = cols[ci];
-            if (!col.ok) { pathOpen = false; continue; }
-            var cy = col.floorScreenY - offset;
-            var y = cy + Math.sin(col.worldX * kx + waveTime * 1.7 + cy * 0.02) * 5;
-            if (!pathOpen) { cx.moveTo(col.sx, y); pathOpen = true; } else { cx.lineTo(col.sx, y); }
+        for (var ci = 0; ci < n; ci++) {
+            if (!_causticsColOk[ci]) { pathOpen = false; continue; }
+            var cy = _causticsColFloorScreenY[ci] + offset;
+            var y = cy + Math.sin(_causticsColWorldX[ci] * kx + waveTime * 1.7 + cy * 0.02) * 5;
+            if (!pathOpen) { cx.moveTo(_causticsColSx[ci], y); pathOpen = true; } else { cx.lineTo(_causticsColSx[ci], y); }
         }
         cx.stroke();
     }
