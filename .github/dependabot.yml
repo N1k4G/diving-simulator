@@ -1,7 +1,6 @@
-# Note: Dependabot PR titles ("Bump x from 1.0.0 to 1.1.0") don't match any
-# of the conventional-commit prefixes that release-label.yml infers a release
-# label from, so Dependabot PRs will need a release:* label applied manually
-# before they can merge (release-label.yml requires exactly one).
+# Dependabot titles its PRs "build(deps): ..." / "build(deps-dev): ...", which
+# release-label.yml infers release:none from, so these PRs self-label and need
+# no manual intervention. Changing the title format here would break that.
 version: 2
 updates:
   - package-ecosystem: "github-actions"
