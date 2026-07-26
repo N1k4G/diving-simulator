@@ -934,8 +934,8 @@ function drawScene() {
 
     // Site-specific atmosphere is cheap gradient/line work behind terrain.
     drawSiteAtmosphere();
-    // Issue #58: shared near-surface optics — water underside highlight,
-    // godrays and boat shadow. Runs at the same slot as drawSiteAtmosphere
+    // Issue #58: shared near-surface optics — water underside highlight
+    // and boat shadow. Runs at the same slot as drawSiteAtmosphere
     // (behind terrain) so it's part of the water/background layer.
     drawNearSurfaceAtmosphere(_localAtmo);
 
@@ -1154,10 +1154,10 @@ function drawScene() {
     drawLightShafts();
 
     // Issue #32: additive light streaming through the cenote's REAR exit
-    // opening. Uses the same wedge/gradient recipe as _drawGodRays but
-    // origin-anchored to the cave_exit visualZone (open-to-surface at
-    // x=146..200), not to the main surfaceScreenY — the diver is inside
-    // overhead here, so drawNearSurfaceAtmosphere has already returned.
+    // opening. Wedge/gradient light-shaft recipe, origin-anchored to the
+    // cave_exit visualZone (open-to-surface at x=146..200), not to the
+    // main surfaceScreenY — the diver is inside overhead here, so
+    // drawNearSurfaceAtmosphere has already returned.
     drawCaveExitLightShaft();
 
     // Issue #54: local water volumes — tint + distance fog composite
@@ -2914,11 +2914,11 @@ function drawSetDressing(site, visibleWorldLeft, visibleWorldRight, mpp) {
 
 // ── Near-surface optics (issue #58) ────────────────────────────────
 // Shared, stylised 2D pass covering the light effects that live in the
-// upper ~20 m of the water column: moving caustics on shallow floor,
-// soft godrays, a slightly richer water underside, and a soft boat
-// shadow. Consolidates code that used to live in per-site branches and
-// gives future sites (issue #35 reef polish, #43 shore godrays) a
-// single call site instead of a fresh copy each time.
+// upper ~20 m of the water column: moving caustics on shallow floor, a
+// slightly richer water underside, and a soft boat shadow. Consolidates
+// code that used to live in per-site branches and gives future sites
+// (issue #35 reef polish, #43 shore) a single call site instead of a
+// fresh copy each time.
 //
 // Not physically accurate — no refraction, no Snell's window, no
 // depth colour absorption (that's issue #36). Depth colour, water-
@@ -3084,58 +3084,6 @@ function _drawSurfaceUnderside(surfaceY, W, H, lightFactor) {
     cx.restore();
 }
 
-// Godrays: 4 wide, soft translucent wedges dropping from the surface.
-// World-anchored origin x (rounded to a 15 m grid) so they don't swim
-// with the camera when the diver moves horizontally. Additive-blend
-// gradient wedges, no hard edges. Fades hard with depth.
-function _drawGodRays(surfaceY, W, H, lightFactor, siteMult) {
-    var eff = lightFactor * siteMult;
-    if (eff <= 0.02) return;
-    if (surfaceY >= H + 20) return;         // no rays below floor of screen
-    var cx = ctx;
-    cx.save();
-    cx.globalCompositeOperation = 'lighter';
-    var mpp = 0.05, dsx = W * DIVER_SCREEN_X_FRACTION;
-    // Visible world-x range → snap to a 15 m grid to anchor rays.
-    var worldXLeft  = diverX + (0 - dsx) * mpp - 8;
-    var worldXRight = diverX + (W - dsx) * mpp + 8;
-    var spacing = 15;
-    var xStart = Math.floor(worldXLeft / spacing) * spacing;
-    var beamTopY = Math.max(-40, surfaceY - 20);
-    var beamBotY = Math.min(H + 20, surfaceY + 220);
-    if (beamBotY <= beamTopY + 20) { cx.restore(); return; }
-    for (var wx = xStart; wx <= worldXRight; wx += spacing) {
-        var seed = wx * 0.171 + 3.7;
-        var jitter = (sRand(seed) - 0.5) * 6;
-        var rayWorldX = wx + jitter + Math.sin(waveTime * 0.25 + seed) * 1.5;
-        var topScreenX = dsx + (rayWorldX - diverX) / mpp;
-        if (topScreenX < -80 || topScreenX > W + 80) continue;
-        // Wedge widens as it descends (fan). Slight angle variance per ray.
-        var angle = (sRand(seed + 1.1) - 0.5) * 0.35;
-        var topHalf = 14 + sRand(seed + 2.3) * 8;
-        var botHalf = 46 + sRand(seed + 3.3) * 22;
-        var xTopL = topScreenX - topHalf;
-        var xTopR = topScreenX + topHalf;
-        var xBotL = topScreenX - botHalf + angle * 40;
-        var xBotR = topScreenX + botHalf + angle * 40;
-        // Vertical gradient — bright near surface, transparent at tip.
-        var g = cx.createLinearGradient(0, beamTopY, 0, beamBotY);
-        var aTop = 0.11 * eff;
-        g.addColorStop(0,    'rgba(255,248,220,' + aTop.toFixed(3) + ')');
-        g.addColorStop(0.55, 'rgba(200,230,235,' + (aTop * 0.45).toFixed(3) + ')');
-        g.addColorStop(1,    'rgba(160,205,215,0)');
-        cx.fillStyle = g;
-        cx.beginPath();
-        cx.moveTo(xTopL, beamTopY);
-        cx.lineTo(xTopR, beamTopY);
-        cx.lineTo(xBotR, beamBotY);
-        cx.lineTo(xBotL, beamBotY);
-        cx.closePath();
-        cx.fill();
-    }
-    cx.restore();
-}
-
 // Boat shadow / surface silhouette: a soft dark elongated blob
 // hanging under the surface at the boat's screen-x. Uses the SAME
 // derivation as the boat sprite (drawScene line ~663) so the shadow
@@ -3172,9 +3120,9 @@ function _drawBoatShadow(surfaceY, W, H, lightFactor, siteMult) {
 }
 
 // Public: near-surface atmosphere layer. Runs BEFORE terrain — this
-// is the background/water side of the pass (godrays, boat shadow,
-// water-underside). The caustics on the floor are painted AFTER
-// terrain by drawSurfaceCaustics().
+// is the background/water side of the pass (boat shadow, water-
+// underside). The caustics on the floor are painted AFTER terrain by
+// drawSurfaceCaustics().
 // Issue #54 (review follow-up): cachedAtmo lets drawScene() pass through
 // the ONE sampleLocalAtmosphere() result it already computed this frame
 // (_localAtmo) instead of this function re-sampling the exact same
@@ -3212,7 +3160,6 @@ function drawNearSurfaceAtmosphere(cachedAtmo) {
     var lightFactor = base * atmoK;
     if (lightFactor <= 0.01) return;
     _drawSurfaceUnderside(surfaceY, W, H, lightFactor);
-    _drawGodRays(surfaceY, W, H, lightFactor, siteMult);
     _drawBoatShadow(surfaceY, W, H, lightFactor, siteMult);
 }
 
@@ -4269,9 +4216,9 @@ function drawCaveSiltCloud() {
     cx.restore();
 }
 
-// Rear-exit light staging. Uses the SAME wedge math as _drawGodRays but
-// origin-anchored to the cave_exit visualZone opening (where the ceiling
-// meets the surface at ~x=200), NOT to the global surfaceScreenY — the
+// Rear-exit light staging. Wedge/gradient light-shaft math, origin-anchored
+// to the cave_exit visualZone opening (where the ceiling meets the surface
+// at ~x=200), NOT to the global surfaceScreenY — the
 // diver is inside overhead so the general near-surface pass has
 // early-returned. Alpha ramps with the diver's approach distance so the
 // exit reads as an inviting light target from deep inside the tunnel.

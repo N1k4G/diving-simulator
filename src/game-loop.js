@@ -2095,8 +2095,8 @@ window.gameAPI = {
     drawSoftCoral: drawSoftCoral,
     drawGorgonian: drawGorgonian,
     drawBarrelSponge: drawBarrelSponge,
-    // Issue #58: Shared near-surface optics — caustics, godrays, water
-    // underside, boat shadow. Pure depth curve + three render helpers.
+    // Issue #58: Shared near-surface optics — caustics, water underside,
+    // boat shadow. Pure depth curve + render helpers.
     nearSurfaceLightFactor: nearSurfaceLightFactor,
     drawCausticsOnVisibleFloor: drawCausticsOnVisibleFloor,
     drawNearSurfaceAtmosphere: drawNearSurfaceAtmosphere,

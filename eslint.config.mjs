@@ -303,7 +303,7 @@ const gameGlobals = {
   nearSurfaceLightFactor: "readonly", drawCausticsOnVisibleFloor: "readonly",
   drawNearSurfaceAtmosphere: "readonly", drawSurfaceCaustics: "readonly",
   _nearSurfaceSiteMultiplier: "readonly",
-  _drawSurfaceUnderside: "readonly", _drawGodRays: "readonly",
+  _drawSurfaceUnderside: "readonly",
   _drawBoatShadow: "readonly",
   // Issue #43: World-anchored parallax layers (renderer.js)
   PARALLAX_FACTORS: "readonly",
