@@ -98,9 +98,24 @@ window.addEventListener('keydown', e => {
     if (e.key === 'Escape' && infoPageMode > 0) {
         infoPageMode = 0;
     }
+    // Issue #46: Instructor overlay toggle (L for "Learn"). Only reacts
+    // in the diving state so the same key stays free in gas-setup / surface
+    // / gameover / post-dive — mirrors the `I` info-page and `H` help
+    // gates. The overlay itself hides when showHelp / infoPageMode > 0
+    // regardless of this flag (space conflict), so no extra guard is
+    // needed here for those overlays being open at press time.
+    if ((e.key === 'l' || e.key === 'L') && gameState === 'diving') {
+        instructorMode = !instructorMode;
+    }
 });
 window.addEventListener('keyup', e => {
+    // Issue #9: if Shift is released before the letter (e.g. Shift+G), the
+    // keyup for the letter arrives with e.key === 'g' (lowercase) even
+    // though keydown stored keys['G'] = true. Clear both case variants
+    // (not just the two forms of whatever case e.key happens to be) so a
+    // Shift-combo key can never get stuck true.
     keys[e.key.toLowerCase()] = false;
+    keys[e.key.toUpperCase()] = false;
     keys[e.key] = false;
 });
 
@@ -157,6 +172,19 @@ let safetyStopCountdownStarted = false;
 let safetyStopPaused = false;
 let ndlDroppedBelow5 = false;
 
+// Issue #44: Post-dive debriefing — event log + running minimum NDL.
+// diveEvents entries are {t, kind, value}; kinds are 'fastAscent',
+// 'ceilingViolation', 'safetyStopSkipped'. Debounced via _fastAscentAccum /
+// _ceilingViolationAccum so a sustained violation records exactly one entry
+// (accumulator is set to -Infinity after firing and cleared once the
+// condition drops back below threshold — same debounce pattern used by
+// po2ViolationTime / barotraumaTime).
+let diveEvents = [];
+let minNdlSeen = Infinity;
+let _fastAscentAccum = 0;
+let _fastAscentPeak = 0;
+let _ceilingViolationAccum = 0;
+
 // Bubbles
 let bubbles = [];
 var breathPhase = 'inhale';
@@ -176,6 +204,34 @@ let lastFrameTime = 0;
 // TASK-019: Gas switch notification
 let gasSwitchNotifyTime = 0;
 let gasSwitchNotifyText = '';
+
+// Issue #38: Contextual onboarding hint toasts.
+// One-time in-dive nudges triggered by state transitions (not timers). Each
+// hint id is remembered in localStorage under HINT_STORAGE_PREFIX + id so it
+// fires exactly once per browser. A single global HINT_DONE_KEY suppresses
+// the whole system (the "don't show again" button on the help overlay).
+// Rendering mirrors the gasSwitchNotify pattern at HINT_TOAST_Y_FRAC (below
+// the gas-switch banner so both can be visible simultaneously). Queue depth
+// is unbounded but only one hint is visible at a time; the queue drains one
+// entry per HINT_DISPLAY_SEC seconds via the pump call in updateDiving().
+const HINT_DISPLAY_SEC = 6;
+const HINT_STORAGE_PREFIX = 'diveSim_hint_';
+const HINT_DONE_KEY = 'diveSim_hintsDone';
+const HINT_TOAST_Y_FRAC = 0.36; // gas-switch sits at 0.30 — hints go below it
+// NDL threshold used by the "NDL dropping" trigger. Below 10 min the diver
+// should already start planning; the hint fires at the first crossing.
+const HINT_NDL_MIN = 10;
+// Minimum depth for the BCD hint — avoids firing during the surface descent
+// gate (where depth briefly ticks past 0 but the diver is not yet "in-dive").
+const HINT_BCD_MIN_DEPTH = 2;
+let hintNotifyTime = 0;
+let hintNotifyText = '';
+let hintQueue = [];
+// Per-dive edge state so a trigger fires at most once per dive AND, once its
+// localStorage flag is set, never again. Reset in resetDive() to re-detect
+// edges cleanly on the next dive — the localStorage guard inside
+// showHintOnce() still prevents any duplicate display.
+let hintEdges = { bcd: false, ndl: false, safetyStop: false, deco: false, overhead: false, current: false };
 
 // TASK-022: Fish system
 let fishes = [];
@@ -205,11 +261,103 @@ let _guidelineTimer = 0;     // accumulates dive-seconds between samples
 let visibility = 1.0;        // 1 = clear, 0 = full silt-out
 let inOverhead = false;      // cached overheadAt(diverX, depth) for this tick
 let badAirWarning = false;   // diver's head is in an unbreathable dome
-// Rule-of-thirds warning flags (cave/wreck only)
+// Issue #27: Rule-of-thirds gas planning (cave/wreck overhead only).
+// thirdsStartingGas is snapshotted from the total across all tanks on
+// first entry into the overhead and cleared when the diver leaves (so a
+// second penetration re-snapshots against whatever gas remains at that
+// point). The turn/reserve flags latch on threshold cross so the alert
+// beep fires exactly once per overhead excursion.
+let thirdsStartingGas = 0;                 // surface-litre reference "full" gas
+let thirdsCurrentPhase = 'outbound';       // 'outbound' | 'turn' | 'reserve'
+let thirdsPct = 100;                       // integer 0..100 for HUD data-pct
 let thirdsTurnWarned = false;
 let thirdsReserveActive = false;
+// Issue #44/#27: thirdsReserveActive is a live HUD/excursion flag that
+// clears the moment the diver leaves the overhead (see the "left overhead"
+// branch below) — by the time gradeDive() runs post-dive, the diver has
+// always long since surfaced, so that flag can never reflect what happened
+// during the dive. This latch mirrors it but only ever resets on
+// resetDive(), so gradeDive() can see whether reserve was hit at ANY point
+// across ANY excursion this dive, not just the most recent one.
+let thirdsReserveHitThisDive = false;
 // D6: Player torch — ON by default for overhead sites, OFF in open water
 let torchOn = false;
+
+// Issue #53: opt-in visual-zone debug overlay. Default OFF — zero visual
+// change in normal gameplay. When true, drawVisualZoneDebug() paints the
+// current site's zone rectangles with a low-alpha overlay and prints the
+// current zone id as a small HUD line.
+let debugVisualZones = false;
+
+// Issue #46: Instructor overlay ("Learn" mode). Toggled by the `L` key or
+// the touch button while gameState === 'diving'. When true, drawScene()
+// paints a narrow left-edge panel showing live physics values (ambient
+// pressure, BCD Boyle expansion, bubble growth, leading tissue, gas
+// consumption ∝ depth, MOD/END) with mini-formulas. Persists across dives
+// intentionally — a user who wants it on for one dive almost always wants
+// it on for the next. Never affected by resetDive().
+let instructorMode = false;
+
+// Issue #45: Scenario drills — opt-in scriptable emergency scenarios.
+// drillsEnabled is the setup-time toggle; drillState is the mutable per-dive
+// runtime object driven by game-loop.js's trigger/resolution helpers.
+// resetDive() clears drillState and drillHasRunThisDive; drillsEnabled is a
+// setup-screen choice that intentionally persists across dives (same rule as
+// diveSite, currentLang).
+//
+// drillState.phase transitions:
+//   'inactive' — no drill running (default between dives / after debrief).
+//   'flicker'  — visual pre-roll for lightFailure (2 s of torch flicker,
+//                gameState still 'diving'; physics continues so the visual
+//                warning has real time to be perceived).
+//   'overlay'  — decision overlay is up (gameState === 'drill'; physics
+//                paused; keys 1/2/3 or tap on option row selects).
+//   'debrief'  — 5-second debrief card, then auto-dismisses; Enter dismisses
+//                immediately (gameState === 'drill' still, physics paused).
+//   'effect'   — resolution effects that outlive the overlay (freeflow
+//                multiplier, light dark period). gameState back to 'diving';
+//                consumption code + renderer read the timers below.
+//
+// drillState fields set during a run:
+//   id                          — drill catalog id (e.g. 'lightFailure')
+//   startedAt                   — dive-time (min) when the drill started
+//   flickerUntilReal            — real-time timestamp (Date.now/1000) when
+//                                 the flicker phase ends and overlay opens
+//   selectedOption              — index of the option the player picked
+//   correct                     — whether that option was marked correct
+//   debriefUntilReal            — real-time timestamp when the debrief card
+//                                 auto-dismisses (also cleared by Enter)
+//   freeflowUntilDiveSec        — dive-seconds timestamp when the free-flow
+//                                 consumption multiplier expires
+//   freeflowDrainTankIdx        — tank index whose regulator is free-flowing.
+//                                 If === activeTank, the ×N multiplier is
+//                                 applied to breathing consumption; if
+//                                 different, that tank drains in parallel.
+//   lightRestoreAt              — dive-seconds timestamp when the torch turns
+//                                 back on (correct + wrong-option paths both
+//                                 restore at DRILL_LIGHT_DARK_SEC).
+//   optionRects                 — CSS-pixel bounding boxes of the on-canvas
+//                                 option rows, populated by drawDrillOverlay()
+//                                 each frame so touch.js can hit-test taps.
+let drillsEnabled = false;
+let drillHasRunThisDive = false;
+let drillState = {
+    phase: 'inactive',
+    id: null,
+    startedAt: 0,
+    flickerUntilReal: 0,
+    selectedOption: -1,
+    correct: false,
+    debriefUntilReal: 0,
+    freeflowUntilDiveSec: 0,
+    freeflowDrainTankIdx: -1,
+    lightRestoreAt: 0,
+    // Issue #45 (review follow-up): set by the freeflow drill's "hold
+    // breath" wrong option — while > 0 and unexpired, any positive
+    // ascent rate (not just a fast one) accumulates barotraumaTime.
+    breathHoldUntilDiveSec: 0,
+    optionRects: []
+};
 
 // Phase B: Current state
 let current = {
@@ -243,8 +391,8 @@ let modeSettings = { rec: null, tec: null, ccr: null };
 
 // TASK-032A: CCR state
 var CCR_DEFAULTS = {
-  o2CylVolume: 2, o2CylPressure: 200,
-  dilCylVolume: 3, dilCylPressure: 200,
+  o2CylVolume: 2, o2CylPressure: 200, o2CylPressureStart: 200,
+  dilCylVolume: 3, dilCylPressure: 200, dilCylPressureStart: 200,
   dilFO2: 0.21, dilFN2: 0.79, dilFHe: 0.00,
   loopVolume: 6.0,
   targetSP: 0.7,
@@ -268,7 +416,7 @@ var CCR_DIL_PRESETS = [
   { name: 'Tmx 21/35', fO2: 0.21, fHe: 0.35 },
   { name: 'Tmx 15/45', fO2: 0.15, fHe: 0.45 },
   { name: 'Tmx 10/70', fO2: 0.10, fHe: 0.70 },
-  { name: 'Heliox',    fO2: 0.00, fHe: 1.00 }
+  { name: 'Hx 10/90',  fO2: 0.10, fHe: 0.90 }
 ];
 
 function ccrDilPresetName() {
@@ -310,25 +458,64 @@ function ccrAdjustO2Pres(delta) {
   _gsBuilt = false;
 }
 
-function updateCCRLoop(dtSec) {
+function updateCCRLoop(dtSec, prevDepth) {
   if (ccrState.onBailout) return;
   var dtMin = dtSec / 60;
 
   // Metabolic O2 consumption (constant rate regardless of depth)
   var o2Used = ccrState.metabolicO2Rate * dtMin; // surface liters
-  var o2Available = ccrState.o2CylPressure * ccrState.o2CylVolume; // total surface liters in O2 cyl
-  if (o2Used > o2Available) o2Used = o2Available;
+  var o2AvailBefore = ccrState.o2CylPressure * ccrState.o2CylVolume; // total surface liters in O2 cyl
+  if (o2Used > o2AvailBefore) o2Used = o2AvailBefore;
   ccrState.o2CylPressure -= o2Used / ccrState.o2CylVolume;
   if (ccrState.o2CylPressure < 0) ccrState.o2CylPressure = 0;
 
   // PO2 management
   var pAmb = ambientPressure(depth);
 
-  // If O2 cylinder has gas, solenoid injects to maintain setpoint
-  if (ccrState.o2CylPressure > 0 && ccrState.actualPO2 < ccrState.targetSP) {
+  // BUG-25: Depth-change compression/decompression. The loop is a closed
+  // volume — as ambient pressure rises on descent, all partial pressures
+  // in it (including O2) rise proportionally before the solenoid can react;
+  // on ascent they fall the same way. Without this, actualPO2 could only
+  // ever approach targetSP from below and could only drop via an empty O2
+  // cylinder, making both hyperoxia (>1.6, descent spike) and hypoxia from
+  // a fast ascent unreachable regardless of setpoint.
+  //
+  // Issue #25: on descent, updateCCRDiluent() (called earlier this same
+  // tick, before updateCCRLoop) already applies the combined
+  // compression-plus-topoff mass balance to actualPO2, including the
+  // diluent's own O2 fraction — a plain p2/p1 multiply here on top of that
+  // would double-apply the compression and drop the diluent's O2
+  // contribution (see the comment there for the derivation). On
+  // ascent/flat there is no diluent topoff (the ADV only fires on
+  // descent), so the loop gas simply expands and vents through the OPV at
+  // constant mole fraction — the plain ratio multiply is exact there.
+  var pAmbPrev = ambientPressure(prevDepth === undefined ? depth : prevDepth);
+  if (prevDepth === undefined || depth <= prevDepth) {
+    ccrState.actualPO2 *= pAmb / pAmbPrev;
+  }
+
+  // If O2 cylinder has gas, solenoid injects to maintain setpoint. BUG-25:
+  // the injected O2 must be deducted from the cylinder like any other
+  // consumption — previously a setpoint increase was gas-balance-free.
+  // Surface liters needed for a PO2 rise of `desiredRise` in a loop of
+  // volume loopVolume is loopVolume * desiredRise, independent of depth
+  // (the ambient-liter injection volume and the ambient->surface
+  // conversion cancel out).
+  var o2Available = ccrState.o2CylPressure * ccrState.o2CylVolume; // surface liters remaining after metabolic draw
+  if (o2Available > 0 && ccrState.actualPO2 < ccrState.targetSP) {
     var maxRise = ccrState.po2ResponseRate * dtSec;
     var deficit = ccrState.targetSP - ccrState.actualPO2;
-    ccrState.actualPO2 += Math.min(maxRise, deficit);
+    var desiredRise = Math.min(maxRise, deficit);
+    var o2Cost = ccrState.loopVolume * desiredRise;
+    var actualRise = desiredRise;
+    if (o2Cost > o2Available) {
+      // Not enough O2 to fully correct — apply only what's affordable.
+      actualRise = o2Available / ccrState.loopVolume;
+      o2Cost = o2Available;
+    }
+    ccrState.actualPO2 += actualRise;
+    ccrState.o2CylPressure -= o2Cost / ccrState.o2CylVolume;
+    if (ccrState.o2CylPressure < 0) ccrState.o2CylPressure = 0;
   } else if (ccrState.o2CylPressure <= 0) {
     // No O2 available — PO2 drops from metabolism
     var po2Drop = (ccrState.metabolicO2Rate / 60 * dtSec) / ccrState.loopVolume * pAmb;
@@ -349,13 +536,39 @@ function updateCCRDiluent(prevD, newD) {
   if (newD <= prevD) return; // only on descent
   var p1 = ambientPressure(prevD);
   var p2 = ambientPressure(newD);
-  // Loop volume compresses on descent, needs diluent to maintain volume
-  var dilNeeded = ccrState.loopVolume * (p2 / p1 - 1); // ambient liters needed
-  var dilSurfEquiv = dilNeeded * p2; // convert to surface equivalent
+  // BUG-8: to hold a constant loop volume of loopVolume ambient liters as
+  // pressure rises from p1 to p2, the required top-off is
+  // loopVolume * (p2 - p1) surface liters (Boyle's law: the ambient-liter
+  // deficit loopVolume*(p2/p1-1) at p2, converted to surface-equivalent by
+  // multiplying by p2, reduces to loopVolume*(p2-p1) once you cancel the
+  // p2 factor — NOT loopVolume*(p2-p1)*p2/p1 as the old two-step calc
+  // computed). The previous formula overestimated consumption by a
+  // factor of p2/p1 (e.g. +50% for a 10m -> 20m descent).
+  var dilSurfEquiv = ccrState.loopVolume * (p2 - p1);
   var dilAvailable = ccrState.dilCylPressure * ccrState.dilCylVolume;
   if (dilSurfEquiv > dilAvailable) dilSurfEquiv = dilAvailable;
   ccrState.dilCylPressure -= dilSurfEquiv / ccrState.dilCylVolume;
   if (ccrState.dilCylPressure < 0) ccrState.dilCylPressure = 0;
+
+  // Issue #25: actualPO2 must reflect this same top-off, not just the
+  // cylinder depletion above — otherwise the compression multiply in
+  // updateCCRLoop() models the loop as sealed (no gas exchanged), which
+  // both overstates the PO2 spike and ignores the diluent's own O2
+  // fraction entirely. Combined mass balance: the O2 amount already in the
+  // loop (actualPO2 * loopVolume, bar-liters) is conserved through
+  // compression; the top-off adds dilSurfEquiv surface-liters of gas at
+  // fO2 = dilFO2, i.e. dilFO2 * dilSurfEquiv bar-liters of O2 and
+  // dilSurfEquiv bar-liters of total gas. Dividing new O2 amount by new
+  // total-gas ambient-volume-at-p2 gives:
+  //   newPO2 = p2 * (oldPO2*loopVolume + dilFO2*dilSurfEquiv)
+  //            / (p1*loopVolume + dilSurfEquiv)
+  // This reduces to oldPO2*p2/p1 (the old sealed-loop formula) when
+  // dilSurfEquiv = 0 (cylinder empty — no top-off happened), and to
+  // oldPO2 + dilFO2*(p2-p1) when the loop is fully topped off, matching
+  // both known-correct limit cases.
+  var oldPO2 = ccrState.actualPO2;
+  ccrState.actualPO2 = p2 * (oldPO2 * ccrState.loopVolume + ccrState.dilFO2 * dilSurfEquiv) /
+                        (p1 * ccrState.loopVolume + dilSurfEquiv);
 }
 
 function saveModeSettings() {
@@ -590,6 +803,17 @@ function showHtmlHelp() {
         content.appendChild(sec);
     }
 
+    // Issue #38: "Don't show hints again" opt-out. Uses the same button styling
+    // so the row reads as a coherent footer; setting HINT_DONE_KEY drops any
+    // currently-queued hint and prevents future ones for this browser.
+    var dismissBtn = document.createElement('button');
+    dismissBtn.className = 'help-close-btn';
+    dismissBtn.textContent = S('hintDismissBtn');
+    dismissBtn.setAttribute('data-hint-dismiss', '1');
+    dismissBtn.addEventListener('click', function() { dismissAllHints(); });
+    dismissBtn.addEventListener('touchstart', function(e) { e.preventDefault(); dismissAllHints(); }, { passive: false });
+    content.appendChild(dismissBtn);
+
     var closeBtn = document.createElement('button');
     closeBtn.className = 'help-close-btn';
     closeBtn.textContent = S('helpClose');
@@ -637,10 +861,14 @@ function showHtmlGasInfo() {
     html += '</div></div>';
   }
   html += '<div style="text-align:center;margin-top:16px;">';
-  html += '<button onclick="showGasInfo=false;" style="background:rgba(255,255,255,0.12);border:1px solid #556;color:#cde;font-family:monospace;font-size:13px;padding:8px 24px;border-radius:4px;cursor:pointer;">[I] / [Esc] ' + S('gasInfoClose') + '</button>';
+  html += '<button id="gas-info-close-btn" style="background:rgba(255,255,255,0.12);border:1px solid #556;color:#cde;font-family:monospace;font-size:13px;padding:8px 24px;border-radius:4px;cursor:pointer;">[I] / [Esc] ' + S('gasInfoClose') + '</button>';
   html += '</div></div>';
   overlay.innerHTML = html;
   overlay.style.display = 'block';
+  // Issue #29: no inline onclick (CSP script-src doesn't allow 'unsafe-inline').
+  document.getElementById('gas-info-close-btn').addEventListener('click', function() {
+      showGasInfo = false;
+  });
 }
 
 function hideHtmlGasInfo() {
@@ -754,6 +982,15 @@ function resetDive() {
     exhaleEmitted = false;
     gasSwitchNotifyTime = 0;
     gasSwitchNotifyText = '';
+    // Issue #38: reset in-memory hint state (queue + timer + edge cache) so a
+    // new dive re-detects state-transition edges cleanly. The localStorage
+    // flags (HINT_STORAGE_PREFIX + id, HINT_DONE_KEY) are intentionally left
+    // untouched — hints persist "seen" across dives in the same browser, and
+    // the "don't show again" opt-out survives resetDive() by design.
+    hintNotifyTime = 0;
+    hintNotifyText = '';
+    hintQueue = [];
+    hintEdges = { bcd: false, ndl: false, safetyStop: false, deco: false, overhead: false, current: false };
     fishes = [];
     fishSpawnTimer = randomFishInterval();
     wildlife = [];
@@ -773,8 +1010,12 @@ function resetDive() {
     visibility = 1.0;
     inOverhead = false;
     badAirWarning = false;
+    thirdsStartingGas = 0;
+    thirdsCurrentPhase = 'outbound';
+    thirdsPct = 100;
     thirdsTurnWarned = false;
     thirdsReserveActive = false;
+    thirdsReserveHitThisDive = false;
     torchOn = !!(DIVE_SITES[diveSite] && DIVE_SITES[diveSite].hasOverhead);
     current.active = false;
     current.direction = 1;
@@ -796,16 +1037,117 @@ function resetDive() {
     cnsPercent = 0;
     diveProfile = [];
     _profileSampleTimer = 0;
+    // Issue #44: reset debriefing event log + accumulators
+    diveEvents = [];
+    minNdlSeen = Infinity;
+    _fastAscentAccum = 0;
+    _fastAscentPeak = 0;
+    _ceilingViolationAccum = 0;
+    // Issue #45: reset scenario-drill state (drillsEnabled itself is a
+    // setup-time toggle and intentionally persists across dives).
+    drillHasRunThisDive = false;
+    drillState = {
+        phase: 'inactive',
+        id: null,
+        startedAt: 0,
+        flickerUntilReal: 0,
+        selectedOption: -1,
+        correct: false,
+        debriefUntilReal: 0,
+        freeflowUntilDiveSec: 0,
+        freeflowDrainTankIdx: -1,
+        lightRestoreAt: 0,
+        // Issue #45 (review follow-up): set by the freeflow drill's "hold
+        // breath" wrong option — while > 0 and unexpired, any positive
+        // ascent rate (not just a fast one) accumulates barotraumaTime.
+        breathHoldUntilDiveSec: 0,
+        optionRects: []
+    };
     for (var i = 0; i < tanks.length; i++) {
         tanks[i].gasRemaining = tanks[i].totalGas;
     }
     activeTank = 0;
-    if (diveMode === 'ccr') { initCCR(); }
+    if (diveMode === 'ccr') {
+        // BUG-5: previously called initCCR(), which wiped the entire
+        // ccrState back to CCR_DEFAULTS — silently discarding every
+        // setup-screen choice (diluent preset, cylinder sizes, setpoint).
+        // Reset only the dynamic per-dive fields; configuration survives.
+        ccrState.actualPO2 = ccrState.targetSP < ambientPressure(0) ? ccrState.targetSP : 0.21;
+        ccrState.onBailout = false;
+        ccrState.scrubberFailed = false;
+        ccrState.co2BuildupTime = 0;
+        ccrState.scrubberRemaining = ccrState.scrubberTotal;
+        // BUG-24: snapshot the starting cylinder pressures so drawPostDive()
+        // can compute gas used this dive (start - current), the same way
+        // OC tanks track totalGas vs gasRemaining.
+        ccrState.o2CylPressureStart = ccrState.o2CylPressure;
+        ccrState.dilCylPressureStart = ccrState.dilCylPressure;
+    }
     ccrHypoxiaTime = 0;
     ccrHyperoxiaTime = 0;
     ccrWarningBeepTriggered = false;
     initTissues();
     initParticles();
+}
+
+// Issue #38: onboarding-hint helpers.
+// -----------------------------------------------------------------------
+// showHintOnce(id, textKey)
+//   Enqueue the localized string S(textKey) for one-time display, unless:
+//     - the diver dismissed all hints (HINT_DONE_KEY is set), or
+//     - this specific hint id already fired at least once in this browser
+//       (HINT_STORAGE_PREFIX + id is set).
+//   The localStorage write happens BEFORE the queue push so a mid-frame
+//   crash still marks the hint as seen — a duplicate display is worse UX
+//   than a silent drop. localStorage failures (private mode, disabled
+//   storage) are swallowed; the hint simply won't persist across sessions
+//   but still respects the in-memory hintEdges guard for the current dive.
+// hintsDismissed() / dismissHints() / resetAllHints()
+//   Small wrappers used by the help overlay button and the test harness.
+function _hintsAreDismissed() {
+    try { return localStorage.getItem(HINT_DONE_KEY) === '1'; }
+    catch { return false; }
+}
+function showHintOnce(id, textKey) {
+    if (_hintsAreDismissed()) return false;
+    var key = HINT_STORAGE_PREFIX + id;
+    try {
+        if (localStorage.getItem(key) === '1') return false;
+        localStorage.setItem(key, '1');
+    } catch {
+        // Storage unavailable — fall back to the in-memory hintEdges guard
+        // (updateDiving() sets hintEdges[trigger]=true after calling
+        // showHintOnce, so the trigger won't re-fire this dive).
+    }
+    hintQueue.push(S(textKey));
+    return true;
+}
+function dismissAllHints() {
+    try { localStorage.setItem(HINT_DONE_KEY, '1'); } catch {}
+    // Also drop any queued/visible hint so the opt-out feels immediate.
+    hintQueue = [];
+    hintNotifyTime = 0;
+    hintNotifyText = '';
+}
+// Test helper — clears every persisted hint flag so a test can exercise
+// "first-time" behaviour repeatedly. Only clears keys under the
+// HINT_STORAGE_PREFIX namespace + HINT_DONE_KEY; unrelated localStorage
+// (e.g. SAVE_KEY) is left untouched.
+function resetAllHintsForTests() {
+    try {
+        var toRemove = [];
+        for (var i = 0; i < localStorage.length; i++) {
+            var k = localStorage.key(i);
+            if (k && (k === HINT_DONE_KEY || k.indexOf(HINT_STORAGE_PREFIX) === 0)) {
+                toRemove.push(k);
+            }
+        }
+        for (var j = 0; j < toRemove.length; j++) localStorage.removeItem(toRemove[j]);
+    } catch {}
+    hintQueue = [];
+    hintNotifyTime = 0;
+    hintNotifyText = '';
+    hintEdges = { bcd: false, ndl: false, safetyStop: false, deco: false, overhead: false, current: false };
 }
 
 function randomFishInterval() {

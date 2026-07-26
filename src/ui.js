@@ -25,103 +25,6 @@
 //   ccrAdjustO2Pres(delta)   — adjust CCR O2 cylinder pressure (clamped 50-300 bar)
 //   ccrAdjustDilVol(delta)   — adjust CCR diluent cylinder volume
 //   ccrAdjustSP(delta)       — adjust CCR setpoint (clamped 0.5-1.6 bar)
-// SECTION: HTML help overlay
-// SEARCH TERMS: showHtmlHelp, help-content, controlsText, helpCcr, keyboard shortcuts
-
-// ============================================================
-// ============================================================
-//  HELP OVERLAY (TASK-025)
-// ============================================================
-
-function drawHelpOverlay() {
-    var cx = ctx;
-    var W = cssWidth;
-    var H = cssHeight;
-    
-    cx.fillStyle = 'rgba(0,0,0,0.92)';
-    cx.fillRect(0, 0, W, H);
-    
-    var y = 30;
-    var leftCol = 30;
-    var rightCol = W / 2 + 15;
-    var colW = W / 2 - 45;
-    var useTwo = W > 800;
-    
-    cx.textAlign = 'left';
-    
-    // Title
-    cx.font = 'bold 22px monospace';
-    cx.fillStyle = '#fff';
-    cx.fillText(S('helpTitle'), leftCol, y);
-    y += 10;
-    cx.strokeStyle = '#33ff99';
-    cx.lineWidth = 1;
-    cx.beginPath(); cx.moveTo(leftCol, y); cx.lineTo(W - 30, y); cx.stroke();
-    y += 25;
-    
-    var sections = [
-        { title: 'DEPTH', color: '#fff', text: S('helpDepth') },
-        { title: 'NDL (No Deco Limit)', color: '#33ff33', text: S('helpNDL') },
-        { title: 'DECO / Ceiling / Stops', color: '#ff3333', text: S('helpDeco') },
-        { title: 'PO2 (O\u2082 Partial Pressure)', color: '#ffff33', text: S('helpPO2') },
-        { title: 'GTR (Gas Time Remaining)', color: '#33ff33', text: S('helpGTR') },
-        { title: 'AMV (Actual Minute Volume)', color: '#aaa', text: S('helpAMV') },
-        { title: 'Ascent Rate Bar', color: '#ffff33', text: S('helpAscent') },
-        { title: 'Safety Stop', color: '#ffff33', text: S('helpSafety') },
-        { title: 'BEST Gas Indicator', color: '#00ffff', text: S('helpBest') },
-        { title: 'Tank Bar', color: '#33ff33', text: S('helpTank') },
-        { title: 'TTS (Time To Surface)', color: '#ff9933', text: S('helpTTS') },
-        { title: S('controlsTitle'), color: '#33ff99', text: S('controlsText') }
-    ];
-    
-    var col = leftCol;
-    var startY = y;
-    for (var i = 0; i < sections.length; i++) {
-        var s = sections[i];
-        
-        // Switch to right column at midpoint if two-column
-        if (useTwo && i === Math.ceil(sections.length / 2)) {
-            col = rightCol;
-            y = startY;
-        }
-        
-        cx.font = 'bold 12px monospace';
-        cx.fillStyle = s.color;
-        cx.fillText(s.title, col, y);
-        y += 14;
-        
-        cx.font = '11px monospace';
-        cx.fillStyle = '#bbb';
-        // Word wrap
-        var words = s.text.split(' ');
-        var line = '';
-        var maxW = useTwo ? colW : W - 60;
-        for (var w = 0; w < words.length; w++) {
-            var test = line + words[w] + ' ';
-            if (cx.measureText(test).width > maxW && line.length > 0) {
-                cx.fillText(line.trim(), col, y);
-                y += 13;
-                line = words[w] + ' ';
-            } else {
-                line = test;
-            }
-        }
-        if (line.trim().length > 0) {
-            cx.fillText(line.trim(), col, y);
-            y += 13;
-        }
-        y += 10;
-    }
-    
-    // Footer
-    var footY = Math.max(y + 10, H - 30);
-    cx.font = 'bold 14px monospace';
-    cx.fillStyle = '#888';
-    cx.textAlign = 'center';
-    cx.fillText(S('helpClose'), W / 2, footY);
-    cx.textAlign = 'left';
-}
-
 // SECTION: Gas setup keyboard input handler
 // SEARCH TERMS: updateGasSetup, switchMode, startDiveAction, keys, diveMode toggle
 
@@ -173,6 +76,85 @@ function updateGasSetup() {
         if (keys[pk]) {
             keys[pk] = false;
             gsApplyPreset(p);
+        }
+    }
+
+    // Issue #6: documented-but-previously-missing keyboard controls for the
+    // gas-setup screen. All handlers here are OC-only by placement — the CCR
+    // early-return above already claimed `[` `]` for setpoint and `,` `.` for
+    // diluent volume, so nothing here can leak into CCR mode.
+    //
+    // Touch users get the equivalent controls through the HTML gas-setup
+    // overlay (buildHtmlGasSetup()), not through keys[] — the old canvas-era
+    // #touch-setup adjust buttons that used to set these same keys[] entries
+    // were permanently hidden dead code (touchUpdateUI() never shows
+    // #touch-setup during 'gas-setup') and were removed in issue #13.
+
+    // Arrow keys — O2 fraction (available in rec and tec; UI shows O2 always)
+    if (keys['arrowleft'])  { keys['arrowleft']  = false; gsAdjustO2(-GAS_SETUP_O2_STEP); }
+    if (keys['arrowright']) { keys['arrowright'] = false; gsAdjustO2( GAS_SETUP_O2_STEP); }
+
+    // PgUp / PgDn — tank pressure (available in rec and tec)
+    if (keys['pageup'])   { keys['pageup']   = false; gsAdjustPressure( GAS_SETUP_PRESSURE_STEP); }
+    if (keys['pagedown']) { keys['pagedown'] = false; gsAdjustPressure(-GAS_SETUP_PRESSURE_STEP); }
+
+    // Advanced-only controls: He, AMV, tank size, tank cycle/add/remove,
+    // and GF Low/High. Gated on isAdvanced() so rec-mode key mashing can't
+    // silently mutate hidden state (matches how the touch UI hides these
+    // sections in rec mode via buildHtmlGasSetup()).
+    if (isAdvanced()) {
+        // Arrow up/down — He fraction
+        if (keys['arrowup'])   { keys['arrowup']   = false; gsAdjustHe( GAS_SETUP_HE_STEP); }
+        if (keys['arrowdown']) { keys['arrowdown'] = false; gsAdjustHe(-GAS_SETUP_HE_STEP); }
+
+        // [ / ] — AMV (matches CCR's setpoint direction: [ is negative, ] positive)
+        if (keys['[']) { keys['['] = false; gsAdjustAMV(-GAS_SETUP_AMV_STEP); }
+        if (keys[']']) { keys[']'] = false; gsAdjustAMV( GAS_SETUP_AMV_STEP); }
+
+        // , / . — tank size (matches CCR's diluent-volume direction: , negative, . positive)
+        if (keys[',']) { keys[','] = false; gsAdjustTankVol(-GAS_SETUP_TANK_VOL_STEP); }
+        if (keys['.']) { keys['.'] = false; gsAdjustTankVol( GAS_SETUP_TANK_VOL_STEP); }
+
+        // TAB — cycle to the next tank tab (wraps at tankCount). state.js's
+        // keydown handler already preventDefault()s Tab so browser focus
+        // never leaves the page. Clear both case variants because keydown
+        // stored both keys['tab'] (from toLowerCase) and keys['Tab'] (raw
+        // e.key) and the corresponding keyup may only see one.
+        if (keys['tab'] || keys['Tab']) {
+            keys['tab'] = false;
+            keys['Tab'] = false;
+            if (tankCount > 0) {
+                selectedTankTab = (selectedTankTab + 1) % tankCount;
+                _gsBuilt = false;
+            }
+        }
+
+        // + / − — add / remove tank
+        if (keys['+']) { keys['+'] = false; gsAddTank(); }
+        if (keys['-']) { keys['-'] = false; gsRemoveTank(); }
+
+        // G / Shift+G — GF Low ±5. Both keys['g'] and keys['G'] end up true
+        // when Shift+G is pressed (state.js stores both e.key.toLowerCase()
+        // and raw e.key). Test the uppercase branch FIRST and clear both,
+        // otherwise the else-if below would immediately fire the plain-G
+        // handler on the same press.
+        if (keys['G']) {
+            keys['G'] = false;
+            keys['g'] = false;
+            gsAdjustGFLow(-GAS_SETUP_GF_STEP);
+        } else if (keys['g']) {
+            keys['g'] = false;
+            gsAdjustGFLow(GAS_SETUP_GF_STEP);
+        }
+
+        // F / Shift+F — GF High ±5 (same case-disambiguation as G above).
+        if (keys['F']) {
+            keys['F'] = false;
+            keys['f'] = false;
+            gsAdjustGFHigh(-GAS_SETUP_GF_STEP);
+        } else if (keys['f']) {
+            keys['f'] = false;
+            gsAdjustGFHigh(GAS_SETUP_GF_STEP);
         }
     }
 
@@ -431,6 +413,42 @@ function buildHtmlGasSetup() {
             _gsBuilt = false;
         });
 
+        // Issue #39: HUD palette toggle — sits next to the language button
+        // in every mode (rec / tec / ccr). Persists via localStorage inside
+        // setHudColorMode(). id lets tests locate the button without a
+        // language-dependent text query.
+        var colorsBtn = mkEl('button', 'gs-btn', extrasRow);
+        colorsBtn.id = 'gs-colors-toggle';
+        colorsBtn.style.fontSize = '13px';
+        colorsBtn.style.flexDirection = 'column';
+        colorsBtn.style.minHeight = '56px';
+        _gsNodes.colorsBtn = colorsBtn;
+        colorsBtn.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            toggleHudColorMode();
+            _gsBuilt = false;
+        }, { passive: false });
+        colorsBtn.addEventListener('click', function() {
+            toggleHudColorMode();
+            _gsBuilt = false;
+        });
+
+        // Issue #45: Training Drills opt-in toggle. Placed in the extras
+        // footer next to Language so it's visible in every mode/site and
+        // does not shift the primary Start Dive affordance. Matches the
+        // gs-btn styling used by every other row here — border-color +
+        // background change track the on/off state (updated below on each
+        // frame the way the mode buttons do via `_mc`).
+        _gsNodes.drillsBtn = mkEl('button', 'gs-btn', extrasRow);
+        _gsNodes.drillsBtn.style.fontSize = '13px';
+        _gsNodes.drillsBtn.style.flexDirection = 'column';
+        _gsNodes.drillsBtn.style.minHeight = '56px';
+        function _toggleDrills() { drillsEnabled = !drillsEnabled; _gsBuilt = false; }
+        _gsNodes.drillsBtn.addEventListener('touchstart', function(e) {
+            e.preventDefault(); _toggleDrills();
+        }, { passive: false });
+        _gsNodes.drillsBtn.addEventListener('click', _toggleDrills);
+
         // Start dive button — BUG-CCR-5: call startDiveAction() directly.
         _gsNodes.startBtn = mkEl('button', 'gs-btn gs-accent', extrasRow);
         _gsNodes.startBtn.addEventListener('touchstart', function(e) {
@@ -545,4 +563,19 @@ function buildHtmlGasSetup() {
     _gsNodes.startBtn.textContent = S('startDive');
     _gsNodes.langBtn.textContent = currentLang === 'en' ? 'Sprache' : 'Language';
     document.getElementById('touch-setup-lang').textContent = currentLang === 'en' ? 'Sprache' : 'Language';
+    // Issue #39: colour-mode label follows the same two-string EN/DE pattern.
+    // Text shows the mode you would SWITCH TO on tap (mirrors langBtn's UX).
+    if (_gsNodes.colorsBtn) {
+        var _isDefault = hudColorMode === 'default';
+        _gsNodes.colorsBtn.textContent = currentLang === 'en'
+            ? (_isDefault ? 'Colors: Standard' : 'Colors: Colorblind')
+            : (_isDefault ? 'Farben: Standard' : 'Farben: Farbenblind');
+    }
+    // Issue #45: Training Drills toggle — label + on/off tint.
+    if (_gsNodes.drillsBtn) {
+        _gsNodes.drillsBtn.textContent = S('drillsToggleLabel') + ': ' + (drillsEnabled ? 'ON' : 'OFF');
+        _gsNodes.drillsBtn.style.borderColor = drillsEnabled ? 'rgba(70,240,143,0.55)' : 'rgba(255,255,255,0.25)';
+        _gsNodes.drillsBtn.style.background = drillsEnabled ? 'rgba(70,240,143,0.14)' : 'rgba(255,255,255,0.05)';
+        _gsNodes.drillsBtn.style.color = drillsEnabled ? '#46f08f' : '#c9d3df';
+    }
 }

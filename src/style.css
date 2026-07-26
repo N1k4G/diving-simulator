@@ -1,4 +1,29 @@
-﻿* { margin: 0; padding: 0; box-sizing: border-box; }
+﻿/* Issue #29/#40: self-hosted (was Google Fonts CDN — DSGVO/GDPR risk for a
+   publicly reachable site: the visitor's IP went to Google without consent).
+   Barlow Semi Condensed is licensed under the SIL OFL 1.1 — see
+   src/fonts/OFL.txt, which must ship alongside these files per the license. */
+@font-face {
+  font-family: 'Barlow Semi Condensed';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('fonts/BarlowSemiCondensed-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow Semi Condensed';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('fonts/BarlowSemiCondensed-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow Semi Condensed';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('fonts/BarlowSemiCondensed-700.woff2') format('woff2');
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
 canvas { display: block; }
 /* WP-014: Touch control styles */
@@ -50,6 +75,8 @@ canvas { display: block; }
 #touch-dive-descend { left: 88px;  bottom: 36px; }
 #touch-dive-right   { left: 160px; bottom: 36px; }
 #touch-dive-help { bottom: 40px; right: 20px; width: 48px; height: 48px; font-size: 16px; flex-direction: column; }
+/* Issue #46: Instructor overlay ("Learn") toggle — placed one slot above Help so the two didactic buttons are grouped. */
+#touch-dive-learn { bottom: 108px; right: 76px; width: 48px; height: 48px; font-size: 16px; flex-direction: column; }
 #touch-gas-info { bottom: 108px; right: 20px; width: 48px; height: 48px; font-size: 16px; flex-direction: column; }
 #touch-fast-forward { bottom: 176px; right: 20px; width: 48px; height: 48px; font-size: 16px; flex-direction: column; }
 /* BUG-CCR-1 / BUG-CCR-2 / BUG-CCR-7: CCR-only in-dive buttons.
@@ -68,11 +95,6 @@ canvas { display: block; }
 #touch-setup-start { bottom: 30px; left: 50%; transform: translateX(-50%); }
 #touch-setup-presets { position: absolute; bottom: 140px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; max-width: 360px; }
 #touch-setup-presets .t-btn { min-width: 60px; min-height: 44px; font-size: 13px; position: relative; }
-.t-setup-adj { position: absolute; display: flex; gap: 10px; }
-#touch-adj-o2 { top: 18%; left: 50%; transform: translateX(-50%); }
-#touch-adj-he { top: 30%; left: 50%; transform: translateX(-50%); }
-#touch-adj-pres { top: 42%; left: 50%; transform: translateX(-50%); }
-#touch-adj-tank { top: 52%; left: 50%; transform: translateX(-50%); }
 #touch-setup-extras { position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; }
 /* Surface / gameover / postdive */
 #touch-surface-btn { bottom: 25%; left: 50%; transform: translateX(-50%); }
@@ -241,7 +263,8 @@ canvas { display: block; }
 .gas-info-card .best-tag { color: #33ff99; font-weight: bold; font-size: 12px; }
 /* ── HUD chip base — shared geometry ─────────────────────────── */
 #hud-horizontal-speed,
-#hud-current {
+#hud-current,
+#hud-backway {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
@@ -303,6 +326,33 @@ canvas { display: block; }
 #hud-current [data-bind="strength"] {
   font-weight: bold;
   color: #ffcc88;
+}
+
+/* ── Issue #37: Back-way chip (open-water sites only) ─────────── */
+/*   Diver-anchored orientation aid — calm blue-grey, sits above    */
+/*   the fin-kick chip. Direction arrow + anchor glyph + distance.  */
+#hud-backway {
+  bottom: 152px;
+  background: rgba(0, 20, 30, 0.68);
+  border: 1px solid rgba(120, 180, 220, 0.28);
+  color: #cfe1f0;
+}
+
+#hud-backway [data-bind="arrow"] {
+  font-size: 18px;
+  color: #8ac0e6;
+  line-height: 1;
+}
+
+#hud-backway [data-bind="anchor"] {
+  font-size: 14px;
+  color: #8ac0e6;
+  line-height: 1;
+}
+
+#hud-backway [data-bind="distance"] {
+  font-weight: bold;
+  color: #eaf2f6;
 }
 
 /* ── Task 3: Rule-of-thirds gas gauge (cave / wreck overhead) ─── */
@@ -505,4 +555,46 @@ canvas { display: block; }
   #touch-ccr-sp-up { bottom: 250px; left: 10px; width: 52px; height: 52px; }
   #touch-ccr-sp-down { bottom: 190px; left: 10px; width: 52px; height: 52px; }
   #touch-torch { bottom: 228px; right: 10px; width: 44px; height: 44px; }
+}
+
+/* Issue #67: non-blocking resume-dive banner shown on the gas-setup screen
+   when a saved dive was found on load. Replaces the previous blocking
+   confirm() dialog. Positioned as a top-of-screen strip so it does not
+   overlap the gas-setup controls. */
+#resume-dive-banner {
+    position: fixed;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(20, 40, 60, 0.94);
+    border: 1px solid rgba(140, 200, 220, 0.4);
+    border-radius: 8px;
+    color: #eef6f8;
+    font-family: 'Barlow Semi Condensed', sans-serif;
+    font-size: 14px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+    max-width: calc(100vw - 24px);
+}
+#resume-dive-banner button {
+    padding: 6px 12px;
+    background: rgba(120, 150, 170, 0.18);
+    border: 1px solid rgba(140, 170, 190, 0.32);
+    color: #eef6f8;
+    border-radius: 5px;
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+#resume-dive-banner button:hover { background: rgba(120, 150, 170, 0.32); }
+#resume-dive-banner button:active { transform: translateY(1px); }
+#resume-dive-banner #resume-dive-banner-yes {
+    background: #33ff99;
+    color: #012;
+    border-color: #33ff99;
+    font-weight: 600;
 }

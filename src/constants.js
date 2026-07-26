@@ -11,14 +11,13 @@
 // KEY SYMBOLS (grep to find):
 //   S(key)               — i18n string lookup, language set by currentLang
 //   STRINGS              — full EN/DE string table
-//   ZHL16C_N2_A/B/HT     — Bühlmann N2 compartment coefficients (16 compartments)
-//   ZHL16C_HE_A/B/HT     — Bühlmann He compartment coefficients
-//   SURFACE_PRESSURE     — 1.0 bar
-//   MAX_ASCENT_RATE      — 15 m/min
+//   ZHL16C_N2[]          — Bühlmann N2 compartment coefficients, {ht, a, b} × 16
+//   ZHL16C_HE[]          — Bühlmann He compartment coefficients, {ht, a, b} × 16
+//   BUOYANCY_PARAMS.maxAscentRate/maxDescentRate — physical ascent/descent clamps (m/min)
 //   TIME_ACCELERATION    — 3x real-time default
 //   FAST_FORWARD_MULTIPLIER — 10x skip multiplier
 // SECTION: Game constants and tuning parameters
-// SEARCH TERMS: TIME_ACCELERATION, MAX_ASCENT_RATE, SURFACE_PRESSURE, FAST_FORWARD_MULTIPLIER, ZHL16C_N2_A, ZHL16C_HE_A
+// SEARCH TERMS: TIME_ACCELERATION, BUOYANCY_PARAMS, FAST_FORWARD_MULTIPLIER, ZHL16C_N2, ZHL16C_HE
 
 // ============================================================
 // ============================================================
@@ -27,8 +26,30 @@
 
 const TIME_ACCELERATION = 3;
 const FAST_FORWARD_MULTIPLIER = 10;
-const MAX_ASCENT_RATE   = 25;   // max possible ascent m/min (a runaway BCD CAN exceed the 18 barotrauma threshold)
-const MAX_DESCENT_RATE  = 20;   // max possible descent m/min
+// Issue #100: the diver's horizontal screen anchor as a fraction of canvas
+// width, used by every world-to-screen projection in renderer.js
+// (screenX = W * DIVER_SCREEN_X_FRACTION + (worldX - diverX) / metersPerPixel).
+// Previously inlined as the literal 0.25 (25% from the left — a "look-ahead"
+// framing) at 35+ separate call sites; centralized here per the decision to
+// center the diver unconditionally (0.5 = screen-center).
+const DIVER_SCREEN_X_FRACTION = 0.5;
+// Issue #65: physics integrator sub-step cap. `updateBuoyancyPhysics()` and
+// `updateHorizontalPhysics()` both do explicit Euler with per-step drag
+// factors of ~0.4-0.8 * dt — at dt = 3s (fast-forward + a frame drop) the
+// per-step drag factor can exceed 1, inverting velocity sign every step.
+// Callers break a large frame dt into steps of at most this many seconds
+// to keep every per-step drag factor well below 1. A single sub-step is a
+// no-op wrapper in the common small-dt case.
+const PHYSICS_MAX_SUBSTEP_SEC = 0.1;
+// Issue #30: the ASSUMED planning rate used when simulating time-to-surface,
+// distinct from BUOYANCY_PARAMS.maxAscentRate below (the physical clamp on
+// how fast the diver's own buoyancy CAN carry them). calculateDecoSchedule() used to
+// simulate ascent-to-first-stop and the final ascent at a very conservative
+// 3 m/min while calculateTTS()'s non-deco path used 9 m/min — a diver
+// crossing from non-deco into deco saw TTS triple for no in-fiction reason.
+// 9 m/min matches typical deco software and the in-game help text's
+// recommended ≤9-10 m/min ascent rate.
+const DECO_PLANNING_ASCENT_RATE_MPM = 9;
 // WP-015: HiDPI canvas — cap devicePixelRatio to avoid fill-rate cost on
 // phones with dpr 3+ where the visual gain is negligible.
 const MAX_DEVICE_PIXEL_RATIO = 2;
@@ -78,8 +99,48 @@ const SILT_DECAY            = 0.25;  // visibility lost per dive-second at thres
 const SILT_RECOVER          = 0.08;  // visibility gained per dive-second while calm
 const TORCH_RADIUS_M        = 5;     // torch light cone radius in metres
 
+// Issue #27: Rule-of-thirds gas planning (overhead environments only).
+// Standard tec/cave-diving convention: one third of the starting gas for
+// the outbound leg, one third for the return leg, one third as reserve.
+// Fractions are of the "starting gas" snapshotted on first entry into
+// the overhead — see updateDiving()'s rule-of-thirds block.
+const THIRDS_TURN_FRACTION    = 2 / 3;   // > 2/3 remaining -> outbound
+const THIRDS_RESERVE_FRACTION = 1 / 3;   // < 1/3 remaining -> reserve
+
+// Issue #68: the safety-stop countdown's own active-tick range (2.4-8.3m)
+// was duplicated as a narrower ±1.5m-around-5m band in two separate
+// fast-forward-eligibility checks (game-loop.js, touch.js), so at e.g. 7.5m
+// the countdown visibly ticked down but the FF button didn't appear. One
+// shared constant pair, used by the countdown tick AND both FF checks.
+const SAFETY_STOP_ACTIVE_MIN_D = 2.4;
+const SAFETY_STOP_ACTIVE_MAX_D = 8.3;
+
 const BAROTRAUMA_RATE   = 18;   // m/min ascent threshold for injury
 const BAROTRAUMA_TIME   = 10;   // dive-seconds sustained to trigger game over
+
+// Issue #44: Post-dive debriefing thresholds. FAST_ASCENT_RATE is 9 m/min
+// (the yellow-caution line the ascent bar already uses). Sustained above
+// this for FAST_ASCENT_EVENT_SEC seconds records one fastAscent event.
+// Ceiling violation similarly needs to be sustained (0.3 m tolerance so
+// a one-frame overshoot doesn't count).
+const FAST_ASCENT_RATE            = 9;    // m/min — threshold for a debriefing "fast ascent" event
+const FAST_ASCENT_EVENT_SEC       = 2;    // sustained seconds required to record one event
+const CEILING_VIOLATION_TOL_M     = 0.3;  // m — depth below ceiling before a violation counts
+const CEILING_VIOLATION_EVENT_SEC = 2;    // sustained seconds required
+
+// Grading — see gradeDive() in physics.js
+const GRADE_STAR_1_MIN            = 50;
+const GRADE_STAR_2_MIN            = 75;
+const GRADE_STAR_3_MIN            = 92;
+const GRADE_FAST_ASCENT_PENALTY   = 15;   // points off per fastAscent event
+const GRADE_CEILING_PENALTY       = 30;   // points off per ceilingViolation event
+const GRADE_SAFETY_SKIPPED_SCORE  = 30;   // fixed score when needed stop was skipped
+const GRADE_GAS_RESERVE_FULL_BAR  = 50;   // min remaining bar for full "gas reserve" score
+const GRADE_LOW_NDL_HINT_MIN      = 3;    // min NDL seen below this adds "cut it close" note
+const GRADE_TRIM_HOLD_WINDOW_SEC  = 60;   // rolling-window seconds for "holding" detection
+const GRADE_TRIM_HOLD_DELTA_M     = 1.0;  // rolling window range < this m = holding phase
+const GRADE_TRIM_STDDEV_FULL_M    = 0.5;  // stddev at/below this m => score 100
+const GRADE_TRIM_STDDEV_ZERO_M    = 3.0;  // stddev at/above this m => score 0
 const MAX_DEPTH         = 300;
 const P_H2O             = 0.0627;
 const LN2               = Math.log(2);
@@ -104,6 +165,18 @@ const GF_HIGH_MIN = 30;
 const GF_HIGH_MAX = 100;
 const GF_LOW_DEFAULT = 35;
 const GF_HIGH_DEFAULT = 75;
+
+// Issue #6: gas-setup keyboard step sizes. Match the values previously
+// baked into the HTML/touch-button handlers (buildHtmlGasSetup() action
+// buttons) and the ±steps promised in the gfHint / pressureHint / amvHint /
+// tankSizeHint strings above. Centralised here so a step-size tweak is a
+// single-line edit, not a hunt through ui.js.
+const GAS_SETUP_O2_STEP        = 0.01;   // O2 fraction per arrow-left/right press
+const GAS_SETUP_HE_STEP        = 0.01;   // He fraction per arrow-up/down press
+const GAS_SETUP_PRESSURE_STEP  = 10;     // bar per PgUp/PgDn press
+const GAS_SETUP_AMV_STEP       = 1;      // L/min per [/] press
+const GAS_SETUP_TANK_VOL_STEP  = 1;      // litres per ,/. press
+const GAS_SETUP_GF_STEP        = 5;      // percent per G/F press (Shift inverts sign)
 
 // Bubble config
 const BUBBLE_RADIUS_MIN = 2;
@@ -147,10 +220,90 @@ const NARC_RAMP_DOWN    = 0.025;
 const NARC_KO_THRESHOLD = 0.95;
 const NARC_KO_TIME      = 30;
 
+// Issue #37: Orientation aids — back-way chip + depth-scale ruler.
+// BACKWAY_MIN_DISTANCE_M — the chip is hidden when |diverX - boatX|
+// is at or below this value. Right at the entry the chip is noise;
+// beyond ~25 m the diver has genuinely drifted and wants a heading.
+// DEPTH_SCALE_TICK_INTERVAL_M / DEPTH_SCALE_LABEL_INTERVAL_M — the
+// ruler paints a short tick every TICK metres and a labelled tick
+// every LABEL metres. LABEL must be an integer multiple of TICK.
+const BACKWAY_MIN_DISTANCE_M     = 25;
+const DEPTH_SCALE_TICK_INTERVAL_M  = 5;
+const DEPTH_SCALE_LABEL_INTERVAL_M = 10;
+
 // Colors
 const COLOR_SURFACE_WATER = [135, 206, 235];
 const COLOR_DEEP_WATER    = [0, 17, 51];
 const DEPTH_GRADIENT_MAX  = 200;
+
+// Issue #39: HUD status colours — colour-blind accessibility.
+// -----------------------------------------------------------------------
+// Every semantic status readout on the dive-computer HUD (PO2, NDL, GTR,
+// tank pressure, N2 loading, GF99/SurfGF/CNS, ceiling, ascent chevrons,
+// tissue bars, safety-stop text, CCR PO2/SCR/O2/dil pressure) resolves
+// its colour through hudColor(tier) instead of a hardcoded '#ff3333' /
+// '#46f08f' / etc. literal. Two palettes ship:
+//
+//   HUD_COLORS_DEFAULT  — traffic-light (green / yellow / orange / red),
+//                         matches the visual identity divers coming from
+//                         real dive computers expect.
+//   HUD_COLORS_CVD      — colour-vision-deficient safe palette. Uses a
+//                         blue → yellow → orange → magenta-red axis so
+//                         deuteranopes / protanopes / tritanopes still
+//                         see a clear tier progression (Wong 2011 style,
+//                         adjusted for HUD contrast on a dark canvas).
+//
+// Danger-tier VALUES additionally get a '⚠ ' prefix via hudDangerPrefix()
+// (redundant coding — the state remains identifiable in grayscale even
+// when colour vision fails entirely). Blink was already used for the
+// warning banner and >18 m/min ascent chevrons; those keep working
+// unchanged and continue to serve as the second non-colour cue.
+//
+// Persistence: the chosen mode is stored under HUD_COLORS_STORAGE_KEY.
+// gameAPI.colorMode exposes get/set for tests.
+const HUD_COLORS_DEFAULT = {
+    ok:      '#46f08f',
+    caution: '#ffd24d',
+    warn:    '#ff9933',
+    danger:  '#ff3333'
+};
+const HUD_COLORS_CVD = {
+    ok:      '#3a86ff',   // saturated blue — clearly distinct from yellow/orange for all CVD types
+    caution: '#ffcc00',   // bright yellow — luminance separated from ok and warn even in grayscale
+    warn:    '#fb8500',   // orange — sits between yellow and magenta-red for a smooth ramp
+    danger:  '#e5383b'    // magenta-red — retains "red" identity but shifted off pure red so
+                          // deuteranopes/protanopes don't confuse it with the orange warn tier
+};
+const HUD_COLORS_STORAGE_KEY = 'hudColorMode';
+const HUD_DANGER_PREFIX = '⚠ ';   // ⚠ + space — redundant coding for grayscale readability
+
+let hudColorMode = 'default';   // 'default' | 'cvd'
+try {
+    const _stored = localStorage.getItem(HUD_COLORS_STORAGE_KEY);
+    if (_stored === 'cvd' || _stored === 'default') hudColorMode = _stored;
+} catch { /* private mode / storage disabled — fall back to in-memory default */ }
+
+function hudColor(tier) {
+    const pal = hudColorMode === 'cvd' ? HUD_COLORS_CVD : HUD_COLORS_DEFAULT;
+    return pal[tier] || pal.ok;
+}
+
+// Prepend to danger-tier text values so the state is unambiguously
+// identifiable even in grayscale or by fully colour-blind users.
+function hudDangerPrefix() {
+    return HUD_DANGER_PREFIX;
+}
+
+function setHudColorMode(mode) {
+    if (mode !== 'default' && mode !== 'cvd') return false;
+    hudColorMode = mode;
+    try { localStorage.setItem(HUD_COLORS_STORAGE_KEY, mode); } catch { /* swallow */ }
+    return true;
+}
+
+function toggleHudColorMode() {
+    return setHudColorMode(hudColorMode === 'default' ? 'cvd' : 'default');
+}
 
 // Reef palette — used by reef coral/sponge/cloud drawers and warm rock tone.
 const REEF_PAL = {
@@ -165,7 +318,13 @@ const REEF_PAL = {
   anthias:'#ff7a3a', anthiasLt:'#ffb18a', anthiasCore:'#ffe1bd', anthiasDeep:'#c63a1a'
 };
 
-// ZHL-16C N2 compartment constants
+// ZHL-16C N2 compartment constants.
+// Issue #40: provenance note. These a/b/half-time coefficients are Albert
+// Bühlmann's published ZHL-16C algorithm — standard reference data used
+// throughout the diving/decompression software field (e.g. Baker,
+// "Understanding M-values", 1998; Bühlmann, "Tauchmedizin", 5th ed.), not
+// original research. Independently transcribed for this project; not
+// copied from any specific copyleft-licensed codebase.
 const ZHL16C_N2 = [
     { ht: 5.0,   a: 1.2599, b: 0.5050 },
     { ht: 8.0,   a: 1.0000, b: 0.6514 },
@@ -205,30 +364,39 @@ const ZHL16C_HE = [
     { ht: 240.03, a: 0.5119, b: 0.9267 }
 ];
 
-// TASK-022 / D2: Fish types — optional sites:[] restricts spawning to those diveSite values
+// TASK-022 / D2: Fish types — REQUIRED sites:[] restricts spawning to those
+// diveSite values. Issue #42: every type carries an explicit filter so
+// mismatched fauna (e.g. whales in caves) can no longer slip in via the
+// unfiltered fallback in _eligibleTypes(). Cave is deliberately near-empty —
+// real caves have almost no free-swimming fauna. Leaving a site with an
+// empty eligible pool is fine: spawnFish() / spawnWildlife() just no-op that
+// tick and try again on the next spawn timer.
 const FISH_TYPES = [
     { name: 'clownfish',  color: '#ff8c00', stripe: '#fff',    size: 12, speedMin: 0.3,  speedMax: 0.6,  depthMin: 5,   depthMax: 30,  sites: ['reef'] },
-    { name: 'bluefish',   color: '#4488ff', stripe: '#aaccff', size: 15, speedMin: 0.2,  speedMax: 0.5,  depthMin: 10,  depthMax: 50 },
-    { name: 'anglerfish', color: '#334455', stripe: '#556677', size: 20, speedMin: 0.1,  speedMax: 0.3,  depthMin: 40,  depthMax: 90 },
-    { name: 'tropical',   color: '#ffdd00', stripe: '#ff4444', size: 10, speedMin: 0.4,  speedMax: 0.8,  depthMin: 3,   depthMax: 25 },
-    { name: 'grouper',    color: '#556b2f', stripe: '#6b8e23', size: 25, speedMin: 0.1,  speedMax: 0.3,  depthMin: 15,  depthMax: 60 },
-    { name: 'viperfish',  color: '#1a1a3a', stripe: '#3344aa', size: 14, speedMin: 0.05, speedMax: 0.2,  depthMin: 80,  depthMax: 280 },
-    { name: 'barracuda',  color: '#8899aa', stripe: '#aabbcc', size: 22, speedMin: 0.5,  speedMax: 1.0,  depthMin: 5,   depthMax: 40 },
+    { name: 'bluefish',   color: '#4488ff', stripe: '#aaccff', size: 15, speedMin: 0.2,  speedMax: 0.5,  depthMin: 10,  depthMax: 50,  sites: ['shore','reef','wreck'] },
+    { name: 'anglerfish', color: '#334455', stripe: '#556677', size: 20, speedMin: 0.1,  speedMax: 0.3,  depthMin: 40,  depthMax: 90,  sites: ['reef'] },
+    { name: 'tropical',   color: '#ffdd00', stripe: '#ff4444', size: 10, speedMin: 0.4,  speedMax: 0.8,  depthMin: 3,   depthMax: 25,  sites: ['shore','reef'] },
+    { name: 'grouper',    color: '#556b2f', stripe: '#6b8e23', size: 25, speedMin: 0.1,  speedMax: 0.3,  depthMin: 15,  depthMax: 60,  sites: ['reef','wreck'] },
+    { name: 'viperfish',  color: '#1a1a3a', stripe: '#3344aa', size: 14, speedMin: 0.05, speedMax: 0.2,  depthMin: 80,  depthMax: 280, sites: ['reef'] },
+    { name: 'barracuda',  color: '#8899aa', stripe: '#aabbcc', size: 22, speedMin: 0.5,  speedMax: 1.0,  depthMin: 5,   depthMax: 40,  sites: ['shore','reef','wreck'] },
     { name: 'lionfish',   color: '#cc4422', stripe: '#ffaa66', size: 14, speedMin: 0.1,  speedMax: 0.3,  depthMin: 10,  depthMax: 45,  sites: ['reef'] },
     { name: 'tang',       color: '#1177ff', stripe: '#ffee00', size: 11, speedMin: 0.3,  speedMax: 0.7,  depthMin: 5,   depthMax: 25,  sites: ['reef'] },
     { name: 'parrotfish', color: '#44bb88', stripe: '#ff88aa', size: 18, speedMin: 0.2,  speedMax: 0.5,  depthMin: 5,   depthMax: 30,  sites: ['reef'] },
-    { name: 'snapper',    color: '#dd7722', stripe: '#ffcc66', size: 16, speedMin: 0.2,  speedMax: 0.5,  depthMin: 10,  depthMax: 40 },
-    { name: 'flounder',   color: '#8b7355', stripe: '#a09060', size: 18, speedMin: 0.05, speedMax: 0.2,  depthMin: 15,  depthMax: 50 },
-    { name: 'dragonfish', color: '#0a0a1a', stripe: '#223388', size: 16, speedMin: 0.05, speedMax: 0.15, depthMin: 150, depthMax: 280 },
+    { name: 'snapper',    color: '#dd7722', stripe: '#ffcc66', size: 16, speedMin: 0.2,  speedMax: 0.5,  depthMin: 10,  depthMax: 40,  sites: ['shore','reef','wreck'] },
+    { name: 'flounder',   color: '#8b7355', stripe: '#a09060', size: 18, speedMin: 0.05, speedMax: 0.2,  depthMin: 15,  depthMax: 50,  sites: ['shore'] },
+    { name: 'dragonfish', color: '#0a0a1a', stripe: '#223388', size: 16, speedMin: 0.05, speedMax: 0.15, depthMin: 150, depthMax: 280, sites: ['reef'] },
     { name: 'anthias',    color: '#ff7a3a', stripe: '#ffb18a', size: 6,  speedMin: 0.3,  speedMax: 0.6,  depthMin: 4,   depthMax: 25,  sites: ['reef'] },
     { name: 'bannerfish', color: '#f5f5e8', stripe: '#1a1a1a', size: 14, speedMin: 0.25, speedMax: 0.5,  depthMin: 5,   depthMax: 35,  sites: ['reef'] }
 ];
 
-// D2: Wildlife types — turtle and ray added for reef/shore variety
+// D2: Wildlife types — turtle and ray added for reef/shore variety.
+// Issue #42: whale is now reef-only (a 60-metre whale swimming through a
+// wreck or cave broke immersion completely). jellyfish/octopus keep their
+// broad open-water range but are explicitly excluded from cave.
 const WILDLIFE_TYPES = [
-    { name: 'jellyfish', color: 'rgba(180,220,255,0.6)', size: 18, speedMin: 0.05, speedMax: 0.15, depthMin: 3,  depthMax: 50 },
-    { name: 'octopus',   color: '#8B4513',               size: 22, speedMin: 0.08, speedMax: 0.2,  depthMin: 10, depthMax: 70 },
-    { name: 'whale',     color: '#334455',               size: 60, speedMin: 0.1,  speedMax: 0.2,  depthMin: 20, depthMax: 100 },
+    { name: 'jellyfish', color: 'rgba(180,220,255,0.6)', size: 18, speedMin: 0.05, speedMax: 0.15, depthMin: 3,  depthMax: 50,  sites: ['shore','reef','wreck'] },
+    { name: 'octopus',   color: '#8B4513',               size: 22, speedMin: 0.08, speedMax: 0.2,  depthMin: 10, depthMax: 70,  sites: ['shore','reef','wreck'] },
+    { name: 'whale',     color: '#334455',               size: 60, speedMin: 0.1,  speedMax: 0.2,  depthMin: 20, depthMax: 100, sites: ['reef'] },
     { name: 'turtle',    color: '#4a7a3a',               size: 24, speedMin: 0.1,  speedMax: 0.25, depthMin: 3,  depthMax: 40,  sites: ['reef', 'shore'] },
     { name: 'ray',       color: '#2a3a4a',               size: 30, speedMin: 0.15, speedMax: 0.35, depthMin: 10, depthMax: 60,  sites: ['reef', 'wreck'] },
     { name: 'greyReefShark', color: '#4a5664',           size: 46, speedMin: 0.2,  speedMax: 0.4,  depthMin: 15, depthMax: 80,  sites: ['reef'] },
@@ -325,6 +493,38 @@ const GAS_PRESETS = [
     { name: 'Hx 21/79',    fO2: 0.21, fHe: 0.79 }
 ];
 
+// ============================================================
+//  Issue #45: Scenario drills — scriptable, opt-in didactic incidents
+// ============================================================
+// A drill is a scriptable emergency management scenario that pauses the
+// dive at a "what would you do now?" decision point instead of the fatal
+// game-over screen. Framework tuning constants below; the DRILLS catalog
+// (id, precondition, text keys, options with correct/effect, debrief keys)
+// lives further down together with the string table so both are edited in
+// lock-step.
+//
+// All drills use ONLY mechanics that already exist elsewhere in the
+// simulator (torch on/off, silt visibility, effectiveAMV multiplier,
+// tank drain, scrubberFailed / co2BuildupTime, onBailout, barotraumaTime).
+// No new physics.
+const DRILL_MIN_DIVETIME_MIN            = 3;    // earliest firing point (dive-minutes)
+const DRILL_MAX_DIVETIME_MIN            = 15;   // latest firing point (dive-minutes)
+const DRILL_MIN_DEPTH_M                 = 8;    // depth floor: no drill in the last few metres
+const DRILL_TRIGGER_PROB_PER_SEC        = 0.03; // per real-second Bernoulli chance while eligible
+const DRILL_DEBRIEF_DURATION_SEC        = 5;    // real-seconds a debrief card auto-dismisses after
+const DRILL_LIGHT_FLICKER_SEC           = 2;    // torch flicker duration before overlay appears
+const DRILL_LIGHT_DARK_SEC              = 8;    // dark period after correct "backup light" answer
+const DRILL_LIGHT_WRONG_VIS             = 0.15; // visibility floor forced by "swim fast" wrong option
+const DRILL_FREEFLOW_MULT               = 6;    // consumption multiplier for a free-flowing regulator
+const DRILL_FREEFLOW_DURATION_SEC       = 45;   // dive-seconds the free-flow lasts
+// Issue #45 (review follow-up): the freeflow drill's "hold breath" wrong
+// option and the lightFailure drill's "ascend" wrong option previously had
+// no guaranteed effect of their own — the consequence only existed if the
+// player happened to also ascend fast afterwards. Both now produce an
+// immediate, guaranteed, testable state change using existing mechanics.
+const DRILL_BREATHHOLD_DURATION_SEC     = 30;   // dive-seconds any ascent at all (not just a fast one) risks barotrauma
+const DRILL_LIGHT_PANIC_ASCENT_MPM      = 20;   // immediate panicked-ascent verticalVelocity kick (m/min, negative = up)
+
 // SECTION: i18n string tables (EN/DE)
 // SEARCH TERMS: STRINGS, S(), currentLang, EN, DE, language
 
@@ -357,6 +557,10 @@ const STRINGS = {
     ctrlBasic: '[1-4] gas presets  [M] Mode (Rec/Tec/CCR)',
     startDive: 'Start Dive',
     langToggle: '[L] Language: English',
+    // Issue #67: non-blocking resume-dive banner (replaces blocking confirm())
+    resumeBannerText: 'A saved dive was found. Resume?',
+    resumeBannerYes: 'Resume',
+    resumeBannerDiscard: 'Discard',
     // Surface
     surfaceDescend: 'Press S to vent & descend',
     surfaceLoaded: 'loaded',
@@ -415,7 +619,7 @@ const STRINGS = {
     warnCeiling: '\u26A0 ABOVE CEILING \u2014 DESCEND',
     warnNarc: '\u26A0 NARCOSIS',
     helpNarc: 'Nitrogen narcosis impairs brain function at depth. The \u26A0 NARCOSIS warning appears when narcotic partial pressure is high. Symptoms: tunnel vision (vignette), colour desaturation, screen wobble, delayed controls, random drift. Use trimix (helium) to reduce narcosis. END (Equivalent Narcotic Depth) shows the air-equivalent depth for narcotic effect. Ascending reverses narcosis, but with a short delay.',
-    helpTec: 'Tec (Technical) mode unlocks advanced features: up to 4 tanks with different gas mixes (Trimix, Heliox), configurable gradient factors (GF Low/High), AMV adjustment, and tank size selection. Use TAB to cycle tanks in gas setup, +/\u2212 to add/remove tanks. During the dive, press 1\u20134 to switch tanks. Plan your gas switches based on MOD \u2014 the dive computer shows the BEST gas indicator when a better tank is available. Trimix reduces narcosis and O2 toxicity risk for deep dives.',
+    helpTec: 'Tec (Technical) mode unlocks advanced features: up to 6 tanks with different gas mixes (Trimix, Heliox), configurable gradient factors (GF Low/High), AMV adjustment, and tank size selection. Use TAB to cycle tanks in gas setup, +/\u2212 to add/remove tanks. During the dive, press 1\u20136 to switch tanks. Plan your gas switches based on MOD \u2014 the dive computer shows the BEST gas indicator when a better tank is available. Trimix reduces narcosis and O2 toxicity risk for deep dives.',
     helpCcr: 'CCR (Closed Circuit Rebreather) mode simulates a rebreather with electronic PO2 control. The unit maintains a target setpoint (SP) by injecting O2 from a small cylinder. You breathe from a loop \u2014 exhaled CO2 is removed by a scrubber. Gas consumption is minimal compared to OC. Adjust setpoint with [ / ] keys (\u00B10.1 bar). Monitor: actual PO2, O2 cylinder pressure, diluent cylinder pressure, and scrubber time remaining. Failures: scrubber exhaustion causes CO2 buildup, O2 depletion causes hypoxia, high SP causes hyperoxia. Press B for bailout (irreversible switch to open-circuit using diluent).',
     // Game over reasons (display text)
     gameOverReasons: {
@@ -459,11 +663,111 @@ const STRINGS = {
     ccrDilTmx2135: 'Tmx 21/35',
     ccrDilTmx1545: 'Tmx 15/45',
     ccrDilTmx1070: 'Tmx 10/70',
-    ccrDilHeliox: 'Heliox',
+    ccrDilHeliox: 'Hx 10/90',
     ccrHypoxia: 'HYPOXIA \u2014 O\u2082 TOO LOW',
     ccrHyperoxia: 'O\u2082 TOXICITY \u2014 PO\u2082 TOO HIGH',
     ccrCO2: 'CO\u2082 POISONING \u2014 SCRUBBER EXHAUSTED',
     ccrBailout: 'BAILOUT',
+    // Issue #38: contextual onboarding hint toasts (edge-triggered, one-time)
+    hintBcd: 'W/S control BCD buoyancy \u2014 short bursts, then trim out',
+    hintNdl: 'NDL dropping: deco obligation soon \u2014 go shallower or plan your ascent',
+    hintSafetyStop: 'Safety stop: hold 3\u20135 min between 2.4\u20138.3m, F = fast-forward',
+    hintDeco: 'Deco ceiling: don\u2019t ascend above the CEIL depth!',
+    hintOverhead: 'Overhead: the guideline marks the way back, T = torch',
+    hintCurrent: 'Current! Swim against it with A/D',
+    hintDismissBtn: 'Don\u2019t show hints again',
+    // Issue #46: Instructor overlay (\u201cLearn\u201d mode). All strings the
+    // panel prints come from here so a language switch mid-dive updates the
+    // overlay on the next frame. Keep every subtext single-line \u2014 the
+    // panel is deliberately narrow (230px) and rows are laid out on a fixed
+    // vertical stride, not word-wrapped.
+    instructorTitle:      'PHYSICS LIVE',
+    instructorPressureRow: 'Ambient pressure',
+    instructorPressureFormula: 'P = 1 + depth/10 bar',
+    instructorBcdRow:      'BCD (Boyle\u2019s law)',
+    instructorBcdFormula:  'same gas \u2192 double pressure = half volume',
+    instructorBcdSurf:     'surface-equiv',
+    instructorBcdEff:      'effective now',
+    instructorBubbleRow:   'Bubble expansion',
+    instructorBubbleFormula: 'r_now = r_emit \u00d7 (P_emit / P_now)^(1/3)',
+    instructorBubbleNone:  'no bubble in flight yet',
+    instructorTissueRow:   'Leading tissue',
+    instructorTissueFormula: 'saturation vs. M-value at surface',
+    instructorTissueNone:  'compartments still washing in',
+    instructorConsRow:     'Gas consumption',
+    instructorConsFormula: 'SAC = AMV \u00d7 P (at 30m: 4\u00d7 surface rate)',
+    instructorGasRow:      'Current gas',
+    instructorGasFormula:  'MOD = (1.4/fO\u2082 \u2212 1) \u00d7 10, END with He',
+    instructorHintOff:     '[L] toggle',
+    instructorTouchLabel:  'LEARN',
+    // Issue #44: Post-dive debriefing labels + hints. {count}/{peak}/{bar}/
+    // {ndl}/{stddev} are simple placeholders replaced by gradeDive() in
+    // physics.js (no full template engine \u2014 String.prototype.replace only).
+    debriefTitle: 'DEBRIEFING',
+    gradeLabels: ['Ascent Discipline', 'Safety Stop', 'Gas Reserve', 'Deco Discipline', 'Trim & Buoyancy'],
+    gradeNotes: {
+      ascentClean:     'Ascent rate stayed within the recommended 9 m/min limit.',
+      ascentBad:       'Fast ascent {count}x (peak {peak} m/min). Above 9 m/min, dissolved nitrogen has less time to off-gas \u2014 slower means fewer bubbles.',
+      safetyDone:      'Safety stop completed \u2014 well done.',
+      safetyNotNeeded: 'Dive was too shallow to need a safety stop.',
+      safetySkipped:   'Safety stop skipped. A 3-min pause at 5 m sharply cuts DCS risk on any dive that reached 12 m.',
+      gasReserveHit:   'Dropped into the reserve third of your gas inside the overhead. Turn earlier next time \u2014 the reserve is your buffer, not a target.',
+      gasThirdsClean:  'Rule-of-thirds respected inside the overhead \u2014 clean gas management.',
+      gasEnd:          'Surfaced with {bar} bar. Aim for 50 bar reserve on the boat \u2014 buddy assists and delayed ascents burn gas fast.',
+      decoClean:       'Stayed well clear of any deco ceiling.',
+      decoNdlClose:    'Cut it very close to the no-deco limit ({ndl} min NDL). Turn shallower earlier to keep a buffer.',
+      decoBad:         'Broke the deco ceiling {count}x. Above the ceiling, dissolved gas comes out of solution too fast and bubbles form in tissue.',
+      trimNoHold:      'No sustained depth-hold phases in this dive to grade trim.',
+      trimReport:      'Depth held to \u00b1{stddev} m stddev during your stops. Aim for \u00b10.5 m \u2014 bobbing wastes gas and stirs silt.'
+    },
+    debriefStarLabel: 'Rating',
+    // Issue #45: Scenario drills — opt-in didactic emergency scenarios.
+    // Text keys are consumed by drawDrillOverlay() / drawDrillDebrief();
+    // the DRILLS catalog binds each key to a drill id + option index.
+    drillsToggleLabel: 'Training Drills',
+    drillsToggleHint: 'Occasional scripted incidents with a decision point',
+    drillHeader: 'TRAINING DRILL',
+    drillPromptFooter: 'Press 1 / 2 / 3 to choose',
+    drillDebriefHeader: 'DEBRIEFING',
+    drillDebriefCorrect: 'Correct choice',
+    drillDebriefWrong: 'Suboptimal choice',
+    drillDebriefWhyLabel: 'WHY:',
+    drillDebriefRealLabel: 'IN THE REAL WORLD:',
+    drillDebriefDismiss: 'Enter to continue',
+    drills: {
+      lightFailure: {
+        title: 'Light Failure',
+        text: 'Your primary torch just failed and the passage is dark. You are on the guideline. What do you do?',
+        options: [
+          'Stop, activate backup light, stay on the guideline',
+          'Swim fast toward the exit right now',
+          'Ascend to open water'
+        ],
+        why: 'Stop-Think-Act on a light failure: a backup light and the guideline get you out. Rushing kicks up silt; ascending in a cave hits ceiling.',
+        realWorld: 'Cave and technical divers always carry at least two redundant lights and never leave the guideline. Silt-outs and lost lines kill quickly when you cannot simply ascend.'
+      },
+      freeflow: {
+        title: 'Regulator Free-Flow',
+        text: 'Your regulator is icing up — gas is free-flowing loudly! You feel it draining fast. What do you do?',
+        options: [
+          'Breathe through it calmly, initiate ascent/turn',
+          'Switch to your backup tank',
+          'Hold your breath and cover the regulator'
+        ],
+        why: 'A free-flowing reg can still be breathed from — a shallow "sipping" technique keeps you alive while you turn the dive. Holding your breath while ascending risks lung barotrauma.',
+        realWorld: 'Open-water and technical courses drill breathing from a free-flow so it becomes muscle memory. Redundancy (independent second-stage or bailout tank) is the ultimate answer, but the reg you have keeps working until it runs the tank dry.'
+      },
+      co2: {
+        title: 'CO2 Buildup In The Loop',
+        text: 'Loud warning tone: CO2 is building up in the loop — the scrubber is not clearing your exhalations. What do you do?',
+        options: [
+          'Bail out to open circuit, end the dive',
+          'Increase setpoint and continue'
+        ],
+        why: 'CO2 is not fixed by more O2 — the scrubber sorbs CO2, not the diluent or oxygen supply. Bailout puts you on OC where every exhaled breath leaves your system.',
+        realWorld: 'CCR training makes bailout the automatic answer to any scrubber problem. CO2 toxicity impairs judgement fast — every extra minute inside the failing loop reduces your ability to recognise you are in trouble.'
+      }
+    },
     gameOverInfo: null // set below
   },
   de: {
@@ -487,6 +791,10 @@ const STRINGS = {
     ctrlBasic: '[1-4] Gas-Presets  [M] Modus (Rec/Tec/CCR)',
     startDive: 'Tauchgang starten',
     langToggle: '[L] Sprache: Deutsch',
+    // Issue #67: non-blocking resume-dive banner (replaces blocking confirm())
+    resumeBannerText: 'Ein gespeicherter Tauchgang wurde gefunden. Fortsetzen?',
+    resumeBannerYes: 'Fortsetzen',
+    resumeBannerDiscard: 'Verwerfen',
     // Surface
     surfaceDescend: 'S dr\u00FCcken zum Ablassen & Abtauchen',
     surfaceLoaded: 'geladen',
@@ -545,7 +853,7 @@ const STRINGS = {
     warnCeiling: '\u26A0 \u00DCBER CEILING \u2014 ABTAUCHEN',
     warnNarc: '\u26A0 NARKOSE',
     helpNarc: 'Stickstoffnarkose beeintr\u00E4chtigt die Hirnfunktion in der Tiefe. Die \u26A0 NARKOSE-Warnung erscheint bei hohem narkotischem Partialdruck. Symptome: Tunnelblick (Vignette), Farbverlust, Bildschirmwackeln, verz\u00F6gerte Steuerung, zuf\u00E4lliges Abdriften. Verwende Trimix (Helium) zur Narkosereduktion. END (Equivalent Narcotic Depth) zeigt die \u00E4quivalente Luft-Tiefe f\u00FCr den narkotischen Effekt. Aufsteigen hebt die Narkose auf, aber mit kurzer Verz\u00F6gerung.',
-    helpTec: 'Tec (Technisches Tauchen) schaltet erweiterte Funktionen frei: bis zu 4 Flaschen mit verschiedenen Gasmischungen (Trimix, Heliox), konfigurierbare Gradientenfaktoren (GF Low/High), AMV-Einstellung und Flaschengr\u00F6\u00DFe. TAB zum Wechseln der Flaschen im Gas-Setup, +/\u2212 zum Hinzuf\u00FCgen/Entfernen. W\u00E4hrend des Tauchgangs 1\u20134 zum Flaschenwechsel. Plane deine Gaswechsel anhand der MOD \u2014 der Tauchcomputer zeigt den BEST-Gasindikator wenn eine bessere Flasche verf\u00FCgbar ist. Trimix reduziert Narkose und O2-Toxizit\u00E4tsrisiko bei Tieftauchg\u00E4ngen.',
+    helpTec: 'Tec (Technisches Tauchen) schaltet erweiterte Funktionen frei: bis zu 6 Flaschen mit verschiedenen Gasmischungen (Trimix, Heliox), konfigurierbare Gradientenfaktoren (GF Low/High), AMV-Einstellung und Flaschengr\u00F6\u00DFe. TAB zum Wechseln der Flaschen im Gas-Setup, +/\u2212 zum Hinzuf\u00FCgen/Entfernen. W\u00E4hrend des Tauchgangs 1\u20136 zum Flaschenwechsel. Plane deine Gaswechsel anhand der MOD \u2014 der Tauchcomputer zeigt den BEST-Gasindikator wenn eine bessere Flasche verf\u00FCgbar ist. Trimix reduziert Narkose und O2-Toxizit\u00E4tsrisiko bei Tieftauchg\u00E4ngen.',
     helpCcr: 'CCR (Closed Circuit Rebreather) simuliert einen Kreislauftauchger\u00E4t mit elektronischer PO2-Steuerung. Das Ger\u00E4t h\u00E4lt einen Ziel-Sollwert (SP) durch O2-Injektion aus einer kleinen Flasche. Du atmest aus einem Kreislauf \u2014 ausgeatmetes CO2 wird vom Scrubber entfernt. Gasverbrauch ist minimal im Vergleich zu OC. Sollwert mit [ / ] Tasten anpassen (\u00B10,1 bar). \u00DCberwache: tats\u00E4chlichen PO2, O2-Flaschendruck, Diluent-Flaschendruck und Scrubber-Restzeit. Ausf\u00E4lle: Scrubber-Ersch\u00F6pfung verursacht CO2-Aufbau, O2-Mangel verursacht Hypoxie, hoher SP verursacht Hyperoxie. B f\u00FCr Bailout (irreversibler Wechsel zu Open-Circuit mit Diluent).',
     // Game over reasons
     gameOverReasons: {
@@ -589,11 +897,107 @@ const STRINGS = {
     ccrDilTmx2135: 'Tmx 21/35',
     ccrDilTmx1545: 'Tmx 15/45',
     ccrDilTmx1070: 'Tmx 10/70',
-    ccrDilHeliox: 'Heliox',
+    ccrDilHeliox: 'Hx 10/90',
     ccrHypoxia: 'HYPOXIE \u2014 O\u2082 ZU NIEDRIG',
     ccrHyperoxia: 'O\u2082-TOXIZIT\u00C4T \u2014 PO\u2082 ZU HOCH',
     ccrCO2: 'CO\u2082-VERGIFTUNG \u2014 SCRUBBER ERSCH\u00D6PFT',
     ccrBailout: 'NOTFALL-OC',
+    // Issue #38: kontextuelle Onboarding-Hinweise (Edge-getriggert, einmalig)
+    hintBcd: 'W/S steuern die Tarierweste \u2014 kurze St\u00F6\u00DFe, dann austrimmen',
+    hintNdl: 'NDL sinkt: bald Deko-Pflicht \u2014 flacher gehen oder Aufstieg planen',
+    hintSafetyStop: 'Sicherheitsstopp: 3\u20135 min zwischen 2,4\u20138,3m halten, F = Zeitraffer',
+    hintDeco: 'Deko-Ceiling: nicht \u00FCber die CEIL-Tiefe aufsteigen!',
+    hintOverhead: '\u00DCberkopf: die Leine markiert den R\u00FCckweg, T = Lampe',
+    hintCurrent: 'Str\u00F6mung! Mit A/D dagegen anschwimmen',
+    hintDismissBtn: 'Hinweise nicht mehr anzeigen',
+    // Issue #46: Instruktor-Overlay („Lern"-Modus). Alle Strings, die das
+    // Panel anzeigt, kommen hier her; ein Sprachwechsel während des
+    // Tauchgangs aktualisiert das Overlay im nächsten Frame. Jeder
+    // Untertitel bleibt einzeilig — das Panel ist bewusst schmal (230px)
+    // und Zeilen werden auf einem festen vertikalen Raster ausgelegt.
+    instructorTitle:      'PHYSIK LIVE',
+    instructorPressureRow: 'Umgebungsdruck',
+    instructorPressureFormula: 'P = 1 + Tiefe/10 bar',
+    instructorBcdRow:      'Tarierweste (Gesetz von Boyle)',
+    instructorBcdFormula:  'gleiche Gasmenge → doppelter Druck = halbes Volumen',
+    instructorBcdSurf:     'Oberflächen-äquiv.',
+    instructorBcdEff:      'effektiv jetzt',
+    instructorBubbleRow:   'Blasenexpansion',
+    instructorBubbleFormula: 'r_jetzt = r_emit × (P_emit / P_jetzt)^(1/3)',
+    instructorBubbleNone:  'noch keine Blase unterwegs',
+    instructorTissueRow:   'Führendes Gewebe',
+    instructorTissueFormula: 'Sättigung vs. M-Wert an Oberfläche',
+    instructorTissueNone:  'Kompartimente sättigen noch',
+    instructorConsRow:     'Gasverbrauch',
+    instructorConsFormula: 'SAC = AMV × P (auf 30m: 4× Oberflächenrate)',
+    instructorGasRow:      'Aktuelles Gas',
+    instructorGasFormula:  'MOD = (1,4/fO₂ − 1) × 10, END mit He',
+    instructorHintOff:     '[L] umschalten',
+    instructorTouchLabel:  'LERN',
+    // Issue #44: Post-Dive-Debriefing — Labels + Hinweise (mirrors EN keys).
+    debriefTitle: 'AUSWERTUNG',
+    gradeLabels: ['Aufstiegsdisziplin', 'Sicherheitsstopp', 'Gasreserve', 'Dekodisziplin', 'Trimm & Tarierung'],
+    gradeNotes: {
+      ascentClean:     'Aufstiegsrate blieb im empfohlenen Rahmen bis 9 m/min.',
+      ascentBad:       '{count}x zu schnell aufgestiegen (Spitze {peak} m/min). Über 9 m/min hat gelöster Stickstoff weniger Zeit zum Abatmen — langsamer aufsteigen, weniger Blasen.',
+      safetyDone:      'Sicherheitsstopp absolviert — sehr gut.',
+      safetyNotNeeded: 'Tauchgang war zu flach für einen Sicherheitsstopp.',
+      safetySkipped:   'Sicherheitsstopp ausgelassen. 3 Min auf 5 m senken das DCS-Risiko deutlich, sobald der Tauchgang über 12 m ging.',
+      gasReserveHit:   'In die Reserve-Drittel im Überkopf abgesunken. Umkehrpunkt früher setzen — die Reserve ist Puffer, kein Ziel.',
+      gasThirdsClean:  'Drittelregel im Überkopf eingehalten — sauberes Gasmanagement.',
+      gasEnd:          'Mit {bar} bar aufgetaucht. Ziel: mindestens 50 bar Reserve am Boot — Buddy-Hilfe und verzögerte Aufstiege verbrauchen schnell Gas.',
+      decoClean:       'Deckenhöhe sicher eingehalten.',
+      decoNdlClose:    'Sehr knapp an die Nullzeitgrenze ({ndl} min NDL) gegangen. Früher flacher werden, mehr Puffer lassen.',
+      decoBad:         '{count}x die Deko-Decke gerissen. Über der Decke perlt gelöstes Gas zu schnell aus und bildet Blasen im Gewebe.',
+      trimNoHold:      'Keine ausreichenden Halte-Phasen im Tauchgang, um die Tarierung zu bewerten.',
+      trimReport:      'Tiefe auf ±{stddev} m Streuung gehalten. Ziel: ±0,5 m — Auf-und-ab verbraucht Gas und wirbelt Silt auf.'
+    },
+    debriefStarLabel: 'Bewertung',
+    // Issue #45: Szenario-Drills (spiegelt EN-Schlüssel)
+    drillsToggleLabel: 'Trainings-Drills',
+    drillsToggleHint: 'Vereinzelte Zwischenfälle mit Entscheidungsmoment',
+    drillHeader: 'TRAININGS-DRILL',
+    drillPromptFooter: '1 / 2 / 3 drücken zum Wählen',
+    drillDebriefHeader: 'AUSWERTUNG',
+    drillDebriefCorrect: 'Richtige Entscheidung',
+    drillDebriefWrong: 'Suboptimale Entscheidung',
+    drillDebriefWhyLabel: 'WARUM:',
+    drillDebriefRealLabel: 'IN DER PRAXIS:',
+    drillDebriefDismiss: 'Enter zum Fortfahren',
+    drills: {
+      lightFailure: {
+        title: 'Lampenausfall',
+        text: 'Deine Hauptlampe ist gerade ausgefallen und der Gang ist dunkel. Du bist an der Leine. Was tust du?',
+        options: [
+          'Stop, Backup-Lampe aktivieren, an der Leine bleiben',
+          'Sofort schnell Richtung Ausgang schwimmen',
+          'Ins Freiwasser aufsteigen'
+        ],
+        why: 'Stop-Think-Act bei Lampenausfall: Backup-Lampe und Leine bringen dich raus. Hektik wirbelt Silt auf; in der Höhle aufsteigen stößt an die Decke.',
+        realWorld: 'Höhlen- und Tec-Taucher führen immer mindestens zwei redundante Lampen und verlassen nie die Leine. Silt-Out und verlorene Leine töten schnell, wenn du nicht einfach auftauchen kannst.'
+      },
+      freeflow: {
+        title: 'Vereister Automat',
+        text: 'Dein Automat friert ein — das Gas strömt laut ab! Du spürst, wie es schnell weniger wird. Was tust du?',
+        options: [
+          'Ruhig weiteratmen, Aufstieg/Umkehr einleiten',
+          'Auf die Backup-Flasche wechseln',
+          'Luft anhalten und Automat abdecken'
+        ],
+        why: 'Ein blasender Automat kann noch geatmet werden — "sippen" hält dich am Leben, während du den Tauchgang beendest. Luft anhalten beim Aufsteigen riskiert ein Lungenbarotrauma.',
+        realWorld: 'OWD- und Tec-Kurse drillen das Atmen aus einem Freeflow, damit es Muskelgedächtnis wird. Redundanz (unabhängige zweite Stufe oder Bailout-Flasche) ist die endgültige Antwort, aber der laufende Automat funktioniert bis die Flasche leer ist.'
+      },
+      co2: {
+        title: 'CO2-Aufbau im Kreislauf',
+        text: 'Warnton: CO2 baut sich im Kreislauf auf — der Scrubber bindet deine Ausatemluft nicht mehr. Was tust du?',
+        options: [
+          'Bailout auf Open Circuit, Tauchgang beenden',
+          'Sollwert erhöhen und weitertauchen'
+        ],
+        why: 'CO2 wird nicht durch mehr O2 behoben — der Scrubber bindet CO2, nicht Diluent oder Sauerstoff. Bailout bringt dich auf OC, wo jede Ausatmung dein System verlässt.',
+        realWorld: 'Die CCR-Ausbildung macht Bailout zur automatischen Antwort auf jedes Scrubber-Problem. CO2-Vergiftung trübt das Urteilsvermögen rasant — jede zusätzliche Minute im defekten Kreislauf verringert deine Fähigkeit, das überhaupt zu erkennen.'
+      }
+    },
     gameOverInfo: {
       'OUT OF GAS': {
         cause: 'Alle Flaschen leer \u2014 kein Atemgas mehr vorhanden.',
@@ -672,3 +1076,168 @@ const STRINGS = {
 };
 // Point English gameOverInfo to the existing GAME_OVER_INFO object
 STRINGS.en.gameOverInfo = GAME_OVER_INFO;
+
+// Issue #45: DRILLS catalog — scriptable scenario definitions.
+// Each entry:
+//   id           — stable string key (also used by gameAPI.forceDrill()).
+//   precondition — function(api) -> boolean; determines whether the drill
+//                  is eligible in the current dive context. Only preconditions
+//                  that read pure "run-time" state (mode, site, tank count,
+//                  torch state, alarms) belong here — the framework itself
+//                  already gates on drillsEnabled, min dive-time, depth,
+//                  and "no active alarm".
+//   stringsKey   — key inside STRINGS[lang].drills for text + options + debrief.
+//   options      — array of { correct: boolean, effect: function(api) }.
+//                  effect() is called synchronously the moment the player
+//                  selects the option; it may mutate state (visibility,
+//                  scrubberFailed, onBailout, drillState.freeflow*).
+//                  Passive effects (e.g. "you'll hit the ceiling on ascent")
+//                  are handled by the existing physics — effect() may be a
+//                  no-op in that case.
+//
+// NOTE on file layout: the catalog uses lazy state-reads (site strings via
+// activeSite(), tankCount, ccrState fields, torchOn, inOverhead). Those
+// symbols only exist at runtime inside the game frames; constants.js loads
+// first, so a `precondition` that reads them must do so via the passed api
+// (which is `window` inside the game — every game global is either window.x
+// directly, or accessed through the standard identifier binding).
+const DRILLS = [
+    {
+        id: 'lightFailure',
+        stringsKey: 'lightFailure',
+        precondition: function() {
+            return inOverhead && torchOn && diveSite === 'cave';
+        },
+        options: [
+            {
+                correct: true,
+                effect: function() {
+                    // Correct: torch stays off, backup light means visibility
+                    // stays workable but with a dimmed residual light for 8 s.
+                    drillState.lightRestoreAt = diveTime * 60 + DRILL_LIGHT_DARK_SEC;
+                }
+            },
+            {
+                correct: false,
+                effect: function() {
+                    // Swim fast wrong option: silt kicks up hard, light still
+                    // returns only after 8 s. Direct visibility drop mirrors
+                    // what the silt mechanic would produce over ~2 s of hard
+                    // finning near the floor, without requiring the diver to
+                    // actually kick during the paused overlay.
+                    visibility = Math.min(visibility, DRILL_LIGHT_WRONG_VIS);
+                    drillState.lightRestoreAt = diveTime * 60 + DRILL_LIGHT_DARK_SEC;
+                }
+            },
+            {
+                correct: false,
+                effect: function() {
+                    // Ascend wrong option (review follow-up): bolting blind
+                    // for open water both kicks up silt (same floor as the
+                    // "swim fast" option) AND actually starts the panicked
+                    // ascent immediately, rather than depending on the
+                    // player separately choosing to hold W afterwards — an
+                    // instant verticalVelocity kick lets the existing
+                    // ceiling-collision clamp and fast-ascent barotrauma
+                    // check both engage for real.
+                    visibility = Math.min(visibility, DRILL_LIGHT_WRONG_VIS);
+                    verticalVelocity = -DRILL_LIGHT_PANIC_ASCENT_MPM;
+                    drillState.lightRestoreAt = diveTime * 60 + DRILL_LIGHT_DARK_SEC;
+                }
+            }
+        ]
+    },
+    {
+        id: 'freeflow',
+        stringsKey: 'freeflow',
+        precondition: function() {
+            // OC only (CCR uses a different failure mode).
+            return diveMode !== 'ccr';
+        },
+        options: [
+            {
+                correct: true,
+                effect: function() {
+                    // Breathe through it: consumption multiplier applied to
+                    // the active tank for DRILL_FREEFLOW_DURATION_SEC dive-
+                    // seconds. drainingTankIdx === activeTank means "the free-
+                    // flowing reg is the one you are breathing from".
+                    drillState.freeflowUntilDiveSec = diveTime * 60 + DRILL_FREEFLOW_DURATION_SEC;
+                    drillState.freeflowDrainTankIdx = activeTank;
+                }
+            },
+            {
+                correct: true,
+                // Precondition: option only offered when a second tank exists.
+                requiresMultiTank: true,
+                effect: function() {
+                    // Switch to backup: drain continues on the ORIGINAL tank
+                    // (drainTankIdx keeps the pre-switch index) while the
+                    // player breathes from the next available tank.
+                    var oldIdx = activeTank;
+                    var newIdx = -1;
+                    for (var i = 0; i < tankCount; i++) {
+                        if (i !== oldIdx && tanks[i] && tanks[i].gasRemaining > 0) {
+                            newIdx = i;
+                            break;
+                        }
+                    }
+                    if (newIdx >= 0) {
+                        activeTank = newIdx;
+                        gasSwitchNotifyTime = 2;
+                        gasSwitchNotifyText = '⚠ DRILL → T' + (newIdx + 1) + ': ' + tanks[newIdx].label;
+                    }
+                    drillState.freeflowUntilDiveSec = diveTime * 60 + DRILL_FREEFLOW_DURATION_SEC;
+                    drillState.freeflowDrainTankIdx = oldIdx;
+                }
+            },
+            {
+                correct: false,
+                effect: function() {
+                    // Hold-breath wrong option (review follow-up): breath-
+                    // holding is dangerous on ANY ascent, not just a fast
+                    // one (trapped gas expands with Boyle's law regardless
+                    // of rate) — this widens the existing barotraumaTime
+                    // accumulator's trigger condition for the window below
+                    // instead of requiring a fast-ascent rate specifically.
+                    drillState.breathHoldUntilDiveSec = diveTime * 60 + DRILL_BREATHHOLD_DURATION_SEC;
+                }
+            }
+        ]
+    },
+    {
+        id: 'co2',
+        stringsKey: 'co2',
+        precondition: function() {
+            return diveMode === 'ccr' && !ccrState.onBailout && !ccrState.scrubberFailed;
+        },
+        onTrigger: function() {
+            // Activate the existing scrubber-failure mechanic so the CO2
+            // buildup timer starts running BEFORE the player chooses. Reset
+            // co2BuildupTime so the drill starts from a clean countdown.
+            ccrState.scrubberFailed = true;
+            ccrState.co2BuildupTime = 0;
+        },
+        options: [
+            {
+                correct: true,
+                effect: function() {
+                    // Bail out to OC: existing bailout flag stops the loop
+                    // update and moves consumption onto the diluent cyl. The
+                    // CO2 buildup timer no longer matters because bailout
+                    // exhaust leaves the loop.
+                    ccrState.onBailout = true;
+                    ccrState.co2BuildupTime = 0;
+                }
+            },
+            {
+                correct: false,
+                effect: function() {
+                    // Increase setpoint: the CO2 countdown keeps running. Do
+                    // NOT clear scrubberFailed — that IS the lesson.
+                    ccrAdjustSP(0.1);
+                }
+            }
+        ]
+    }
+];

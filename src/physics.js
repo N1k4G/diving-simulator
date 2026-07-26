@@ -4,8 +4,8 @@
 //          buoyancy physics, O2/CNS toxicity tracking.
 //
 // DEPENDS ON:
-//   constants.js — ZHL16C_N2_A/B/HT, ZHL16C_HE_A/B/HT, SURFACE_PRESSURE,
-//                  MAX_ASCENT_RATE, CNS_* thresholds
+//   constants.js — ZHL16C_N2[], ZHL16C_HE[] (per-compartment {ht, a, b}),
+//                  BUOYANCY_PARAMS, CNS_* thresholds
 //   state.js     — tissues, tissuesHe, depth, tanks, activeTank,
 //                  diveMode, ccrState, cnsPercent, dcsViolationTime,
 //                  safetyStopNeeded, safetyStopRemaining, diver
@@ -320,8 +320,15 @@ function decoStop(ceilDepth) {
 }
 
 // TASK-016: Deco schedule with combined N2+He (TASK-038: GF interpolation)
-function calculateDecoSchedule() {
-    var ceilDepth = calculateCeiling();
+// Issue #14: cachedCeilDepth lets a caller that already has this tick's
+// calculateCeiling() result (frameCalc.ceiling) pass it straight through,
+// instead of this function recomputing the exact same thing internally —
+// calculateCeiling() is cheap by itself, but this function's own simulation
+// loop below (up to 500 stops x 3000 sub-iterations) is not, and used to
+// run a second time whenever calculateTTS() also needed a schedule this
+// same tick (see calculateTTS() below).
+function calculateDecoSchedule(cachedCeilDepth) {
+    var ceilDepth = (cachedCeilDepth !== undefined) ? cachedCeilDepth : calculateCeiling();
     if (ceilDepth <= 0) return { stops: [], tts: 0 };
 
     var gas;
@@ -368,26 +375,38 @@ function calculateDecoSchedule() {
         return Math.max(0, (maxCeil - 1.0) * 10.0);
     }
 
+    // Issue #70: bestGasForDepth() returns null when every OC tank is empty
+    // — there is no real gas left to simulate breathing. Rather than
+    // silently falling back to a phantom empty tank's mix, abort the
+    // simulation at that point and flag the result as incomplete; whatever
+    // stops/time were already accumulated are still returned (better than
+    // nothing), just not extended past the point gas ran out.
+    var outOfGas = false;
+
     if (simDepth > firstStop) {
-        var ascentTime = (simDepth - firstStop) / 3.0;
+        var ascentTime = (simDepth - firstStop) / DECO_PLANNING_ASCENT_RATE_MPM;
         var steps = Math.ceil(ascentTime / 0.1);
         var stepTime = ascentTime / steps;
         var stepDepthChange = (simDepth - firstStop) / steps;
-        for (var s = 0; s < steps; s++) {
+        for (var s = 0; s < steps && !outOfGas; s++) {
             simDepth -= stepDepthChange;
             if (diveMode === 'ccr' && !ccrState.onBailout) {
                 gas = getCCRInspiredGas(simDepth, ccrState.targetSP);
             } else {
                 gas = bestGasForDepth(simDepth);
+                if (!gas) { outOfGas = true; break; }
             }
             simUpdate(simDepth, stepTime);
+            // Accumulated per-step (rather than added as a single ascentTime
+            // lump sum after the loop) so an out-of-gas abort partway
+            // through only counts the steps that actually ran.
+            totalTime += stepTime;
         }
-        totalTime += ascentTime;
     }
 
     var stopDepth = firstStop;
     var safetyIter = 0;
-    while (stopDepth > 0 && safetyIter < 500) {
+    while (!outOfGas && stopDepth > 0 && safetyIter < 500) {
         safetyIter++;
         var stopTime = 0;
         var nextStop = stopDepth - 3;
@@ -396,6 +415,7 @@ function calculateDecoSchedule() {
             gas = getCCRInspiredGas(stopDepth, ccrState.targetSP);
         } else {
             gas = bestGasForDepth(stopDepth);
+            if (!gas) { outOfGas = true; break; }
         }
         while (iter < 3000) {
             iter++;
@@ -414,6 +434,7 @@ function calculateDecoSchedule() {
                 gas = getCCRInspiredGas(nextStop, ccrState.targetSP);
             } else {
                 gas = bestGasForDepth(nextStop);
+                if (!gas) { outOfGas = true; break; }
             }
             simUpdate(nextStop, 1.0);
             totalTime += 1.0;
@@ -422,15 +443,18 @@ function calculateDecoSchedule() {
                 gas = getCCRInspiredGas(0, ccrState.targetSP);
             } else {
                 gas = bestGasForDepth(0);
+                if (!gas) { outOfGas = true; break; }
             }
-            simUpdate(0, stopDepth / 3.0);
-            totalTime += stopDepth / 3.0;
+            simUpdate(0, stopDepth / DECO_PLANNING_ASCENT_RATE_MPM);
+            totalTime += stopDepth / DECO_PLANNING_ASCENT_RATE_MPM;
             break;
         }
         stopDepth = nextStop;
     }
 
-    return { stops: stops, tts: Math.ceil(totalTime) };
+    var result = { stops: stops, tts: Math.ceil(totalTime) };
+    if (outOfGas) result.outOfGas = true;
+    return result;
 }
 
 // SECTION: O2 and gas math
@@ -441,11 +465,25 @@ function calculateDecoSchedule() {
 // ============================================================
 
 function calculatePO2() {
+    // In an active CCR loop the diver breathes the loop mix at the regulated
+    // setpoint — NOT the OC cylinder gas. `activeGas()` in CCR-loop mode
+    // returns `tanks[activeTank]` (leftover/normalised OC state), which is
+    // the wrong source for O2 toxicity, hypoxia, CNS, and the HUD PO2
+    // readout (issues #4 & #50). In CCR bailout and pure OC the diver IS
+    // breathing that gas, so the fO2 * pAmb calculation is correct.
+    // Mirrors the split used by updateTissues()/calculateNDL().
+    if (diveMode === 'ccr' && !ccrState.onBailout) {
+        return ccrState.actualPO2;
+    }
     return activeGas().fO2 * ambientPressure(depth);
 }
 
 function calculateMOD(o2) {
-    var fo2 = o2 || activeGas().fO2;
+    // Issue #61: `o2 || ...` treated an explicit 0 as "not provided" via
+    // truthiness, silently substituting the active gas's fO2. A 0% O2
+    // mixture has no upper PO2-driven depth limit — check for undefined
+    // explicitly so callers passing 0 get the correct (infinite) MOD.
+    var fo2 = (o2 !== undefined) ? o2 : activeGas().fO2;
     return ((1.4 / fo2) - 1) * 10;
 }
 
@@ -467,15 +505,21 @@ function calculateGTR() {
     return tank.gasRemaining / consumptionRate;
 }
 
-function calculateTTS() {
+// Issue #14: cachedCeilDepth/cachedSchedule let a caller that already ran
+// calculateCeiling()/calculateDecoSchedule() this tick (frameCalc) pass
+// those results straight through instead of this function recomputing the
+// ceiling AND re-running the full deco-schedule simulation a second time.
+function calculateTTS(cachedCeilDepth, cachedSchedule) {
     if (depth < 0.5) return 0;
-    var ceilDepth = calculateCeiling();
+    var ceilDepth = (cachedCeilDepth !== undefined) ? cachedCeilDepth : calculateCeiling();
     var inDecoTTS = decoStop(ceilDepth) > 0;
     if (inDecoTTS) {
-        var sched = calculateDecoSchedule();
+        var sched = (cachedSchedule !== undefined && cachedSchedule !== null)
+            ? cachedSchedule
+            : calculateDecoSchedule(ceilDepth);
         return sched.tts;
     }
-    var ascentTime = depth / 9.0;
+    var ascentTime = depth / DECO_PLANNING_ASCENT_RATE_MPM;
     var ssTime = 0;
     if (safetyStopNeeded || maxDepth > 11) {
         ssTime = calculateSafetyStopDuration() / 60;
@@ -489,15 +533,30 @@ function smoothstep(edge0, edge1, x) {
     return t * t * (3 - 2 * t);
 }
 
+// Gas source for narcosis/END. In an active CCR loop the inspired gas is
+// the loop mix (diluent + O2 titrated to setpoint), NOT `tanks[activeTank]`
+// — the OC tank state can be leftover/stale from a previous mode and is
+// decoupled from the configured diluent (issue #50). In CCR bailout the
+// diver is breathing the diluent directly, which `activeGas()` returns
+// correctly; in OC `activeGas()` returns the active tank fractions
+// (same .fHe as the previous `getActiveTank()` call, so OC behaviour is
+// unchanged). Mirrors updateTissues().
+function narcosisGas() {
+    if (diveMode === 'ccr' && !ccrState.onBailout) {
+        return getCCRInspiredGas(depth, ccrState.actualPO2);
+    }
+    return activeGas();
+}
+
 function calculateNarcoticPP() {
-    var tank = getActiveTank();
+    var gas = narcosisGas();
     var ambientBar = 1 + depth / 10;
-    return (1 - tank.fHe) * ambientBar;
+    return (1 - gas.fHe) * ambientBar;
 }
 
 function calculateEND() {
-    var tank = getActiveTank();
-    return Math.max(0, (depth + 10) * (1 - tank.fHe) - 10);
+    var gas = narcosisGas();
+    return Math.max(0, (depth + 10) * (1 - gas.fHe) - 10);
 }
 
 function updateNarcosis(dtDiveSec) {
@@ -547,27 +606,44 @@ function bestGasForDepth(d) {
     if (!isAdvanced()) return { fO2: tanks[activeTank].fO2, fHe: tanks[activeTank].fHe, fN2: tanks[activeTank].fN2 };
     var best = null;
     var bestO2 = -1;
+    var fallback = null; // best NON-EMPTY tank seen, regardless of PO2 window
     for (var i = 0; i < tankCount; i++) {
         var t = tanks[i];
         if (t.gasRemaining <= 0) continue;
+        if (!fallback || t.fO2 > fallback.fO2) fallback = t;
         var po2 = t.fO2 * ambientPressure(d);
         if (po2 > PO2_HIGH || po2 < PO2_HYPOXIA) continue;
         // DISABLED: Staging of bottles — all tanks available at all depths for now
         // if (i > 0 && t.switchDepth !== null && d > t.switchDepth) continue;
         if (t.fO2 > bestO2) { bestO2 = t.fO2; best = t; }
     }
-    if (!best) best = tanks[activeTank];
+    // Issue #70: when no tank satisfies the PO2 window, fall back to the
+    // best NON-EMPTY tank rather than blindly using tanks[activeTank] —
+    // that tank may itself be empty, which fed a nonexistent gas into the
+    // deco plan/TTS calculation. If EVERY tank is empty (fallback is also
+    // null), there is no real gas to simulate breathing at all — return
+    // null rather than pretending the empty active tank is still available;
+    // callers must treat null as "cannot continue the simulation".
+    if (!best) best = fallback;
+    if (!best) return null;
     return { fO2: best.fO2, fHe: best.fHe, fN2: best.fN2 };
 }
 
+// Issue #51: enforce BOTH ends of the operational PO2 window (previously only
+// the upper bound was checked, so a hypoxic gas could be recommended — and
+// auto-switched to — at shallow depth). The window matches bestGasForDepth()
+// exactly: PO2_HYPOXIA <= po2 <= PO2_HIGH. When no tank satisfies it, return
+// the sentinel -1 so callers can distinguish "no safe gas" from "current tank
+// is best" and refuse to silently switch to an unsafe cylinder.
 function recommendBestGas() {
-    var bestIdx = activeTank;
-    var bestFO2 = 0;
+    var bestIdx = -1;
+    var bestFO2 = -1;
     var pAmb = ambientPressure(depth);
     for (var i = 0; i < tankCount; i++) {
         if (tanks[i].gasRemaining <= 0) continue;
         var po2 = tanks[i].fO2 * pAmb;
-        if (po2 <= 1.4 && tanks[i].fO2 > bestFO2) {
+        if (po2 < PO2_HYPOXIA || po2 > PO2_HIGH) continue;
+        if (tanks[i].fO2 > bestFO2) {
             bestFO2 = tanks[i].fO2;
             bestIdx = i;
         }
@@ -575,12 +651,20 @@ function recommendBestGas() {
     return bestIdx;
 }
 
+// Issue #39: colour resolves through hudColor() so the alt CVD-safe palette
+// swaps in without touching every call site.
 function po2Color(po2) {
-    if (po2 < PO2_HYPOXIA) return '#ff3333';
-    if (po2 <= PO2_SAFE)    return '#33ff33';
-    if (po2 <= PO2_ELEVATED) return '#ffff33';
-    if (po2 <= PO2_HIGH)    return '#ff9933';
-    return '#ff3333';
+    if (po2 < PO2_HYPOXIA) return hudColor('danger');
+    if (po2 <= PO2_SAFE)    return hudColor('ok');
+    if (po2 <= PO2_ELEVATED) return hudColor('caution');
+    if (po2 <= PO2_HIGH)    return hudColor('warn');
+    return hudColor('danger');
+}
+
+// Issue #39: danger tier if hypoxic OR over PO2_HIGH — used by callers that
+// need to know whether to prepend the ⚠ prefix / blink the value.
+function po2IsDanger(po2) {
+    return po2 < PO2_HYPOXIA || po2 > PO2_HIGH;
 }
 
 function tankBar() {
@@ -590,7 +674,179 @@ function tankBar() {
 
 function tankColor() {
     var bar = tankBar();
-    if (bar > 100) return '#33ff33';
-    if (bar >= 50) return '#ffff33';
-    return '#ff3333';
+    if (bar > 100) return hudColor('ok');
+    if (bar >= 50) return hudColor('caution');
+    return hudColor('danger');
+}
+// SECTION: Post-dive grading (issue #44)
+// SEARCH TERMS: gradeDive, debriefing, score, stars, ascent discipline
+//
+// gradeDive() returns { subs: [...5 sub-scores], overall, stars }. It's a
+// pure function of state left after the dive: diveEvents (populated by
+// updateDiving()'s debounced capture blocks), diveProfile (already used by
+// the profile chart), the safetyStop flags, tank pressures, and site
+// context. Placed in physics.js next to calculateNDL / calculateTTS /
+// calculateGTR because it's the same shape — a read-only computation over
+// dive state — not DOM/UI plumbing.
+//
+// Scoring rules per issue #44:
+//   1. Ascent discipline — 100 - GRADE_FAST_ASCENT_PENALTY per fastAscent event.
+//   2. Safety stop      — 100 if completed or not needed; GRADE_SAFETY_SKIPPED_SCORE if skipped.
+//   3. Gas reserve      — open-water: linear 0..100 across 0..GRADE_GAS_RESERVE_FULL_BAR
+//                         end-of-dive minimum bar (CCR = diluent cyl). Overhead sites
+//                         (hasOverhead) grade by whether the diver dipped into thirds
+//                         reserve — the rule-of-thirds gauge from issue #27.
+//   4. Deco discipline  — 100 - GRADE_CEILING_PENALTY per ceilingViolation event; bonus
+//                         hint when minNdlSeen < GRADE_LOW_NDL_HINT_MIN.
+//   5. Trim/buoyancy    — stddev of depth from the 60-s rolling mean during "holding"
+//                         phases (rolling-window range < GRADE_TRIM_HOLD_DELTA_M).
+//                         <=0.5m stddev => 100, >=3.0m stddev => 0, linear between.
+//                         No holding phases in the profile (bounce dive) => 100.
+// Overall = mean of the 5. Stars: >=92 => 3, >=75 => 2, >=50 => 1, else 0.
+function gradeDive() {
+    var labels = S('gradeLabels');
+    var notes  = S('gradeNotes');
+
+    // 1. Ascent discipline
+    var fastAscentCount = 0;
+    var worstAscent = 0;
+    for (var i = 0; i < diveEvents.length; i++) {
+        if (diveEvents[i].kind === 'fastAscent') {
+            fastAscentCount++;
+            if (diveEvents[i].value > worstAscent) worstAscent = diveEvents[i].value;
+        }
+    }
+    var s1 = Math.max(0, 100 - GRADE_FAST_ASCENT_PENALTY * fastAscentCount);
+    var n1 = fastAscentCount === 0
+        ? notes.ascentClean
+        : notes.ascentBad
+            .replace('{count}', fastAscentCount)
+            .replace('{peak}', worstAscent.toFixed(1));
+
+    // 2. Safety stop
+    var s2, n2;
+    if (!safetyStopNeeded || safetyStopComplete) {
+        s2 = 100;
+        n2 = safetyStopNeeded ? notes.safetyDone : notes.safetyNotNeeded;
+    } else {
+        s2 = GRADE_SAFETY_SKIPPED_SCORE;
+        n2 = notes.safetySkipped;
+    }
+
+    // 3. Gas reserve — separate rule per site type.
+    var s3, n3;
+    var site = activeSite();
+    var isOverhead = !!(site && site.hasOverhead);
+    if (isOverhead) {
+        // Rule-of-thirds (issue #27): if the diver dropped into reserve phase
+        // at any point, they blew through their gas plan. Issue #44:
+        // thirdsReserveActive is a live excursion flag that clears on
+        // leaving the overhead — by post-dive grading time the diver has
+        // always left, so that flag reads false here regardless of what
+        // happened mid-dive. thirdsReserveHitThisDive is the same signal but
+        // latched for the whole dive (any excursion), only reset by
+        // resetDive().
+        if (thirdsReserveHitThisDive) {
+            s3 = 40;
+            n3 = notes.gasReserveHit;
+        } else {
+            s3 = 100;
+            n3 = notes.gasThirdsClean;
+        }
+    } else {
+        var endBar;
+        if (diveMode === 'ccr') {
+            endBar = ccrState.dilCylPressure;
+        } else {
+            endBar = Infinity;
+            for (var ti = 0; ti < tankCount; ti++) {
+                // Issue #44: tanks[ti].pressure is the static configured fill
+                // pressure set once at tank creation — it never changes as gas
+                // is consumed. gasRemaining is the field that actually
+                // depletes, so the remaining pressure is gasRemaining/volume.
+                var tiEndBar = tanks[ti].gasRemaining / tanks[ti].volume;
+                if (tiEndBar < endBar) endBar = tiEndBar;
+            }
+            if (!isFinite(endBar)) endBar = 0;
+        }
+        s3 = Math.max(0, Math.min(100, (endBar / GRADE_GAS_RESERVE_FULL_BAR) * 100));
+        n3 = notes.gasEnd.replace('{bar}', endBar.toFixed(0));
+    }
+
+    // 4. Deco discipline
+    var ceilCount = 0;
+    for (var j = 0; j < diveEvents.length; j++) {
+        if (diveEvents[j].kind === 'ceilingViolation') ceilCount++;
+    }
+    var s4 = Math.max(0, 100 - GRADE_CEILING_PENALTY * ceilCount);
+    var n4;
+    if (ceilCount > 0) {
+        n4 = notes.decoBad.replace('{count}', ceilCount);
+    } else if (isFinite(minNdlSeen) && minNdlSeen < GRADE_LOW_NDL_HINT_MIN) {
+        n4 = notes.decoNdlClose.replace('{ndl}', minNdlSeen.toFixed(0));
+    } else {
+        n4 = notes.decoClean;
+    }
+
+    // 5. Trim / buoyancy — stddev during "holding" phases.
+    //
+    // Curve: linear ramp from 0.5m stddev (score 100) to 3.0m stddev (score 0).
+    // Choice rationale: 0.5m matches "textbook stop" trim; 3.0m corresponds to
+    // a diver bobbing an entire body-length up and down, which is roughly the
+    // point at which a real instructor would fail the stop. Below 0.5m is
+    // capped at 100 (further precision doesn't add educational value); above
+    // 3.0m is capped at 0. If NO 60-s window in the profile qualifies as
+    // "holding" (fewer than 3 qualifying samples), we return 100 — a pure
+    // bounce dive with no stop to grade is neutral, not penalised.
+    var s5, n5;
+    var winMinutes = GRADE_TRIM_HOLD_WINDOW_SEC / 60;
+    var residSum = 0, residSumSq = 0, residN = 0;
+    if (diveProfile.length >= 2) {
+        var head = 0;
+        for (var k = 0; k < diveProfile.length; k++) {
+            var tk = diveProfile[k].t;
+            while (head < k && (tk - diveProfile[head].t) > winMinutes) head++;
+            var wCount = k - head + 1;
+            if (wCount < 2) continue;
+            var wSum = 0, wMin = Infinity, wMax = -Infinity;
+            for (var w = head; w <= k; w++) {
+                var wd = diveProfile[w].depth;
+                wSum += wd;
+                if (wd < wMin) wMin = wd;
+                if (wd > wMax) wMax = wd;
+            }
+            var wAvg = wSum / wCount;
+            if ((wMax - wMin) < GRADE_TRIM_HOLD_DELTA_M) {
+                var r = diveProfile[k].depth - wAvg;
+                residSum += r;
+                residSumSq += r * r;
+                residN++;
+            }
+        }
+    }
+    if (residN < 3) {
+        s5 = 100;
+        n5 = notes.trimNoHold;
+    } else {
+        var mean = residSum / residN;
+        var variance = (residSumSq / residN) - mean * mean;
+        if (variance < 0) variance = 0;
+        var stddev = Math.sqrt(variance);
+        var trimT = (stddev - GRADE_TRIM_STDDEV_FULL_M) / (GRADE_TRIM_STDDEV_ZERO_M - GRADE_TRIM_STDDEV_FULL_M);
+        s5 = Math.max(0, Math.min(100, 100 * (1 - trimT)));
+        n5 = notes.trimReport.replace('{stddev}', stddev.toFixed(2));
+    }
+
+    var subs = [
+        { label: labels[0], score: Math.round(s1), note: n1 },
+        { label: labels[1], score: Math.round(s2), note: n2 },
+        { label: labels[2], score: Math.round(s3), note: n3 },
+        { label: labels[3], score: Math.round(s4), note: n4 },
+        { label: labels[4], score: Math.round(s5), note: n5 }
+    ];
+    var overall = Math.round((subs[0].score + subs[1].score + subs[2].score + subs[3].score + subs[4].score) / 5);
+    var stars = overall >= GRADE_STAR_3_MIN ? 3
+              : overall >= GRADE_STAR_2_MIN ? 2
+              : overall >= GRADE_STAR_1_MIN ? 1 : 0;
+    return { subs: subs, overall: overall, stars: stars };
 }

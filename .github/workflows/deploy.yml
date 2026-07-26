@@ -18,13 +18,17 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Lint
         run: npm run lint
+
+      - name: License check
+        run: npm run license-check
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
@@ -88,8 +92,13 @@ jobs:
           )"
           pr_count="$(printf '%s' "$pr_json" | jq 'length')"
 
+          if [ "$pr_count" -eq 0 ]; then
+            echo "::notice::No merged PR found for commit $GITHUB_SHA (e.g. a direct push to main). Skipping release — lint/tests/deploy already succeeded."
+            exit 0
+          fi
+
           if [ "$pr_count" -ne 1 ]; then
-            echo "::error::Could not find exactly one merged PR for commit $GITHUB_SHA."
+            echo "::error::Expected exactly one merged PR for commit $GITHUB_SHA, found $pr_count."
             exit 1
           fi
 

@@ -135,6 +135,16 @@ function bindHold(btn, keyName) {
         e.preventDefault();
         if (gameState !== 'gas-setup') { showHelp = !showHelp; if (showHelp) showGasInfo = false; }
     }, { passive: false });
+    // Issue #46: Instructor overlay toggle. Mirror of the L key path in
+    // state.js — only active while diving so a tap during setup / surface
+    // / gameover / post-dive is a silent no-op (same guard as the L key).
+    var learnBtn = document.getElementById('touch-dive-learn');
+    if (learnBtn) {
+        learnBtn.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            if (gameState === 'diving') instructorMode = !instructorMode;
+        }, { passive: false });
+    }
     // TASK-031D: Gas info touch button
     document.getElementById('touch-gas-info').addEventListener('touchstart', function(e) {
         e.preventDefault();
@@ -161,15 +171,6 @@ function bindHold(btn, keyName) {
         keys['t'] = true;
         setTimeout(function() { keys['t'] = false; }, 100);
     });
-
-    // --- Gas setup O2/He/Pressure ---
-    var adjBtns = document.querySelectorAll('.t-setup-adj .t-btn[data-key]');
-    for (var i = 0; i < adjBtns.length; i++) {
-        (function(btn) {
-            var k = btn.getAttribute('data-key');
-            bindTap(btn, k);
-        })(adjBtns[i]);
-    }
 
     // Language toggle
     document.getElementById('touch-setup-lang').addEventListener('touchstart', function(e) {
@@ -281,9 +282,13 @@ function touchUpdateUI() {
             // TASK-031D: Show gas info button only in Tec mode
             // BUG-CCR-3: gas-info button is visible in CCR as well as Tec.
             document.getElementById('touch-gas-info').style.display = (isAdvanced() || diveMode === 'ccr') ? 'flex' : 'none';
-            var decoStopFF = decoStop(calculateCeiling());
+            // Issue #14: touchUpdateUI() runs after updateDiving() within the
+            // same gameLoop() frame (see the monkey-patch below), so
+            // frameCalc.ceiling is already fresh for this tick — no need to
+            // call calculateCeiling() again.
+            var decoStopFF = decoStop(frameCalc.ceiling);
             var atDecoFF = decoStopFF > 0 && Math.abs(depth - decoStopFF) <= 1.5;
-            var atSafetyFF = safetyStopCountdownStarted && !safetyStopComplete && Math.abs(depth - 5) <= 1.5;
+            var atSafetyFF = safetyStopCountdownStarted && !safetyStopComplete && depth >= SAFETY_STOP_ACTIVE_MIN_D && depth <= SAFETY_STOP_ACTIVE_MAX_D;
             var isStationary = Math.abs(ascentRate) < 0.5;
             var ffBtn = document.getElementById('touch-fast-forward');
             ffBtn.style.display = ((atDecoFF || atSafetyFF) && isStationary) ? 'flex' : 'none';
@@ -317,6 +322,44 @@ function touchUpdateUI() {
             break;
     }
 }
+
+// Issue #45: Scenario-drill canvas tap handler. Options are drawn on the
+// canvas by drawDrillOverlay() into drillState.optionRects (CSS-pixel
+// bounds); the pointer handler below hit-tests every tap/click and calls
+// resolveDrillOption(idx) with the matching index. Registered as pointer
+// events so a mouse click on desktop and a finger tap on touch both work.
+// When the debrief card is up, any tap dismisses it (same UX as pressing
+// Enter). Bound directly to the canvas so it never fights with the HTML
+// overlays / buttons which layer above it.
+(function initDrillTapHandler() {
+    var _c = document.getElementById('c');
+    if (!_c) return;
+    function onCanvasPointerDown(e) {
+        if (gameState !== 'drill') return;
+        if (drillState.phase === 'debrief') {
+            if (e.cancelable) e.preventDefault();
+            dismissDrillDebrief();
+            return;
+        }
+        if (drillState.phase !== 'overlay') return;
+        // Translate viewport → CSS-pixel canvas coords. The canvas fills the
+        // window in this game (no offset) but we still honour getBoundingClientRect
+        // so any future layout change stays correct.
+        var rect = _c.getBoundingClientRect();
+        var px = (e.clientX != null ? e.clientX : 0) - rect.left;
+        var py = (e.clientY != null ? e.clientY : 0) - rect.top;
+        var rects = drillState.optionRects || [];
+        for (var i = 0; i < rects.length; i++) {
+            var r = rects[i];
+            if (px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h) {
+                if (e.cancelable) e.preventDefault();
+                resolveDrillOption(r.index != null ? r.index : i);
+                return;
+            }
+        }
+    }
+    _c.addEventListener('pointerdown', onCanvasPointerDown);
+})();
 
 // Inject touch update into game loop
 var _realGameLoop = gameLoop;

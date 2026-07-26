@@ -9,11 +9,13 @@ const gameGlobals = {
   // ZHL-16C tables
   ZHL16C_N2: "readonly", ZHL16C_HE: "readonly",
   INITIAL_N2_LOADING: "readonly", LN2: "readonly",
-  SURFACE_PRESSURE: "readonly", P_H2O: "readonly",
+  P_H2O: "readonly",
 
   // Tuning constants
   TIME_ACCELERATION: "readonly", FAST_FORWARD_MULTIPLIER: "readonly",
-  MAX_ASCENT_RATE: "readonly", MAX_DESCENT_RATE: "readonly",
+  PHYSICS_MAX_SUBSTEP_SEC: "readonly",
+  DIVER_SCREEN_X_FRACTION: "readonly",
+  DECO_PLANNING_ASCENT_RATE_MPM: "readonly",
   MAX_DEPTH: "readonly",
   MAX_DEVICE_PIXEL_RATIO: "readonly",
 
@@ -26,7 +28,21 @@ const gameGlobals = {
   GUIDELINE_MAX_NODES: "readonly", GUIDELINE_SAMPLE_SEC: "readonly",
   SILT_KICK_THRESHOLD: "readonly", SILT_DECAY: "readonly",
   SILT_RECOVER: "readonly", TORCH_RADIUS_M: "readonly",
+  SAFETY_STOP_ACTIVE_MIN_D: "readonly", SAFETY_STOP_ACTIVE_MAX_D: "readonly",
   BAROTRAUMA_RATE: "readonly", BAROTRAUMA_TIME: "readonly",
+  // Issue #44: Post-dive debriefing thresholds + grading
+  FAST_ASCENT_RATE: "readonly", FAST_ASCENT_EVENT_SEC: "readonly",
+  CEILING_VIOLATION_TOL_M: "readonly", CEILING_VIOLATION_EVENT_SEC: "readonly",
+  GRADE_STAR_1_MIN: "readonly", GRADE_STAR_2_MIN: "readonly", GRADE_STAR_3_MIN: "readonly",
+  GRADE_FAST_ASCENT_PENALTY: "readonly", GRADE_CEILING_PENALTY: "readonly",
+  GRADE_SAFETY_SKIPPED_SCORE: "readonly", GRADE_GAS_RESERVE_FULL_BAR: "readonly",
+  GRADE_LOW_NDL_HINT_MIN: "readonly",
+  GRADE_TRIM_HOLD_WINDOW_SEC: "readonly", GRADE_TRIM_HOLD_DELTA_M: "readonly",
+  GRADE_TRIM_STDDEV_FULL_M: "readonly", GRADE_TRIM_STDDEV_ZERO_M: "readonly",
+  diveEvents: "writable", minNdlSeen: "writable",
+  _fastAscentAccum: "writable", _fastAscentPeak: "writable",
+  _ceilingViolationAccum: "writable",
+  gradeDive: "readonly",
   AMV_MIN: "readonly", AMV_MAX: "readonly", AMV_DEFAULT: "readonly",
   TANK_VOL_MIN: "readonly", TANK_VOL_MAX: "readonly", TANK_VOL_DEFAULT: "readonly",
   MAX_TANKS: "readonly",
@@ -39,6 +55,11 @@ const gameGlobals = {
   // Gradient factors
   GF_LOW_DEFAULT: "readonly", GF_LOW_MIN: "readonly", GF_LOW_MAX: "readonly",
   GF_HIGH_DEFAULT: "readonly", GF_HIGH_MIN: "readonly", GF_HIGH_MAX: "readonly",
+
+  // Issue #6: gas-setup keyboard step sizes
+  GAS_SETUP_O2_STEP: "readonly", GAS_SETUP_HE_STEP: "readonly",
+  GAS_SETUP_PRESSURE_STEP: "readonly", GAS_SETUP_AMV_STEP: "readonly",
+  GAS_SETUP_TANK_VOL_STEP: "readonly", GAS_SETUP_GF_STEP: "readonly",
 
   // CCR constants
   CCR_DEFAULTS: "readonly", CCR_DIL_PRESETS: "readonly",
@@ -62,7 +83,14 @@ const gameGlobals = {
   DEPTH_GRADIENT_MAX: "readonly",
   COLOR_SURFACE_WATER: "readonly", COLOR_DEEP_WATER: "readonly",
   REEF_PAL: "readonly",
+  // Issue #39: HUD colour-blind accessibility (constants.js)
+  HUD_COLORS_DEFAULT: "readonly", HUD_COLORS_CVD: "readonly",
+  HUD_COLORS_STORAGE_KEY: "readonly", HUD_DANGER_PREFIX: "readonly",
+  hudColorMode: "writable",
+  hudColor: "readonly", hudDangerPrefix: "readonly",
+  setHudColorMode: "readonly", toggleHudColorMode: "readonly",
   SAVE_KEY: "readonly", SAVE_INTERVAL_MS: "readonly",
+  SAVE_STATE_VERSION: "readonly", _isValidSaveState: "readonly",
   GAME_OVER_INFO: "readonly",
   GAS_PRESETS: "readonly",
 
@@ -78,6 +106,10 @@ const gameGlobals = {
   depth: "writable", maxDepth: "writable",
   avgDepthAccum: "writable", avgDepthSamples: "writable",
   diveTime: "writable", ascentRate: "writable",
+  // Issue #45 drill-framework internal helper: exposed to eslint globals
+  // so cross-file references resolve; treated as writable-if-reassigned
+  // (game-loop.js does not reassign it, but keeping it writable keeps the
+  // rule consistent with the other drill state).
   gameOverReason: "writable",
   tissues: "writable", tissuesHe: "writable",
   cnsPercent: "writable", po2ViolationTime: "writable", dcsViolationTime: "writable",
@@ -90,12 +122,17 @@ const gameGlobals = {
   bestGasAlerted: "writable",
   lastDecoStopDepth: "writable",
   diveProfile: "writable", _profileSampleTimer: "writable",
+  frameCalc: "writable",
   diver: "writable", verticalVelocity: "writable",
   diverX: "writable", horizontalVelocity: "writable", current: "writable",
   // Phase C state (state.js)
   diveSite: "writable", guidelineNodes: "writable", _guidelineTimer: "writable",
   visibility: "writable", inOverhead: "writable", badAirWarning: "writable",
-  thirdsTurnWarned: "writable", thirdsReserveActive: "writable", torchOn: "writable",
+  thirdsTurnWarned: "writable", thirdsReserveActive: "writable",
+  thirdsReserveHitThisDive: "writable",
+  thirdsStartingGas: "writable", thirdsCurrentPhase: "writable", thirdsPct: "writable",
+  THIRDS_TURN_FRACTION: "readonly", THIRDS_RESERVE_FRACTION: "readonly",
+  torchOn: "writable",
   currentVerticalRate: "writable", bcdGasSurfaceLiters: "writable",
   barotraumaTime: "writable", hypoxiaTime: "writable",
   bubbles: "writable", breathPhase: "writable",
@@ -103,6 +140,44 @@ const gameGlobals = {
   particles: "writable", waveTime: "writable",
   lastFrameTime: "writable",
   gasSwitchNotifyTime: "writable", gasSwitchNotifyText: "writable",
+  // Issue #38: contextual onboarding hint system (state.js + game-loop.js + renderer.js)
+  HINT_DISPLAY_SEC: "readonly", HINT_STORAGE_PREFIX: "readonly",
+  HINT_DONE_KEY: "readonly", HINT_TOAST_Y_FRAC: "readonly",
+  HINT_NDL_MIN: "readonly", HINT_BCD_MIN_DEPTH: "readonly",
+  hintNotifyTime: "writable", hintNotifyText: "writable",
+  hintQueue: "writable", hintEdges: "writable",
+  showHintOnce: "readonly", dismissAllHints: "readonly",
+  resetAllHintsForTests: "readonly", _hintsAreDismissed: "readonly",
+  // Issue #46: Instructor overlay ("Learn" mode) — state + render helper
+  instructorMode: "writable",
+  drawInstructorOverlay: "readonly",
+  _instructorLeadingTissue: "readonly",
+  INSTRUCTOR_PANEL_W: "readonly", INSTRUCTOR_ROW_H: "readonly",
+  INSTRUCTOR_ROWS: "readonly", INSTRUCTOR_PAD_X: "readonly",
+  INSTRUCTOR_TOP_Y_FRAC: "readonly", INSTRUCTOR_TISSUE_MIN_LOAD: "readonly",
+  INSTRUCTOR_TISSUE_WARN_PCT: "readonly", INSTRUCTOR_TISSUE_CRIT_PCT: "readonly",
+
+  // Issue #45: Scenario drills (constants.js + state.js + game-loop.js +
+  // renderer.js + touch.js + ui.js)
+  DRILLS: "readonly",
+  DRILL_MIN_DIVETIME_MIN: "readonly", DRILL_MAX_DIVETIME_MIN: "readonly",
+  DRILL_MIN_DEPTH_M: "readonly", DRILL_TRIGGER_PROB_PER_SEC: "readonly",
+  DRILL_DEBRIEF_DURATION_SEC: "readonly",
+  DRILL_LIGHT_FLICKER_SEC: "readonly", DRILL_LIGHT_DARK_SEC: "readonly",
+  DRILL_LIGHT_WRONG_VIS: "readonly",
+  DRILL_FREEFLOW_MULT: "readonly", DRILL_FREEFLOW_DURATION_SEC: "readonly",
+  DRILL_BREATHHOLD_DURATION_SEC: "readonly", DRILL_LIGHT_PANIC_ASCENT_MPM: "readonly",
+  drillsEnabled: "writable", drillHasRunThisDive: "writable",
+  drillState: "writable",
+  isDrillEligibleNow: "readonly", tryTriggerDrill: "readonly",
+  startDrill: "readonly", resolveDrillOption: "readonly",
+  dismissDrillDebrief: "readonly",
+  _drillIsAlarmActive: "readonly", _pickEligibleDrill: "readonly",
+  _drillById: "readonly", _drillRealTime: "readonly",
+  _openDrillOverlay: "readonly", _updateDrillTiming: "readonly",
+  _visibleDrillOptions: "readonly", _drillVisibleOptions: "readonly",
+  drawDrillOverlay: "readonly", drawDrillDebrief: "readonly",
+  drawDrillFlicker: "readonly",
   fishes: "writable", fishSpawnTimer: "writable",
   wildlife: "writable", wildlifeSpawnTimer: "writable",
   shark: "writable", sharkTimer: "writable",
@@ -123,6 +198,23 @@ const gameGlobals = {
   activeSite: "readonly", lerpProfile: "readonly",
   floorAt: "readonly", ceilingAt: "readonly",
   solidAt: "readonly", overheadAt: "readonly", badAirAt: "readonly",
+  // Issue #53: Visual zones (sites.js + state.js + renderer.js)
+  visualZoneAt: "readonly", zoneBlendWeight: "readonly",
+  VISUAL_ZONE_DEFAULT_PRIORITY: "readonly", VISUAL_ZONE_DEFAULT_BLEND: "readonly",
+  debugVisualZones: "writable",
+  drawVisualZoneDebug: "readonly", VISUAL_ZONE_DEBUG: "readonly",
+  // Issue #54: Local atmosphere profiles + sampler (sites.js)
+  sampleLocalAtmosphere: "readonly",
+  LOCAL_ATMO_DEFAULT: "readonly", LOCAL_ATMO_CLAMP: "readonly",
+  // Issue #55: Deterministic set dressing / micro-decoration (renderer.js)
+  drawSetDressing: "readonly", drawDecorationProp: "readonly",
+  pickProp: "readonly", sampleSetDressingCandidates: "readonly",
+  SET_DRESSING_MAX_MARGIN_CELLS: "readonly", SET_DRESSING_MIN_SCREEN_PX: "readonly",
+  SET_DRESSING_JITTER_FRACTION: "readonly", SET_DRESSING_CELL_SEED_MULT: "readonly",
+  SET_DRESSING_JITTER_SEED_MULT: "readonly", SET_DRESSING_PROP_SEED_MULT: "readonly",
+  SET_DRESSING_SCALE_SEED_MULT: "readonly", SET_DRESSING_ROT_SEED_MULT: "readonly",
+  SET_DRESSING_DEFAULT_MIN_SCALE: "readonly", SET_DRESSING_DEFAULT_MAX_SCALE: "readonly",
+  SET_DRESSING_UNKNOWN_KIND_WARN_CAP: "readonly", SET_DRESSING_PAL: "readonly",
 
   // Physics functions (physics.js)
   ambientPressure: "readonly", updateTissues: "readonly",
@@ -159,6 +251,18 @@ const gameGlobals = {
   spawnWildlife: "readonly", updateWildlife: "readonly",
   updateParticles: "readonly",
   _eligibleTypes: "readonly",
+  // Issue #42: fauna terrain-avoidance + organic-motion constants and helpers
+  faunaBlockedAt: "readonly",
+  _stepFaunaMotion: "readonly",
+  FAUNA_AVOID_INTERVAL: "readonly", FAUNA_AVOID_MARGIN: "readonly",
+  FAUNA_AVOID_SPEED: "readonly", FAUNA_AVOID_DECAY: "readonly",
+  FAUNA_TRAPPED_SECONDS: "readonly", FAUNA_FADE_RATE: "readonly",
+  FAUNA_TURN_CHANCE: "readonly", FAUNA_TURN_TIME: "readonly",
+  FAUNA_UNDULATION_AMP: "readonly",
+  FAUNA_UNDULATION_FREQ_BASE: "readonly", FAUNA_UNDULATION_FREQ_SCALE: "readonly",
+  FAUNA_SPEED_PULSE_AMP: "readonly",
+  FAUNA_WANDER_AMP_M: "readonly", FAUNA_WANDER_FREQ: "readonly",
+  FAUNA_WANDER_LERP: "readonly",
 
   // Renderer functions (renderer.js)
   drawScene: "readonly", drawDiver: "readonly",
@@ -167,9 +271,85 @@ const gameGlobals = {
   drawGameOver: "readonly", drawSurface: "readonly",
   drawFish: "readonly", drawWildlife: "readonly",
   drawHelpOverlay: "readonly", drawWrappedText: "readonly",
-  po2Color: "readonly", waterColor: "readonly",
+  po2Color: "readonly", po2IsDanger: "readonly", waterColor: "readonly",
   tankBar: "readonly", tankColor: "readonly",
   smoothstep: "readonly", formatTime: "readonly",
+  // Issue #52: Visual Surface Layer helpers (renderer.js)
+  VISUAL_SURFACE_CONFIG: "readonly",
+  visualSurfaceNoise: "readonly", visualProfileDepth: "readonly",
+  // Issue #41: Material texture tiles (renderer.js)
+  MAT_TILE: "readonly", buildMaterialTiles: "readonly",
+  _matTiles: "writable",
+  // Issue #34: AO contact band (renderer.js)
+  CONTACT_AO: "readonly", drawContactBand: "readonly",
+  // Issue #55: Set-dressing internal state (renderer.js)
+  _setDressingLastFrameCount: "writable", _setDressingUnknownWarned: "writable",
+  // Issue #56: Surface accumulation pass (renderer.js)
+  ACCUMULATION_PROFILES: "readonly", ACCUMULATION_SITE_DEFAULTS: "readonly",
+  ACCUMULATION_NEUTRAL_DEFAULT: "readonly", ACCUMULATION_PAL: "readonly",
+  ACCUM_SEED: "readonly",
+  ACCUMULATION_SEDIMENT_MAX_M: "readonly",
+  ACCUMULATION_STREAKS_MIN: "readonly", ACCUMULATION_STREAKS_MAX: "readonly",
+  accumulationProfileFor: "readonly",
+  drawSedimentCap: "readonly", drawContactAccumulation: "readonly",
+  drawVerticalStreaks: "readonly", drawGrowthEdge: "readonly",
+  // Issue #57: Environment micro-motion (renderer.js)
+  SWAY_PROFILES: "readonly", sampleEnvironmentSway: "readonly",
+  ENV_SWAY_CURRENT_BIAS_GAIN: "readonly", ENV_SWAY_ANGLE_GAIN: "readonly",
+  ENV_SWAY_BASE_FREQ: "readonly", ENV_SWAY_BASE_AMP: "readonly",
+  ENV_SWAY_DETAIL_FREQ: "readonly", ENV_SWAY_DETAIL_AMP: "readonly",
+  ENV_SWAY_PHASE_MULT: "readonly", ENV_SWAY_DETAIL_PHASE: "readonly",
+  // Issue #58: Shared near-surface optics (renderer.js)
+  nearSurfaceLightFactor: "readonly", drawCausticsOnVisibleFloor: "readonly",
+  drawNearSurfaceAtmosphere: "readonly", drawSurfaceCaustics: "readonly",
+  _nearSurfaceSiteMultiplier: "readonly",
+  _drawSurfaceUnderside: "readonly",
+  _drawBoatShadow: "readonly",
+  // Issue #43: World-anchored parallax layers (renderer.js)
+  PARALLAX_FACTORS: "readonly",
+  drawSiteAtmosphere: "readonly",
+  drawShoreParallaxLayers: "readonly", drawReefParallaxLayers: "readonly",
+  drawWreckParallaxLayers: "readonly", drawCaveParallaxLayers: "readonly",
+  // Issue #31: Directional torch cone + backscatter (renderer.js)
+  torchBeamAngle: "readonly",
+  TORCH_BEAM_TILT_RAD: "readonly", TORCH_BEAM_HALF_ANGLE_RAD: "readonly",
+  TORCH_NEAR_FIELD_FRACTION: "readonly",
+  drawWreckHullSkin: "readonly", drawTorchGlowAndSparkles: "readonly",
+  _diverFacing: "writable", _torchDark: "writable", _wreckMetal: "writable",
+  // Issue #33: Wreck visual polish (renderer.js)
+  sampleTorchLightAtWorldPoint: "readonly",
+  interiorObjectDistanceFactor: "readonly",
+  wreckInteriorAlphaMul: "readonly",
+  TORCH_LIGHT_EDGE_SOFTNESS: "readonly",
+  INTERIOR_OBJECT_NEAR_M: "readonly", INTERIOR_OBJECT_FAR_M: "readonly",
+  _wreckSilhouetteRects: "readonly", _wreckSilhouettePolygon: "readonly",
+  _buildWreckSilhouette: "readonly",
+  drawHangingLine: "readonly", drawNet: "readonly",
+  // Issue #32: Cave visual polish (renderer.js)
+  drawCaveSiltCloud: "readonly", drawCaveExitLightShaft: "readonly",
+  drawCaveSpeleothems: "readonly",
+  COLUMN_MERGE_TOL_M: "readonly", FLOWSTONE_PROBABILITY: "readonly",
+  FLOWSTONE_STEEP_GRADIENT: "readonly", BAD_AIR_LENS_THICKNESS_M: "readonly",
+  SILT_CLOUD_HEIGHT_M: "readonly", SILT_CLOUD_STEP_M: "readonly",
+  SILT_CLOUD_MAX_ALPHA: "readonly", SILT_CLOUD_MIN_VIS: "readonly",
+  EXIT_LIGHT_NEAR_M: "readonly", EXIT_LIGHT_FAR_M: "readonly",
+  EXIT_LIGHT_BASE_ALPHA: "readonly", EXIT_LIGHT_TORCH_BOOST_ALPHA: "readonly",
+  // Issue #37: Orientation aids (constants.js, game-loop.js, renderer.js)
+  BACKWAY_MIN_DISTANCE_M: "readonly",
+  DEPTH_SCALE_TICK_INTERVAL_M: "readonly",
+  DEPTH_SCALE_LABEL_INTERVAL_M: "readonly",
+  computeBackwayState: "readonly", drawDepthScale: "readonly",
+
+  // Issue #36: depth-dependent color absorption (renderer.js)
+  depthColorFactors: "readonly", drawDepthColorAbsorption: "readonly",
+  DEPTH_COLOR_R_NEAR: "readonly", DEPTH_COLOR_R_FAR: "readonly", DEPTH_COLOR_R_LOSS: "readonly",
+  DEPTH_COLOR_G_NEAR: "readonly", DEPTH_COLOR_G_FAR: "readonly", DEPTH_COLOR_G_LOSS: "readonly",
+  DEPTH_COLOR_CAVE_STRENGTH: "readonly",
+  _depthColorRestoreCanvas: "writable", _depthColorRestoreCtx: "writable",
+  _depthColorMaskCanvas: "writable", _depthColorMaskCtx: "writable",
+  // Issue #101: Rock-silhouette dome caps (renderer.js), read from game-loop.js
+  ROCK_DOME_MAX_PX: "readonly",
+  ROCK_DOME_SH_FRAC: "readonly", ROCK_DOME_SW_FRAC: "readonly",
   // Phase C renderer helpers
   drawTerrain: "readonly", drawStructures: "readonly",
   drawFeatures: "readonly", drawSeagrass: "readonly",
@@ -179,6 +359,10 @@ const gameGlobals = {
   drawTableCoral: "readonly", drawBrainCoral: "readonly", drawStaghorn: "readonly",
   drawSoftCoral: "readonly", drawGorgonian: "readonly", drawBarrelSponge: "readonly",
   drawAnthiasCloud: "readonly", drawBlueHaze: "readonly",
+  // Issue #35: coral variation helpers
+  coralVariation: "readonly", tintCoralColor: "readonly",
+  CORAL_SCALE_MIN: "readonly", CORAL_SCALE_MAX: "readonly",
+  CORAL_BRIGHTNESS_RANGE: "readonly", CORAL_HUE_SHIFT_DEG: "readonly",
 
   // UI functions (ui.js)
   showHtmlHelp: "readonly", hideHtmlHelp: "readonly",
@@ -196,11 +380,15 @@ const gameGlobals = {
 
   // Game loop (game-loop.js)
   effectiveAMV: "readonly",
+  perSecondToPerFrameProbability: "readonly",
   updateSurface: "readonly", updateDiving: "readonly",
   gameLoop: "writable",
   saveDiveState: "readonly", loadSavedDive: "readonly",
   maybeSaveDiveState: "readonly", clearSavedDive: "readonly",
   beforeUnloadHandler: "readonly", updateBeforeUnloadGuard: "readonly",
+  // Issue #67: non-blocking resume-dive banner
+  _updateResumeBanner: "readonly", resumeSavedDive: "readonly",
+  discardSavedDive: "readonly", _pendingResumeDive: "writable",
   recommendBestGas: "readonly", bestGasForDepth: "readonly",
   playAlertBeep: "readonly", playInfoTone: "readonly",
 

@@ -16,7 +16,6 @@
 // KEY FUNCTIONS (grep to find):
 //   drawScene()              — underwater background, diver, particles, fish
 //   drawDiveComputer()       — HUD overlay: depth, NDL, tissue bars, PO2, deco
-//   drawGasSetup()           — canvas gas-setup screen (keyboard/desktop mode)
 //   drawDiveProfileChart()   — post-dive depth/time profile chart
 //   drawPostDive()           — post-dive summary screen
 //   drawGameOver()           — game-over screen with cause of death
@@ -131,6 +130,615 @@ var _torchDark = 0;
 // Wreck metal-interior backdrop ramp — fades in only while inside the hull
 var _wreckMetal = 0;
 
+// ── Issue #31: Directional torch beam ─────────────────────────────
+// _diverFacing is ±1 (right/left only — no vertical aim). torchBeamAngle()
+// returns the beam's centre angle in canvas radian convention:
+//   0        = +x (right, horizontal)
+//   +PI/2    = +y (DOWN — canvas y grows downward)
+//   PI       = -x (left, horizontal)
+// A small fixed tilt gives the beam a realistic "held slightly down" pose:
+//   facing right (+1): angle = 0 + TILT       → cos>0, sin>0 (down-right)
+//   facing left  (-1): angle = PI - TILT      → cos<0, sin>0 (down-left)
+// In BOTH cases sin(angle) > 0, i.e. the y-component points DOWN. The sign
+// is easy to get backwards (subtracting from PI is required for the left
+// side because increasing above PI would point UP-left) — see TC-31-*.
+const TORCH_BEAM_TILT_RAD = 12 * Math.PI / 180;      // ~12° downward tilt
+const TORCH_BEAM_HALF_ANGLE_RAD = 28 * Math.PI / 180; // ±28° cone opening
+// Near-field spill radius as a fraction of the torch's total reach. A weak
+// all-around glow so the diver's back/head isn't pure black (which reads as
+// broken rather than atmospheric) while still making the cone the dominant
+// visible zone.
+const TORCH_NEAR_FIELD_FRACTION = 0.42;
+
+function torchBeamAngle(facing) {
+    // Clamp to ±1: any non-`-1` input is treated as facing right (matches
+    // _diverFacing's own initialisation to +1).
+    var f = (facing === -1) ? -1 : 1;
+    return (f === 1) ? TORCH_BEAM_TILT_RAD : (Math.PI - TORCH_BEAM_TILT_RAD);
+}
+
+// ── Issue #33: Object-relative light + interior distance queries ───
+// A shared query helper: "how lit is this specific world point?" Reuses
+// #31's exact beam axis/geometry — never invents a second torch cone,
+// mask, or facing calculation. First consumer is the wreck interior
+// object-brightness/tint pass (drawFeatures / drawStructures on wreck);
+// deliberately GENERIC (not wreck-specific) since the same query is
+// useful anywhere a drawer wants to modulate colour by torch reach.
+//
+// Contract:
+//   sampleTorchLightAtWorldPoint(worldX, worldD) → number in [0..1]
+//   • Returns EXACTLY 0 when torchOn is false — the point is unlit,
+//     no artificial warm brightening is added (see TC-33-LIGHT-TORCH-OFF-ZERO).
+//   • Returns 1 at the diver's own world position when torchOn is true.
+//   • Soft radial fall-off from the diver, with a soft angular edge to
+//     the beam cone — no hard step (see TC-33-LIGHT-SOFT-EDGE).
+//   • Points inside the near-field spill radius are lit regardless of
+//     angle (mirrors #31's near-field circle).
+// Pure function of its inputs + current diver state (facing, position,
+// torchOn, visibility). No state mutation.
+const TORCH_LIGHT_EDGE_SOFTNESS = 0.22;   // fraction of angular half-width used for smooth edge
+// Interior object-distance falloff — how present an object reads INSIDE
+// the wreck as a function of its distance from the diver. This is the
+// separate #33 effect: it modulates alpha/brightness slightly with a
+// per-object distance factor, layered ON TOP of #54's zone-wide fog
+// (never a second fullscreen fog layer). See TC-33-INTERIOR-FACTOR-*.
+const INTERIOR_OBJECT_NEAR_M = 4;         // full-present within this radius
+const INTERIOR_OBJECT_FAR_M  = 26;        // fully faded past this radius
+
+function sampleTorchLightAtWorldPoint(worldX, worldD) {
+    if (!torchOn) return 0;
+    // Reach in world metres, scaled by local visibility — matches the
+    // exact formula the drawing side already uses (drawSiltAndTorch,
+    // drawWreckHullSkin: TORCH_RADIUS_M * 1.7 * max(0.3, visibility)).
+    var reachM = TORCH_RADIUS_M * 1.7 * Math.max(0.3, visibility);
+    var nearM  = reachM * TORCH_NEAR_FIELD_FRACTION;
+    var dx = worldX - diverX;
+    var dy = worldD - depth;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist <= 1e-6) return 1;
+    // Near-field spill — soft radial falloff, angle-independent.
+    var nearFactor = 0;
+    if (dist < nearM) {
+        var nr = 1 - dist / nearM;
+        nearFactor = nr * nr * (3 - 2 * nr);   // smoothstep 0→1
+    }
+    // Directional cone — same axis as #31.
+    var coneFactor = 0;
+    if (dist < reachM) {
+        var pointAngle = Math.atan2(dy, dx);
+        var beamAngle = torchBeamAngle(_diverFacing);
+        var halfA = TORCH_BEAM_HALF_ANGLE_RAD;
+        var da = pointAngle - beamAngle;
+        while (da >  Math.PI) da -= Math.PI * 2;
+        while (da < -Math.PI) da += Math.PI * 2;
+        var absDA = Math.abs(da);
+        var innerHalf = halfA * (1 - TORCH_LIGHT_EDGE_SOFTNESS);
+        var angularWeight = 0;
+        if (absDA <= innerHalf) {
+            angularWeight = 1;
+        } else if (absDA < halfA) {
+            var t = (halfA - absDA) / (halfA - innerHalf);
+            angularWeight = t * t * (3 - 2 * t);   // smoothstep
+        }
+        if (angularWeight > 0) {
+            var radial = 1 - dist / reachM;
+            if (radial < 0) radial = 0;
+            radial = radial * radial * (3 - 2 * radial);   // smoothstep
+            coneFactor = angularWeight * radial;
+        }
+    }
+    return Math.max(nearFactor, coneFactor);
+}
+
+function interiorObjectDistanceFactor(worldX, worldD) {
+    var dx = worldX - diverX;
+    var dy = worldD - depth;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist <= INTERIOR_OBJECT_NEAR_M) return 1;
+    if (dist >= INTERIOR_OBJECT_FAR_M)  return 0;
+    var t = (INTERIOR_OBJECT_FAR_M - dist) / (INTERIOR_OBJECT_FAR_M - INTERIOR_OBJECT_NEAR_M);
+    return t * t * (3 - 2 * t);   // smoothstep
+}
+
+// ── Issue #36: depth-dependent color absorption ────────────────────
+// Red is the first wavelength absorbed by water — gone by ~10-15 m —
+// followed by orange/yellow; by ~25 m without a light source everything
+// reads blue-grey. Only the water gradient itself (waterColor()) darkens
+// with depth today; objects in the scene (features, fish, wildlife) stay
+// at full saturation regardless of depth. This is the single most
+// iconic visual of real diving and is currently entirely missing.
+//
+// depthColorFactors() is a pure function: r/g/b multiply-tint factors,
+// monotonically non-increasing (r, g) as depth increases, smoothstep-
+// composed so the transition never pops while ascending/descending.
+const DEPTH_COLOR_R_NEAR = 5,  DEPTH_COLOR_R_FAR = 25, DEPTH_COLOR_R_LOSS = 0.75;
+const DEPTH_COLOR_G_NEAR = 15, DEPTH_COLOR_G_FAR = 60, DEPTH_COLOR_G_LOSS = 0.45;
+// Cave's torch-darkness overlay (drawSiltAndTorch) already dominates the
+// mood there; a full-strength tint on top of that reads as double-
+// darkening rather than color loss, so soften it in caves specifically.
+const DEPTH_COLOR_CAVE_STRENGTH = 0.6;
+
+function depthColorFactors(d, siteId) {
+    var strength = (siteId === 'cave') ? DEPTH_COLOR_CAVE_STRENGTH : 1;
+    var rLoss = smoothstep(DEPTH_COLOR_R_NEAR, DEPTH_COLOR_R_FAR, d) * DEPTH_COLOR_R_LOSS * strength;
+    var gLoss = smoothstep(DEPTH_COLOR_G_NEAR, DEPTH_COLOR_G_FAR, d) * DEPTH_COLOR_G_LOSS * strength;
+    var r = 1 - rLoss, g = 1 - gLoss;
+    if (r < 0) r = 0; if (r > 1) r = 1;
+    if (g < 0) g = 0; if (g > 1) g = 1;
+    return { r: r, g: g, b: 1 };
+}
+
+// Cached offscreen buffers for the torch color-restore composite (built
+// once, resized only if the viewport itself changes — never allocated
+// per frame). _restore holds a snapshot of the scene BEFORE the tint is
+// applied; _mask holds a soft alpha shape (near-field circle + directional
+// cone, reusing #31's exact beam geometry) used to punch _restore down to
+// only the torch-lit area before compositing it back on top of the tint.
+var _depthColorRestoreCanvas = null, _depthColorRestoreCtx = null;
+var _depthColorMaskCanvas = null, _depthColorMaskCtx = null;
+
+function _ensureDepthColorBuffers(W, H) {
+    if (_depthColorRestoreCanvas && _depthColorRestoreCanvas.width === W && _depthColorRestoreCanvas.height === H) return;
+    _depthColorRestoreCanvas = document.createElement('canvas');
+    _depthColorRestoreCanvas.width = W; _depthColorRestoreCanvas.height = H;
+    _depthColorRestoreCtx = _depthColorRestoreCanvas.getContext('2d');
+    _depthColorMaskCanvas = document.createElement('canvas');
+    _depthColorMaskCanvas.width = W; _depthColorMaskCanvas.height = H;
+    _depthColorMaskCtx = _depthColorMaskCanvas.getContext('2d');
+}
+
+// Full-screen depth-color tint, applied AFTER every world object (terrain,
+// structures, features, particles, fish, wildlife, bubbles) but BEFORE the
+// cave darkness/torch-cone punch and #54's local-atmosphere pass — so both
+// of those layer on top of an already-tinted scene, and the diver (drawn
+// later still) stays untouched/crisp. Clipped to below the surface line so
+// sky/HUD are structurally unreachable (HUD is a separate DOM layer above
+// the canvas regardless — this clip is defence in depth, not the only guard).
+function drawDepthColorAbsorption() {
+    if (gameState !== 'diving') return;
+    var s = activeSite();
+    var f = depthColorFactors(depth, s ? s.id : null);
+    if (f.r > 0.995 && f.g > 0.995) return; // negligible — skip the fill entirely
+
+    var W = cssWidth, H = cssHeight, mpp = 0.05;
+    var diverScreenX = W * DIVER_SCREEN_X_FRACTION, diverScreenY = H * 0.45;
+    var surfaceScreenY = diverScreenY - depth / mpp;
+    var top = Math.max(0, surfaceScreenY);
+    if (top >= H) return; // nothing below the surface is on screen
+
+    var cx = ctx;
+    var restoring = !!torchOn;
+    // Issue #45 (test-harness robustness): the torch-lit restore path calls
+    // drawImage(cx.canvas, 0, 0, W, H) below — if the underlying physical
+    // canvas buffer has 0 width or height (test iframe with display:none,
+    // window.innerWidth === 0), drawImage throws
+    //   "The image argument is a canvas element with a width or height of 0."
+    // to the browser console, which Playwright's console-error assertion
+    // treats as a real bug even though nothing is visible. Skip the
+    // restore-mask branch (plain tint still applies as a solid fill, no
+    // drawImage) whenever the physical buffer is zero-sized.
+    if (restoring && (cx.canvas.width === 0 || cx.canvas.height === 0)) {
+        restoring = false;
+    }
+    var beamAngle, halfA, exceptionR;
+    if (restoring) {
+        beamAngle = torchBeamAngle(_diverFacing);
+        halfA = TORCH_BEAM_HALF_ANGLE_RAD;
+        var torchPx = TORCH_RADIUS_M / mpp;
+        exceptionR = torchPx * 1.7 * Math.max(0.3, visibility);
+    }
+
+    cx.save();
+    cx.beginPath();
+    cx.rect(0, top, W, H - top);
+    cx.clip();
+
+    if (restoring) {
+        _ensureDepthColorBuffers(W, H);
+        // 1. Snapshot the scene exactly as it looks BEFORE the tint.
+        _depthColorRestoreCtx.clearRect(0, 0, W, H);
+        _depthColorRestoreCtx.drawImage(cx.canvas, 0, 0, W, H);
+        // 2. Build the soft union mask (near-field circle ∪ directional
+        //    cone) by drawing both gradients with plain source-over —
+        //    alpha-over-transparent compositing sums correctly (never
+        //    exceeds 1), so this is a proper soft union, not a hack.
+        _depthColorMaskCtx.clearRect(0, 0, W, H);
+        var nearR = exceptionR * TORCH_NEAR_FIELD_FRACTION;
+        var nearGrad = _depthColorMaskCtx.createRadialGradient(diverScreenX, diverScreenY, 0, diverScreenX, diverScreenY, nearR);
+        nearGrad.addColorStop(0, 'rgba(0,0,0,0.7)');
+        nearGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        _depthColorMaskCtx.fillStyle = nearGrad;
+        _depthColorMaskCtx.fillRect(0, 0, W, H);
+        _depthColorMaskCtx.save();
+        _depthColorMaskCtx.beginPath();
+        _depthColorMaskCtx.moveTo(diverScreenX, diverScreenY);
+        _depthColorMaskCtx.arc(diverScreenX, diverScreenY, exceptionR * 1.05, beamAngle - halfA, beamAngle + halfA);
+        _depthColorMaskCtx.closePath();
+        _depthColorMaskCtx.clip();
+        var wedgeGrad = _depthColorMaskCtx.createRadialGradient(diverScreenX, diverScreenY, 0, diverScreenX, diverScreenY, exceptionR);
+        wedgeGrad.addColorStop(0,    'rgba(0,0,0,1)');
+        wedgeGrad.addColorStop(0.7,  'rgba(0,0,0,0.85)');
+        wedgeGrad.addColorStop(1,    'rgba(0,0,0,0)');
+        _depthColorMaskCtx.fillStyle = wedgeGrad;
+        _depthColorMaskCtx.fillRect(0, 0, W, H);
+        _depthColorMaskCtx.restore();
+        // 3. Punch the snapshot down to only the masked (torch-lit) area.
+        _depthColorRestoreCtx.globalCompositeOperation = 'destination-in';
+        _depthColorRestoreCtx.drawImage(_depthColorMaskCanvas, 0, 0);
+        _depthColorRestoreCtx.globalCompositeOperation = 'source-over';
+    }
+
+    // 4. Apply the tint over the whole (clipped) underwater area.
+    cx.globalCompositeOperation = 'multiply';
+    cx.fillStyle = 'rgb(' + Math.round(255 * f.r) + ',' + Math.round(255 * f.g) + ',' + Math.round(255 * f.b) + ')';
+    cx.fillRect(0, top, W, H - top);
+    cx.globalCompositeOperation = 'source-over';
+
+    // 5. Composite the pre-tint, masked snapshot back on top — colors
+    //    survive smoothly within the torch's reach, fade back to fully
+    //    tinted at the mask's soft edge.
+    if (restoring) {
+        cx.drawImage(_depthColorRestoreCanvas, 0, 0);
+    }
+
+    cx.restore();
+}
+
+// ── Material texture tiles (issue #41) ─────────────────────────────
+// Offscreen-canvas patterns generated once at first-render, applied as a
+// semi-transparent overlay pass on top of each site's base gradient fills.
+// World-anchored so the texture stays glued to the world (does not swim
+// with the camera). Precedent for offscreen-canvas caching: _rockCache.
+//
+// SEARCH TERMS: buildMaterialTiles, _matTiles, fillWithMaterialPattern
+var MAT_TILE = {
+    grain:     { w: 64,  h: 64  },
+    sand:      { w: 128, h: 64  },
+    limestone: { w: 128, h: 128 },
+    steel:     { w: 128, h: 96  },
+    crust:     { w: 96,  h: 96  }
+};
+// Fixed seeds for sRand — deterministic tile generation (no Math.random()).
+var MAT_SEED = {
+    grain:     101.13,
+    sand:      207.71,
+    limestone: 313.29,
+    steel:     419.87,
+    crust:     521.43
+};
+// Reef mesa: use `crust` above this floor depth, `grain` below.
+var REEF_CRUST_MAX_DEPTH = 20;
+// Open-water threshold for applying the grain dither pass (banding is
+// most visible where the water gradient is near-black).
+var GRAIN_DITHER_MIN_DEPTH = 40;
+// Metres per pixel — matches drawScene/drawTerrain (0.05 m/px = 20 px/m).
+var MAT_MPP = 0.05;
+
+// Issue #34 point 2: Ambient occlusion contact bands.
+// A soft darkening stroke along floor/ceiling silhouettes and structure
+// baselines. Uses canvas shadowBlur on a low-alpha stroke to produce the
+// soft falloff cheaply in one draw call per polyline. World-anchored by
+// construction: the input point arrays are already computed from world
+// coordinates, so the band moves rigidly with the camera.
+const CONTACT_AO = {
+    // Terrain silhouette (floor + ceiling): a thin dark stroke with a wider
+    // soft-blur halo. The halo is what reads as an AO band; the stroke
+    // itself is invisible where the line is convex (bulging away from the
+    // solid), and pools visibly darker at concave kinks.
+    terrain: {
+        strokeAlpha: 0.18,   // core stroke color alpha
+        strokeWidth: 1.5,    // core stroke line width (px)
+        blurRadius: 6,       // shadowBlur radius (px) — this is the visible band width
+        shadowAlpha: 0.42    // shadowColor alpha
+    },
+    // Structure baselines (bottom edge for floor-sitting structures, top
+    // edge for ceiling-hanging structures). Slightly stronger than terrain
+    // because it's a shorter line and needs to read against the fill.
+    structure: {
+        strokeAlpha: 0.22,
+        strokeWidth: 1.5,
+        blurRadius: 5,
+        shadowAlpha: 0.5,
+        // World-space distance (m) below which a structure's bottom counts as
+        // "sitting on the floor" (or top on the ceiling). Beyond this, no
+        // contact band is drawn — the structure is floating in the water column.
+        contactSlackM: 0.6
+    }
+};
+
+// ============================================================
+//  ISSUE #56 — SURFACE ACCUMULATION (material-based deposits)
+//
+//  A shared visual pass that places sediment on horizontal top
+//  surfaces, rubble/debris at wall bases, rust streaks on steel
+//  panels, and small growth patches along exposed exterior edges.
+//  Complementary to (not a replacement for) #34's ambient
+//  occlusion contact bands: #34 owns "this edge should look
+//  dark" via a soft blurred shadow; this pass owns "material has
+//  accumulated here" via warm sediment colors and small irregular
+//  shapes. See comment on drawContactAccumulation for details.
+// ============================================================
+
+// Per-zone intensities in [0..1]. Missing zone → site default;
+// missing site → ACCUMULATION_NEUTRAL_DEFAULT. Any value outside
+// [0..1] is clamped inside accumulationProfileFor().
+var ACCUMULATION_PROFILES = {
+    // Shore
+    shore_entry:         { sediment: 0.55, contactDebris: 0.4,  streaks: 0,    growth: 0.10 },
+    shore_grass:         { sediment: 0.45, contactDebris: 0.35, streaks: 0,    growth: 0.20 },
+    shore_slope:         { sediment: 0.55, contactDebris: 0.5,  streaks: 0,    growth: 0.10 },
+    shore_deep:          { sediment: 0.7,  contactDebris: 0.6,  streaks: 0,    growth: 0.05 },
+    // Reef
+    reef_plateau:        { sediment: 0.2,  contactDebris: 0.2,  streaks: 0,    growth: 0.6  },
+    reef_upper_wall:     { sediment: 0.1,  contactDebris: 0.3,  streaks: 0,    growth: 0.7  },
+    reef_mid_wall:       { sediment: 0.15, contactDebris: 0.4,  streaks: 0,    growth: 0.5  },
+    reef_deep_wall:      { sediment: 0.3,  contactDebris: 0.5,  streaks: 0,    growth: 0.2  },
+    // Wreck
+    wreck_exterior:      { sediment: 0.3,  contactDebris: 0.4,  streaks: 0.6,  growth: 0.5  },
+    wreck_bridge:        { sediment: 0.6,  contactDebris: 0.5,  streaks: 0.8,  growth: 0.10 },
+    wreck_accommodation: { sediment: 0.7,  contactDebris: 0.6,  streaks: 0.9,  growth: 0.05 },
+    wreck_vehicle_deck:  { sediment: 0.55, contactDebris: 0.5,  streaks: 0.7,  growth: 0.05 },
+    wreck_crew_deck:     { sediment: 0.7,  contactDebris: 0.6,  streaks: 0.9,  growth: 0.05 },
+    wreck_cargo_hold:    { sediment: 0.9,  contactDebris: 0.7,  streaks: 0.8,  growth: 0.02 },
+    wreck_engine_room:   { sediment: 0.8,  contactDebris: 0.7,  streaks: 1.0,  growth: 0.05 },
+    wreck_bilge:         { sediment: 1.0,  contactDebris: 0.8,  streaks: 1.0,  growth: 0.02 },
+    // Cave
+    cave_entrance:       { sediment: 0.4,  contactDebris: 0.4,  streaks: 0.2,  growth: 0.10 },
+    cave_upper_tunnel:   { sediment: 0.55, contactDebris: 0.5,  streaks: 0.3,  growth: 0.02 },
+    cave_down_shaft:     { sediment: 0.2,  contactDebris: 0.4,  streaks: 0.5,  growth: 0    },
+    cave_cathedral:      { sediment: 0.25, contactDebris: 0.5,  streaks: 0.4,  growth: 0    },
+    cave_up_shaft:       { sediment: 0.2,  contactDebris: 0.4,  streaks: 0.4,  growth: 0    },
+    cave_exit:           { sediment: 0.4,  contactDebris: 0.4,  streaks: 0.2,  growth: 0.05 }
+};
+
+var ACCUMULATION_SITE_DEFAULTS = {
+    shore: { sediment: 0.5,  contactDebris: 0.4,  streaks: 0,    growth: 0.10 },
+    reef:  { sediment: 0.2,  contactDebris: 0.35, streaks: 0,    growth: 0.4  },
+    wreck: { sediment: 0.55, contactDebris: 0.55, streaks: 0.7,  growth: 0.10 },
+    cave:  { sediment: 0.35, contactDebris: 0.45, streaks: 0.25, growth: 0    }
+};
+
+var ACCUMULATION_NEUTRAL_DEFAULT = { sediment: 0.3, contactDebris: 0.3, streaks: 0.2, growth: 0.1 };
+
+// Palette shared by all accumulation helpers. Deliberately warm
+// browns / rust / muted greens — NOT pure black — so the pass
+// stays visually distinct from #34's light-based dark AO band.
+var ACCUMULATION_PAL = {
+    sedimentFill:   'rgba(106,90,72,0.55)',
+    sedimentEdge:   'rgba(74,60,44,0.35)',
+    sedimentGrain:  'rgba(56,44,32,0.4)',
+    rubbleDark:     'rgba(58,46,36,0.5)',
+    rubbleMid:      'rgba(96,80,60,0.5)',
+    // For "contact darkening" component we deliberately cap the
+    // black alpha to stay well below CONTACT_AO.terrain.shadowAlpha (0.42).
+    contactDark:    'rgba(20,14,10,0.09)',
+    rustLight:      'rgba(160,72,32,0.20)',
+    rustDark:       'rgba(110,44,18,0.28)',
+    mineralPale:    'rgba(180,168,140,0.14)',
+    growthOlive:    'rgba(58,80,52,0.55)',
+    growthCoralline:'rgba(148,88,102,0.45)'
+};
+
+// Fixed seed offsets so surface-accumulation randomness never
+// collides with other passes' seeds (#41 MAT_SEED, #55 CELL_SEED_MULT, ...).
+var ACCUM_SEED = {
+    sediment: 601.17,
+    contact:  733.29,
+    streak:   857.83,
+    growth:   971.51
+};
+
+// Cap the max sediment cap thickness in world metres. Issue #56
+// suggests 0.10–0.35 m visible deposit — keep the upper bound so
+// the pass never dominates the surface it decorates.
+var ACCUMULATION_SEDIMENT_MAX_M = 0.35;
+
+// Cap streak count per panel — issue asks 2–5.
+var ACCUMULATION_STREAKS_MIN = 2;
+var ACCUMULATION_STREAKS_MAX = 5;
+
+// Clamped, safe accessor — used by all callers, never index
+// ACCUMULATION_PROFILES directly.
+function accumulationProfileFor(siteId, zoneId) {
+    function clamp01(v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
+    var raw = (zoneId && ACCUMULATION_PROFILES[zoneId])
+        || (siteId && ACCUMULATION_SITE_DEFAULTS[siteId])
+        || ACCUMULATION_NEUTRAL_DEFAULT;
+    return {
+        sediment:      clamp01(raw.sediment      != null ? raw.sediment      : 0),
+        contactDebris: clamp01(raw.contactDebris != null ? raw.contactDebris : 0),
+        streaks:       clamp01(raw.streaks       != null ? raw.streaks       : 0),
+        growth:        clamp01(raw.growth        != null ? raw.growth        : 0)
+    };
+}
+
+// Lazy registry — populated on first drawScene(); never re-allocated.
+var _matTiles = null;
+
+function buildMaterialTiles() {
+    if (_matTiles) return _matTiles;    // idempotent — never re-allocate
+    var tiles = {};
+    tiles.grain     = _buildGrainTile();
+    tiles.sand      = _buildSandTile(tiles.grain);
+    tiles.limestone = _buildLimestoneTile(tiles.grain);
+    tiles.steel     = _buildSteelTile();
+    tiles.crust     = _buildCrustTile();
+    _matTiles = tiles;
+    return _matTiles;
+}
+
+// Grain: monochrome ±alpha stipple. Doubles as the gradient-dither pass
+// for the dark cave / deep-water backgrounds (closes #34 point 1).
+function _buildGrainTile() {
+    var w = MAT_TILE.grain.w, h = MAT_TILE.grain.h;
+    var oc = document.createElement('canvas');
+    oc.width = w; oc.height = h;
+    var cx = oc.getContext('2d');
+    var pixels = 400;
+    for (var i = 0; i < pixels; i++) {
+        var s = MAT_SEED.grain + i * 3.17;
+        var gx = Math.floor(sRand(s)         * w);
+        var gy = Math.floor(sRand(s + 0.53)  * h);
+        cx.fillStyle = (i % 2 === 0)
+            ? 'rgba(255,255,255,0.04)'
+            : 'rgba(0,0,0,0.04)';
+        cx.fillRect(gx, gy, 1, 1);
+    }
+    return oc;
+}
+
+// Sand: grain base + a few shallow highlight arcs for fine grain.
+function _buildSandTile(grainCanvas) {
+    var w = MAT_TILE.sand.w, h = MAT_TILE.sand.h;
+    var oc = document.createElement('canvas');
+    oc.width = w; oc.height = h;
+    var cx = oc.getContext('2d');
+    // Tile the grain across the (wider) sand canvas so both dimensions
+    // are covered — grain is 64×64, sand is 128×64.
+    var gw = grainCanvas.width, gh = grainCanvas.height;
+    for (var gyOff = 0; gyOff < h; gyOff += gh) {
+        for (var gxOff = 0; gxOff < w; gxOff += gw) {
+            cx.drawImage(grainCanvas, gxOff, gyOff);
+        }
+    }
+    cx.strokeStyle = 'rgba(255,226,162,0.05)';
+    cx.lineWidth = 1;
+    var arcs = 9;
+    for (var a = 0; a < arcs; a++) {
+        var s = MAT_SEED.sand + a * 7.31;
+        var ax = sRand(s)         * w;
+        var ay = sRand(s + 1.13)  * h;
+        var rx = 15 + sRand(s + 2.27) * 25;
+        var ry = 2  + sRand(s + 3.41) * 4;
+        cx.beginPath();
+        cx.ellipse(ax, ay, rx, ry, 0, 0, Math.PI);
+        cx.stroke();
+    }
+    return oc;
+}
+
+// Limestone: grain base + calcite patches + dark pore dots.
+function _buildLimestoneTile(grainCanvas) {
+    var w = MAT_TILE.limestone.w, h = MAT_TILE.limestone.h;
+    var oc = document.createElement('canvas');
+    oc.width = w; oc.height = h;
+    var cx = oc.getContext('2d');
+    var gw = grainCanvas.width, gh = grainCanvas.height;
+    for (var gyOff = 0; gyOff < h; gyOff += gh) {
+        for (var gxOff = 0; gxOff < w; gxOff += gw) {
+            cx.drawImage(grainCanvas, gxOff, gyOff);
+        }
+    }
+    // Lighter calcite patches
+    cx.fillStyle = 'rgba(220,210,185,0.05)';
+    var patches = 20;
+    for (var pi = 0; pi < patches; pi++) {
+        var ps = MAT_SEED.limestone + pi * 5.19;
+        var px = sRand(ps)         * w;
+        var py = sRand(ps + 1.29)  * h;
+        var pr = 3 + sRand(ps + 2.71) * 5;
+        cx.beginPath(); cx.arc(px, py, pr, 0, Math.PI * 2); cx.fill();
+    }
+    // Dark pore dots
+    cx.fillStyle = 'rgba(10,8,6,0.08)';
+    var pores = 40;
+    for (var di = 0; di < pores; di++) {
+        var ds = MAT_SEED.limestone + 1000 + di * 3.71;
+        var dx = sRand(ds)         * w;
+        var dy = sRand(ds + 0.83)  * h;
+        var dr = 1 + sRand(ds + 1.57);
+        cx.beginPath(); cx.arc(dx, dy, dr, 0, Math.PI * 2); cx.fill();
+    }
+    return oc;
+}
+
+// Steel: 2×2 plate grid with edge seams + rivets + a few rust streaks.
+function _buildSteelTile() {
+    var w = MAT_TILE.steel.w, h = MAT_TILE.steel.h;
+    var oc = document.createElement('canvas');
+    oc.width = w; oc.height = h;
+    var cx = oc.getContext('2d');
+    // 2×2 plate seams — one internal, one on the far edge (so the tile
+    // reads seamlessly across the repeat).
+    cx.strokeStyle = 'rgba(0,0,0,0.18)';
+    cx.lineWidth = 1;
+    var seamX1 = w / 2;
+    var seamY1 = h / 2;
+    cx.beginPath(); cx.moveTo(seamX1, 0); cx.lineTo(seamX1, h); cx.stroke();
+    cx.beginPath(); cx.moveTo(w - 0.5, 0); cx.lineTo(w - 0.5, h); cx.stroke();
+    cx.beginPath(); cx.moveTo(0, seamY1); cx.lineTo(w, seamY1); cx.stroke();
+    cx.beginPath(); cx.moveTo(0, h - 0.5); cx.lineTo(w, h - 0.5); cx.stroke();
+    // Rivets along each seam
+    cx.fillStyle = 'rgba(255,255,255,0.08)';
+    var rivetSpacing = 10;
+    for (var rx = rivetSpacing / 2; rx < w; rx += rivetSpacing) {
+        cx.beginPath(); cx.arc(rx, seamY1, 1.2, 0, Math.PI * 2); cx.fill();
+        cx.beginPath(); cx.arc(rx, h - 0.5, 1.2, 0, Math.PI * 2); cx.fill();
+    }
+    for (var ry = rivetSpacing / 2; ry < h; ry += rivetSpacing) {
+        cx.beginPath(); cx.arc(seamX1, ry, 1.2, 0, Math.PI * 2); cx.fill();
+        cx.beginPath(); cx.arc(w - 0.5, ry, 1.2, 0, Math.PI * 2); cx.fill();
+    }
+    // 2–3 vertical rust streaks
+    cx.fillStyle = 'rgba(150,60,20,0.06)';
+    var streaks = 3;
+    for (var st = 0; st < streaks; st++) {
+        var ss = MAT_SEED.steel + st * 11.7;
+        var sx = Math.floor(sRand(ss) * (w - 3));
+        cx.fillRect(sx, 0, 3, h);
+    }
+    return oc;
+}
+
+// Crust: dense coral blobs in 3 muted tones (reef growth).
+function _buildCrustTile() {
+    var w = MAT_TILE.crust.w, h = MAT_TILE.crust.h;
+    var oc = document.createElement('canvas');
+    oc.width = w; oc.height = h;
+    var cx = oc.getContext('2d');
+    var tones = ['192,90,58', '138,74,106', '176,138,74'];  // #c05a3a, #8a4a6a, #b08a4a
+    var blobs = 60;
+    for (var bi = 0; bi < blobs; bi++) {
+        var bs = MAT_SEED.crust + bi * 4.79;
+        var bx = sRand(bs)         * w;
+        var by = sRand(bs + 1.19)  * h;
+        var br = 2 + sRand(bs + 2.31) * 3;
+        var toneIdx = bi % tones.length;
+        var alpha = 0.05 + sRand(bs + 3.13) * 0.04;
+        cx.fillStyle = 'rgba(' + tones[toneIdx] + ',' + alpha.toFixed(3) + ')';
+        cx.beginPath(); cx.arc(bx, by, br, 0, Math.PI * 2); cx.fill();
+    }
+    return oc;
+}
+
+// Fill the current context with a repeating tile pattern, world-anchored so
+// the tile stays glued to the world rather than swimming with the camera.
+// The caller is responsible for any clipping.
+//   tile        — a canvas from _matTiles.*
+//   ox, oy      — anchor coordinate (world metres OR screen pixels)
+//   useScreen   — true if ox/oy are already screen px (used by wreck struct
+//                 callers that already have sx1/sy1 handy). Otherwise ox/oy
+//                 are world metres (converted via MAT_MPP).
+function fillWithMaterialPattern(cx, tile, ox, oy, useScreen) {
+    var tw = tile.width, th = tile.height;
+    var W = cssWidth, H = cssHeight;
+    var p = cx.createPattern(tile, 'repeat');
+    if (!p) return;
+    var offX, offY;
+    if (useScreen) {
+        offX = -(((ox % tw) + tw) % tw);
+        offY = -(((oy % th) + th) % th);
+    } else {
+        offX = -((((ox / MAT_MPP) % tw) + tw) % tw);
+        offY = -((((oy / MAT_MPP) % th) + th) % th);
+    }
+    cx.save();
+    cx.translate(offX, offY);
+    cx.fillStyle = p;
+    cx.fillRect(-tw, -th, W + 2 * tw, H + 2 * th);
+    cx.restore();
+}
+
 // SECTION: Underwater scene
 // SEARCH TERMS: drawScene, drawDiver, narcosis, waveTime, background gradient
 
@@ -142,6 +750,9 @@ function drawScene() {
     var W = cssWidth;
     var H = cssHeight;
     var cx = ctx;
+
+    // Issue #41: lazily build material texture tiles on first render.
+    if (!_matTiles) buildMaterialTiles();
 
     // WP-020: Narcosis visual effects — filters
     var narcFilter = '';
@@ -177,6 +788,11 @@ function drawScene() {
     var topD = Math.max(0, depthAtTop);
     var botD = Math.min(MAX_DEPTH + 10, depthAtBottom);
     var _site = activeSite();
+    // Issue #54: sample the local atmosphere ONCE per frame at the diver's
+    // position. All downstream passes (tint/fog overlay, particle
+    // modulation, debug overlay) read from this single sample so we never
+    // re-run visualZoneAt / zoneBlendWeight per particle or per feature.
+    var _localAtmo = sampleLocalAtmosphere(_site, diverX, depth);
     var _isCave = _site && _site.id === 'cave';
     var _wc = _isCave ? caveWaterColor : waterColor;
     grad.addColorStop(0, _wc(topD));
@@ -184,6 +800,14 @@ function drawScene() {
     grad.addColorStop(1, _wc(botD));
     cx.fillStyle = grad;
     cx.fillRect(0, 0, W, H);
+
+    // Issue #41: grain dither over dark background gradients (also closes
+    // #34 point 1 — banding). Cave gets it unconditionally (whole ramp is
+    // dark). Open water gets it when the diver is deep enough that banding
+    // in the near-black stops becomes visible.
+    if (_isCave || depth > GRAIN_DITHER_MIN_DEPTH) {
+        fillWithMaterialPattern(cx, _matTiles.grain, diverX, depth, false);
+    }
 
     // Wreck visibility: ease an "inside-ness" factor (0 outside → 1 inside the
     // hull). Drives the hull-skin visibility bubble + the hatch light beam. The
@@ -289,7 +913,7 @@ function drawScene() {
     if (surfaceScreenY > -80 && surfaceScreenY < H) {
         cx.save();
         var _boatWorldX = (_activeSiteD5 && _activeSiteD5.boatX != null) ? _activeSiteD5.boatX : 0;
-        var shipX = W * 0.25 + (_boatWorldX - diverX) / metersPerPixel;
+        var shipX = W * DIVER_SCREEN_X_FRACTION + (_boatWorldX - diverX) / metersPerPixel;
         var bob = Math.sin(waveTime * 0.9) * 2.2;
         var rock = Math.sin(waveTime * 0.75) * 0.022;
         cx.translate(shipX, surfaceScreenY + bob);
@@ -310,10 +934,25 @@ function drawScene() {
 
     // Site-specific atmosphere is cheap gradient/line work behind terrain.
     drawSiteAtmosphere();
+    // Issue #58: shared near-surface optics — water underside highlight
+    // and boat shadow. Runs at the same slot as drawSiteAtmosphere
+    // (behind terrain) so it's part of the water/background layer.
+    drawNearSurfaceAtmosphere(_localAtmo);
 
     // Phase C: Site terrain (floor + ceiling) drawn before entities
     drawTerrain();
     drawSiteDetailPass();
+    // Issue #58: caustics belong ON the terrain, so they run AFTER
+    // drawTerrain()/drawSiteDetailPass() and BEFORE set-dressing so
+    // decoration props sit on top of the light pattern.
+    drawSurfaceCaustics(_localAtmo);
+    // Issue #55: deterministic set dressing (small cosmetic filler between
+    // hand-placed features). Runs AFTER terrain/material passes so props sit
+    // on top of the surface, and BEFORE structures/features so hand-placed
+    // landmarks visually dominate.
+    var _visLeftM  = (0 - W * DIVER_SCREEN_X_FRACTION) * metersPerPixel + diverX;
+    var _visRightM = (W - W * DIVER_SCREEN_X_FRACTION) * metersPerPixel + diverX;
+    drawSetDressing(activeSite(), _visLeftM, _visRightM, metersPerPixel);
     // Cenote-only: refractive halocline band at ~7 m
     if (_isCave) drawHalocline(cx, W, H, diverScreenY, metersPerPixel);
     // Wreck: steel hull skin BEHIND the interior objects (so behind cars/decks
@@ -367,14 +1006,17 @@ function drawScene() {
         var py = diverScreenY + (p.depth - depth) / metersPerPixel;
         if (py < -10 || py > H + 10) continue;
         var px = ((p.x % W) + W) % W;
-        var densityAlpha = Math.min(1, p.depth / 50) * p.alpha;
+        var densityAlpha = Math.min(1, p.depth / 50) * p.alpha
+                         * Math.min(1, _localAtmo.particleDensity)
+                         * _localAtmo.particleBrightness;
         cx.fillStyle = 'rgba(200,220,180,' + densityAlpha + ')';
         cx.beginPath();
         cx.arc(px, py, p.size, 0, Math.PI * 2);
         cx.fill();
         // Reef particulate: brighter white dots
         if (_site && _site.id === 'reef') {
-            cx.fillStyle = 'rgba(255,255,255,0.3)';
+            var _reefDotAlpha = 0.3 * Math.min(1, _localAtmo.particleDensity) * _localAtmo.particleBrightness;
+            cx.fillStyle = 'rgba(255,255,255,' + _reefDotAlpha.toFixed(3) + ')';
             cx.beginPath();
             cx.arc(px, py + 3, p.size * 0.6, 0, Math.PI * 2);
             cx.fill();
@@ -386,7 +1028,7 @@ function drawScene() {
         var f = fishes[fi];
         var fy = diverScreenY + (f.depth - depth) / metersPerPixel;
         if (fy < -40 || fy > H + 40) continue;
-        var fsx = W * 0.25 + (f.x - diverX) / metersPerPixel;
+        var fsx = W * DIVER_SCREEN_X_FRACTION + (f.x - diverX) / metersPerPixel;
         if (fsx < -f.type.size * 3 || fsx > W + f.type.size * 3) continue;
         drawFish(cx, fsx, fy, f);
     }
@@ -395,7 +1037,7 @@ function drawScene() {
     for (var wi = 0; wi < wildlife.length; wi++) {
         var w = wildlife[wi];
         var wScreenY = diverScreenY + (w.depth - depth) / metersPerPixel;
-        var wsx = W * 0.25 + (w.x - diverX) / metersPerPixel;
+        var wsx = W * DIVER_SCREEN_X_FRACTION + (w.x - diverX) / metersPerPixel;
         if (wScreenY > -100 && wScreenY < H + 100 && wsx > -w.type.size * 3 && wsx < W + w.type.size * 3) {
             drawWildlife(cx, wsx, wScreenY, w);
         }
@@ -404,7 +1046,7 @@ function drawScene() {
     // TASK-044: Shark rendering — world-space x
     if (shark) {
         var sharkScreenY = diverScreenY + (shark.depth - depth) / metersPerPixel;
-        var sharkScreenX = W * 0.25 + (shark.x - diverX) / metersPerPixel;
+        var sharkScreenX = W * DIVER_SCREEN_X_FRACTION + (shark.x - diverX) / metersPerPixel;
         if (sharkScreenY > -100 && sharkScreenY < H + 100) {
             cx.save();
             cx.translate(sharkScreenX, sharkScreenY + Math.sin(shark.phase) * 4);
@@ -466,7 +1108,7 @@ function drawScene() {
         var b = bubbles[bi];
         var by = diverScreenY + (b.depth - depth) / metersPerPixel;
         if (by < -20 || by > H + 20) continue;
-        var bx = W * 0.25 + b.x;
+        var bx = W * DIVER_SCREEN_X_FRACTION + b.x;
         var r = bubbleDisplayRadius(b);
         var alpha = Math.max(0, 1 - b.age / BUBBLE_MAX_AGE) * 0.6;
         cx.beginPath();
@@ -481,6 +1123,29 @@ function drawScene() {
     // Phase C: Guideline rope (drawn before diver so diver sits on top)
     drawGuideline();
 
+    // Issue #36: depth-dependent color absorption — tints every world
+    // object drawn so far (terrain, structures, features, particles, fish,
+    // wildlife, bubbles, guideline) toward blue-grey with depth, restoring
+    // true color within torch range. Runs BEFORE the cave/wreck darkness
+    // passes and #54's local-atmosphere pass so those layer on top of an
+    // already-tinted scene, matching the ordering the issue calls for.
+    drawDepthColorAbsorption();
+
+    // Issue #32: cave-only turbidity cloud from stirred silt. Reads
+    // ONLY the existing `visibility` state (no second reservoir), no-op
+    // above SILT_CLOUD_MIN_VIS. Drawn BEFORE the silt/torch overlay so
+    // the cave darkness pass tints/dims the cloud consistently with
+    // everything else, and the torch adds a soft brightening on top via
+    // sampleTorchLightAtWorldPoint().
+    drawCaveSiltCloud();
+
+    // Issue #37: subtle depth-scale ruler on the right edge. Drawn
+    // BEFORE drawSiltAndTorch so the cave/wreck darkness overlay dims
+    // it along with the rest of the world — matches the requirement
+    // that it "dims along with everything else that responds to
+    // _torchDark" without the ruler owning its own fade logic.
+    drawDepthScale();
+
     // Phase C: Silt-out + torch overlay — dims the environment + guideline.
     // Drawn BEFORE the diver so the diver is never shadowed by its own torch.
     drawSiltAndTorch();
@@ -488,12 +1153,26 @@ function drawScene() {
     // Light shafts punch down through the gloom to mark navigable passages.
     drawLightShafts();
 
+    // Issue #32: additive light streaming through the cenote's REAR exit
+    // opening. Wedge/gradient light-shaft recipe, origin-anchored to the
+    // cave_exit visualZone (open-to-surface at x=146..200), not to the
+    // main surfaceScreenY — the diver is inside overhead here, so
+    // drawNearSurfaceAtmosphere has already returned.
+    drawCaveExitLightShaft();
+
+    // Issue #54: local water volumes — tint + distance fog composite
+    // pass. Sits AFTER all world entities, silt, and torch so it reads
+    // as an atmospheric layer over the scene, and BEFORE the diver so
+    // the diver stays crisp. HUD is on a separate DOM layer, so it's
+    // physically unable to be touched by this pass.
+    drawLocalAtmospherePass(_localAtmo, W, H, W * DIVER_SCREEN_X_FRACTION, diverScreenY, metersPerPixel);
+
     // Diver (Phase B: tilt toward current direction proportional to current.level)
     var diverTilt = 0;
     if (current.active && current.level > 0) {
         diverTilt = current.direction * Math.min(current.level / CURRENT_PARAMS.maxStrength, 1) * 0.25;
     }
-    drawDiver(W * 0.25, diverScreenY, diverTilt);
+    drawDiver(W * DIVER_SCREEN_X_FRACTION, diverScreenY, diverTilt);
     drawForegroundLayer();
 
     // Phase C: Bad-air warning banner (cave unbreathable dome)
@@ -515,6 +1194,29 @@ function drawScene() {
         var nAlpha = Math.min(1, gasSwitchNotifyTime / 0.5);
         cx.fillStyle = 'rgba(0,255,200,' + nAlpha + ')';
         cx.fillText(gasSwitchNotifyText, W / 2, H * 0.3);
+        cx.textAlign = 'left';
+        cx.restore();
+    }
+
+    // Issue #38: Contextual onboarding hint toast. Rendered at
+    // HINT_TOAST_Y_FRAC so it sits BELOW the gas-switch banner and both
+    // can be visible simultaneously without overlap. Suppressed while
+    // any full-screen overlay is up (help/gas-info/dive-computer info
+    // pages) and outside the diving state — drawScene() also runs in the
+    // game-over screen and the issue explicitly bans hints there. Also
+    // suppressed during fast-forward: the queue pump only refuses to
+    // *start* a new toast while fast-forwarding, so a toast already
+    // showing when FF is toggled on must still be hidden here, not just
+    // left to expire on its own timer. The last-second fade uses the
+    // same tail-alpha math as the gas-switch toast for visual consistency.
+    if (hintNotifyTime > 0 && hintNotifyText && gameState === 'diving' && !showHelp && !showGasInfo &&
+        !fastForwardActive && infoPageMode === 0) {
+        cx.save();
+        cx.textAlign = 'center';
+        cx.font = 'bold 18px monospace';
+        var hAlpha = Math.min(1, hintNotifyTime / 0.5);
+        cx.fillStyle = 'rgba(255,220,120,' + hAlpha + ')';
+        cx.fillText(hintNotifyText, W / 2, H * HINT_TOAST_Y_FRAC);
         cx.textAlign = 'left';
         cx.restore();
     }
@@ -542,6 +1244,190 @@ function drawScene() {
         cx.fillStyle = vigGrad;
         cx.fillRect(0, 0, W, H);
     }
+
+    // Issue #53: opt-in visual-zone debug overlay. Off by default; when
+    // enabled paints translucent zone rectangles + current-zone id text so
+    // future consumers can verify the map/zone assignment visually.
+    if (debugVisualZones) drawVisualZoneDebug(_localAtmo);
+
+    // Issue #46: Instructor overlay ("Learn" mode). Painted LAST inside
+    // drawScene so it stays legible on top of every darkness/silt/torch/
+    // narcosis pass — this is instructional UI, not a world object. Only
+    // reads pre-computed per-frame values (bcdGasSurfaceLiters, tissues,
+    // amvRate, narcosisIndex, bubbles[]) — it must NEVER call
+    // calculateNDL()/calculateCeiling()/etc from here (they're expensive
+    // and are already cached in frameCalc, which the panel would use if
+    // it needed them). Hidden while help / gas-info / info-page is up so
+    // it never fights the full-screen overlays for space.
+    if (instructorMode && gameState === 'diving'
+        && !showHelp && !showGasInfo && infoPageMode === 0) {
+        drawInstructorOverlay();
+    }
+}
+
+// Issue #54: local atmosphere composite pass. One pass, one canvas
+// save/restore, two visual layers:
+//   1. Subtle tint multiply over the underwater region only (never
+//      touches sky/surface, never touches HUD — HUD is a separate DOM
+//      layer above canvas anyway; this is defence in depth). Kept
+//      deliberately weak — the eventual #36 global depth absorption
+//      should remain the dominant depth-darkening logic.
+//   2. Radial "distance fog" gradient centered on the diver. Center
+//      near-transparent; edge alpha derived from (1 - visibility).
+//      NOT the same as the silt-out mechanic — silt is a separate
+//      pass and layers on top additively.
+// Called from drawScene() AFTER all world entities + silt/torch +
+// light shafts, BEFORE the diver and foreground layer, so the diver
+// stays crisp and the atmospheric character reads over the scene.
+const LOCAL_ATMO_TINT_MAX_ALPHA  = 0.22;   // hard ceiling on tint pass alpha
+const LOCAL_ATMO_TINT_STRENGTH   = 0.55;   // scales the deviation from neutral
+const LOCAL_ATMO_FOG_CENTER_FRAC = 0.18;   // radial gradient inner radius (fraction of min(W,H))
+const LOCAL_ATMO_FOG_EDGE_FRAC   = 0.75;   // outer radius (fraction of max(W,H))
+const LOCAL_ATMO_FOG_MAX_ALPHA   = 0.55;   // cap on fog edge alpha
+
+function drawLocalAtmospherePass(atmo, W, H, diverScreenX, diverScreenY, metersPerPixel) {
+    if (!atmo) return;
+    var cx = ctx;
+    // Underwater region — everything at or below the surface line.
+    var surfaceScreenY = diverScreenY - (depth / metersPerPixel);
+    var waterTop = Math.max(0, surfaceScreenY);
+    if (waterTop >= H) return; // fully above water — nothing to tint
+    cx.save();
+
+    // ---- 1. Tint pass ----
+    // Convert tint multipliers (~0.8..1.2) into an RGB color to paint at
+    // low alpha with 'multiply' composite. Deviation from 1.0 is scaled
+    // by LOCAL_ATMO_TINT_STRENGTH to keep the effect subtle.
+    var dR = 1 + (atmo.tintR - 1) * LOCAL_ATMO_TINT_STRENGTH;
+    var dG = 1 + (atmo.tintG - 1) * LOCAL_ATMO_TINT_STRENGTH;
+    var dB = 1 + (atmo.tintB - 1) * LOCAL_ATMO_TINT_STRENGTH;
+    // Also fold ambient brightness in as a uniform multiplier.
+    var amb = 1 + (atmo.ambient - 1) * LOCAL_ATMO_TINT_STRENGTH;
+    dR *= amb; dG *= amb; dB *= amb;
+    // Total deviation magnitude drives the alpha of the multiply pass;
+    // a perfectly neutral profile (1,1,1,1) draws nothing.
+    var deviation = Math.abs(dR - 1) + Math.abs(dG - 1) + Math.abs(dB - 1);
+    if (deviation > 0.001) {
+        var tintAlpha = Math.min(LOCAL_ATMO_TINT_MAX_ALPHA, deviation * 0.5);
+        // Compute the RGB color we're multiplying into the framebuffer.
+        // We render as a normal alpha blend of the target color — this is
+        // cheaper than 'multiply' composite and reads the same on the
+        // predominantly cool underwater palette.
+        var r = Math.round(255 * Math.max(0, Math.min(1, dR)));
+        var g = Math.round(255 * Math.max(0, Math.min(1, dG)));
+        var b = Math.round(255 * Math.max(0, Math.min(1, dB)));
+        cx.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + tintAlpha.toFixed(3) + ')';
+        cx.fillRect(0, waterTop, W, H - waterTop);
+    }
+
+    // ---- 2. Radial distance fog ----
+    // visibility == 1 → skip entirely.
+    if (atmo.visibility < 0.999) {
+        var fogAlpha = Math.min(LOCAL_ATMO_FOG_MAX_ALPHA, (1 - atmo.visibility) * 0.9);
+        var innerR = Math.min(W, H) * LOCAL_ATMO_FOG_CENTER_FRAC;
+        var outerR = Math.max(W, H) * LOCAL_ATMO_FOG_EDGE_FRAC;
+        // Fog edge color leans on the local tint so a warmer/rustier
+        // atmosphere fogs to a warmer edge than a cooler cave atmosphere.
+        var fR = Math.round(255 * Math.max(0, Math.min(1, atmo.tintR * atmo.ambient * 0.35)));
+        var fG = Math.round(255 * Math.max(0, Math.min(1, atmo.tintG * atmo.ambient * 0.35)));
+        var fB = Math.round(255 * Math.max(0, Math.min(1, atmo.tintB * atmo.ambient * 0.4)));
+        var fg = cx.createRadialGradient(diverScreenX, diverScreenY, innerR, diverScreenX, diverScreenY, outerR);
+        fg.addColorStop(0, 'rgba(' + fR + ',' + fG + ',' + fB + ',0)');
+        fg.addColorStop(1, 'rgba(' + fR + ',' + fG + ',' + fB + ',' + fogAlpha.toFixed(3) + ')');
+        cx.fillStyle = fg;
+        cx.fillRect(0, waterTop, W, H - waterTop);
+    }
+    cx.restore();
+}
+
+// Issue #53: debug visualization for the visualZones lookup. Purely
+// diagnostic — never called in normal gameplay. Uses only sites.js data
+// via visualZoneAt(); this function does not itself decide which zone
+// the diver is in, keeping decoration/lookup concerns separated.
+const VISUAL_ZONE_DEBUG = {
+    mpp:        0.05,     // metres per pixel, matches drawScene() world scale
+    // Issue #53/#100 (review follow-up): this was still hardcoded to the
+    // pre-#100 0.25 look-ahead offset after drawScene() was recentered to
+    // DIVER_SCREEN_X_FRACTION (0.5) — the debug rectangles were drawn 320px
+    // off from the real world at 1280px width. Reference the shared
+    // constant directly so the two can never drift apart again.
+    diverSx:    DIVER_SCREEN_X_FRACTION, // diver screen-x fraction, matches drawScene()
+    diverSy:    0.45,     // diver screen-y fraction, matches drawScene()
+    fillAlpha:  0.10,     // translucent rectangle fill
+    edgeAlpha:  0.45,     // rectangle outline
+    labelAlpha: 0.75,     // per-rect id label
+    labelFont:  '10px monospace',
+    hudFont:    'bold 12px monospace',
+    hudFill:    'rgba(255, 220, 80, 0.90)',
+    hudBg:      'rgba(0, 0, 0, 0.55)',
+    // Distinct hues so overlapping zones read as separate rectangles.
+    palette: [
+        '#ff6b6b', '#4ecdc4', '#ffe66d', '#a8e6cf', '#c780e8',
+        '#ff9770', '#6ab7ff', '#f7a072', '#7ee8b8', '#e0b0ff'
+    ]
+};
+
+function drawVisualZoneDebug(cachedAtmo) {
+    var s = activeSite();
+    if (!s || !s.visualZones || !s.visualZones.length) return;
+    var cx = ctx;
+    var W = cssWidth, H = cssHeight;
+    var cfg = VISUAL_ZONE_DEBUG;
+    var mpp = cfg.mpp;
+    var dsx = W * cfg.diverSx;
+    var dsy = H * cfg.diverSy;
+    var zones = s.visualZones;
+    cx.save();
+    cx.font = cfg.labelFont;
+    cx.textAlign = 'left';
+    cx.textBaseline = 'top';
+    for (var i = 0; i < zones.length; i++) {
+        var z = zones[i];
+        var sx1 = dsx + (z.x1 - diverX) / mpp;
+        var sx2 = dsx + (z.x2 - diverX) / mpp;
+        var sy1 = dsy + (z.d1 - depth) / mpp;
+        var sy2 = dsy + (z.d2 - depth) / mpp;
+        // Skip rectangles fully off-screen — cheap frustum cull.
+        if (sx2 < -20 || sx1 > W + 20 || sy2 < -20 || sy1 > H + 20) continue;
+        var col = cfg.palette[i % cfg.palette.length];
+        cx.globalAlpha = cfg.fillAlpha;
+        cx.fillStyle = col;
+        cx.fillRect(sx1, sy1, sx2 - sx1, sy2 - sy1);
+        cx.globalAlpha = cfg.edgeAlpha;
+        cx.strokeStyle = col;
+        cx.lineWidth = 1;
+        cx.strokeRect(sx1 + 0.5, sy1 + 0.5, sx2 - sx1 - 1, sy2 - sy1 - 1);
+        cx.globalAlpha = cfg.labelAlpha;
+        cx.fillStyle = col;
+        var lx = Math.max(4, sx1 + 4);
+        var ly = Math.max(4, sy1 + 4);
+        cx.fillText(z.id, lx, ly);
+    }
+    cx.globalAlpha = 1;
+    // HUD text — current zone id + Issue #54 sampled atmosphere values.
+    var here = visualZoneAt(diverX, depth, s);
+    // Issue #54 (review follow-up): reuse the frame's one sample when
+    // called from drawScene() (cachedAtmo param), same pass-through as
+    // drawNearSurfaceAtmosphere()/drawSurfaceCaustics() above.
+    var atmo = cachedAtmo !== undefined ? cachedAtmo : sampleLocalAtmosphere(s, diverX, depth);
+    var label1 = 'ZONE: ' + (here ? here.id : '(none)');
+    // Issue #54: sampled atmosphere values, one decimal each so the
+    // overlay is short but still verifiable at a glance.
+    var label2 = 'ATMO vis=' + atmo.visibility.toFixed(2)
+        + ' tint=' + atmo.tintR.toFixed(2) + '/' + atmo.tintG.toFixed(2) + '/' + atmo.tintB.toFixed(2)
+        + ' pd=' + atmo.particleDensity.toFixed(2)
+        + ' pb=' + atmo.particleBrightness.toFixed(2)
+        + ' amb=' + atmo.ambient.toFixed(2);
+    cx.font = cfg.hudFont;
+    var pad = 6;
+    var lineH = 16;
+    var textW = Math.max(cx.measureText(label1).width, cx.measureText(label2).width);
+    cx.fillStyle = cfg.hudBg;
+    cx.fillRect(8, 8, textW + pad * 2, 4 + lineH * 2);
+    cx.fillStyle = cfg.hudFill;
+    cx.fillText(label1, 8 + pad, 8 + pad - 2);
+    cx.fillText(label2, 8 + pad, 8 + pad - 2 + lineH);
+    cx.restore();
 }
 
 function drawDiver(x, y, tilt) {
@@ -604,17 +1490,18 @@ function drawDiver(x, y, tilt) {
     // far leg + fin
     drawDiverLeg(cx, -16, 4, farKick, '#22262a', '#c45c0e', farSplay);
 
-    // tank
+    // tank — issue #90: nudged up and toward the head (was riding low/rearward
+    // on the back, disconnected from the shoulder/neck area)
     cx.save(); cx.rotate(-0.02);
     cx.fillStyle = '#1d3140';
-    cx.beginPath(); cx.roundRect(-22, -17, 26, 11, 5); cx.fill();
-    cx.fillStyle = '#0c1a23'; cx.fillRect(-24, -14, 4, 6);
-    cx.fillStyle = 'rgba(150,205,225,0.25)'; cx.beginPath(); cx.roundRect(-20, -16, 22, 3, 2); cx.fill();
+    cx.beginPath(); cx.roundRect(-17, -20, 26, 11, 5); cx.fill();
+    cx.fillStyle = '#0c1a23'; cx.fillRect(-19, -17, 4, 6);
+    cx.fillStyle = 'rgba(150,205,225,0.25)'; cx.beginPath(); cx.roundRect(-15, -19, 22, 3, 2); cx.fill();
     cx.restore();
 
     // reg hose
     cx.strokeStyle = '#2a3038'; cx.lineWidth = 2.4; cx.lineCap = 'round';
-    cx.beginPath(); cx.moveTo(-18, -10); cx.quadraticCurveTo(6, -6, 26, 2); cx.stroke();
+    cx.beginPath(); cx.moveTo(-13, -13); cx.quadraticCurveTo(6, -6, 26, 2); cx.stroke();
 
     // torso — D1: grey wetsuit with gradient shading
     cx.fillStyle = '#2e3338';
@@ -748,7 +1635,7 @@ function paintShip(cx, isRefl) {
 
 function drawTerrain() {
     var W = cssWidth, H = cssHeight;
-    var diverScreenX = W * 0.25;
+    var diverScreenX = W * DIVER_SCREEN_X_FRACTION;
     var diverScreenY = H * 0.45;
     var mpp = 0.05;
     var cx = ctx;
@@ -800,6 +1687,12 @@ function drawTerrain() {
     var xRightM = diverX + (W - diverScreenX) * mpp + 2;   // a bit beyond right edge
     var stepM = 4 * mpp;  // sample every 4 pixels
 
+    // Issue #56: fetch the per-zone accumulation profile ONCE for this
+    // frame's terrain pass (not per-column) — zone lookup is a linear
+    // scan over the site's visualZones, so keep it out of the sampling loop.
+    var _accumZoneHere = visualZoneAt(diverX, floorAt(diverX), s);
+    var _accumProfile = accumulationProfileFor(s.id, _accumZoneHere ? _accumZoneHere.id : null);
+
     // Floor polygon — fill from profile down to bottom of screen
     // D3: Shore gets a sandy gradient; reef is warm rock; cave is warm
     // limestone bedrock; others dark brown.
@@ -843,9 +1736,10 @@ function drawTerrain() {
     // can re-clip to them for rock texture.
     var floorPts = [];
     for (var fwx = xLeftM; fwx <= xRightM + stepM; fwx += stepM) {
-        var fd = floorAt(fwx);
+        var fdCol = floorAt(fwx);
+        var fdVis = visualProfileDepth(s.id, 'floor', fwx, fdCol);
         var fpx = diverScreenX + (fwx - diverX) / mpp;
-        var fpy = diverScreenY + (fd - depth) / mpp;
+        var fpy = diverScreenY + (fdVis - depth) / mpp;
         floorPts.push([fpx, fpy]);
     }
     var floorRight = diverScreenX + (xRightM + stepM - diverX) / mpp;
@@ -859,6 +1753,32 @@ function drawTerrain() {
     cx.lineTo(floorLeft, H + 10);
     cx.closePath();
     cx.fill();
+
+    // Issue #41: material texture overlay on the floor polygon (shore sand,
+    // cave limestone). Reef gets its `crust`/`grain` inside its own clip
+    // block below (it needs the mesa-only clip anyway for its stipple pass).
+    if (s.id === 'shore' || caveSite) {
+        cx.save();
+        cx.beginPath();
+        for (var fpi2 = 0; fpi2 < floorPts.length; fpi2++) {
+            if (fpi2 === 0) cx.moveTo(floorPts[fpi2][0], floorPts[fpi2][1]);
+            else cx.lineTo(floorPts[fpi2][0], floorPts[fpi2][1]);
+        }
+        cx.lineTo(floorRight, H + 10);
+        cx.lineTo(floorLeft, H + 10);
+        cx.closePath();
+        cx.clip();
+        var floorTile = (s.id === 'shore') ? _matTiles.sand : _matTiles.limestone;
+        fillWithMaterialPattern(cx, floorTile, diverX, depth, false);
+        // Issue #56: sediment cap on this horizontal top surface.
+        drawSedimentCap(cx, floorPts, {
+            intensity: _accumProfile.sediment,
+            thicknessM: 0.28,
+            mpp: mpp,
+            worldSeed: xLeftM * 11.7 + ACCUM_SEED.sediment
+        });
+        cx.restore();
+    }
 
     // Reef: warm rim along the lit crest + clipped rock texture so the mesa
     // reads as solid coral rock, not a flat silhouette.
@@ -883,6 +1803,27 @@ function drawTerrain() {
         cx.lineTo(floorLeft, H + 10);
         cx.closePath();
         cx.clip();
+        // Issue #41: coral crust texture over the sunlit crest, plain grain
+        // deeper where crust growth thins out. Uses the floor depth AT the
+        // diver's world-x so the threshold tracks the terrain profile rather
+        // than the diver's viewing depth (which would toggle with vertical
+        // motion).
+        var reefFloorHere = floorAt(diverX);
+        var reefTile = (reefFloorHere < REEF_CRUST_MAX_DEPTH) ? _matTiles.crust : _matTiles.grain;
+        fillWithMaterialPattern(cx, reefTile, diverX, depth, false);
+        // Issue #56: sediment cap on the mesa's top surface.
+        drawSedimentCap(cx, floorPts, {
+            intensity: _accumProfile.sediment,
+            thicknessM: 0.28,
+            mpp: mpp,
+            worldSeed: xLeftM * 11.7 + ACCUM_SEED.sediment
+        });
+        // Issue #56: growth edge along the sunlit upper crest — reef only.
+        drawGrowthEdge(cx, floorPts, {
+            intensity: _accumProfile.growth,
+            worldSeed: xLeftM * 9.13 + ACCUM_SEED.growth,
+            variant: 'coralline'
+        });
         // shading lumps — iterate an ABSOLUTE integer grid index so each cell's
         // seed is identical every frame (no float drift from a camera-relative
         // start → no flicker while scrolling).
@@ -914,15 +1855,30 @@ function drawTerrain() {
         cx.restore();
     }
 
+    // Issue #34: AO contact band along the floor silhouette. Runs on ALL
+    // sites (shore/reef/cave/wreck) — creases in the silhouette pool
+    // shadow, giving the terrain more perceived volume.
+    drawContactBand(cx, floorPts, CONTACT_AO.terrain);
+    // Issue #56: material accumulation along the same silhouette, layered
+    // ON TOP of #34's AO band (drawn after it — see drawContactAccumulation's
+    // header comment for why this doesn't double up the darkness).
+    drawContactAccumulation(cx, floorPts, {
+        intensity: _accumProfile.contactDebris,
+        mpp: mpp,
+        worldSeed: xLeftM * 13.3 + ACCUM_SEED.contact,
+        side: 'above'
+    });
+
     // Ceiling polygon — textured rock, filled from profile up to top of screen (cave only)
     if (s.ceiling) {
         // Build the ceiling outline points (and remember them for texturing)
         var ceilPts = [];
         for (var cwx = xLeftM; cwx <= xRightM + stepM; cwx += stepM) {
-            var cd = ceilingAt(cwx);
-            if (cd <= 0.01) continue;  // open shaft (pond) — leave sky visible
+            var cdCol = ceilingAt(cwx);
+            if (cdCol <= 0.01) continue;  // open shaft — leave sky visible
+            var cdVis = visualProfileDepth(s.id, 'ceiling', cwx, cdCol);
             ceilPts.push([diverScreenX + (cwx - diverX) / mpp,
-                          diverScreenY + (cd - depth) / mpp]);
+                          diverScreenY + (cdVis - depth) / mpp]);
         }
         if (ceilPts.length > 1) {
             var cLeftX = ceilPts[0][0], cRightX = ceilPts[ceilPts.length - 1][0];
@@ -958,6 +1914,11 @@ function drawTerrain() {
             cx.save();
             cx.clip();
             if (caveSite) {
+                // Issue #41: limestone material texture on the cave ceiling
+                // rock body — placed before the earth band + strata + speckle
+                // so those sharper features still read on top of the base
+                // texture.
+                fillWithMaterialPattern(cx, _matTiles.limestone, diverX, depth, false);
                 // Earth band along the karst rim — a thin dark soil layer
                 // hanging just under the surface (depth 0–1.5 m).
                 var earthTopY = ceilSurfY;
@@ -1046,6 +2007,9 @@ function drawTerrain() {
                 cx.stroke();
             }
             cx.restore();
+
+            // Issue #34: AO contact band along the ceiling silhouette.
+            drawContactBand(cx, ceilPts, CONTACT_AO.terrain);
         }
 
         // Cave-only: stalactites hanging from the ceiling + stalagmites on
@@ -1059,6 +2023,11 @@ function drawTerrain() {
 
 // ── Cenote bedding speleothems: stalactites + stalagmites ──
 // Procedural calcite formations drawn along the ceiling/floor profiles.
+// Issue #32: when a stalactite tip and a stalagmite tip at the same
+// world-x end up within COLUMN_MERGE_TOL_M of one another, they're
+// drawn as a continuous column instead of two disconnected drips.
+// Also seeds flowstone drapes on a few standout STEEP wall sections
+// (never everywhere — a handful of formations, not a texture).
 function drawCaveSpeleothems(cx, xLeftM, xRightM, dsx, dsy, mpp) {
     var stepM = 0.9;
     // Iterate an ABSOLUTE integer grid index (not a camera-relative float start)
@@ -1066,27 +2035,120 @@ function drawCaveSpeleothems(cx, xLeftM, xRightM, dsx, dsy, mpp) {
     for (var k = Math.floor(xLeftM / stepM); k <= Math.ceil(xRightM / stepM); k++) {
         var x = k * stepM;
         var seed = x * 11.7 + 3.1;
-        // ---- stalactites (hanging from ceiling) ----
         var cd = ceilingAt(x);
-        if (cd > 1 && sRand(seed) < 0.55) {
-            var px = dsx + (x - diverX) / mpp;
-            var py = dsy + (cd - depth) / mpp;
-            var sH = (0.4 + sRand(seed + 1.3) * 1.8) / mpp;       // 8–44 px
-            var sW = (0.18 + sRand(seed + 2.7) * 0.42) / mpp;      // 4–12 px
-            drawStalactite(cx, px, py, sH, sW);
-        }
-        // ---- stalagmites (rising from floor) ----
         var fd = floorAt(x);
-        // Only draw stalagmites where there IS an overhead (so we're inside the
-        // cave proper, not in a pond). Skip if floor is shallow (sinkhole bowl).
-        if (cd > 1 && fd > 12 && sRand(seed + 5.1) < 0.4) {
-            var fpx = dsx + (x - diverX) / mpp;
-            var fpy = dsy + (fd - depth) / mpp;
-            var gH = (0.4 + sRand(seed + 6.3) * 1.4) / mpp;
-            var gW = (0.22 + sRand(seed + 7.1) * 0.46) / mpp;
-            drawStalagmite(cx, fpx, fpy, gH, gW);
+        // Decide independently whether each end rolls a formation, exactly
+        // as before — the merge below just changes how they're painted.
+        var haveStalac = cd > 1 && sRand(seed) < 0.55;
+        var haveStalag = cd > 1 && fd > 12 && sRand(seed + 5.1) < 0.4;
+        // Pre-compute geometry using the same formulas as before.
+        var sH = (0.4 + sRand(seed + 1.3) * 1.8) / mpp;
+        var sW = (0.18 + sRand(seed + 2.7) * 0.42) / mpp;
+        var gH = (0.4 + sRand(seed + 6.3) * 1.4) / mpp;
+        var gW = (0.22 + sRand(seed + 7.1) * 0.46) / mpp;
+
+        // ---- column merge check (issue #32) ----
+        // Convert screen heights back to world metres to test the tip gap.
+        var stalacTipD = haveStalac ? cd + sH * mpp : null;
+        var stalagTipD = haveStalag ? fd - gH * mpp : null;
+        var mergeGap = null;
+        if (stalacTipD != null && stalagTipD != null) {
+            mergeGap = stalagTipD - stalacTipD;   // positive = still separated
+        }
+        var shouldMerge = (mergeGap != null && mergeGap <= COLUMN_MERGE_TOL_M);
+        if (shouldMerge) {
+            var colPx = dsx + (x - diverX) / mpp;
+            var colTopY = dsy + (cd - depth) / mpp;
+            var colBotY = dsy + (fd - depth) / mpp;
+            _drawSpeleothemColumn(cx, colPx, colTopY, colBotY,
+                Math.max(sW, gW), Math.min(sW, gW), seed);
+        } else {
+            if (haveStalac) {
+                var px = dsx + (x - diverX) / mpp;
+                var py = dsy + (cd - depth) / mpp;
+                drawStalactite(cx, px, py, sH, sW);
+            }
+            if (haveStalag) {
+                var fpx = dsx + (x - diverX) / mpp;
+                var fpy = dsy + (fd - depth) / mpp;
+                drawStalagmite(cx, fpx, fpy, gH, gW);
+            }
+        }
+
+        // ---- flowstone drape on steep wall sections (issue #32) ----
+        // Sample the local ceiling/floor gradients; only steep spots roll.
+        // Kept infrequent (FLOWSTONE_PROBABILITY) so this reads as a
+        // handful of standout drapes across the cave, not a uniform skin.
+        var cdL = ceilingAt(x - stepM), cdR = ceilingAt(x + stepM);
+        var fdL = floorAt(x - stepM),   fdR = floorAt(x + stepM);
+        var ceilGrad = Math.abs((cdR - cdL) / (2 * stepM));
+        var floorGrad = Math.abs((fdR - fdL) / (2 * stepM));
+        // Ceiling flowstone — hangs on a steep ceiling section (going up
+        // fast means the wall behind us is sheer). Requires cave overhead.
+        if (haveStalac === false && cd > 4 && ceilGrad > FLOWSTONE_STEEP_GRADIENT &&
+            sRand(seed + 13.7) < FLOWSTONE_PROBABILITY) {
+            var fpxC = dsx + (x - diverX) / mpp;
+            var fpyC = dsy + (cd - depth) / mpp;
+            var wC = (1.4 + sRand(seed + 14.1) * 1.2) / mpp;
+            var hC = (0.9 + sRand(seed + 14.3) * 1.4) / mpp;
+            _drawFlowstoneDrape(cx, fpxC, fpyC, wC, hC, seed + 14);
+        }
+        // Floor flowstone — on a steep floor drop (down-shaft/up-shaft).
+        // Draw the drape above the floor point so it reads as a curtain
+        // draped from the wall down to the deck.
+        if (haveStalag === false && fd > 20 && floorGrad > FLOWSTONE_STEEP_GRADIENT &&
+            sRand(seed + 17.7) < FLOWSTONE_PROBABILITY) {
+            var fpxF = dsx + (x - diverX) / mpp;
+            var wF = (1.4 + sRand(seed + 18.1) * 1.2) / mpp;
+            var hF = (1.2 + sRand(seed + 18.3) * 1.6) / mpp;
+            var fpyF = dsy + (fd - depth) / mpp - hF;
+            _drawFlowstoneDrape(cx, fpxF, fpyF, wF, hF, seed + 18);
         }
     }
+}
+
+// Draw a continuous stalactite→stalagmite column. Purely visual — the
+// pair still carries no collision (see TC-32-COLLISION-UNCHANGED).
+function _drawSpeleothemColumn(cx, x, topY, botY, wTop, wBot, seed) {
+    cx.save();
+    var g = cx.createLinearGradient(x, topY, x, botY);
+    g.addColorStop(0,    CAVE_PAL.calciteLite);
+    g.addColorStop(0.5,  CAVE_PAL.calciteMid);
+    g.addColorStop(1,    CAVE_PAL.calciteLite);
+    cx.fillStyle = g;
+    // Slight waist: narrower in the middle where the two drips met.
+    var midY = (topY + botY) * 0.5;
+    var waist = Math.min(wTop, wBot) * 0.7 + (sRand(seed + 19.1) - 0.5) * 2;
+    if (waist < 2) waist = 2;
+    cx.beginPath();
+    cx.moveTo(x - wTop * 0.5, topY);
+    cx.lineTo(x + wTop * 0.5, topY);
+    cx.quadraticCurveTo(x + wTop * 0.55, topY + (midY - topY) * 0.4, x + waist * 0.5, midY);
+    cx.quadraticCurveTo(x + wBot * 0.55, midY + (botY - midY) * 0.6, x + wBot * 0.5, botY);
+    cx.lineTo(x - wBot * 0.5, botY);
+    cx.quadraticCurveTo(x - wBot * 0.55, midY + (botY - midY) * 0.6, x - waist * 0.5, midY);
+    cx.quadraticCurveTo(x - wTop * 0.55, topY + (midY - topY) * 0.4, x - wTop * 0.5, topY);
+    cx.closePath();
+    cx.fill();
+    // Central highlight rib
+    cx.strokeStyle = 'rgba(232,220,192,0.5)';
+    cx.lineWidth = 1;
+    cx.beginPath();
+    cx.moveTo(x, topY + 2);
+    cx.lineTo(x, botY - 2);
+    cx.stroke();
+    // Layered horizontal rings — 2-3 pale ribbons hinting at growth bands.
+    var bands = 2 + Math.floor(sRand(seed + 19.3) * 2);
+    cx.strokeStyle = 'rgba(232,220,192,0.32)';
+    cx.lineWidth = 0.8;
+    for (var bi = 1; bi <= bands; bi++) {
+        var by = topY + (botY - topY) * (bi / (bands + 1));
+        cx.beginPath();
+        cx.moveTo(x - waist * 0.6, by);
+        cx.quadraticCurveTo(x, by + 0.8, x + waist * 0.6, by);
+        cx.stroke();
+    }
+    cx.restore();
 }
 
 function drawStalactite(cx, x, y, h, w) {
@@ -1161,52 +2223,1072 @@ function sRand(n) {
     return (Math.abs(Math.sin(n * 127.1 + 311.7) * 43758.5453)) % 1;
 }
 
+// ── Environment micro-motion (issue #57) ──────────────────────────
+// Shared, deterministic passive sway/surge for flexible environment
+// objects (seagrass, soft corals, gorgonians, and later hanging lines
+// / nets from #33). One helper so every flexible drawer has identical
+// motion character — no per-drawer ad-hoc Math.sin() formulas, no
+// per-object timers, no state mutation.
+//
+// Contract (pure function of its inputs each frame):
+//   sampleEnvironmentSway(seed, profile, heightFactor) → {x, y, angle}
+//     seed:         stable per-object identity, derived from world-x —
+//                   MUST NOT depend on screen-x / camera / draw order.
+//     profile:      one of SWAY_PROFILES (flexibility 0..1, amplitudePx).
+//                   Drawers must NOT invent their own numbers.
+//     heightFactor: 0 at the fixed foot, 1 at the free tip.
+//   x, y:  pixel offsets to add to a control point or tip.
+//   angle: small local angle (radians), for consumers that want to
+//          rotate a rope segment rather than translate its endpoints
+//          (reserved for #33's hangingLine / net drawers).
+//
+// Reads waveTime, current and CURRENT_PARAMS from outer scope. Time
+// advances only through waveTime → fast-forward stays smooth, no jumps.
+
+var SWAY_PROFILES = {
+    seagrass:    { flexibility: 0.95, amplitudePx: 8 },
+    softCoral:   { flexibility: 0.70, amplitudePx: 5 },
+    gorgonian:   { flexibility: 0.25, amplitudePx: 2 },
+    hangingLine: { flexibility: 0.80, amplitudePx: 6 },
+    net:         { flexibility: 0.45, amplitudePx: 3 }
+};
+
+// Persistent current lean is capped at a fraction of the free oscillation
+// so even a full-strength current bends things visibly without pinning
+// them at a hard limit (avoids the whole reef looking clamped).
+var ENV_SWAY_CURRENT_BIAS_GAIN = 0.5;
+// Normalised sway → radians. Kept small so consumers that map angle to
+// a rotation don't get rubbery whole-object spin.
+var ENV_SWAY_ANGLE_GAIN = 0.15;
+// Base / detail frequency + amplitude coefficients — the issue's model.
+var ENV_SWAY_BASE_FREQ    = 0.7;
+var ENV_SWAY_BASE_AMP     = 0.6;
+var ENV_SWAY_DETAIL_FREQ  = 1.15;
+var ENV_SWAY_DETAIL_AMP   = 0.25;
+var ENV_SWAY_PHASE_MULT   = 13.37;   // seed → phase multiplier
+var ENV_SWAY_DETAIL_PHASE = 1.73;    // detail phase decorrelation
+
+function sampleEnvironmentSway(seed, profile, heightFactor) {
+    if (!profile) return { x: 0, y: 0, angle: 0 };
+    var flex = profile.flexibility || 0;
+    var amp  = profile.amplitudePx || 0;
+    // Fixed foot: heightFactor 0 → zero offset regardless of anything else.
+    // Rigid object (flex 0) or zero amplitude → zero offset too. Early-out
+    // both avoids trig work and guarantees the "foot pixel-fixed" invariant.
+    if (flex <= 0 || heightFactor <= 0 || amp <= 0) {
+        return { x: 0, y: 0, angle: 0 };
+    }
+    var phase = sRand(seed * ENV_SWAY_PHASE_MULT) * Math.PI * 2;
+    var base   = Math.sin(waveTime * ENV_SWAY_BASE_FREQ   + phase)                          * ENV_SWAY_BASE_AMP;
+    var detail = Math.sin(waveTime * ENV_SWAY_DETAIL_FREQ + phase * ENV_SWAY_DETAIL_PHASE)  * ENV_SWAY_DETAIL_AMP;
+    var currentBias = 0;
+    if (current && current.active && current.level > 0) {
+        var maxS = (typeof CURRENT_PARAMS !== 'undefined' && CURRENT_PARAMS.maxStrength) || 1;
+        var norm = Math.min(1, current.level / maxS);
+        currentBias = current.direction * norm * ENV_SWAY_CURRENT_BIAS_GAIN;
+    }
+    var swayN = (base + detail + currentBias) * flex * heightFactor;
+    return {
+        x: swayN * amp,
+        y: 0,
+        angle: swayN * ENV_SWAY_ANGLE_GAIN
+    };
+}
+
+// ── Visual Surface Layer (issue #52) ─────────────────────────────
+// Deterministic, world-anchored contour noise added ON TOP OF the
+// unchanged collision profile (floorAt / ceilingAt). The safety
+// clamp in visualProfileDepth() guarantees the visual surface never
+// recedes into the solid — it may only wobble into the passable
+// water column. Amplitudes are intentionally small (tens of cm).
+//
+// Contract:
+//   visualSurfaceNoise(worldX, seed) → number in ~[-1, 1]
+//   visualProfileDepth(siteId, kind, worldX, collisionDepth)
+//     kind = 'floor'  → returned depth ≤ collisionDepth
+//     kind = 'ceiling' → returned depth ≥ collisionDepth
+// Pure functions of their inputs — no state, no time, no Math.random().
+
+var VISUAL_SURFACE_CONFIG = {
+    shore: { floorAmp: 0.15, floorSeed: 11.31 },
+    reef:  { floorAmp: 0.28, floorSeed: 27.17 },
+    cave:  { floorAmp: 0.22, floorSeed: 42.71,
+             ceilAmp:  0.20, ceilSeed:  63.83 }
+};
+
+// low-frequency base shape + two smaller high-frequency components
+function visualSurfaceNoise(worldX, seed) {
+    return Math.sin(worldX * 0.55 + seed) * 0.55
+         + Math.sin(worldX * 1.70 + seed * 1.7) * 0.30
+         + Math.sin(worldX * 4.10 + seed * 2.3) * 0.15;
+}
+
+function visualProfileDepth(siteId, surfaceKind, worldX, collisionDepth) {
+    var cfg = VISUAL_SURFACE_CONFIG[siteId];
+    if (!cfg) return collisionDepth;
+    var amp, seed;
+    if (surfaceKind === 'floor') {
+        amp  = cfg.floorAmp;
+        seed = cfg.floorSeed;
+    } else if (surfaceKind === 'ceiling') {
+        amp  = cfg.ceilAmp;
+        seed = cfg.ceilSeed;
+    }
+    if (!amp) return collisionDepth;
+    var n = visualSurfaceNoise(worldX, seed);
+    // Bias the offset entirely INTO the water column so the contour
+    // has continuous smooth wobble (never clipped flat by the safety
+    // Math.min/Math.max below). The clamp is still applied as a
+    // defensive guard.
+    if (surfaceKind === 'floor') {
+        // floor: visualD must be ≤ collisionDepth  → offset ∈ [−amp, 0]
+        var floorCand = collisionDepth + 0.5 * amp * (n - 1);
+        return Math.min(collisionDepth, floorCand);
+    }
+    // ceiling: visualD must be ≥ collisionDepth  → offset ∈ [0, amp]
+    var ceilCand = collisionDepth + 0.5 * amp * (1 - n);
+    return Math.max(collisionDepth, ceilCand);
+}
+
+// ============================================================
+//  ISSUE #55 — DETERMINISTIC SET DRESSING (MICRO-DECORATION)
+//
+//  Small, deterministic cosmetic filler props (pebbles, shells, rust
+//  flakes, calcite chips, …) scattered across each site's visualZones
+//  per a declarative `decorationRules` list (see sites.js). Purely
+//  render-only: no physics, collision, gas, or wildlife-spawn effect.
+//  Every prop's position/kind/scale/orientation is a pure function of
+//  (rule, cell) via sRand() — no Math.random(), no per-frame state
+//  beyond a draw-count counter kept for perf inspection/tests.
+//
+//  Anchoring reuses the issue #52 visual-surface helper directly
+//  (visualProfileDepth) — there is NO fallback path to plain
+//  floorAt()/ceilingAt() for the final prop depth. floorAt/ceilingAt
+//  are only called to (a) get the raw collision depth fed into
+//  visualProfileDepth, and (b) act as the zone-probe depth used to
+//  test which visualZone a candidate cell actually belongs to (so a
+//  rule targeting an interior deck doesn't spawn a floor prop floating
+//  where the real substrate is actually far below/above).
+// ============================================================
+
+var SET_DRESSING_MAX_MARGIN_CELLS      = 1;
+var SET_DRESSING_MIN_SCREEN_PX         = 1.0;
+var SET_DRESSING_JITTER_FRACTION       = 0.7;
+var SET_DRESSING_CELL_SEED_MULT        = 1009;
+var SET_DRESSING_JITTER_SEED_MULT      = 9176;
+var SET_DRESSING_PROP_SEED_MULT        = 5273;
+var SET_DRESSING_SCALE_SEED_MULT       = 3391;
+var SET_DRESSING_ROT_SEED_MULT         = 7717;
+var SET_DRESSING_DEFAULT_MIN_SCALE     = 0.8;
+var SET_DRESSING_DEFAULT_MAX_SCALE     = 1.15;
+var SET_DRESSING_UNKNOWN_KIND_WARN_CAP = 4;
+// Vertical offset (world metres) above a deck structure's dTop used to
+// anchor 'floor' props resting on it -- solidAt() is inclusive at dTop,
+// so anchoring exactly on the surface would get the candidate rejected
+// by its own solid check.
+var SET_DRESSING_DECK_SURFACE_OFFSET   = 0.05;
+
+// Rate-limits the "unknown prop kind" console.warn per kind, and surfaces
+// the last frame's accepted-candidate count for perf inspection/tests.
+var _setDressingUnknownWarned = Object.create(null);
+var _setDressingLastFrameCount = 0;
+
+// Small palette dedicated to micro set-dressing props. Deliberately muted /
+// desaturated relative to the hand-placed feature drawers (REEF_PAL,
+// CAVE_PAL) so filler never competes with landmark features for attention.
+var SET_DRESSING_PAL = {
+    pebble1: '#9c9284', pebble2: '#7d7466',
+    rockGrey1: '#6a6258',
+    debris: '#5a5248',
+    shell: '#e8dcc4', shellShade: '#c8b896',
+    grass: '#3a6a3a',
+    sandRipple: 'rgba(90,74,46,0.35)',
+    crust: '#c9895a', crustLite: '#e0a878',
+    sponge: '#9c5a3a', spongeLite: '#c07850',
+    coralBranch: '#c8839a',
+    rust1: '#b5501f', rust2: '#8a3814',
+    cable: '#2a2a28',
+    metal: '#5a6068', metalHi: '#8a929a',
+    sediment: '#6a5a48',
+    calcite: '#e8dcc0', calciteShade: '#b89a72',
+    rockCave: '#6b5a40'
+};
+
+// Weighted prop-kind selection over rule.props ([{kind,weight}]).
+// Deterministic in r (r ∈ [0,1)) — same r always yields the same kind.
+function pickProp(rule, r) {
+    var props = rule.props;
+    var total = 0;
+    for (var i = 0; i < props.length; i++) {
+        total += (props[i].weight > 0 ? props[i].weight : 0);
+    }
+    if (total <= 0) return props[0].kind;
+    var target = r * total;
+    var acc = 0;
+    for (var j = 0; j < props.length; j++) {
+        acc += (props[j].weight > 0 ? props[j].weight : 0);
+        if (target < acc) return props[j].kind;
+    }
+    return props[props.length - 1].kind;
+}
+
+// Some sites (currently: Wreck) define their walkable interior floors as
+// thin 'deck' AABB structures rather than as part of the site-wide
+// floor/ceiling profile -- the wreck's `floor` array is just the flat
+// outer seabed line at d=66. Without this, every 'floor' decoration rule
+// probes at the seabed depth regardless of which deck it's meant to
+// target, so interior-deck rules would silently produce zero candidates.
+// Returns the containing deck's dTop, or null if wx isn't over a deck.
+// Generic by design (checks structure kind, not site id) so it applies to
+// any future site with the same floor/deck split, not just Wreck.
+//
+// Ships stack multiple decks at very similar x-ranges but different
+// depths (e.g. bridge roof, accommodation, vehicle deck, crew deck all
+// overlap in x). A plain "first deck containing wx" scan picks whichever
+// deck happens to be earliest in the array, which is very often the
+// WRONG deck for the zone a given rule targets. Constraining the match
+// to a [zoneD1, zoneD2] depth band (the target zone's own bounds) ties
+// deck selection to "the deck that IS this named zone", removing the
+// ambiguity.
+function _deckSurfaceAt(site, wx, zoneD1, zoneD2) {
+    if (!site.structures) return null;
+    for (var i = 0; i < site.structures.length; i++) {
+        var st = site.structures[i];
+        if (st.kind === 'deck' && wx >= st.x1 && wx <= st.x2
+            && st.dTop >= zoneD1 && st.dTop <= zoneD2) return st.dTop;
+    }
+    return null;
+}
+
+// Shared iteration core used by both drawSetDressing() (real canvas draw)
+// and sampleSetDressingCandidates() (pure, test-friendly candidate list).
+// Keeps the density/zone/depth/solid filter logic in exactly one place so
+// tests and rendering can never drift apart. `cb` is called once per
+// accepted candidate with {ruleId, rule, cell, wx, depth, kind, scale,
+// orientation}. No canvas / screen-space work happens here.
+function _forEachDecorationCandidate(site, visibleWorldLeft, visibleWorldRight, cb) {
+    if (!site || !site.decorationRules) return;
+    var rules = site.decorationRules;
+    for (var ri = 0; ri < rules.length; ri++) {
+        var rule = rules[ri];
+        // Resolve the rule's target zone definition once per rule (not per
+        // cell) so _deckSurfaceAt can constrain deck selection to this
+        // zone's own depth band. See _deckSurfaceAt for why this matters.
+        var targetZoneDef = null;
+        if (site.visualZones) {
+            for (var zi = 0; zi < site.visualZones.length; zi++) {
+                if (site.visualZones[zi].id === rule.zone) { targetZoneDef = site.visualZones[zi]; break; }
+            }
+        }
+        var startCell = Math.floor(visibleWorldLeft / rule.spacing) - SET_DRESSING_MAX_MARGIN_CELLS;
+        var endCell = Math.ceil(visibleWorldRight / rule.spacing) + SET_DRESSING_MAX_MARGIN_CELLS;
+        var maxPerScreen = (rule.maxPerScreen != null) ? rule.maxPerScreen : Infinity;
+        var acceptedCount = 0;
+        for (var cell = startCell; cell <= endCell; cell++) {
+            if (acceptedCount >= maxPerScreen) break;
+
+            var r0 = sRand(cell * SET_DRESSING_CELL_SEED_MULT + rule.seed);
+            if (r0 > rule.density) continue; // density gate
+
+            var jitter = (sRand(cell * SET_DRESSING_JITTER_SEED_MULT + rule.seed) - 0.5)
+                       * rule.spacing * SET_DRESSING_JITTER_FRACTION;
+            var wx = cell * rule.spacing + jitter;
+
+            // Zone-probe: sample the zone AT the real collision surface the
+            // prop would sit on, so a rule targeting a specific deck/zone
+            // doesn't fire where that surface isn't actually present. For
+            // 'floor' rules, prefer a containing deck structure's top face
+            // over the raw seabed profile (see _deckSurfaceAt) — otherwise
+            // every wreck interior-deck rule would probe at the seabed and
+            // never match its own zone.
+            var deckD = (rule.surface === 'floor' && targetZoneDef)
+                ? _deckSurfaceAt(site, wx, targetZoneDef.d1, targetZoneDef.d2) : null;
+            var probeD = (rule.surface === 'ceiling') ? ceilingAt(wx) : (deckD != null ? deckD : floorAt(wx));
+            var zone = visualZoneAt(wx, probeD, site);
+            if (!zone || zone.id !== rule.zone) continue;
+
+            // Anchor: deck surfaces are flat structural AABBs, not part of
+            // the #52 organic terrain contour, so anchor a hair above the
+            // deck's dTop (solidAt() is inclusive there) instead of routing
+            // through visualProfileDepth. Otherwise, anchor to the issue #52
+            // VISUAL surface — no fallback to the raw collision depth.
+            var visualD = (deckD != null)
+                ? deckD - SET_DRESSING_DECK_SURFACE_OFFSET
+                : visualProfileDepth(site.id, rule.surface === 'ceiling' ? 'ceiling' : 'floor', wx, probeD);
+
+            if (rule.minDepth != null && visualD < rule.minDepth) continue;
+            if (rule.maxDepth != null && visualD > rule.maxDepth) continue;
+
+            // Safety net for wreck/cave interiors: never place a prop inside solid rock/hull.
+            if (solidAt(wx, visualD)) continue;
+
+            var minScale = (rule.minScale != null) ? rule.minScale : SET_DRESSING_DEFAULT_MIN_SCALE;
+            var maxScale = (rule.maxScale != null) ? rule.maxScale : SET_DRESSING_DEFAULT_MAX_SCALE;
+            var scale = minScale + sRand(cell * SET_DRESSING_SCALE_SEED_MULT + rule.seed) * (maxScale - minScale);
+
+            var rotJitter = (rule.rotationJitter != null) ? rule.rotationJitter : 1;
+            var orientation = sRand(cell * SET_DRESSING_ROT_SEED_MULT + rule.seed) * Math.PI * 2 * rotJitter;
+
+            var kind = pickProp(rule, sRand(cell * SET_DRESSING_PROP_SEED_MULT + rule.seed));
+
+            acceptedCount++;
+            cb({
+                ruleId: rule.id,
+                rule: rule,
+                cell: cell,
+                wx: wx,
+                depth: visualD,
+                kind: kind,
+                scale: scale,
+                orientation: orientation
+            });
+        }
+    }
+}
+
+// Pure, canvas-free candidate list — same deterministic filter/anchoring
+// logic as drawSetDressing(), used by tests to assert determinism without
+// touching a canvas context.
+function sampleSetDressingCandidates(site, visibleWorldLeft, visibleWorldRight) {
+    var out = [];
+    _forEachDecorationCandidate(site, visibleWorldLeft, visibleWorldRight, function(cand) {
+        out.push({
+            ruleId: cand.ruleId,
+            cell: cand.cell,
+            wx: cand.wx,
+            depth: cand.depth,
+            kind: cand.kind,
+            scale: cand.scale,
+            orientation: cand.orientation
+        });
+    });
+    return out;
+}
+
+// Dispatcher: draws one small decoration prop at screen (sx, sy). All
+// shapes are small (max ~6 screen px at scale 1) and cheap (no canvas
+// creation, no gradients beyond a couple of fills/strokes). `seed` drives
+// any internal per-prop variation via sRand(); `orientation` is a scalar
+// in [0, 2π) used for rotation where it reads naturally (grass, coral
+// branches, stalagmites, cable scraps, angular rock/debris chips).
+function drawDecorationProp(cx, kind, sx, sy, seed, scale, orientation) {
+    switch (kind) {
+        // ---- Shared -------------------------------------------------
+        case 'pebble': {
+            cx.save();
+            var pebN = 1 + Math.floor(sRand(seed) * 3); // 1-3
+            for (var pi = 0; pi < pebN; pi++) {
+                var pr = (0.5 + sRand(seed + pi * 1.7) * 0.7) * scale;
+                var pox = (sRand(seed + pi * 2.3) - 0.5) * 4 * scale;
+                var poy = (sRand(seed + pi * 3.1) - 0.5) * 1.5 * scale;
+                cx.fillStyle = sRand(seed + pi * 4.1) > 0.5 ? SET_DRESSING_PAL.pebble1 : SET_DRESSING_PAL.pebble2;
+                cx.beginPath();
+                cx.ellipse(sx + pox, sy + poy, pr, pr * 0.6, 0, 0, Math.PI * 2);
+                cx.fill();
+            }
+            cx.restore();
+            break;
+        }
+        case 'smallRock': {
+            cx.save();
+            cx.translate(sx, sy);
+            cx.rotate(orientation);
+            var rkBase = 2.2 * scale;
+            cx.fillStyle = SET_DRESSING_PAL.rockGrey1;
+            cx.beginPath();
+            for (var vi = 0; vi < 5; vi++) {
+                var vAng = (vi / 5) * Math.PI * 2;
+                var vr = rkBase * (0.7 + sRand(seed + vi) * 0.5);
+                var vx = Math.cos(vAng) * vr, vy = Math.sin(vAng) * vr * 0.6;
+                if (vi === 0) cx.moveTo(vx, vy); else cx.lineTo(vx, vy);
+            }
+            cx.closePath();
+            cx.fill();
+            cx.strokeStyle = 'rgba(0,0,0,0.25)';
+            cx.lineWidth = 0.4;
+            cx.stroke();
+            cx.restore();
+            break;
+        }
+        case 'debrisSpeck': {
+            cx.save();
+            cx.fillStyle = SET_DRESSING_PAL.debris;
+            var dsR = (0.4 + sRand(seed) * 0.6) * scale;
+            cx.beginPath();
+            cx.ellipse(sx, sy, dsR, dsR * 0.7, 0, 0, Math.PI * 2);
+            cx.fill();
+            cx.restore();
+            break;
+        }
+
+        // ---- Shore ----------------------------------------------------
+        case 'shell': {
+            cx.save();
+            cx.translate(sx, sy);
+            cx.rotate(orientation * 0.3);
+            var shR = 2 * scale;
+            cx.fillStyle = SET_DRESSING_PAL.shell;
+            cx.beginPath();
+            cx.arc(0, shR * 0.2, shR, Math.PI, 0, false);
+            cx.closePath();
+            cx.fill();
+            cx.strokeStyle = SET_DRESSING_PAL.shellShade;
+            cx.lineWidth = 0.35;
+            for (var ribI = -2; ribI <= 2; ribI++) {
+                cx.beginPath();
+                cx.moveTo(0, shR * 0.2);
+                cx.lineTo(ribI * shR * 0.35, shR * 0.2 - shR * 0.85);
+                cx.stroke();
+            }
+            cx.restore();
+            break;
+        }
+        case 'grassTuft': {
+            cx.save();
+            cx.translate(sx, sy);
+            var bladeN = 2 + Math.floor(sRand(seed) * 2); // 2-3
+            var bladeH = 3.5 * scale;
+            cx.strokeStyle = SET_DRESSING_PAL.grass;
+            cx.lineWidth = 0.5;
+            cx.lineCap = 'round';
+            for (var bi = 0; bi < bladeN; bi++) {
+                var lean = (sRand(seed + bi * 1.3) - 0.5) * 0.9 + Math.sin(orientation) * 0.3;
+                var baseX = (bi - bladeN / 2) * 0.8 * scale;
+                cx.beginPath();
+                cx.moveTo(baseX, 0);
+                cx.quadraticCurveTo(baseX + lean * bladeH * 0.5, -bladeH * 0.6,
+                                     baseX + lean * bladeH, -bladeH);
+                cx.stroke();
+            }
+            cx.restore();
+            break;
+        }
+        case 'sandRippleAccent': {
+            cx.save();
+            cx.strokeStyle = SET_DRESSING_PAL.sandRipple;
+            cx.lineWidth = 0.6 * scale;
+            var rippleW = 4 * scale;
+            cx.beginPath();
+            cx.moveTo(sx - rippleW / 2, sy);
+            cx.lineTo(sx + rippleW / 2, sy);
+            cx.stroke();
+            cx.restore();
+            break;
+        }
+
+        // ---- Reef -------------------------------------------------
+        case 'reefCrustBlob': {
+            cx.save();
+            cx.translate(sx, sy);
+            var crBase = 2 * scale;
+            cx.fillStyle = SET_DRESSING_PAL.crust;
+            cx.beginPath();
+            for (var ci = 0; ci < 6; ci++) {
+                var cAng = (ci / 6) * Math.PI * 2;
+                var cr = crBase * (0.7 + sRand(seed + ci) * 0.5);
+                var cvx = Math.cos(cAng) * cr, cvy = Math.sin(cAng) * cr * 0.55;
+                if (ci === 0) cx.moveTo(cvx, cvy); else cx.lineTo(cvx, cvy);
+            }
+            cx.closePath();
+            cx.fill();
+            cx.fillStyle = SET_DRESSING_PAL.crustLite;
+            cx.globalAlpha = 0.4;
+            cx.beginPath();
+            cx.ellipse(-crBase * 0.2, -crBase * 0.15, crBase * 0.35, crBase * 0.2, 0, 0, Math.PI * 2);
+            cx.fill();
+            cx.restore();
+            break;
+        }
+        case 'tinySponge': {
+            cx.save();
+            var spW = 1.4 * scale, spH = 2.6 * scale;
+            cx.fillStyle = SET_DRESSING_PAL.sponge;
+            cx.beginPath();
+            cx.ellipse(sx, sy - spH * 0.5, spW * 0.5, spH * 0.5, 0, 0, Math.PI * 2);
+            cx.fill();
+            cx.fillStyle = SET_DRESSING_PAL.spongeLite;
+            cx.globalAlpha = 0.5;
+            cx.beginPath();
+            cx.ellipse(sx, sy - spH * 0.75, spW * 0.3, spH * 0.25, 0, 0, Math.PI * 2);
+            cx.fill();
+            cx.restore();
+            break;
+        }
+        case 'smallCoralBranch': {
+            cx.save();
+            cx.translate(sx, sy);
+            cx.rotate(orientation * 0.4);
+            var brH = 3 * scale;
+            cx.strokeStyle = SET_DRESSING_PAL.coralBranch;
+            cx.lineWidth = 0.5 * scale;
+            cx.lineCap = 'round';
+            cx.beginPath();
+            cx.moveTo(0, 0);
+            cx.lineTo(0, -brH * 0.55);
+            cx.moveTo(0, -brH * 0.55);
+            cx.lineTo(-brH * 0.35, -brH);
+            cx.moveTo(0, -brH * 0.55);
+            cx.lineTo(brH * 0.35, -brH);
+            cx.stroke();
+            cx.restore();
+            break;
+        }
+
+        // ---- Wreck ------------------------------------------------
+        case 'rustFlake': {
+            cx.save();
+            cx.translate(sx, sy);
+            cx.rotate(orientation);
+            var rfBase = 1.8 * scale;
+            cx.fillStyle = sRand(seed) > 0.5 ? SET_DRESSING_PAL.rust1 : SET_DRESSING_PAL.rust2;
+            cx.beginPath();
+            for (var fi = 0; fi < 5; fi++) {
+                var fAng = (fi / 5) * Math.PI * 2;
+                var fr = rfBase * (0.6 + sRand(seed + fi) * 0.6);
+                var fx = Math.cos(fAng) * fr, fy = Math.sin(fAng) * fr * 0.6;
+                if (fi === 0) cx.moveTo(fx, fy); else cx.lineTo(fx, fy);
+            }
+            cx.closePath();
+            cx.fill();
+            cx.restore();
+            break;
+        }
+        case 'cableScrap': {
+            cx.save();
+            cx.translate(sx, sy);
+            cx.rotate(orientation);
+            var cabL = 4 * scale;
+            cx.strokeStyle = SET_DRESSING_PAL.cable;
+            cx.lineWidth = 0.5 * scale;
+            cx.lineCap = 'round';
+            cx.beginPath();
+            cx.moveTo(-cabL * 0.5, 0);
+            cx.quadraticCurveTo(0, cabL * 0.4, cabL * 0.5, -0.2 * cabL);
+            cx.stroke();
+            cx.restore();
+            break;
+        }
+        case 'smallMetalDebris': {
+            cx.save();
+            cx.translate(sx, sy);
+            cx.rotate(orientation);
+            var mdW = 3 * scale, mdH = 1.4 * scale;
+            cx.fillStyle = SET_DRESSING_PAL.metal;
+            cx.fillRect(-mdW / 2, -mdH / 2, mdW, mdH);
+            cx.strokeStyle = SET_DRESSING_PAL.metalHi;
+            cx.globalAlpha = 0.5;
+            cx.lineWidth = 0.3;
+            cx.strokeRect(-mdW / 2, -mdH / 2, mdW, mdH);
+            cx.restore();
+            break;
+        }
+        case 'sedimentClump': {
+            cx.save();
+            var sedN = 2 + Math.floor(sRand(seed) * 2);
+            cx.fillStyle = SET_DRESSING_PAL.sediment;
+            cx.globalAlpha = 0.7;
+            for (var si = 0; si < sedN; si++) {
+                var sedR = (0.8 + sRand(seed + si * 1.9) * 0.8) * scale;
+                var sedX = sx + (sRand(seed + si * 2.7) - 0.5) * 3 * scale;
+                var sedY = sy + (sRand(seed + si * 3.3) - 0.5) * scale;
+                cx.beginPath();
+                cx.ellipse(sedX, sedY, sedR, sedR * 0.55, 0, 0, Math.PI * 2);
+                cx.fill();
+            }
+            cx.restore();
+            break;
+        }
+
+        // ---- Cave ---------------------------------------------------
+        case 'calciteChip': {
+            cx.save();
+            cx.translate(sx, sy);
+            cx.rotate(orientation);
+            var ccBase = 1.6 * scale;
+            cx.fillStyle = SET_DRESSING_PAL.calcite;
+            cx.beginPath();
+            for (var chi = 0; chi < 5; chi++) {
+                var chAng = (chi / 5) * Math.PI * 2;
+                var chr = ccBase * (0.6 + sRand(seed + chi) * 0.6);
+                var chx = Math.cos(chAng) * chr, chy = Math.sin(chAng) * chr * 0.65;
+                if (chi === 0) cx.moveTo(chx, chy); else cx.lineTo(chx, chy);
+            }
+            cx.closePath();
+            cx.fill();
+            cx.restore();
+            break;
+        }
+        case 'smallStalagmite': {
+            cx.save();
+            var stgW = 1.6 * scale, stgH = 4 * scale;
+            cx.fillStyle = SET_DRESSING_PAL.calciteShade;
+            cx.beginPath();
+            cx.moveTo(sx - stgW / 2, sy);
+            cx.lineTo(sx + stgW / 2, sy);
+            cx.lineTo(sx, sy - stgH);
+            cx.closePath();
+            cx.fill();
+            cx.restore();
+            break;
+        }
+        case 'smallStalactite': {
+            cx.save();
+            var sttW = 1.4 * scale, sttH = 3.4 * scale;
+            cx.fillStyle = SET_DRESSING_PAL.calcite;
+            cx.beginPath();
+            cx.moveTo(sx - sttW / 2, sy);
+            cx.lineTo(sx + sttW / 2, sy);
+            cx.lineTo(sx, sy + sttH);
+            cx.closePath();
+            cx.fill();
+            cx.restore();
+            break;
+        }
+        case 'rockFragment': {
+            cx.save();
+            cx.translate(sx, sy);
+            cx.rotate(orientation);
+            var rgBase = 2 * scale;
+            cx.fillStyle = SET_DRESSING_PAL.rockCave;
+            cx.beginPath();
+            for (var rgi = 0; rgi < 5; rgi++) {
+                var rgAng = (rgi / 5) * Math.PI * 2;
+                var rgr = rgBase * (0.65 + sRand(seed + rgi) * 0.55);
+                var rgx = Math.cos(rgAng) * rgr, rgy = Math.sin(rgAng) * rgr * 0.6;
+                if (rgi === 0) cx.moveTo(rgx, rgy); else cx.lineTo(rgx, rgy);
+            }
+            cx.closePath();
+            cx.fill();
+            cx.restore();
+            break;
+        }
+
+        default: {
+            var warnCount = _setDressingUnknownWarned[kind] || 0;
+            if (warnCount < SET_DRESSING_UNKNOWN_KIND_WARN_CAP) {
+                console.warn('drawDecorationProp: unknown prop kind "' + kind + '"');
+                _setDressingUnknownWarned[kind] = warnCount + 1;
+            }
+            return;
+        }
+    }
+}
+
+// Central entry point, called once per frame from drawScene(). Iterates
+// every rule's visible cells via the shared candidate helper, culls to the
+// screen, applies a minimum-drawn-size cutoff, and dispatches each accepted
+// prop to drawDecorationProp(). `site`/`visibleWorldLeft`/`visibleWorldRight`
+// /`mpp` are the only inputs — diver position, canvas size and context are
+// read from outer-scope module state (same convention as drawStructures()/
+// drawFeatures()) rather than threaded through the signature.
+function drawSetDressing(site, visibleWorldLeft, visibleWorldRight, mpp) {
+    if (!site || !site.decorationRules) return;
+    _setDressingLastFrameCount = 0;
+
+    var W = cssWidth, H = cssHeight;
+    var diverScreenX = W * DIVER_SCREEN_X_FRACTION, diverScreenY = H * 0.45;
+    var cx = ctx;
+
+    _forEachDecorationCandidate(site, visibleWorldLeft, visibleWorldRight, function(cand) {
+        var sx = diverScreenX + (cand.wx - diverX) / mpp;
+        var sy = diverScreenY + (cand.depth - depth) / mpp;
+        if (sx < -8 || sx > W + 8 || sy < -8 || sy > H + 8) return;
+
+        // Minimum drawn-size cutoff: a ~1 m baseline prop scaled by `scale`
+        // and projected through mpp must exceed SET_DRESSING_MIN_SCREEN_PX
+        // on screen, otherwise it's not worth a draw call.
+        if (cand.scale * (1 / mpp) * 0.05 < SET_DRESSING_MIN_SCREEN_PX / 20) return;
+
+        var rule = cand.rule;
+        var wrapAlpha = rule.alpha != null;
+        if (wrapAlpha) {
+            cx.save();
+            cx.globalAlpha *= rule.alpha;
+        }
+        drawDecorationProp(cx, cand.kind, sx, sy, cand.cell + rule.seed, cand.scale, cand.orientation);
+        if (wrapAlpha) cx.restore();
+
+        _setDressingLastFrameCount++;
+    });
+}
+
+// ── Near-surface optics (issue #58) ────────────────────────────────
+// Shared, stylised 2D pass covering the light effects that live in the
+// upper ~20 m of the water column: moving caustics on shallow floor, a
+// slightly richer water underside, and a soft boat shadow. Consolidates
+// code that used to live in per-site branches and gives future sites
+// (issue #35 reef polish, #43 shore) a single call site instead of a
+// fresh copy each time.
+//
+// Not physically accurate — no refraction, no Snell's window, no
+// depth colour absorption (that's issue #36). Depth colour, water-
+// volume fog and torch cones are still owned by their own passes.
+
+// Depth curve. 1 near the surface, 0 by ~20 m. Composed of two
+// non-decreasing smoothsteps so the character matches the design brief:
+//   0–5 m:   strong (~1)
+//   5–12 m:  drops markedly
+//   12–20 m: only a very subtle tail
+//   >20 m:   0
+// Also 0 when the surface is not visible (deep overhead, etc.).
+function nearSurfaceLightFactor(depth, surfaceVisible) {
+    if (surfaceVisible === false) return 0;
+    if (!(depth > 0)) return 1;         // NaN / negative / at-surface → full
+    if (depth >= 20) return 0;
+    // 85% weight on the 5→12 m knee, 15% on the 12→20 m tail.
+    var t1 = 1 - smoothstep(5,  12, depth);
+    var t2 = 1 - smoothstep(12, 20, depth);
+    var v = t1 * 0.85 + t2 * 0.15;
+    if (v < 0) v = 0;
+    if (v > 1) v = 1;
+    return v;
+}
+
+// Per-site multiplier on top of the base depth factor. Shore is the
+// baseline (sunlit sand). Reef is a hair more (bright plateau water).
+// Cave Entry is conservative (open water only visible through pond
+// shafts). Wreck exterior is very subtle (murky, north-Atlantic feel).
+function _nearSurfaceSiteMultiplier(siteId) {
+    if (siteId === 'shore') return 1.0;
+    if (siteId === 'reef')  return 1.1;
+    if (siteId === 'cave')  return 0.6;
+    if (siteId === 'wreck') return 0.4;
+    return 1.0;
+}
+
+// Shared caustic renderer. Draws slow horizontal sine-wavy stroke
+// bands over the visible floor area, phase-locked to WORLD coordinates
+// so the pattern does not swim with the camera when the diver moves
+// horizontally. Extracted from the pre-#58 Shore atmosphere branch —
+// visuals are near-unchanged for Shore, and Reef now shares the exact
+// same helper (previously had no caustics at all).
+// Issue #58 (review follow-up): reused across drawCausticsOnVisibleFloor()
+// calls instead of allocating a fresh array/objects every frame — plain
+// parallel arrays (not an array of {sx,worldX,...} objects), truncated with
+// .length=0 and refilled by index each call rather than reallocated.
+var _causticsColSx = [];
+var _causticsColWorldX = [];
+var _causticsColFloorScreenY = [];
+var _causticsColOk = [];
+
+function drawCausticsOnVisibleFloor(site, lightFactor) {
+    if (lightFactor <= 0.01) return;
+    var W = cssWidth, H = cssHeight;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
+    var cx = ctx;
+    cx.save();
+    var alpha = (0.16 * lightFactor).toFixed(3);
+    cx.strokeStyle = 'rgba(245,238,188,' + alpha + ')';
+    cx.lineWidth = 1.2;
+    // World-anchored horizontal wavelength ≈ 2π/0.6 ≈ 10.5 m (matches
+    // the original 0.03/pixel * 0.05 mpp period, just in world units).
+    var kx = 0.6;
+    // Issue #58 (review follow-up, round 2): two bugs in the previous
+    // per-column rewrite. (1) Sign was backwards — `floorScreenY - offset`
+    // moves UP the screen (smaller y = shallower = further INTO the water
+    // column), the opposite of onto the terrain; drawTerrain()'s own floor
+    // polygon is filled at y >= its floor line (larger y = deeper/into the
+    // terrain), so the offset must be ADDED. (2) floorScreenY was derived
+    // from floorAt() (the collision floor), but drawTerrain() renders
+    // visualProfileDepth(site.id,'floor',worldX,floorAt(worldX)) — the
+    // organic visual contour, which is always at or shallower than the
+    // collision floor (issue #52) — so anchoring to the collision floor
+    // could still land caustics either in the water or underground
+    // relative to what's actually drawn. Both fixed: anchor to the same
+    // visualProfileDepth() drawTerrain() itself uses, offset added so
+    // every point lands on/into the rendered terrain side of that line.
+    // Minimum offset must exceed the sine wobble's amplitude (5px) below —
+    // otherwise a point with the smallest offset and a fully-negative
+    // wobble sample nets to less than 0 and lands back on the water side.
+    var OFFSETS_PX = [6, 12, 18, 24];
+    var REEF_MAX_SLOPE = 1.5;    // metres of depth change per metre — above this, treat as a wall
+    // Precompute per-column floor data once, reused across every offset band.
+    _causticsColSx.length = 0;
+    _causticsColWorldX.length = 0;
+    _causticsColFloorScreenY.length = 0;
+    _causticsColOk.length = 0;
+    var n = 0;
+    for (var sx = -20; sx <= W + 20; sx += 18) {
+        var worldX = diverX + (sx - dsx) * mpp;
+        var floorDCol = floorAt(worldX);
+        var floorDVis = visualProfileDepth(site.id, 'floor', worldX, floorDCol);
+        var floorScreenY = dsy + (floorDVis - depth) / mpp;
+        var ok = true;
+        if (site.id === 'reef') {
+            var slope = Math.abs(floorAt(worldX + 1) - floorAt(worldX - 1)) / 2;
+            ok = slope < REEF_MAX_SLOPE;
+        }
+        _causticsColSx[n] = sx;
+        _causticsColWorldX[n] = worldX;
+        _causticsColFloorScreenY[n] = floorScreenY;
+        _causticsColOk[n] = ok;
+        n++;
+    }
+    for (var oi = 0; oi < OFFSETS_PX.length; oi++) {
+        var offset = OFFSETS_PX[oi];
+        cx.beginPath();
+        var pathOpen = false;
+        for (var ci = 0; ci < n; ci++) {
+            if (!_causticsColOk[ci]) { pathOpen = false; continue; }
+            var cy = _causticsColFloorScreenY[ci] + offset;
+            var y = cy + Math.sin(_causticsColWorldX[ci] * kx + waveTime * 1.7 + cy * 0.02) * 5;
+            if (!pathOpen) { cx.moveTo(_causticsColSx[ci], y); pathOpen = true; } else { cx.lineTo(_causticsColSx[ci], y); }
+        }
+        cx.stroke();
+    }
+    cx.restore();
+}
+
+// Water underside: a bright moving highlight just below the surface
+// line plus a couple of faint offset wave bands so the surface line
+// isn't a single flat stroke when viewed from below.
+function _drawSurfaceUnderside(surfaceY, W, H, lightFactor) {
+    if (lightFactor <= 0.01) return;
+    if (surfaceY <= -50 || surfaceY >= H + 50) return;
+    var cx = ctx;
+    cx.save();
+    // Thin bright moving highlight line just under the surface.
+    var hiAlpha = (0.35 * lightFactor).toFixed(3);
+    cx.strokeStyle = 'rgba(230,248,255,' + hiAlpha + ')';
+    cx.lineWidth = 1;
+    cx.beginPath();
+    for (var x = 0; x <= W; x += 6) {
+        var worldX = diverX + (x - W * DIVER_SCREEN_X_FRACTION) * 0.05;
+        var y = surfaceY + 2 + Math.sin(worldX * 0.45 + waveTime * 2.2) * 1.4 +
+                Math.sin(worldX * 0.9 + waveTime * 1.4) * 0.6;
+        if (x === 0) cx.moveTo(x, y); else cx.lineTo(x, y);
+    }
+    cx.stroke();
+    // 1-2 wider offset wave bands, low alpha.
+    var bands = [
+        { off: 6,  a: 0.10, kx: 0.35, w: 3, spd: 1.6 },
+        { off: 14, a: 0.06, kx: 0.28, w: 4, spd: 1.1 }
+    ];
+    for (var bi = 0; bi < bands.length; bi++) {
+        var b = bands[bi];
+        cx.fillStyle = 'rgba(180,220,235,' + (b.a * lightFactor).toFixed(3) + ')';
+        cx.beginPath();
+        for (var bx = 0; bx <= W; bx += 6) {
+            var bwx = diverX + (bx - W * DIVER_SCREEN_X_FRACTION) * 0.05;
+            var by = surfaceY + b.off + Math.sin(bwx * b.kx + waveTime * b.spd) * 2;
+            if (bx === 0) cx.moveTo(bx, by); else cx.lineTo(bx, by);
+        }
+        for (var bx2 = W; bx2 >= 0; bx2 -= 6) {
+            var bwx2 = diverX + (bx2 - W * DIVER_SCREEN_X_FRACTION) * 0.05;
+            var by2 = surfaceY + b.off + b.w + Math.sin(bwx2 * b.kx + waveTime * b.spd + 0.9) * 2;
+            cx.lineTo(bx2, by2);
+        }
+        cx.closePath();
+        cx.fill();
+    }
+    cx.restore();
+}
+
+// Boat shadow / surface silhouette: a soft dark elongated blob
+// hanging under the surface at the boat's screen-x. Uses the SAME
+// derivation as the boat sprite (drawScene line ~663) so the shadow
+// tracks the boat exactly. No effect if boat is far offscreen.
+function _drawBoatShadow(surfaceY, W, H, lightFactor, siteMult) {
+    var s = activeSite();
+    if (!s || s.boatX == null) return;
+    var eff = lightFactor * siteMult;
+    if (eff <= 0.02) return;
+    if (surfaceY <= -20 || surfaceY >= H + 20) return;
+    var mpp = 0.05;
+    var boatWorldX = s.boatX;
+    var shipX = W * DIVER_SCREEN_X_FRACTION + (boatWorldX - diverX) / mpp;
+    // Fallback: skip work for boats far outside the visible world-x range.
+    if (shipX < -180 || shipX > W + 180) return;
+    var cx = ctx;
+    cx.save();
+    // Slight lateral sway with waveTime — the boat drifts on wavelets.
+    var sway = Math.sin(waveTime * 0.9) * 1.4;
+    var cxPos = shipX + sway;
+    var cyPos = surfaceY + 6;
+    // Two-stop soft radial "shadow" — no hard edges.
+    var g = cx.createRadialGradient(cxPos, cyPos, 6, cxPos, cyPos, 90);
+    var aCore = 0.22 * eff;
+    g.addColorStop(0,   'rgba(4,10,16,' + aCore.toFixed(3) + ')');
+    g.addColorStop(0.5, 'rgba(4,10,16,' + (aCore * 0.35).toFixed(3) + ')');
+    g.addColorStop(1,   'rgba(4,10,16,0)');
+    cx.fillStyle = g;
+    // Elliptical footprint (wider than tall) to hint at hull silhouette.
+    cx.beginPath();
+    cx.ellipse(cxPos, cyPos, 80, 14, 0, 0, Math.PI * 2);
+    cx.fill();
+    cx.restore();
+}
+
+// Public: near-surface atmosphere layer. Runs BEFORE terrain — this
+// is the background/water side of the pass (boat shadow, water-
+// underside). The caustics on the floor are painted AFTER terrain by
+// drawSurfaceCaustics().
+// Issue #54 (review follow-up): cachedAtmo lets drawScene() pass through
+// the ONE sampleLocalAtmosphere() result it already computed this frame
+// (_localAtmo) instead of this function re-sampling the exact same
+// site/diverX/depth a second time. Undefined (the standalone/test-call
+// path — see TC-54 tests) falls back to sampling fresh, same as before.
+function drawNearSurfaceAtmosphere(cachedAtmo) {
+    // No-op outside the live dive scene — no work in setup/post-dive/
+    // game-over/surface screens.
+    if (gameState !== 'diving') return;
+    var s = activeSite();
+    if (!s) return;
+    // No near-surface work if the diver is inside overhead (interior).
+    if (inOverhead) return;
+    var W = cssWidth, H = cssHeight;
+    var mpp = 0.05, dsy = H * 0.45;
+    var surfaceY = dsy - depth / mpp;
+    var surfaceVisible = (surfaceY > -50 && surfaceY < H + 50);
+    var base = nearSurfaceLightFactor(depth, surfaceVisible);
+    var siteMult = _nearSurfaceSiteMultiplier(s.id);
+    // Optional local-atmosphere modulation — sample once at the diver's
+    // position and use visibility to dampen, ambient to nudge brightness.
+    // Small effect only; #54 owns the real tint / fog work.
+    var atmo = null;
+    if (cachedAtmo !== undefined) {
+        atmo = cachedAtmo;
+    } else {
+        try { atmo = sampleLocalAtmosphere(s, diverX, depth); } catch { atmo = null; }
+    }
+    var atmoK = 1;
+    if (atmo) {
+        atmoK = (atmo.ambient || 1) * (0.6 + 0.4 * (atmo.visibility || 1));
+        if (atmoK < 0.3) atmoK = 0.3;
+        if (atmoK > 1.6) atmoK = 1.6;
+    }
+    var lightFactor = base * atmoK;
+    if (lightFactor <= 0.01) return;
+    _drawSurfaceUnderside(surfaceY, W, H, lightFactor);
+    _drawBoatShadow(surfaceY, W, H, lightFactor, siteMult);
+}
+
+// Public: caustics on the visible floor. Runs AFTER terrain +
+// site detail pass and BEFORE set-dressing — matches the render-order
+// constraint in issue #58. Currently just Shore + Reef; Cave uses its
+// own pond sunbeam and Wreck exterior is deep enough that the depth
+// curve already zeroes this out.
+// Issue #54 (review follow-up): see drawNearSurfaceAtmosphere() above —
+// same cachedAtmo pass-through to avoid a third per-frame sample.
+function drawSurfaceCaustics(cachedAtmo) {
+    if (gameState !== 'diving') return;
+    var s = activeSite();
+    if (!s) return;
+    if (inOverhead) return;                 // no floor caustics inside overhead
+    var H = cssHeight;
+    var mpp = 0.05, dsy = H * 0.45;
+    var surfaceY = dsy - depth / mpp;
+    var surfaceVisible = (surfaceY > -50 && surfaceY < H + 50);
+    var base = nearSurfaceLightFactor(depth, surfaceVisible);
+    var siteMult = _nearSurfaceSiteMultiplier(s.id);
+    var atmo = null;
+    if (cachedAtmo !== undefined) {
+        atmo = cachedAtmo;
+    } else {
+        try { atmo = sampleLocalAtmosphere(s, diverX, depth); } catch { atmo = null; }
+    }
+    var atmoK = atmo ? Math.max(0.3, Math.min(1.6,
+        (atmo.ambient || 1) * (0.6 + 0.4 * (atmo.visibility || 1))
+    )) : 1;
+    var lightFactor = base * siteMult * atmoK;
+    if (lightFactor <= 0.01) return;
+    // Shore + Reef always eligible. Cave gets caustics only in the very
+    // shallow entry zone where an open pond surface is visible — the
+    // depth curve + 0.6 site multiplier keep that conservative. Wreck
+    // exterior is 0.4 site + rapid depth falloff → naturally silent
+    // below ~10 m. No new zone-specific branches needed.
+    if (s.id === 'shore' || s.id === 'reef' || s.id === 'cave' || s.id === 'wreck') {
+        drawCausticsOnVisibleFloor(s, lightFactor);
+    }
+}
+
+// ────────────────────────────────────────────────────────────────
+// Issue #43 — depth staggering / parallax factors.
+//
+// One entry per named layer per site so all magic-number choices
+// live in ONE table (no per-function inline literals). Values MUST
+// stay constant per layer — moving them by frame or by camera would
+// break the spatial illusion.
+//
+//   Far background : 0.15 – 0.25
+//   Midground      : 0.30 – 0.55
+//   Near background: 0.70 – 0.90
+//
+// Foreground layers (>1) are owned by drawForegroundLayer() and its
+// per-site helpers; this table only covers background/midground.
+// ────────────────────────────────────────────────────────────────
+const PARALLAX_FACTORS = Object.freeze({
+    shore: {
+        sandRidge:    0.28,   // far background
+        seagrassBand: 0.42    // midground
+    },
+    reef: {
+        farRidge:     0.18,   // existing far background (kept as-is)
+        midRidge:     0.35    // NEW midground ridge
+    },
+    wreck: {
+        debrisBand:   0.55,   // midground seabed debris silhouettes
+        hullMass:     0.85    // near background — distant hull silhouette
+    },
+    cave: {
+        cathedralColumn: 0.50, // midground speleothem/column silhouettes
+        passageMouth:    0.40  // midground negative-space cues
+    }
+});
+
 function drawSiteAtmosphere() {
+    // Skip cleanly outside the live dive scene — matches the guard on
+    // drawNearSurfaceAtmosphere/drawSurfaceCaustics so this pass emits
+    // zero canvas ops in gas-setup / post-dive / game-over / surface.
+    if (gameState !== 'diving') return;
     var s = activeSite();
     if (!s) return;
     var W = cssWidth, H = cssHeight;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     var cx = ctx;
     var surfaceY = dsy - depth / mpp;
     cx.save();
 
     if (s.id === 'shore') {
-        // Shallow caustics and a warm surface veil make the sandy descent feel sunlit.
-        var causticAlpha = Math.max(0, 1 - depth / 24);
-        if (causticAlpha > 0.02) {
-            cx.strokeStyle = 'rgba(245,238,188,' + (0.16 * causticAlpha).toFixed(3) + ')';
-            cx.lineWidth = 1.2;
-            for (var cy = Math.max(surfaceY + 36, -30); cy < H; cy += 44) {
-                cx.beginPath();
-                for (var x = -20; x <= W + 20; x += 18) {
-                    var y = cy + Math.sin(x * 0.03 + waveTime * 1.7 + cy * 0.02) * 5;
-                    if (x === -20) cx.moveTo(x, y); else cx.lineTo(x, y);
-                }
-                cx.stroke();
-            }
-        }
+        // Caustics moved to the shared near-surface-optics pass (issue #58,
+        // drawSurfaceCaustics → drawCausticsOnVisibleFloor). Keep the warm
+        // surface veil here since it belongs to the site atmosphere, not the
+        // near-surface optics layer.
         var shoreGlow = cx.createLinearGradient(0, Math.max(0, surfaceY), 0, H);
         shoreGlow.addColorStop(0, 'rgba(235,218,160,0.08)');
         shoreGlow.addColorStop(1, 'rgba(75,42,16,0)');
         cx.fillStyle = shoreGlow;
         cx.fillRect(0, Math.max(0, surfaceY), W, H);
+        // Issue #43: spatial depth behind the diver. Runs INSIDE cx.save
+        // so alpha bleed can't leak into later passes.
+        drawShoreParallaxLayers(cx, W, H, dsx, dsy, mpp);
     } else if (s.id === 'reef') {
         // Distant reef silhouettes behind the playable wall: a low-cost parallax layer.
+        // World-anchored: iterate over fixed integer world-x strides across
+        // the visible viewport so a given ridge peak stays pinned to its
+        // world position instead of sliding with the sample window.
         cx.globalAlpha = 0.12;
         cx.fillStyle = '#142a32';
+        var pFar = PARALLAX_FACTORS.reef.farRidge;
         var baseD = Math.max(18, depth + 8);
+        var xLeftFar = diverX + (0 - dsx) * mpp / pFar - 5;
+        var xRightFar = diverX + (W - dsx) * mpp / pFar + 5;
+        var strideFar = 5;
         cx.beginPath();
         cx.moveTo(0, H);
-        for (var wx = diverX - 80; wx <= diverX + 80; wx += 5) {
-            var sx = dsx + (wx - diverX) / mpp * 0.18;
+        for (var kFar = Math.floor(xLeftFar / strideFar); kFar <= Math.ceil(xRightFar / strideFar); kFar++) {
+            var wx = kFar * strideFar;
+            var sx = dsx + (wx - diverX) / mpp * pFar;
             var ridgeD = baseD + 14 + Math.sin(wx * 0.12) * 7 + Math.sin(wx * 0.29) * 2;
             var sy = dsy + (ridgeD - depth) / mpp;
-            if (wx === diverX - 80) cx.lineTo(sx, sy); else cx.lineTo(sx, sy);
+            cx.lineTo(sx, sy);
         }
         cx.lineTo(W, H);
         cx.closePath();
         cx.fill();
         cx.globalAlpha = 1;
+        // Issue #43: second, closer ridge layer at a different parallax rate.
+        drawReefParallaxLayers(cx, W, H, dsx, dsy, mpp);
     } else if (s.id === 'wreck') {
         // Slight murk and searchlight falloff around the wreck exterior/interior.
         var murk = cx.createRadialGradient(dsx, dsy, 80, dsx, dsy, Math.max(W, H) * 0.75);
@@ -1214,6 +3296,9 @@ function drawSiteAtmosphere() {
         murk.addColorStop(1, 'rgba(12,22,26,0.18)');
         cx.fillStyle = murk;
         cx.fillRect(0, 0, W, H);
+        // Issue #43: distant hull mass + seabed debris band. Both are
+        // decorative silhouettes and MUST NOT read as navigable structure.
+        drawWreckParallaxLayers(cx, W, H, dsx, dsy, mpp);
     } else if (s.id === 'cave') {
         // Subtle limestone dust in the water before the torch overlay darkens it.
         cx.fillStyle = 'rgba(188,178,148,0.08)';
@@ -1224,6 +3309,322 @@ function drawSiteAtmosphere() {
             var pr = 0.7 + sRand(seed + 4.2) * 1.8;
             cx.beginPath(); cx.arc(px, py, pr, 0, Math.PI * 2); cx.fill();
         }
+        // Issue #43: cathedral speleothem silhouettes + passage-mouth cues.
+        // Purely decorative; collision/geometry unaffected.
+        drawCaveParallaxLayers(cx, W, H, dsx, dsy, mpp);
+    }
+    cx.restore();
+}
+
+// ────────────────────────────────────────────────────────────────
+// Issue #43 — per-site parallax helpers.
+//
+// Shared rules (see issue for the full contract):
+//   • World-anchored — sample by world-x, not screen-x.
+//   • Deterministic — sRand only; no Math.random().
+//   • Cosmetic-only — never touches floorAt/ceilingAt/collision.
+//   • Behind the diver, guideline, features, HUD.
+//   • Respect visible-range window (xLeftM/xRightM) so we do not
+//     iterate the whole world every frame.
+// ────────────────────────────────────────────────────────────────
+
+// Shore: distant sand ridge + simplified seagrass band. Adds spatial
+// depth behind the diver where before there was only open water.
+function drawShoreParallaxLayers(cx, W, H, dsx, dsy, mpp) {
+    cx.save();
+    // ── Layer A: far sand ridge silhouette (parallax 0.28). ──
+    // Shore's terrain fill is opaque from the local floor curve all the
+    // way to the bottom of the canvas (unlike Reef/Wreck/Cave, which have
+    // open water beyond/around their structures) — so a "distant ridge"
+    // anchored DEEPER than the real local floor is always painted over
+    // by drawTerrain() and never actually visible. Anchor it SHALLOWER
+    // than the real floor instead (a low crest poking up into the open
+    // water above the sand line, like a further headland glimpsed down
+    // the coast), guaranteeing it lands in the one region that stays
+    // open water: above floorAt(x). Sampled at fixed integer world-x
+    // strides (world-anchored) across the visible viewport → shifts
+    // under the camera at exactly (Δx / mpp * factor), not screen-locked.
+    var pA = PARALLAX_FACTORS.shore.sandRidge;
+    var ridgeMargin = 9; // metres shallower than the real local floor
+    var xLeftA = diverX + (0 - dsx) * mpp / pA - 4;
+    var xRightA = diverX + (W - dsx) * mpp / pA + 4;
+    var strideA = 4;
+    cx.globalAlpha = 0.14;
+    cx.fillStyle = '#3a2c1c';
+    cx.beginPath();
+    cx.moveTo(0, H);
+    for (var kA = Math.floor(xLeftA / strideA); kA <= Math.ceil(xRightA / strideA); kA++) {
+        var wxA = kA * strideA;
+        var sxA = dsx + (wxA - diverX) / mpp * pA;
+        // Wave amplitude tops out around ±9.5; halving it keeps the crest's
+        // shallowest excursion (center + 4.75) safely below
+        // floorAt(wxA) - ridgeMargin, so it never reaches the real sand line.
+        var wave = Math.sin(wxA * 0.08) * 4.5
+                 + Math.sin(wxA * 0.21 + 1.7) * 2
+                 + Math.sin(wxA * 0.045) * 3;
+        var ridgeD = Math.max(1, floorAt(wxA) - ridgeMargin + wave * 0.5);
+        var syA = dsy + (ridgeD - depth) / mpp;
+        cx.lineTo(sxA, syA);
+    }
+    cx.lineTo(W, H);
+    cx.closePath();
+    cx.fill();
+    cx.globalAlpha = 1;
+
+    // ── Layer B: distant seagrass band (parallax 0.42). ──
+    // Simple tapered strokes — NOT the detailed set-dressing plants
+    // from #55. Very low density/alpha so it reads as a distant
+    // suggestion, not another prop layer. Same visibility constraint as
+    // Layer A: anchor each blade above the REAL local floor at that
+    // world-x (not a fixed world-depth), so it always sits in open
+    // water instead of being painted over by the opaque sand fill.
+    var pB = PARALLAX_FACTORS.shore.seagrassBand;
+    var grassMargin = 5; // metres shallower than the real local floor
+    var xLeftM = diverX + (0 - dsx) * mpp / pB - 4;
+    var xRightM = diverX + (W - dsx) * mpp / pB + 4;
+    cx.globalAlpha = 0.18;
+    cx.strokeStyle = '#1c3722';
+    cx.lineCap = 'round';
+    cx.lineWidth = 1.4;
+    for (var k = Math.floor(xLeftM / 2.4); k <= Math.ceil(xRightM / 2.4); k++) {
+        var wxB = k * 2.4;
+        if (sRand(wxB + 43) > 0.45) continue;
+        var sxB = dsx + (wxB - diverX) / mpp * pB;
+        // Blade height and lean derived deterministically from wxB.
+        var bh = 10 + sRand(wxB + 1) * 14;
+        var lean = (sRand(wxB + 2) - 0.5) * 6;
+        var bandD = Math.max(1, floorAt(wxB) - grassMargin);
+        var syBase = dsy + (bandD - depth) / mpp;
+        if (sxB < -12 || sxB > W + 12) continue;
+        if (syBase < -30 || syBase > H + 30) continue;
+        cx.beginPath();
+        cx.moveTo(sxB, syBase);
+        cx.quadraticCurveTo(sxB + lean * 0.5, syBase - bh * 0.55,
+                            sxB + lean, syBase - bh);
+        cx.stroke();
+    }
+    cx.globalAlpha = 1;
+    cx.restore();
+}
+
+// Reef: second (closer) ridge silhouette. The existing 0.18-parallax
+// ridge is untouched above; this layer sits between it and the wall
+// so the reef reads as two depth planes instead of one.
+function drawReefParallaxLayers(cx, W, H, dsx, dsy, mpp) {
+    cx.save();
+    var p = PARALLAX_FACTORS.reef.midRidge;
+    // Warmer, higher-alpha ridge than the far one, and closer to the
+    // diver's depth so it clearly reads as the nearer plane.
+    var baseD = Math.max(14, depth + 4);
+    var xLeft = diverX + (0 - dsx) * mpp / p - 5;
+    var xRight = diverX + (W - dsx) * mpp / p + 5;
+    var stride = 5;
+    cx.globalAlpha = 0.18;
+    cx.fillStyle = '#0f2028';
+    cx.beginPath();
+    cx.moveTo(0, H);
+    for (var k = Math.floor(xLeft / stride); k <= Math.ceil(xRight / stride); k++) {
+        var wx = k * stride;
+        var sx = dsx + (wx - diverX) / mpp * p;
+        // Distinct wave signature from the far ridge so the two layers
+        // don't lock-step visually.
+        var ridgeD = baseD + 10 + Math.sin(wx * 0.19 + 0.8) * 5
+                              + Math.sin(wx * 0.41) * 1.6;
+        var sy = dsy + (ridgeD - depth) / mpp;
+        cx.lineTo(sx, sy);
+    }
+    cx.lineTo(W, H);
+    cx.closePath();
+    cx.fill();
+    cx.globalAlpha = 1;
+    cx.restore();
+}
+
+// Wreck: a near-background dark hull mass silhouette PLUS a distant
+// debris field band along the seabed. Both are decorative — the diver
+// never collides with them, and the hull mass is drawn very low alpha
+// so it never reads as a real navigable ship.
+function drawWreckParallaxLayers(cx, W, H, dsx, dsy, mpp) {
+    cx.save();
+
+    // ── Layer A: distant hull mass (parallax 0.85). ──
+    // A very simple ship-bulk silhouette: a long low trapezoid with
+    // a superstructure and a funnel bump. It reuses the recognisable
+    // silhouette proportions of the main wreck (long hull, one funnel
+    // between bridge and stern) so the ship's bulk stays "somewhere
+    // out there" even when the diver is off-axis. Alpha kept very low.
+    var pA = PARALLAX_FACTORS.wreck.hullMass;
+    // Anchor at ~62 m in world depth so the keel line sits below the
+    // diver at typical wreck depths. Kept constant so the silhouette
+    // doesn't wander vertically as the diver ascends/descends.
+    var keelD = 62;
+    var deckD = 30;         // main deck
+    var bridgeD = 20;
+    var funnelD = 14;
+    var hullAnchorD = (keelD + funnelD) / 2; // mid-height reference depth
+    // Place the distant hull along the +x direction (offset by 210 m
+    // in world space) so it stays behind the playable ship without
+    // overlapping it. The ANCHOR point pans at pA's near-background
+    // parallax rate (~17 px/world-m) — but the hull is ~190 m long, so
+    // drawing its own shape at that same per-metre rate would span
+    // several screen widths and never read as a ship, just a soft edge.
+    // Decouple shape size from position speed: the anchor still pans at
+    // pA, but the silhouette itself is drawn at a small, fixed visual
+    // span so the whole ship fits legibly in frame regardless of pA.
+    var wx0 = 210;
+    var hullLenM = 190;
+    var HULL_VISUAL_SPAN_PX = 480; // full hull length on screen, tuned for legibility
+    var posScaleX = 1 / mpp * pA;
+    var sizeScale = HULL_VISUAL_SPAN_PX / hullLenM; // px per world-metre, shape-only
+    var sxStern = dsx + (wx0 - diverX) * posScaleX;
+    var sxBow = sxStern + hullLenM * sizeScale;
+    // Early-out if the whole silhouette is offscreen (both sides).
+    if (sxBow < -40 || sxStern > W + 40) {
+        // Try the -x mirror side.
+        wx0 = -210 - hullLenM;
+        sxStern = dsx + (wx0 - diverX) * posScaleX;
+        sxBow = sxStern + hullLenM * sizeScale;
+        if (sxBow < -40 || sxStern > W + 40) { cx.restore(); return; }
+    }
+    var syAnchor = dsy + (hullAnchorD - depth) / mpp;
+    var syKeel   = syAnchor + (keelD   - hullAnchorD) * sizeScale;
+    var syDeck   = syAnchor + (deckD   - hullAnchorD) * sizeScale;
+    var syBridge = syAnchor + (bridgeD - hullAnchorD) * sizeScale;
+    var syFunnel = syAnchor + (funnelD - hullAnchorD) * sizeScale;
+    cx.globalAlpha = 0.16;
+    cx.fillStyle = '#0a1013';
+    cx.beginPath();
+    // hull trapezoid
+    cx.moveTo(sxStern, syKeel);
+    cx.lineTo(sxBow, syKeel);
+    cx.lineTo(sxBow - 40, syDeck);
+    // superstructure block (bridge)
+    var sbxL = sxStern + (sxBow - sxStern) * 0.45;
+    var sbxR = sxStern + (sxBow - sxStern) * 0.62;
+    cx.lineTo(sbxR, syDeck);
+    cx.lineTo(sbxR, syBridge);
+    cx.lineTo(sbxL, syBridge);
+    cx.lineTo(sbxL, syDeck);
+    // funnel bump
+    var fnxL = sxStern + (sxBow - sxStern) * 0.50;
+    var fnxR = sxStern + (sxBow - sxStern) * 0.55;
+    cx.lineTo(fnxL, syDeck);
+    cx.lineTo(fnxL, syFunnel);
+    cx.lineTo(fnxR, syFunnel);
+    cx.lineTo(fnxR, syDeck);
+    // remaining deck to stern
+    cx.lineTo(sxStern + 30, syDeck);
+    cx.closePath();
+    cx.fill();
+    cx.globalAlpha = 1;
+
+    // ── Layer B: distant debris field band (parallax 0.55). ──
+    // A handful of low-contrast dark shapes sitting on the seabed
+    // depth so a diver at typical wreck depths sees a "junk on the
+    // ocean floor" hint receding to either side. Simple ellipses;
+    // NOT the detailed set-dressing props from #55.
+    var pB = PARALLAX_FACTORS.wreck.debrisBand;
+    var xLeftM = diverX + (0 - dsx) * mpp / pB - 6;
+    var xRightM = diverX + (W - dsx) * mpp / pB + 6;
+    var seabedD = 64;
+    var syBed = dsy + (seabedD - depth) / mpp;
+    if (syBed > -20 && syBed < H + 60) {
+        cx.globalAlpha = 0.16;
+        cx.fillStyle = '#0d1418';
+        for (var k = Math.floor(xLeftM / 6); k <= Math.ceil(xRightM / 6); k++) {
+            var wxB = k * 6;
+            if (sRand(wxB + 71) > 0.55) continue;
+            var sxB = dsx + (wxB - diverX) / mpp * pB;
+            var wid = 10 + sRand(wxB + 3) * 26;
+            var hgt = 2.4 + sRand(wxB + 5) * 3.6;
+            var jy = (sRand(wxB + 7) - 0.5) * 3;
+            if (sxB < -60 || sxB > W + 60) continue;
+            cx.beginPath();
+            cx.ellipse(sxB, syBed + jy, wid, hgt, 0, 0, Math.PI * 2);
+            cx.fill();
+        }
+        cx.globalAlpha = 1;
+    }
+    cx.restore();
+}
+
+// Cave: distant speleothem/column silhouettes inside the deep
+// cathedral chamber, and darker "passage-mouth" negative-space
+// shapes near the shaft edges to reinforce room scale.
+function drawCaveParallaxLayers(cx, W, H, dsx, dsy, mpp) {
+    // Only paint when the diver is anywhere near the cathedral —
+    // outside that vertical band, the tunnels are too tight for
+    // depth layering to make sense.
+    var CATHEDRAL_D_MIN = 42;
+    var CATHEDRAL_D_MAX = 106;
+    if (depth < CATHEDRAL_D_MIN || depth > CATHEDRAL_D_MAX) return;
+    cx.save();
+
+    // ── Layer A: distant speleothem columns (parallax 0.50). ──
+    // Large, simple tapered rock silhouettes anchored at fixed world
+    // positions inside the cathedral (x=60..134, per sites.js zone
+    // bounds). Deterministic — same layout every dive.
+    var pA = PARALLAX_FACTORS.cave.cathedralColumn;
+    var scaleA = 1 / mpp * pA;
+    // Hand-picked column anchors inside the cathedral zone (world
+    // metres). Two columns are enough for the required "1-2 distant
+    // silhouettes" — more would clutter the space.
+    var columns = [
+        { wx:  78, topD: 52, botD: 100, w: 12 },
+        { wx: 118, topD: 55, botD: 100, w: 14 }
+    ];
+    cx.globalAlpha = 0.13;
+    for (var ci = 0; ci < columns.length; ci++) {
+        var c = columns[ci];
+        var csx = dsx + (c.wx - diverX) * scaleA;
+        if (csx < -60 || csx > W + 60) continue;
+        var cyTop = dsy + (c.topD - depth) / mpp;
+        var cyBot = dsy + (c.botD - depth) / mpp;
+        if (cyBot < -40 || cyTop > H + 40) continue;
+        var g = cx.createLinearGradient(csx, cyTop, csx, cyBot);
+        g.addColorStop(0, 'rgba(30,26,20,0.85)');
+        g.addColorStop(0.5, 'rgba(46,42,36,0.55)');
+        g.addColorStop(1, 'rgba(20,18,14,0.85)');
+        cx.fillStyle = g;
+        cx.beginPath();
+        cx.moveTo(csx - c.w * 0.35, cyTop);
+        cx.quadraticCurveTo(csx - c.w * 0.9, (cyTop + cyBot) * 0.5,
+                            csx - c.w * 0.55, cyBot);
+        cx.lineTo(csx + c.w * 0.55, cyBot);
+        cx.quadraticCurveTo(csx + c.w * 0.9, (cyTop + cyBot) * 0.5,
+                            csx + c.w * 0.35, cyTop);
+        cx.closePath();
+        cx.fill();
+    }
+    cx.globalAlpha = 1;
+
+    // ── Layer B: passage-mouth cues (parallax 0.40). ──
+    // Two darker vertical negative-space blobs near the edges of the
+    // cathedral, one on each side, to hint at continuing passages
+    // and reinforce the room scale. Purely graphical — never affects
+    // collision or the guideline.
+    var pB = PARALLAX_FACTORS.cave.passageMouth;
+    var scaleB = 1 / mpp * pB;
+    var mouths = [
+        { wx:  62, cxd: 90, w: 26, h: 28 },  // low-left mouth
+        { wx: 132, cxd: 88, w: 24, h: 26 }   // low-right mouth
+    ];
+    for (var mi = 0; mi < mouths.length; mi++) {
+        var m = mouths[mi];
+        var msx = dsx + (m.wx - diverX) * scaleB;
+        if (msx < -80 || msx > W + 80) continue;
+        var msy = dsy + (m.cxd - depth) / mpp;
+        if (msy < -40 || msy > H + 40) continue;
+        var wpx = m.w / mpp * 0.35;
+        var hpx = m.h / mpp * 0.35;
+        var rg = cx.createRadialGradient(msx, msy, 4, msx, msy, Math.max(wpx, hpx));
+        rg.addColorStop(0, 'rgba(0,0,0,0.42)');
+        rg.addColorStop(0.6, 'rgba(0,0,0,0.18)');
+        rg.addColorStop(1, 'rgba(0,0,0,0)');
+        cx.fillStyle = rg;
+        cx.beginPath();
+        cx.ellipse(msx, msy, wpx, hpx, 0, 0, Math.PI * 2);
+        cx.fill();
     }
     cx.restore();
 }
@@ -1239,7 +3640,7 @@ function drawSiteDetailPass() {
 
 function drawTerrainEdgeAccents(s) {
     var W = cssWidth, H = cssHeight;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     var xLeftM = diverX + (0 - dsx) * mpp - 2;
     var xRightM = diverX + (W - dsx) * mpp + 2;
     var cx = ctx;
@@ -1296,7 +3697,7 @@ function drawTerrainEdgeAccents(s) {
 
 function drawShoreSandDetails() {
     var W = cssWidth, H = cssHeight;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     var xLeftM = diverX + (0 - dsx) * mpp - 2;
     var xRightM = diverX + (W - dsx) * mpp + 2;
     var cx = ctx;
@@ -1362,7 +3763,7 @@ function drawShoreAnchoredGrass(cx, xLeftM, xRightM, dsx, dsy, mpp, H) {
 
 function drawReefTextureDetails() {
     var W = cssWidth, H = cssHeight;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     var xLeftM = diverX + (0 - dsx) * mpp - 2;
     var xRightM = diverX + (W - dsx) * mpp + 2;
     var cx = ctx;
@@ -1408,7 +3809,7 @@ function drawWreckExteriorDetails() {
     var s = activeSite();
     if (!s || s.id !== 'wreck') return;
     var W = cssWidth, H = cssHeight, cx = ctx;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     var exteriorFade = Math.max(0.18, 1 - _wreckMetal * 0.78);
 
     cx.save();
@@ -1608,7 +4009,7 @@ function drawWreckShipCues(cx, dsx, dsy, mpp, W, H, alpha) {
 
 function drawCaveMineralDetails() {
     var W = cssWidth, H = cssHeight;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     var xLeftM = diverX + (0 - dsx) * mpp - 2;
     var xRightM = diverX + (W - dsx) * mpp + 2;
     var cx = ctx;
@@ -1630,26 +4031,336 @@ function drawCaveMineralDetails() {
                             sx + (sRand(wx + 5) - 0.5) * 8, sy + h);
         cx.stroke();
     }
-    var s = activeSite();
-    if (s && s.badAir && s.badAir.length) {
-        cx.save();
-        cx.globalCompositeOperation = 'lighter';
-        for (var i = 0; i < s.badAir.length; i++) {
-            var pocket = s.badAir[i];
-            var x1 = dsx + (pocket.x1 - diverX) / mpp;
-            var x2 = dsx + (pocket.x2 - diverX) / mpp;
-            var y = dsy + (pocket.d - depth) / mpp;
-            if (x2 < -30 || x1 > W + 30 || y < -40 || y > H + 40) continue;
-            cx.strokeStyle = 'rgba(210,185,110,0.22)';
-            cx.lineWidth = 1.4;
-            cx.beginPath();
-            for (sx = x1; sx <= x2; sx += 6) {
-                sy = y + Math.sin((sx + waveTime * 36) * 0.08) * 2.2;
-                if (sx === x1) cx.moveTo(sx, sy); else cx.lineTo(sx, sy);
-            }
-            cx.stroke();
+    // Bad-air lens — moved to _drawCaveBadAirLens (issue #32). Reads
+    // position from activeSite().badAir. See below for the full formation.
+    _drawCaveBadAirLens(cx, activeSite(), dsx, dsy, mpp, W, H);
+    cx.restore();
+}
+
+// ── Issue #32: cave visual polish ─────────────────────────────────
+// All four pieces (bad-air lens, exit light staging, silt cloud,
+// speleothem columns/flowstone) share these guardrails:
+//   • NEVER change gameplay geometry — collisions and warning triggers
+//     stay on the physics side. These are read-only from `activeSite()`
+//     / `visibility` / `torchOn`.
+//   • Position data is read from source-of-truth structures:
+//       - bad-air lens ← activeSite().badAir[]  (no hardcoded coords)
+//       - exit shaft   ← activeSite().visualZones (cave_exit) + ceilingAt()
+//     So if sites.js ever moves them, the visuals track.
+//   • Deterministic — every stochastic value is `sRand(worldSeed)`;
+//     never `Math.random()` per frame.
+
+// Speleothem-column merge tolerance: when a stalactite tip and a
+// stalagmite tip end up within COLUMN_MERGE_TOL_M metres of each other
+// at the same world-x, they read as one continuous column instead of
+// two independent drips. Purely visual; the underlying pair still
+// carries no collision.
+const COLUMN_MERGE_TOL_M = 0.6;
+// Flowstone: spawn probability per candidate wall segment. Kept low so
+// only a handful of standout drapes appear, not a uniform texture.
+const FLOWSTONE_PROBABILITY = 0.18;
+// Wall gradient (rise in floor or ceiling depth over a small horizontal
+// step) above which the segment counts as "steep" and eligible for
+// flowstone. Metres of depth change per metre of x.
+const FLOWSTONE_STEEP_GRADIENT = 1.6;
+// Bad-air lens visual thickness — the lens hugs the ceiling underside;
+// this is how tall the air pocket is drawn (metres). Purely cosmetic.
+const BAD_AIR_LENS_THICKNESS_M = 1.1;
+// Silt cloud parameters. Sits near the floor where kicks stir sediment.
+const SILT_CLOUD_HEIGHT_M     = 1.6;   // vertical thickness of the cloud band above floor
+const SILT_CLOUD_STEP_M       = 0.5;   // world-x sample spacing for particles
+const SILT_CLOUD_MAX_ALPHA    = 0.55;  // alpha at full silt-out (visibility = 0)
+const SILT_CLOUD_MIN_VIS      = 0.02;  // early-out threshold — cloud is invisible above this
+// Exit light shaft — how many world metres from the exit opening the
+// approach brightening starts to ramp up.
+const EXIT_LIGHT_NEAR_M       = 6;
+const EXIT_LIGHT_FAR_M        = 40;
+const EXIT_LIGHT_BASE_ALPHA   = 0.10;
+const EXIT_LIGHT_TORCH_BOOST_ALPHA = 0.06;
+
+// Bad-air pocket: a silvery air lens along the ceiling underside. Reads
+// as a physical air pocket BEFORE the diver would swim into it. Position
+// is derived exactly from activeSite().badAir[] — never hardcoded here.
+function _drawCaveBadAirLens(cx, s, dsx, dsy, mpp, W, H) {
+    if (!s || !s.badAir || !s.badAir.length) return;
+    cx.save();
+    for (var i = 0; i < s.badAir.length; i++) {
+        var pocket = s.badAir[i];
+        var x1 = dsx + (pocket.x1 - diverX) / mpp;
+        var x2 = dsx + (pocket.x2 - diverX) / mpp;
+        // Sample the actual ceiling profile across the pocket so the
+        // lens hugs whatever cave ceiling sits above the pocket span.
+        // We use ceilingAt() rather than pocket.d directly — pocket.d is
+        // the depth at which the pocket _starts_, i.e. its bottom edge;
+        // the ceiling above it may be higher/lower depending on profile.
+        var topY = dsy + (pocket.d - depth) / mpp;
+        var lensBotY = topY;
+        var lensTopY = topY - BAD_AIR_LENS_THICKNESS_M / mpp;
+        if (x2 < -60 || x1 > W + 60) continue;
+        if (lensBotY < -40 && lensTopY < -40) continue;
+        if (lensTopY > H + 40 && lensBotY > H + 40) continue;
+
+        // ---- underside mirror gradient — brighter at top (rock/air
+        // interface), fading down into the water. Standard source-over
+        // so it reads as reflective surface, not additive glow.
+        var lensGrad = cx.createLinearGradient(0, lensTopY, 0, lensBotY);
+        lensGrad.addColorStop(0,    'rgba(232,240,248,0.72)');
+        lensGrad.addColorStop(0.55, 'rgba(190,210,225,0.48)');
+        lensGrad.addColorStop(1,    'rgba(50,64,80,0.18)');
+        cx.fillStyle = lensGrad;
+        cx.beginPath();
+        // Gently wavering top edge (against ceiling).
+        cx.moveTo(x1, lensTopY);
+        for (var sxT = x1; sxT <= x2; sxT += 5) {
+            var yT = lensTopY + Math.sin((sxT + waveTime * 22) * 0.06) * 0.7;
+            cx.lineTo(sxT, yT);
         }
-        cx.restore();
+        // Wavering bottom edge — this is the visible boundary line.
+        for (var sxB = x2; sxB >= x1; sxB -= 5) {
+            var yB = lensBotY + Math.sin((sxB + waveTime * 30) * 0.09) * 1.6;
+            cx.lineTo(sxB, yB);
+        }
+        cx.closePath();
+        cx.fill();
+
+        // ---- soft mirror-highlight band right along the ceiling.
+        var hlGrad = cx.createLinearGradient(0, lensTopY, 0, lensTopY + 6);
+        hlGrad.addColorStop(0, 'rgba(248,252,255,0.85)');
+        hlGrad.addColorStop(1, 'rgba(248,252,255,0)');
+        cx.fillStyle = hlGrad;
+        cx.fillRect(Math.max(-40, x1 - 2), lensTopY - 1, Math.min(W + 40, x2) - x1 + 4, 7);
+
+        // ---- gently wavering boundary line at the water/air interface.
+        cx.strokeStyle = 'rgba(240,246,252,0.85)';
+        cx.lineWidth = 1.6;
+        cx.beginPath();
+        for (var sxL = x1; sxL <= x2; sxL += 4) {
+            var yL = lensBotY + Math.sin((sxL + waveTime * 30) * 0.09) * 1.6;
+            if (sxL === x1) cx.moveTo(sxL, yL); else cx.lineTo(sxL, yL);
+        }
+        cx.stroke();
+
+        // ---- faint darker underline just below the interface — makes
+        // the lens read as sitting ABOVE the water, not floating in it.
+        cx.strokeStyle = 'rgba(15,20,26,0.50)';
+        cx.lineWidth = 1.0;
+        cx.beginPath();
+        for (var sxU = x1; sxU <= x2; sxU += 4) {
+            var yU = lensBotY + 2 + Math.sin((sxU + waveTime * 30) * 0.09) * 1.6;
+            if (sxU === x1) cx.moveTo(sxU, yU); else cx.lineTo(sxU, yU);
+        }
+        cx.stroke();
+    }
+    cx.restore();
+}
+
+// Silt turbidity cloud. Deterministic (seeded by world-x) — no per-frame
+// Math.random(). Intensity is driven by the EXISTING `visibility` state
+// (1 = clear, 0 = full silt-out) so we don't invent a second reservoir.
+// Slightly brighter where the torch cone hits, using #33's
+// sampleTorchLightAtWorldPoint(). Runs BEFORE the torch/silt pass so it
+// composites naturally into the scene alongside plankton.
+function drawCaveSiltCloud() {
+    if (gameState !== 'diving') return;
+    var s = activeSite();
+    if (!s || s.id !== 'cave') return;
+    if (!(visibility < 1 - SILT_CLOUD_MIN_VIS)) return;   // essentially clear → cheap early-out
+    var W = cssWidth, H = cssHeight;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
+    var xLeftM = diverX + (0 - dsx) * mpp - 2;
+    var xRightM = diverX + (W - dsx) * mpp + 2;
+    var cx = ctx;
+    cx.save();
+    var siltT = 1 - visibility;                          // 0 clear → 1 full silt-out
+    if (siltT < 0) siltT = 0;
+    if (siltT > 1) siltT = 1;
+    var globalAlpha = SILT_CLOUD_MAX_ALPHA * siltT;
+    for (var kx = Math.floor(xLeftM / SILT_CLOUD_STEP_M); kx <= Math.ceil(xRightM / SILT_CLOUD_STEP_M); kx++) {
+        var wx = kx * SILT_CLOUD_STEP_M;
+        var seed = wx * 13.31 + 4.7;
+        // Roll a per-cell "particle exists" flag, biased by silt intensity so
+        // heavier silt-outs paint noticeably denser cloud (not just brighter).
+        if (sRand(seed + 1.1) > 0.4 + 0.5 * siltT) continue;
+        var fd = floorAt(wx);
+        if (!(fd > 1)) continue;
+        // Distribute particles vertically in the near-floor band.
+        var vFrac = sRand(seed + 2.3);                    // 0..1 → floor band
+        var wd = fd - vFrac * SILT_CLOUD_HEIGHT_M;
+        if (wd < depth - 12) continue;                    // don't draw far above the diver's viewport
+        // Very slow world-anchored drift so the cloud reads as suspended
+        // sediment, not a static texture. Deterministic sine of waveTime.
+        var driftX = Math.sin(waveTime * 0.35 + seed) * 0.4;
+        var driftY = Math.sin(waveTime * 0.28 + seed * 1.7) * 0.25;
+        var px = dsx + (wx + driftX - diverX) / mpp;
+        var py = dsy + (wd + driftY - depth) / mpp;
+        if (px < -20 || px > W + 20 || py < -20 || py > H + 20) continue;
+        var radius = 3 + sRand(seed + 5.1) * 6;           // 3..9 px puff
+        // Brownish-gray body, low base alpha, brightened where torch reaches.
+        var torchLight = sampleTorchLightAtWorldPoint(wx, wd);
+        var baseA = globalAlpha * (0.4 + 0.6 * sRand(seed + 7.9));
+        var litA = Math.min(0.85, baseA * (1 + torchLight * 1.6));
+        var g = cx.createRadialGradient(px, py, 0, px, py, radius);
+        // Warm brown → cool gray core so different puffs feel like
+        // different silt densities without a per-frame color roll.
+        var warmR = 130 + Math.floor(sRand(seed + 9.1) * 20);
+        var warmG = 118 + Math.floor(sRand(seed + 9.3) * 16);
+        var warmB = 100 + Math.floor(sRand(seed + 9.5) * 14);
+        g.addColorStop(0,   'rgba(' + warmR + ',' + warmG + ',' + warmB + ',' + litA.toFixed(3) + ')');
+        g.addColorStop(0.6, 'rgba(' + warmR + ',' + warmG + ',' + warmB + ',' + (litA * 0.35).toFixed(3) + ')');
+        g.addColorStop(1,   'rgba(' + warmR + ',' + warmG + ',' + warmB + ',0)');
+        cx.fillStyle = g;
+        cx.beginPath();
+        cx.arc(px, py, radius, 0, Math.PI * 2);
+        cx.fill();
+    }
+    cx.restore();
+}
+
+// Rear-exit light staging. Wedge/gradient light-shaft math, origin-anchored
+// to the cave_exit visualZone opening (where the ceiling meets the surface
+// at ~x=200), NOT to the global surfaceScreenY — the
+// diver is inside overhead so the general near-surface pass has
+// early-returned. Alpha ramps with the diver's approach distance so the
+// exit reads as an inviting light target from deep inside the tunnel.
+function drawCaveExitLightShaft() {
+    if (gameState !== 'diving') return;
+    var s = activeSite();
+    if (!s || s.id !== 'cave') return;
+    if (!s.visualZones) return;
+    var exitZone = null;
+    for (var i = 0; i < s.visualZones.length; i++) {
+        if (s.visualZones[i].id === 'cave_exit') { exitZone = s.visualZones[i]; break; }
+    }
+    if (!exitZone) return;
+    var W = cssWidth, H = cssHeight;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
+    // Approach factor: 1 when diver is right at/inside the exit opening,
+    // fading to a base intensity at EXIT_LIGHT_FAR_M metres away.
+    var approachDx;
+    if (diverX < exitZone.x1) approachDx = exitZone.x1 - diverX;
+    else if (diverX > exitZone.x2) approachDx = diverX - exitZone.x2;
+    else approachDx = 0;
+    var approach;
+    if (approachDx <= EXIT_LIGHT_NEAR_M) approach = 1;
+    else if (approachDx >= EXIT_LIGHT_FAR_M) approach = 0.25;
+    else {
+        var tA = (EXIT_LIGHT_FAR_M - approachDx) / (EXIT_LIGHT_FAR_M - EXIT_LIGHT_NEAR_M);
+        approach = 0.25 + 0.75 * tA * tA * (3 - 2 * tA);
+    }
+    // Wedges anchored on a 6 m world grid inside the exit opening. Only
+    // where the ceiling has actually risen (cd small) so the wedge origin
+    // is a real opening, not a spot still enclosed by rock.
+    var cx = ctx;
+    cx.save();
+    cx.globalCompositeOperation = 'lighter';
+    var spacing = 6;
+    var xStart = Math.floor(exitZone.x1 / spacing) * spacing;
+    var xEnd = Math.ceil(exitZone.x2 / spacing) * spacing;
+    var anyDrawn = false;
+    for (var wx = xStart; wx <= xEnd; wx += spacing) {
+        if (wx < exitZone.x1 - 2 || wx > exitZone.x2 + 2) continue;
+        var cd = ceilingAt(wx);
+        // Only draw where the ceiling is essentially open (near-surface).
+        // The exit ceiling rises from d≈16 at x1 to d=0 at x2 — we want
+        // the shaft only where light could plausibly enter.
+        if (cd > 8) continue;
+        var seed = wx * 0.171 + 3.7;
+        var jitter = (sRand(seed) - 0.5) * 4;
+        var rayWorldX = wx + jitter + Math.sin(waveTime * 0.25 + seed) * 1;
+        var topScreenX = dsx + (rayWorldX - diverX) / mpp;
+        if (topScreenX < -80 || topScreenX > W + 80) continue;
+        // Wedge origin sits at the ceiling profile above the exit.
+        var beamTopY = dsy + (cd - depth) / mpp - 6;
+        // Descends into the cave interior. Cap at 22 m below the origin
+        // so the shaft fades before it would clip through the far floor.
+        var beamBotY = beamTopY + 22 / mpp;
+        beamTopY = Math.max(-40, beamTopY);
+        beamBotY = Math.min(H + 20, beamBotY);
+        if (beamBotY <= beamTopY + 20) continue;
+        var angle = (sRand(seed + 1.1) - 0.5) * 0.35;
+        var topHalf = 10 + sRand(seed + 2.3) * 6;
+        var botHalf = 34 + sRand(seed + 3.3) * 14;
+        var xTopL = topScreenX - topHalf;
+        var xTopR = topScreenX + topHalf;
+        var xBotL = topScreenX - botHalf + angle * 30;
+        var xBotR = topScreenX + botHalf + angle * 30;
+        // Small extra brightening when the torch is on and pointed near
+        // this shaft — not "torch creates the light", but "torch reveals
+        // the medium/scatter within it".
+        var torchAt = sampleTorchLightAtWorldPoint(rayWorldX, cd + 2);
+        var aTop = (EXIT_LIGHT_BASE_ALPHA + EXIT_LIGHT_TORCH_BOOST_ALPHA * torchAt) * approach;
+        var g = cx.createLinearGradient(0, beamTopY, 0, beamBotY);
+        // Match drawPond's warm sunbeam palette so the exit reads as
+        // the same open-water light source as the entrance pond.
+        g.addColorStop(0,    'rgba(255,245,216,' + aTop.toFixed(3) + ')');
+        g.addColorStop(0.55, 'rgba(200,230,220,' + (aTop * 0.45).toFixed(3) + ')');
+        g.addColorStop(1,    'rgba(160,200,205,0)');
+        cx.fillStyle = g;
+        cx.beginPath();
+        cx.moveTo(xTopL, beamTopY);
+        cx.lineTo(xTopR, beamTopY);
+        cx.lineTo(xBotR, beamBotY);
+        cx.lineTo(xBotL, beamBotY);
+        cx.closePath();
+        cx.fill();
+        anyDrawn = true;
+    }
+    // A small overall glow blob at the brightest opening spot (right end
+    // of the exit, where ceilingAt is smallest) so the reader can pick
+    // the exit out even from far away when individual wedges are dim.
+    if (anyDrawn) {
+        var brightX = exitZone.x2 - 4;
+        var brightCd = ceilingAt(brightX);
+        var glowY = dsy + (brightCd - depth) / mpp;
+        var glowSX = dsx + (brightX - diverX) / mpp;
+        if (glowSX > -100 && glowSX < W + 100 && glowY > -40 && glowY < H + 40) {
+            var glowA = 0.14 * approach;
+            var glowGrad = cx.createRadialGradient(glowSX, glowY, 0, glowSX, glowY, 70);
+            glowGrad.addColorStop(0,   'rgba(255,245,216,' + glowA.toFixed(3) + ')');
+            glowGrad.addColorStop(0.4, 'rgba(220,235,220,' + (glowA * 0.5).toFixed(3) + ')');
+            glowGrad.addColorStop(1,   'rgba(160,200,205,0)');
+            cx.fillStyle = glowGrad;
+            cx.beginPath();
+            cx.arc(glowSX, glowY, 70, 0, Math.PI * 2);
+            cx.fill();
+        }
+    }
+    cx.restore();
+}
+
+// Flowstone: wide, layered calcite curtain on a steep wall section. Runs
+// beside stalactite/stalagmite generation, sharing its deterministic
+// seed-by-world-x pattern.
+function _drawFlowstoneDrape(cx, x, y, wPx, hPx, seed) {
+    cx.save();
+    var g = cx.createLinearGradient(x, y, x, y + hPx);
+    g.addColorStop(0,    CAVE_PAL.calciteLite);
+    g.addColorStop(0.35, CAVE_PAL.calciteMid);
+    g.addColorStop(1,    CAVE_PAL.calciteDark);
+    cx.fillStyle = g;
+    cx.beginPath();
+    cx.moveTo(x - wPx * 0.5, y);
+    // Layered scalloped bottom edge — 4-6 lobes.
+    var lobes = 4 + Math.floor(sRand(seed + 1.3) * 3);
+    var lobeStep = wPx / lobes;
+    for (var li = 0; li <= lobes; li++) {
+        var lx = x - wPx * 0.5 + li * lobeStep;
+        var lyOff = (li % 2 === 0 ? 0.85 : 1.0);
+        cx.lineTo(lx, y + hPx * lyOff);
+    }
+    cx.lineTo(x + wPx * 0.5, y);
+    cx.closePath();
+    cx.fill();
+    // Two or three horizontal deposition bands — pale ribbons.
+    var bands = 2 + Math.floor(sRand(seed + 2.7) * 2);
+    cx.strokeStyle = 'rgba(232,220,192,0.35)';
+    cx.lineWidth = 1;
+    for (var bi = 1; bi <= bands; bi++) {
+        var by = y + hPx * (bi / (bands + 1));
+        cx.beginPath();
+        cx.moveTo(x - wPx * 0.45, by);
+        cx.quadraticCurveTo(x, by + 1.2, x + wPx * 0.45, by);
+        cx.stroke();
     }
     cx.restore();
 }
@@ -1658,7 +4369,7 @@ function drawForegroundLayer() {
     var s = activeSite();
     if (!s) return;
     var W = cssWidth, H = cssHeight;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     var cx = ctx;
     cx.save();
     if (s.id === 'shore') {
@@ -1780,6 +4491,11 @@ function drawWreckBackdrop(cx, W, H, dsx, dsy, mpp) {
     cx.fillStyle = g;
     cx.fillRect(0, 0, W, H);
 
+    // Issue #41: steel plate texture over the whole backdrop, world-anchored.
+    // The caller (drawWreckSteelBack / drawWreckHullSkin) has already clipped
+    // to the ship silhouette, so this lands only inside the hull outline.
+    if (_matTiles) fillWithMaterialPattern(cx, _matTiles.steel, diverX, depth, false);
+
     // ── Depth-layered hull livery ──────────────────────────────────────────
     // The wreck's hull reads as distinct bands split at the old waterline /
     // main-deck line ("bowline", ≈28 m): cooler bare topside steel ABOVE it,
@@ -1877,10 +4593,31 @@ function drawWreckBackdrop(cx, W, H, dsx, dsy, mpp) {
     }
 }
 
-// Ship silhouette = union of the regions that ENCLOSE interior decks. Funnel
-// and mast are left out so their detailed sprites stay visible from outside.
-// Rects are kept NON-overlapping (they only touch edge-to-edge) so an even-odd
-// hole can be punched cleanly. Each entry: [x1, x2, dTop, dBottom] world units.
+// ── Issue #33: Ferry-like ship silhouette ──────────────────────────
+// The wreck silhouette is a clip mask used by drawWreckSteelBack (paints
+// steel behind the interior so gaps read as metal, not open ocean) and
+// drawWreckHullSkin (paints an opaque steel skin OVER the interior that
+// only opens up a diver-centred line-of-sight bubble). It is PURELY
+// COSMETIC — it never affects collision (src/sites.js `structures`), deck
+// heights, penetration openings, `solidAt()` / `overheadAt()`, or entry
+// markers. See TC-33-COLLISION-UNCHANGED for the regression net.
+//
+// Old shape was a union of three axis-aligned rectangles [hull body,
+// accommodation block, bridge]. Reads as a stack of boxes. Reshaped
+// into a single closed polygon that traces a Ro-Ro ferry outline:
+//   • raked-forward bow stem (angled forefoot, not a flat vertical edge)
+//   • subtle sheer + a small stern-top shoulder (fewer 90° outer corners)
+//   • existing superstructure blocks (accommodation, bridge) still
+//     reflected in the silhouette with their outer corners preserved.
+// The polygon is a strict SUPERSET of the old three-rectangle union
+// (every point that used to be inside the union is still inside the
+// polygon; the polygon only ADDS area outside collision-solid regions
+// — bow rake, stern shoulder). This "add-only" property is the guard
+// that keeps drawWreckHullSkin from opening an apparent gap over any
+// collision-solid point. Enforced by TC-33-SILHOUETTE-SUPERSET.
+
+// Kept for backward compat and TC-33-SILHOUETTE-SUPERSET's floor: the
+// three rectangles are still the guaranteed minimum coverage.
 function _wreckSilhouetteRects() {
     return [
         [14, 170, 28, 66],   // multi-deck hull body (main deck → keel)
@@ -1889,16 +4626,57 @@ function _wreckSilhouetteRects() {
     ];
 }
 
+// Ferry outline in world space, traced clockwise (canvas y-down). Every
+// vertex here EITHER coincides with an old-union outer corner (must
+// stay to preserve collision coverage) OR sits OUTSIDE the old union
+// in an area that had no collision solid (the bow-rake triangle and
+// the stern-top shoulder — see comment above).
+function _wreckSilhouettePolygon() {
+    return [
+        // ── Bridge / wheelhouse top (unchanged outer corners) ──
+        [70,  18], [110, 18],
+        // Down bridge right wall
+        [110, 22],
+        // ── Accommodation top-right (unchanged outer corner) ──
+        [140, 22],
+        // Down accommodation right wall
+        [140, 28],
+        // ── Hull top-right sheer (adds a small stern-top shoulder,
+        //    entirely outside the old union — no collision underneath) ──
+        [172, 28],
+        [172, 32],
+        [170, 34],
+        // Stern side down (unchanged x=170 collision preserved)
+        [170, 66],
+        // ── Keel run (unchanged) ──
+        [14,  66],
+        // ── Raked-forward bow stem: forefoot bulges forward of x=14 as
+        //    it approaches the keel, then the stem rakes back UP toward
+        //    a top-forward point at (12, 28). This entire triangle lies
+        //    left of the collision bow stem (x=14..16) — pure addition. ──
+        [10,  60],
+        [10,  34],
+        [12,  28],
+        // ── Hull top-left back to accommodation (unchanged) ──
+        [40,  28],
+        // Up accommodation left wall
+        [40,  22],
+        // Accommodation top-left (unchanged outer corner)
+        [70,  22]
+        // implicit close back to [70, 18]
+    ];
+}
+
 function _buildWreckSilhouette(cx, dsx, dsy, mpp) {
-    var R = _wreckSilhouetteRects();
+    var poly = _wreckSilhouettePolygon();
     cx.beginPath();
-    for (var i = 0; i < R.length; i++) {
-        var x1 = dsx + (R[i][0] - diverX) / mpp;
-        var x2 = dsx + (R[i][1] - diverX) / mpp;
-        var y1 = dsy + (R[i][2] - depth) / mpp;
-        var y2 = dsy + (R[i][3] - depth) / mpp;
-        cx.rect(x1, y1, x2 - x1, y2 - y1);
+    for (var i = 0; i < poly.length; i++) {
+        var sx = dsx + (poly[i][0] - diverX) / mpp;
+        var sy = dsy + (poly[i][1] - depth) / mpp;
+        if (i === 0) cx.moveTo(sx, sy);
+        else cx.lineTo(sx, sy);
     }
+    cx.closePath();
 }
 
 // Steel hull painted BEHIND the interior objects so gaps read as metal, not
@@ -1907,12 +4685,34 @@ function drawWreckSteelBack() {
     var s = activeSite();
     if (!s || s.id !== 'wreck') return;
     var W = cssWidth, H = cssHeight, cx = ctx;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     cx.save();
     _buildWreckSilhouette(cx, dsx, dsy, mpp);
     cx.clip();
     drawWreckBackdrop(cx, W, H, dsx, dsy, mpp);
     cx.restore();
+}
+
+// Cached offscreen buffers for restoring the wreck interior (cars/props,
+// already drawn by drawFeatures()/drawStructures() earlier this frame)
+// through the hull skin's line-of-sight hole. The skin's opaque steel fill
+// below is a plain source-over paint, which permanently overwrites whatever
+// was drawn under it — canvas has no layers, so a later destination-out
+// "punch" only reveals transparent pixels, not the props that used to be
+// there. Snapshotting the pre-steel scene and compositing it back through
+// the same hole mask (mirrors the drawDepthColorAbsorption() restore
+// pattern above) fixes that without changing the hole's shape/softness.
+var _wreckHoleRestoreCanvas = null, _wreckHoleRestoreCtx = null;
+var _wreckHoleMaskCanvas = null, _wreckHoleMaskCtx = null;
+
+function _ensureWreckHoleBuffers(W, H) {
+    if (_wreckHoleRestoreCanvas && _wreckHoleRestoreCanvas.width === W && _wreckHoleRestoreCanvas.height === H) return;
+    _wreckHoleRestoreCanvas = document.createElement('canvas');
+    _wreckHoleRestoreCanvas.width = W; _wreckHoleRestoreCanvas.height = H;
+    _wreckHoleRestoreCtx = _wreckHoleRestoreCanvas.getContext('2d');
+    _wreckHoleMaskCanvas = document.createElement('canvas');
+    _wreckHoleMaskCanvas.width = W; _wreckHoleMaskCanvas.height = H;
+    _wreckHoleMaskCtx = _wreckHoleMaskCanvas.getContext('2d');
 }
 
 // Opaque steel hull skin painted OVER the interior (so you cannot see inside
@@ -1922,36 +4722,135 @@ function drawWreckSteelBack() {
 // grows in as the diver enters (eased via _wreckMetal) and is bigger with the
 // torch on.
 function drawWreckHullSkin() {
+    // No-op outside the live dive scene — see drawSiltAndTorch note above.
+    if (gameState !== 'diving') return;
     var s = activeSite();
     if (!s || s.id !== 'wreck') return;
     var W = cssWidth, H = cssHeight, cx = ctx;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     var rad = (torchOn ? 165 : 100) * Math.max(0.55, visibility) * _wreckMetal;
+    var haveTorchLight = !!torchOn && rad > 1;
+    // With torch OFF the plain circular bubble is the only line of sight.
+    // With torch ON the near-field shrinks to a weak spill AND the cone
+    // reach is stretched well past the plain-circle radius, so the beam's
+    // directionality is unmistakable inside the murky steel interior.
+    // Preserves torch-off behaviour exactly.
+    var nearR = haveTorchLight ? rad * TORCH_NEAR_FIELD_FRACTION : rad;
+    var coneR = haveTorchLight ? rad * 1.75 : 0;
+    // Issue #45 (test-harness robustness): guard the restore-snapshot path's
+    // drawImage(cx.canvas, ...) the same way drawDepthColorAbsorption() does
+    // — a zero-sized physical canvas buffer (test iframe with display:none)
+    // throws there instead of silently no-oping.
+    var canRestoreHole = rad > 1 && W > 0 && H > 0;
+    var beamAngle = torchBeamAngle(_diverFacing);
+    var halfA = TORCH_BEAM_HALF_ANGLE_RAD;
 
-    // Skin pass: fill the silhouette MINUS the line-of-sight hole with steel.
+    // Skin pass: fill the silhouette with steel, then destination-out
+    // punch the near-field circle and (if torch on) the directional cone
+    // wedge. destination-out avoids the fill-rule overlap trap that a
+    // single evenodd path would hit where circle and wedge intersect.
+    if (canRestoreHole) {
+        // Snapshot the scene exactly as it looks BEFORE the opaque steel
+        // fill erases it, then build the identical hole mask (near-field
+        // circle + directional cone) so it can be punched down and
+        // composited back into the hole once the steel is painted.
+        _ensureWreckHoleBuffers(W, H);
+        _wreckHoleRestoreCtx.clearRect(0, 0, W, H);
+        _wreckHoleRestoreCtx.drawImage(cx.canvas, 0, 0, W, H);
+        _wreckHoleMaskCtx.clearRect(0, 0, W, H);
+        var maskSpill = _wreckHoleMaskCtx.createRadialGradient(dsx, dsy, 0, dsx, dsy, nearR);
+        maskSpill.addColorStop(0,   'rgba(0,0,0,1)');
+        maskSpill.addColorStop(0.7, 'rgba(0,0,0,0.88)');
+        maskSpill.addColorStop(1,   'rgba(0,0,0,0)');
+        _wreckHoleMaskCtx.fillStyle = maskSpill;
+        _wreckHoleMaskCtx.fillRect(0, 0, W, H);
+        if (haveTorchLight) {
+            _wreckHoleMaskCtx.save();
+            _wreckHoleMaskCtx.beginPath();
+            _wreckHoleMaskCtx.moveTo(dsx, dsy);
+            _wreckHoleMaskCtx.arc(dsx, dsy, coneR * 1.05, beamAngle - halfA, beamAngle + halfA);
+            _wreckHoleMaskCtx.closePath();
+            _wreckHoleMaskCtx.clip();
+            var maskBeam = _wreckHoleMaskCtx.createRadialGradient(dsx, dsy, 0, dsx, dsy, coneR);
+            maskBeam.addColorStop(0,    'rgba(0,0,0,1)');
+            maskBeam.addColorStop(0.55, 'rgba(0,0,0,0.95)');
+            maskBeam.addColorStop(0.85, 'rgba(0,0,0,0.65)');
+            maskBeam.addColorStop(1,    'rgba(0,0,0,0)');
+            _wreckHoleMaskCtx.fillStyle = maskBeam;
+            _wreckHoleMaskCtx.fillRect(0, 0, W, H);
+            _wreckHoleMaskCtx.restore();
+        }
+        _wreckHoleRestoreCtx.globalCompositeOperation = 'destination-in';
+        _wreckHoleRestoreCtx.drawImage(_wreckHoleMaskCanvas, 0, 0);
+        _wreckHoleRestoreCtx.globalCompositeOperation = 'source-over';
+    }
+
     cx.save();
     _buildWreckSilhouette(cx, dsx, dsy, mpp);
     cx.clip();                                   // restrict to the ship
+    drawWreckBackdrop(cx, W, H, dsx, dsy, mpp);  // paint steel
     if (rad > 1) {
-        cx.beginPath();
-        cx.rect(0, 0, W, H);
-        cx.arc(dsx, dsy, rad, 0, Math.PI * 2);   // screen minus the hole…
-        cx.clip('evenodd');                      // …intersected with the hull
+        cx.globalCompositeOperation = 'destination-out';
+        // Near-field spill — always present when the diver is inside.
+        var spill = cx.createRadialGradient(dsx, dsy, 0, dsx, dsy, nearR);
+        spill.addColorStop(0,   'rgba(0,0,0,1)');
+        spill.addColorStop(0.7, 'rgba(0,0,0,0.88)');
+        spill.addColorStop(1,   'rgba(0,0,0,0)');
+        cx.fillStyle = spill;
+        cx.fillRect(0, 0, W, H);
+        // Directional cone — only when torch is on.
+        if (haveTorchLight) {
+            cx.save();
+            cx.beginPath();
+            cx.moveTo(dsx, dsy);
+            cx.arc(dsx, dsy, coneR * 1.05, beamAngle - halfA, beamAngle + halfA);
+            cx.closePath();
+            cx.clip();
+            var beam = cx.createRadialGradient(dsx, dsy, 0, dsx, dsy, coneR);
+            // Strong alpha kept high across most of the cone so the beam
+            // reads unmistakably against the steel-on-steel interior
+            // (where a soft gradient would fade into the surrounding
+            // hull tone and read as a slightly-offset circle).
+            beam.addColorStop(0,    'rgba(0,0,0,1)');
+            beam.addColorStop(0.55, 'rgba(0,0,0,0.95)');
+            beam.addColorStop(0.85, 'rgba(0,0,0,0.65)');
+            beam.addColorStop(1,    'rgba(0,0,0,0)');
+            cx.fillStyle = beam;
+            cx.fillRect(0, 0, W, H);
+            cx.restore();
+        }
+        cx.globalCompositeOperation = 'source-over';
     }
-    drawWreckBackdrop(cx, W, H, dsx, dsy, mpp);
     cx.restore();
 
-    // Feather the rim so the hole blends into the steel instead of a hard disc.
+    // Composite the pre-steel snapshot back into the punched hole so the
+    // diver sees the real interior (cars/props/terrain) there instead of
+    // the blank page background the destination-out punch would otherwise
+    // reveal.
+    if (canRestoreHole) {
+        cx.drawImage(_wreckHoleRestoreCanvas, 0, 0);
+    }
+
+    // Feather the rim of the near-field circle so the always-visible spill
+    // blends into steel instead of a hard disc. The cone's radial-gradient
+    // falloff already softens its own edges, so no separate feather there.
     if (rad > 1) {
         cx.save();
         _buildWreckSilhouette(cx, dsx, dsy, mpp);
         cx.clip();
-        var ring = cx.createRadialGradient(dsx, dsy, rad * 0.72, dsx, dsy, rad * 1.16);
+        var ring = cx.createRadialGradient(dsx, dsy, nearR * 0.72, dsx, dsy, nearR * 1.16);
         ring.addColorStop(0, 'rgba(28,33,38,0)');
         ring.addColorStop(1, 'rgba(28,33,38,' + (0.9 * _wreckMetal).toFixed(3) + ')');
         cx.fillStyle = ring;
         cx.fillRect(0, 0, W, H);
         cx.restore();
+    }
+
+    // Volumetric glow + backscatter for the wreck interior — currently
+    // missing (drawSiltAndTorch early-returns for wreck). Runs only when
+    // the torch actually illuminates the cone.
+    if (haveTorchLight) {
+        drawTorchGlowAndSparkles(cx, W, H, dsx, dsy, coneR, beamAngle, halfA);
     }
 }
 
@@ -1966,7 +4865,7 @@ function drawWreckEntryMarkers() {
     var vis = 1 - _wreckMetal;
     if (vis < 0.05) return;
     var W = cssWidth, H = cssHeight, cx = ctx;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     var deckD = 27.5;                       // main-deck line (top of the openings)
     var entries = [
         { x1: 16,  x2: 22,  label: 'BOW' },
@@ -2031,6 +4930,17 @@ var ROCK_PALETTES = {
     shore:     ['#6a6256', '#494238', '#221e18'],
     'default': ['#5b4d40', '#3d3228', '#1e1a16']
 };
+// Issue #101 — bound the rounded-boulder dome sink so the visual silhouette
+// closely fills the AABB collision box at the top corners. Values are in
+// canvas pixels; at the game's mpp=0.05 (20 px/m), ROCK_DOME_MAX_PX=30 caps
+// the shoulder sag at 1.5 m below the AABB top for any rock size, keeping
+// a subtle rounded crown without leaving phantom "collide in mid-air"
+// gaps in the top corners. The two fractional caps (SH_FRAC/SW_FRAC) keep
+// small boulders proportionally rounder than large ones — a 2 m-wide rock
+// still domes gently rather than reading as a rectangle.
+var ROCK_DOME_MAX_PX  = 30;
+var ROCK_DOME_SH_FRAC = 0.15;
+var ROCK_DOME_SW_FRAC = 0.10;
 // Boulders are static vector art that only TRANSLATES as the camera pans, but
 // re-rasterising their fine detail (cracks, speckle, rim) every frame makes the
 // thin 1px features shimmer/crawl under sub-pixel motion — worst on the widest
@@ -2068,13 +4978,25 @@ function _paintRockStruct(cx, sx1, sy1, sw, sh, seed, tone) {
     // gentle bumps, so each rock reads as a water-worn round boulder. Reef
     // walls keep the old near-flat cliff profile. The dome apex stays at the
     // box top (never bulges past the collision AABB).
+    //
+    // Issue #101 — the previous dome (`min(sh*0.5, sw*0.4)` px) sank the top
+    // corners of a typical shore boulder by 4-6 m below the AABB top, which
+    // left large chunks of the collision box floating in what looked like
+    // open water. A diver approaching over the shoulder read a phantom
+    // "collide in mid-air" hit. ROCK_DOME_MAX_PX bounds the sink so the
+    // silhouette closely fills the AABB at the top-corners (max ≈ 1.5 m of
+    // shoulder sag at any rock size at 1 m/20 px) while keeping a subtle
+    // rounded crown.
     var rounded = (tone !== 'reef');
     var lobes = Math.max(rounded ? 6 : 3, Math.round(sw / (rounded ? 16 : 26)));
     var jitter = rounded ? Math.min(sw * 0.05, sh * 0.12, 7)
                          : Math.min(sh * 0.3, sw * 0.45, 20);
     if (tone === 'reef') jitter = Math.min(jitter, 5);
-    var dome = rounded ? Math.min(sh * 0.5, sw * 0.4) : 0;
-    var crown = rounded ? Math.min(dome * 0.18, 10) : Math.min(jitter * 0.7, 12);
+    var dome = rounded ? Math.min(sh * ROCK_DOME_SH_FRAC,
+                                  sw * ROCK_DOME_SW_FRAC,
+                                  ROCK_DOME_MAX_PX)
+                       : 0;
+    var crown = rounded ? Math.min(dome * 0.18, 6) : Math.min(jitter * 0.7, 12);
     var top = [];
     for (var i = 0; i <= lobes; i++) {
         var t = i / lobes;
@@ -2164,9 +5086,9 @@ function _paintRockStruct(cx, sx1, sy1, sw, sh, seed, tone) {
 //    the same depth-graded limestone gradient as the floor/ceiling so it tiles
 //    seamlessly with the surrounding walls; strata + speckle are world-anchored
 //    so they don't shimmer while the camera scrolls. ──
-function drawBedrockStruct(cx, wx1, wx2, wdTop, wdBottom) {
+function drawBedrockStruct(cx, wx1, wx2, wdTop, wdBottom, accum) {
     var W = cssWidth, H = cssHeight;
-    var dsx = W * 0.25, dsy = H * 0.45, mpp = 0.05;
+    var dsx = W * DIVER_SCREEN_X_FRACTION, dsy = H * 0.45, mpp = 0.05;
     var sy1 = dsy + (wdTop - depth) / mpp, sy2 = dsy + (wdBottom - depth) / mpp;
     var sx1 = dsx + (wx1 - diverX) / mpp, sx2 = dsx + (wx2 - diverX) / mpp;
     if (sx2 < -60 || sx1 > W + 60 || sy2 < -60 || sy1 > H + 60) return;
@@ -2207,6 +5129,10 @@ function drawBedrockStruct(cx, wx1, wx2, wdTop, wdBottom) {
     // texture clipped to the organic mass (strata + speckle, world-anchored)
     cx.save();
     cx.clip();
+    // Issue #41: limestone material texture inside the bedrock mass.
+    // Anchored to the same (diverX, depth) origin as the cave floor/ceiling
+    // so the tile is continuous across the shared seam.
+    fillWithMaterialPattern(cx, _matTiles.limestone, diverX, depth, false);
     cx.strokeStyle = 'rgba(14,10,6,0.30)'; cx.lineWidth = 1.4;
     for (var wd = Math.ceil(wdTop / 4.5) * 4.5; wd < wdBottom; wd += 4.5) {
         var yy = SY(wd);
@@ -2232,6 +5158,25 @@ function drawBedrockStruct(cx, wx1, wx2, wdTop, wdBottom) {
         }
     }
     cx.restore();
+
+    // Issue #56: sediment on the rolling top surface + material accumulation
+    // along the same edge. Both operate on topPts which is already in
+    // screen-space coordinates. Gated on accum being passed by the caller
+    // (drawStructures always passes it; any legacy caller that omits it is safe).
+    if (accum) {
+        drawSedimentCap(cx, topPts, {
+            intensity: accum.sediment,
+            thicknessM: 0.30,
+            mpp: 0.05,
+            worldSeed: wx1 * 11.7 + ACCUM_SEED.sediment
+        });
+        drawContactAccumulation(cx, topPts, {
+            intensity: accum.contactDebris,
+            mpp: 0.05,
+            worldSeed: wx1 * 13.3 + ACCUM_SEED.contact,
+            side: 'above'
+        });
+    }
 
     // lit rim along the rolling top + soft shadow along the lumpy underside
     cx.strokeStyle = 'rgba(156,154,146,0.30)'; cx.lineWidth = 1.6;
@@ -2369,11 +5314,20 @@ function drawSmallWreck(cx, sx1, sy1, sw, sh) {
 }
 
 // ── Task 8: Hull — steel gradient, rust patches, rivets, drip streaks ──
-function drawHullStruct(cx, sx1, sy1, sw, sh, seed) {
+function drawHullStruct(cx, sx1, sy1, sw, sh, seed, accum) {
     var g = cx.createLinearGradient(sx1, sy1, sx1, sy1 + sh);
     g.addColorStop(0, '#687888'); g.addColorStop(0.5, '#556677'); g.addColorStop(1, '#2e3c48');
     cx.fillStyle = g;
     cx.fillRect(sx1, sy1, sw, sh);
+    // Issue #41: steel plate texture. sx1/sy1 already track the world position
+    // via the caller in drawStructures(), so anchoring in screen space keeps
+    // the pattern glued to the structure as the camera scrolls.
+    if (_matTiles) {
+        cx.save();
+        cx.beginPath(); cx.rect(sx1, sy1, sw, sh); cx.clip();
+        fillWithMaterialPattern(cx, _matTiles.steel, sx1, sy1, true);
+        cx.restore();
+    }
     cx.fillStyle = 'rgba(140,70,20,0.18)';
     var rp = Math.max(2, Math.floor(sw / 30));
     for (var r = 0; r < rp; r++) {
@@ -2403,13 +5357,30 @@ function drawHullStruct(cx, sx1, sy1, sw, sh, seed) {
     }
     cx.strokeStyle = 'rgba(255,255,255,0.07)'; cx.lineWidth = 1;
     cx.strokeRect(sx1, sy1, sw, sh);
+    // Issue #56: vertical rust streaks on the hull plating. Exterior hull
+    // panels also get a faint biofouling tail; interior panels stay pure rust.
+    if (accum) {
+        drawVerticalStreaks(cx, { sx: sx1, sy: sy1, sw: sw, sh: sh }, {
+            intensity: accum.streaks,
+            worldSeed: seed + ACCUM_SEED.streak,
+            variant: 'rust',
+            exterior: !!accum.exterior
+        });
+    }
 }
 
 // ── Task 8: Deck — plank lines across top face ──────────────────
-function drawDeckStruct(cx, sx1, sy1, sw, sh, seed) {
+function drawDeckStruct(cx, sx1, sy1, sw, sh, seed, accum) {
     var g = cx.createLinearGradient(sx1, sy1, sx1, sy1 + sh);
     g.addColorStop(0, '#506070'); g.addColorStop(1, '#2a3845');
     cx.fillStyle = g; cx.fillRect(sx1, sy1, sw, sh);
+    // Issue #41: steel plate texture (anchored in screen px — see drawHullStruct).
+    if (_matTiles) {
+        cx.save();
+        cx.beginPath(); cx.rect(sx1, sy1, sw, sh); cx.clip();
+        fillWithMaterialPattern(cx, _matTiles.steel, sx1, sy1, true);
+        cx.restore();
+    }
     cx.strokeStyle = 'rgba(0,0,0,0.3)'; cx.lineWidth = 1;
     var ps = Math.max(6, Math.floor(sh / 4));
     for (var py = sy1 + ps; py < sy1 + sh; py += ps) {
@@ -2422,13 +5393,36 @@ function drawDeckStruct(cx, sx1, sy1, sw, sh, seed) {
     cx.fill();
     cx.strokeStyle = 'rgba(255,255,255,0.06)'; cx.lineWidth = 1;
     cx.strokeRect(sx1, sy1, sw, sh);
+    // Issue #56: sediment settling on the top face + rust streaks bleeding
+    // down the sides — decks are horizontal, so both passes apply.
+    if (accum) {
+        drawSedimentCap(cx, [[sx1, sy1], [sx1 + sw, sy1]], {
+            intensity: accum.sediment,
+            thicknessM: 0.30,
+            mpp: 0.05,
+            worldSeed: seed + ACCUM_SEED.sediment
+        });
+        drawVerticalStreaks(cx, { sx: sx1, sy: sy1, sw: sw, sh: sh }, {
+            intensity: accum.streaks,
+            worldSeed: seed + ACCUM_SEED.streak,
+            variant: 'rust',
+            exterior: false
+        });
+    }
 }
 
 // ── Task 8: Bulkhead — panel frame + portholes on wide sections ──
-function drawBulkheadStruct(cx, sx1, sy1, sw, sh, seed) {
+function drawBulkheadStruct(cx, sx1, sy1, sw, sh, seed, accum, sitsOnFloor) {
     var g = cx.createLinearGradient(sx1, sy1, sx1, sy1 + sh);
     g.addColorStop(0, '#5a6878'); g.addColorStop(1, '#2e3c4e');
     cx.fillStyle = g; cx.fillRect(sx1, sy1, sw, sh);
+    // Issue #41: steel plate texture (anchored in screen px — see drawHullStruct).
+    if (_matTiles) {
+        cx.save();
+        cx.beginPath(); cx.rect(sx1, sy1, sw, sh); cx.clip();
+        fillWithMaterialPattern(cx, _matTiles.steel, sx1, sy1, true);
+        cx.restore();
+    }
     var inset = Math.min(6, sw * 0.08, sh * 0.12);
     cx.strokeStyle = 'rgba(255,255,255,0.12)'; cx.lineWidth = 1.5;
     cx.strokeRect(sx1 + inset, sy1 + inset, sw - inset * 2, sh - inset * 2);
@@ -2453,6 +5447,24 @@ function drawBulkheadStruct(cx, sx1, sy1, sw, sh, seed) {
     cx.fill();
     cx.strokeStyle = 'rgba(255,255,255,0.06)'; cx.lineWidth = 1;
     cx.strokeRect(sx1, sy1, sw, sh);
+    // Issue #56: rust streaks on the panel, and — mirroring #34's own
+    // sitsOnFloor gate — a contact-accumulation band along the bottom
+    // edge only when this bulkhead actually meets the floor.
+    if (accum) {
+        drawVerticalStreaks(cx, { sx: sx1, sy: sy1, sw: sw, sh: sh }, {
+            intensity: accum.streaks,
+            worldSeed: seed + ACCUM_SEED.streak,
+            variant: 'rust',
+            exterior: false
+        });
+        if (sitsOnFloor) {
+            drawContactAccumulation(cx, [[sx1, sy1 + sh], [sx1 + sw, sy1 + sh]], {
+                intensity: accum.contactDebris,
+                worldSeed: seed + ACCUM_SEED.contact,
+                side: 'above'
+            });
+        }
+    }
 }
 
 // ============================================================
@@ -2758,6 +5770,135 @@ function drawRustHole(cx, x, y) {
     cx.restore();
 }
 
+// ── Issue #33: sagging line ────────────────────────────────────────
+// A slack cable / rope hanging between two anchor points. Purely
+// cosmetic — no collision, no gameplay. Motion (a very slight sway of
+// the sagging body) comes EXCLUSIVELY from #57's sampleEnvironmentSway
+// with `SWAY_PROFILES.hangingLine`; this drawer never invents its own
+// Math.sin() and never keeps state between frames. `worldX` is passed
+// so the seed is stable in world coordinates (survives camera pan).
+//
+// Feature shape defaults: two anchors ~2 m apart, sagging ~1.4 m below
+// the anchor line. Consumers may override via feature.length (m) or
+// feature.sag (m).
+function drawHangingLine(cx, x, y, worldX, feature) {
+    var mpp = 0.05;
+    var lenM = (feature && feature.length) || 2.2;
+    var sagM = (feature && feature.sag)    || 1.4;
+    var lenPx = lenM / mpp;
+    var sagPx = sagM / mpp;
+    // Small tip sway from #57 — reuses hangingLine profile, no local math.
+    var seed = (worldX || 0) * 3.19 + 71.7;
+    var swMid = sampleEnvironmentSway(seed, SWAY_PROFILES.hangingLine, 1.0);
+    var swQtr = sampleEnvironmentSway(seed, SWAY_PROFILES.hangingLine, 0.5);
+    var ax = x - lenPx * 0.5, ay = y;
+    var bx = x + lenPx * 0.5, by = y + 0.6;   // slight asymmetry — rarely level
+    // Sag control points: mid drops by sagPx, offset by sway sample.
+    var midX = (ax + bx) / 2 + swMid.x;
+    var midY = ay + sagPx + swMid.y;
+    // Two quadratic bezier halves gives a gently sagging catenary look.
+    var q1cX = ax + lenPx * 0.25 + swQtr.x * 0.6;
+    var q1cY = ay + sagPx * 0.75;
+    var q2cX = bx - lenPx * 0.25 + swQtr.x * 0.6;
+    var q2cY = by + sagPx * 0.75;
+    cx.save();
+    // Faint shadow under the rope for depth cue (low alpha; #34 owns AO,
+    // this is just a subtle reading aid).
+    cx.strokeStyle = 'rgba(0,0,0,0.25)';
+    cx.lineWidth = 2.2;
+    cx.lineCap = 'round';
+    cx.beginPath();
+    cx.moveTo(ax + 1, ay + 1);
+    cx.quadraticCurveTo(q1cX + 1, q1cY + 1, midX + 1, midY + 1);
+    cx.quadraticCurveTo(q2cX + 1, q2cY + 1, bx + 1, by + 1);
+    cx.stroke();
+    // Rope itself — muted olive-brown, low contrast.
+    cx.strokeStyle = 'rgba(120,102,72,0.72)';
+    cx.lineWidth = 1.4;
+    cx.beginPath();
+    cx.moveTo(ax, ay);
+    cx.quadraticCurveTo(q1cX, q1cY, midX, midY);
+    cx.quadraticCurveTo(q2cX, q2cY, bx, by);
+    cx.stroke();
+    // Anchor knots at each end
+    cx.fillStyle = 'rgba(60,50,38,0.85)';
+    cx.beginPath(); cx.arc(ax, ay, 1.4, 0, Math.PI * 2); cx.fill();
+    cx.beginPath(); cx.arc(bx, by, 1.4, 0, Math.PI * 2); cx.fill();
+    cx.restore();
+}
+
+// ── Issue #33: torn fishing net ────────────────────────────────────
+// A bounded frame curve plus a sparse thin grid pattern. Purely
+// cosmetic. Motion via #57 `SWAY_PROFILES.net` only. Consumers may
+// override feature.width / feature.height (metres).
+function drawNet(cx, x, y, worldX, feature) {
+    var mpp = 0.05;
+    var wM = (feature && feature.width)  || 3.0;
+    var hM = (feature && feature.height) || 2.4;
+    var wPx = wM / mpp;
+    var hPx = hM / mpp;
+    var seed = (worldX || 0) * 5.71 + 133.3;
+    var swMid = sampleEnvironmentSway(seed, SWAY_PROFILES.net, 1.0);
+    var swQtr = sampleEnvironmentSway(seed, SWAY_PROFILES.net, 0.5);
+    // The net hangs from a top anchor line (x1..x2, y). Bottom edge
+    // drifts with the sway sample; sides sag slightly toward the middle.
+    var x1 = x - wPx * 0.5, x2 = x + wPx * 0.5;
+    var yTop = y;
+    var yBot = y + hPx + swMid.y;
+    var xBotShift = swMid.x;
+    var xMidShift = swQtr.x;
+    cx.save();
+    // Grid: 4 vertical strands, 3 horizontal strands. Kept intentionally
+    // sparse so this reads as a distant, atmospheric detail rather than
+    // a focal prop. Each strand is a quadratic curve so it sags with the
+    // frame — no per-strand ad-hoc trig.
+    cx.strokeStyle = 'rgba(120,132,124,0.42)';
+    cx.lineWidth = 0.7;
+    // Vertical strands
+    var vCount = 4;
+    for (var v = 0; v <= vCount; v++) {
+        var tv = v / vCount;
+        var xTop = x1 + wPx * tv;
+        var xB   = x1 + wPx * tv + xBotShift;
+        var xMid = (xTop + xB) / 2 + xMidShift * (1 - Math.abs(tv - 0.5) * 2) * 0.5;
+        var yMid = yTop + (yBot - yTop) * 0.55;
+        cx.beginPath();
+        cx.moveTo(xTop, yTop);
+        cx.quadraticCurveTo(xMid, yMid, xB, yBot);
+        cx.stroke();
+    }
+    // Horizontal strands
+    var hCount = 3;
+    for (var h = 1; h <= hCount; h++) {
+        var th = h / (hCount + 1);
+        var yH = yTop + (yBot - yTop) * th;
+        var xLH = x1 + xBotShift * th;
+        var xRH = x2 + xBotShift * th;
+        var xMH = (xLH + xRH) / 2;
+        var yMH = yH + xMidShift * 0.2;    // very subtle horizontal wobble
+        cx.beginPath();
+        cx.moveTo(xLH, yH);
+        cx.quadraticCurveTo(xMH, yMH, xRH, yH);
+        cx.stroke();
+    }
+    // Frame curve — slightly darker, traces the net's outer boundary so
+    // the sparse grid still reads as a bounded object even off-camera.
+    cx.strokeStyle = 'rgba(80,88,80,0.55)';
+    cx.lineWidth = 1.0;
+    cx.beginPath();
+    cx.moveTo(x1, yTop);
+    cx.lineTo(x2, yTop);                    // top edge (headline)
+    cx.quadraticCurveTo(x2 + xMidShift, (yTop + yBot) / 2, x2 + xBotShift, yBot);
+    cx.quadraticCurveTo(x + xBotShift, yBot + Math.abs(xMidShift) * 0.5, x1 + xBotShift, yBot);
+    cx.quadraticCurveTo(x1 + xMidShift, (yTop + yBot) / 2, x1, yTop);
+    cx.stroke();
+    // Anchor floats at each end of the headline
+    cx.fillStyle = 'rgba(48,54,50,0.7)';
+    cx.beginPath(); cx.arc(x1, yTop, 1.6, 0, Math.PI * 2); cx.fill();
+    cx.beginPath(); cx.arc(x2, yTop, 1.6, 0, Math.PI * 2); cx.fill();
+    cx.restore();
+}
+
 // ---- Structure-kind drawers (replace plain hull for ferry chrome) ----
 
 // Funnel — trapezoid stack, ship's-livery red band, cap.
@@ -2889,7 +6030,7 @@ function drawStructures() {
     var s = activeSite();
     if (!s || !s.structures.length) return;
     var W = cssWidth, H = cssHeight;
-    var diverScreenX = W * 0.25, diverScreenY = H * 0.45, mpp = 0.05;
+    var diverScreenX = W * DIVER_SCREEN_X_FRACTION, diverScreenY = H * 0.45, mpp = 0.05;
     var cx = ctx;
     for (var i = 0; i < s.structures.length; i++) {
         var w = s.structures[i];
@@ -2904,19 +6045,52 @@ function drawStructures() {
         if (s.id === 'reef') rockTone = 'reef';
         else if (s.id === 'shore') rockTone = 'shore';
         else if (s.id === 'cave') rockTone = (w.dTop >= 16) ? 'caveGrey' : 'caveBrown';
+
+        // Issue #56: per-zone accumulation profile for this structure,
+        // sampled once at its centre. `accum.exterior` is a call-local
+        // convenience flag (not part of the shared profile shape) so
+        // drawHullStruct can tell exterior plating from interior plating
+        // without re-deriving the zone itself.
+        var midWx = (w.x1 + w.x2) / 2;
+        var midWd = (w.dTop + w.dBottom) / 2;
+        var _z = visualZoneAt(midWx, midWd, s);
+        var accum = accumulationProfileFor(s.id, _z ? _z.id : null);
+        accum.exterior = !!(_z && _z.id === 'wreck_exterior');
+
+        // Issue #34: AO contact band gate — computed BEFORE the switch so
+        // #56's drawBulkheadStruct can mirror the same "sits on floor" gate
+        // for its own bottom-edge contact accumulation.
+        var floorHereL = floorAt(w.x1), floorHereR = floorAt(w.x2);
+        var ceilHereL  = ceilingAt(w.x1), ceilHereR = ceilingAt(w.x2);
+        var slack = CONTACT_AO.structure.contactSlackM;
+        var sitsOnFloor = (Math.abs(w.dBottom - floorHereL) < slack)
+                       || (Math.abs(w.dBottom - floorHereR) < slack);
+        var hangsFromCeil = (s.ceiling)
+                       && ((Math.abs(w.dTop - ceilHereL) < slack)
+                        || (Math.abs(w.dTop - ceilHereR) < slack));
+
+        // Issue #33: object-relative interior lighting for wreck structures.
+        // Same modulator drawFeatures uses — near/lit reads present, far
+        // outside cone blends toward background steel. No-op outside wreck
+        // interior. AO contact bands stay at full alpha (computed after
+        // restore) so contact reading isn't muted by object distance.
+        var _strAlphaMul = wreckInteriorAlphaMul(midWx, midWd);
+        var _strNeedsGate = (_strAlphaMul !== 1);
+        if (_strNeedsGate) { cx.save(); cx.globalAlpha *= _strAlphaMul; }
+
         switch (w.kind) {
             case 'rock': case 'pillar':
                 drawRockStruct(cx, sx1, sy1, sw, sh, seed, rockTone); break;
             case 'bedrock':
-                drawBedrockStruct(cx, w.x1, w.x2, w.dTop, w.dBottom); break;
+                drawBedrockStruct(cx, w.x1, w.x2, w.dTop, w.dBottom, accum); break;
             case 'wreckSmall':
                 drawSmallWreck(cx, sx1, sy1, sw, sh); break;
             case 'hull':
-                drawHullStruct(cx, sx1, sy1, sw, sh, seed); break;
+                drawHullStruct(cx, sx1, sy1, sw, sh, seed, accum); break;
             case 'deck':
-                drawDeckStruct(cx, sx1, sy1, sw, sh, seed); break;
+                drawDeckStruct(cx, sx1, sy1, sw, sh, seed, accum); break;
             case 'bulkhead':
-                drawBulkheadStruct(cx, sx1, sy1, sw, sh, seed); break;
+                drawBulkheadStruct(cx, sx1, sy1, sw, sh, seed, accum, sitsOnFloor); break;
             case 'funnel':
                 drawFunnelStruct(cx, sx1, sy1, sw, sh); break;
             case 'mast':
@@ -2928,22 +6102,63 @@ function drawStructures() {
                 cx.lineWidth = 1;
                 cx.strokeRect(sx1, sy1, sw, sh);
         }
+
+        if (_strNeedsGate) cx.restore();
+
+        // Issue #34: AO contact band along the structure's contact edge with
+        // terrain. Sits-on-floor: draw the bottom edge. Hangs-from-ceiling:
+        // draw the top edge. World-anchored via the same screen-space
+        // conversion the structure uses. Skipped for structures floating in
+        // the water column (e.g. midwater bedrock crossings) — those don't
+        // touch anything, so an AO band there would read as a bug.
+        if (sitsOnFloor) {
+            drawContactBand(cx, [[sx1, sy2], [sx2, sy2]], CONTACT_AO.structure);
+        }
+        if (hangsFromCeil) {
+            drawContactBand(cx, [[sx1, sy1], [sx2, sy1]], CONTACT_AO.structure);
+        }
     }
+}
+
+// Issue #33: object-relative interior alpha modulator (wreck only,
+// while the diver is in an overhead). Combines the two #33 effects
+// into ONE small alpha multiplier layered on top of whatever #54's
+// zone-wide atmosphere already does. Never rebuilds a fog layer.
+//   • interior distance: near objects read more present than far ones.
+//   • torch-relative:   in-cone objects reach full presence even at
+//                       distance; outside-cone objects sit lower.
+// Combines via max() so a near-but-unlit object stays present, and a
+// far-but-lit object stays legible. Amplitude capped at ~30% swing so
+// nothing is fully obscured or fully saturated. Exposed via gameAPI
+// for TC-33-INTERIOR-* tests.
+function wreckInteriorAlphaMul(worldX, worldD) {
+    var s = activeSite();
+    if (!s || s.id !== 'wreck' || !inOverhead) return 1;
+    var interiorF = interiorObjectDistanceFactor(worldX, worldD);
+    var lightF = sampleTorchLightAtWorldPoint(worldX, worldD);
+    var combined = interiorF > lightF ? interiorF : lightF;
+    return 0.72 + 0.28 * combined;
 }
 
 function drawFeatures() {
     var s = activeSite();
     if (!s || !s.features.length) return;
     var W = cssWidth, H = cssHeight;
-    var diverScreenX = W * 0.25, diverScreenY = H * 0.45, mpp = 0.05;
+    var diverScreenX = W * DIVER_SCREEN_X_FRACTION, diverScreenY = H * 0.45, mpp = 0.05;
     var cx = ctx;
     for (var i = 0; i < s.features.length; i++) {
         var f = s.features[i];
         var ffx = diverScreenX + ((f.x || 0) - diverX) / mpp;
         if (ffx < -200 || ffx > W + 200) continue;
+        // Issue #33: apply interior alpha modulation for wreck features.
+        // Uses save/restore around the switch so every drawer sees the
+        // modulated globalAlpha without needing per-kind wiring.
+        var _featAlphaMul = wreckInteriorAlphaMul(f.x || 0, f.d || 0);
+        var _needsAlphaGate = (_featAlphaMul !== 1);
+        if (_needsAlphaGate) { cx.save(); cx.globalAlpha *= _featAlphaMul; }
         if (f.kind === 'seagrass') {
             var fgy = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (fgy > -20 && fgy < H + 20) drawSeagrass(cx, ffx, fgy);
+            if (fgy > -20 && fgy < H + 20) drawSeagrass(cx, ffx, fgy, (f.x || 0));
         } else if (f.kind === 'warningSign') {
             // Anchor the sign's base to the cave floor so it stands on the rock
             // instead of floating in the water column.
@@ -2979,7 +6194,7 @@ function drawFeatures() {
             if (fpY > -60 && fpY < H + 20) drawPond(cx, ffx, fpY);
         } else if (f.kind === 'tableCoral') {
             var ty = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (ty > -40 && ty < H + 40) { drawContactShadow(cx, ffx, ty, 72, 9, 0.18); drawTableCoral(cx, ffx, ty); }
+            if (ty > -40 && ty < H + 40) { drawContactShadow(cx, ffx, ty, 72, 9, 0.18); drawTableCoral(cx, ffx, ty, (f.x || 0)); }
         } else if (f.kind === 'brainCoral') {
             var by2 = diverScreenY + ((f.d || 0) - depth) / mpp;
             if (by2 > -40 && by2 < H + 40) { drawContactShadow(cx, ffx, by2, 56, 8, 0.18); drawBrainCoral(cx, ffx, by2, (f.x || 0)); }
@@ -2988,13 +6203,18 @@ function drawFeatures() {
             if (sy > -40 && sy < H + 40) { drawContactShadow(cx, ffx, sy, 48, 7, 0.16); drawStaghorn(cx, ffx, sy, (f.x || 0)); }
         } else if (f.kind === 'softCoral') {
             var scy = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (scy > -90 && scy < H + 40) { drawContactShadow(cx, ffx, scy, 42, 8, 0.14); drawSoftCoral(cx, ffx, scy, f.color); }
+            if (scy > -90 && scy < H + 40) { drawContactShadow(cx, ffx, scy, 42, 8, 0.14); drawSoftCoral(cx, ffx, scy, f.color, (f.x || 0)); }
         } else if (f.kind === 'gorgonian') {
             var gy = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (gy > -160 && gy < H + 160) { drawContactShadow(cx, ffx, gy, 44, 9, 0.15); drawGorgonian(cx, ffx, gy, f.side, f.color); }
+            // Issue #59: `f.scale` (optional) lets a single hand-placed hero
+            // gorgonian read distinctly larger than the coralVariation range.
+            var gScale = (typeof f.scale === 'number') ? f.scale : 1;
+            var gShadowW = 44 * gScale, gShadowH = 9 * Math.sqrt(gScale);
+            var gCull = 160 * Math.max(1, gScale);
+            if (gy > -gCull && gy < H + gCull) { drawContactShadow(cx, ffx, gy, gShadowW, gShadowH, 0.15); drawGorgonian(cx, ffx, gy, f.side, f.color, (f.x || 0), f.scale); }
         } else if (f.kind === 'barrelSponge') {
             var bsy = diverScreenY + ((f.d || 0) - depth) / mpp;
-            if (bsy > -80 && bsy < H + 40) { drawContactShadow(cx, ffx, bsy, 42, 9, 0.17); drawBarrelSponge(cx, ffx, bsy, f.color); }
+            if (bsy > -80 && bsy < H + 40) { drawContactShadow(cx, ffx, bsy, 42, 9, 0.17); drawBarrelSponge(cx, ffx, bsy, f.color, (f.x || 0)); }
         } else if (f.kind === 'anthiasCloud') {
             var acy = diverScreenY + ((f.d || 0) - depth) / mpp;
             if (acy > -200 && acy < H + 200) drawAnthiasCloud(cx, ffx, acy, f);
@@ -3022,7 +6242,29 @@ function drawFeatures() {
         } else if (f.kind === 'rustHole') {
             var fry = diverScreenY + ((f.d || 0) - depth) / mpp;
             if (fry > -30 && fry < H + 30) drawRustHole(cx, ffx, fry);
+        } else if (f.kind === 'line') {
+            // Issue #33: sagging line — cosmetic only, no collision.
+            var flnY = diverScreenY + ((f.d || 0) - depth) / mpp;
+            if (flnY > -60 && flnY < H + 120) drawHangingLine(cx, ffx, flnY, (f.x || 0), f);
+        } else if (f.kind === 'net') {
+            // Issue #33: hanging net — cosmetic only, no collision.
+            var fnetY = diverScreenY + ((f.d || 0) - depth) / mpp;
+            if (fnetY > -60 && fnetY < H + 200) drawNet(cx, ffx, fnetY, (f.x || 0), f);
+        } else if (f.kind === 'caveColumn') {
+            // Issue #59: hand-placed cathedral columns. Reuses #32's
+            // _drawSpeleothemColumn so the shape stays consistent with the
+            // ambient speleothem field. Purely cosmetic — no collision.
+            // Feature fields: {x, dTop, dBottom, wTop, wBot, seed}.
+            var fdTop = (typeof f.dTop === 'number') ? f.dTop : (f.d || 0);
+            var fdBot = (typeof f.dBottom === 'number') ? f.dBottom : (f.d || 0) + 6;
+            var ftopY = diverScreenY + (fdTop - depth) / mpp;
+            var fbotY = diverScreenY + (fdBot - depth) / mpp;
+            var fwTop = (typeof f.wTop === 'number') ? f.wTop : 8;
+            var fwBot = (typeof f.wBot === 'number') ? f.wBot : 10;
+            var fseed = (typeof f.seed === 'number') ? f.seed : (f.x || 0);
+            if (fbotY > -40 && ftopY < H + 40) _drawSpeleothemColumn(cx, ffx, ftopY, fbotY, fwTop, fwBot, fseed);
         }
+        if (_needsAlphaGate) cx.restore();
     }
 }
 
@@ -3035,6 +6277,297 @@ function drawContactShadow(cx, x, y, w, h, alpha) {
     cx.beginPath();
     cx.ellipse(x, y + 1, w * 0.55, h, 0, 0, Math.PI * 2);
     cx.fill();
+    cx.restore();
+}
+
+// Issue #34 point 2: Draw a soft AO darkening band along a polyline.
+//
+// `points`   — array of [screenX, screenY] pairs (already computed in world
+//              → screen space by the caller, so the band is world-anchored).
+// `cfg`      — one of CONTACT_AO.terrain / CONTACT_AO.structure.
+//
+// Uses canvas shadowBlur on a low-alpha stroke so the visible band is the
+// blurred shadow, not the stroke itself. One draw call per polyline. No
+// allocations. Safe to call with < 2 points (early return).
+function drawContactBand(cx, points, cfg) {
+    if (!points || points.length < 2) return;
+    cx.save();
+    cx.strokeStyle = 'rgba(0,0,0,' + cfg.strokeAlpha.toFixed(3) + ')';
+    cx.lineWidth = cfg.strokeWidth;
+    cx.lineCap = 'round';
+    cx.lineJoin = 'round';
+    cx.shadowColor = 'rgba(0,0,0,' + cfg.shadowAlpha.toFixed(3) + ')';
+    cx.shadowBlur = cfg.blurRadius;
+    cx.shadowOffsetX = 0;
+    cx.shadowOffsetY = 0;
+    cx.beginPath();
+    cx.moveTo(points[0][0], points[0][1]);
+    for (var i = 1; i < points.length; i++) {
+        cx.lineTo(points[i][0], points[i][1]);
+    }
+    cx.stroke();
+    cx.restore();
+}
+
+// ── Issue #56: Surface accumulation helpers ──────────────────────
+// Shared, deterministic, render-only. No offscreen canvases, no
+// Math.random() — all variation comes from sRand(seed). Every helper
+// early-returns on intensity <= 0 so callers can pass a per-zone
+// profile straight through without a guard at the call site.
+
+// drawSedimentCap(cx, points, options)
+//   points  — screen-space polyline of the TOP visible edge (already
+//             computed in world→screen by the caller).
+//   options — { intensity, thicknessM, mpp, worldSeed, palette }
+// Renders a thin sediment band clipped to a constant-thickness strip
+// BELOW the polyline (so it hugs the contour exactly), alpha-graded
+// opaque at the surface to transparent at its lower edge, plus a
+// handful of deterministic sediment grains scattered along the line.
+// Never mutates `points`.
+function drawSedimentCap(cx, points, options) {
+    if (!options || options.intensity <= 0) return;
+    if (!points || points.length < 2) return;
+    var intensity = options.intensity;
+    var mpp = options.mpp || MAT_MPP;
+    var thicknessM = Math.min(
+        options.thicknessM != null ? options.thicknessM : 0.25,
+        ACCUMULATION_SEDIMENT_MAX_M
+    );
+    var thicknessPx = Math.max(1.5, thicknessM / mpp) * intensity;
+    var worldSeed = options.worldSeed || 0;
+    var pal = options.palette || ACCUMULATION_PAL;
+
+    var minX = points[0][0], maxX = points[0][0];
+    var minY = points[0][1], maxBottomY = points[0][1] + thicknessPx;
+    for (var i = 1; i < points.length; i++) {
+        if (points[i][0] < minX) minX = points[i][0];
+        if (points[i][0] > maxX) maxX = points[i][0];
+        if (points[i][1] < minY) minY = points[i][1];
+        var bY = points[i][1] + thicknessPx;
+        if (bY > maxBottomY) maxBottomY = bY;
+    }
+
+    cx.save();
+    // Clip to a constant-thickness band hugging the polyline's contour:
+    // top edge L→R along `points`, bottom edge R→L offset by thicknessPx.
+    cx.beginPath();
+    cx.moveTo(points[0][0], points[0][1]);
+    for (var pi = 1; pi < points.length; pi++) cx.lineTo(points[pi][0], points[pi][1]);
+    for (var pj = points.length - 1; pj >= 0; pj--) cx.lineTo(points[pj][0], points[pj][1] + thicknessPx);
+    cx.closePath();
+    cx.clip();
+
+    var grad = cx.createLinearGradient(0, minY, 0, maxBottomY);
+    grad.addColorStop(0, pal.sedimentFill || ACCUMULATION_PAL.sedimentFill);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    cx.globalAlpha = intensity;
+    cx.fillStyle = grad;
+    cx.fillRect(minX - 2, minY - 2, (maxX - minX) + 4, (maxBottomY - minY) + 4);
+
+    // Thin sediment-color edge line right at the top of the cap.
+    cx.strokeStyle = pal.sedimentEdge || ACCUMULATION_PAL.sedimentEdge;
+    cx.lineWidth = 1.2;
+    cx.beginPath();
+    cx.moveTo(points[0][0], points[0][1]);
+    for (var li = 1; li < points.length; li++) cx.lineTo(points[li][0], points[li][1]);
+    cx.stroke();
+    cx.restore();
+
+    // Deterministic sediment grains distributed along the polyline —
+    // drawn outside the clip/gradient save block (own alpha per grain).
+    cx.save();
+    var grainCount = Math.max(3, Math.min(24, Math.round(points.length * 0.5 * intensity)));
+    for (var gi = 0; gi < grainCount; gi++) {
+        var gseed = worldSeed + gi * 2.71;
+        var t = sRand(gseed);
+        var idxF = t * (points.length - 1);
+        var idx0 = Math.floor(idxF);
+        var idx1 = Math.min(points.length - 1, idx0 + 1);
+        var frac = idxF - idx0;
+        var gx = points[idx0][0] + (points[idx1][0] - points[idx0][0]) * frac;
+        var gy = points[idx0][1] + (points[idx1][1] - points[idx0][1]) * frac;
+        var goff = sRand(gseed + 4.19) * thicknessPx * 0.7;
+        var gr = 0.8 + sRand(gseed + 6.53) * 1.6;
+        cx.globalAlpha = intensity * (0.5 + sRand(gseed + 8.71) * 0.5);
+        cx.fillStyle = pal.sedimentGrain || ACCUMULATION_PAL.sedimentGrain;
+        cx.beginPath();
+        cx.ellipse(gx, gy + goff, gr * 1.4, gr * 0.7, 0, 0, Math.PI * 2);
+        cx.fill();
+    }
+    cx.restore();
+}
+
+// drawContactAccumulation(cx, points, options)
+//   points  — screen-space polyline of the contact edge (structure
+//             baseline OR wall/floor meeting line).
+//   options — { intensity, mpp, worldSeed, side }
+//     side: 'below' | 'above' (default 'above') — which side of the
+//     line the rubble jitters toward.
+//
+// Issue #34 (drawContactBand / CONTACT_AO) already draws a soft dark
+// AMBIENT-OCCLUSION band at these same edges: a low-alpha stroke with
+// shadowBlur, reading as "this edge should look dark." This helper is
+// deliberately built differently so it reads as "material has piled
+// up here" instead of stacking a second dark band on top of #34's:
+//   • warm sediment/rubble browns (ACCUMULATION_PAL), never pure black
+//   • NO shadowBlur anywhere in this function (that is #34's signature)
+//   • small irregular rubble ellipses + a thin flat sediment line,
+//     not a single smooth uniform stroke
+//   • the one pure-black darkening component uses ACCUMULATION_PAL
+//     .contactDark, alpha 0.09 — well below CONTACT_AO.terrain's
+//     shadowAlpha (0.42) / CONTACT_AO.structure's shadowAlpha (0.5)
+// The two passes are meant to layer additively (#34 first, this pass
+// second) without doubling up the darkness.
+function drawContactAccumulation(cx, points, options) {
+    if (!options || options.intensity <= 0) return;
+    if (!points || points.length < 2) return;
+    var intensity = options.intensity;
+    var worldSeed = options.worldSeed || 0;
+    var side = (options.side === 'below') ? 1 : -1;
+    var pal = ACCUMULATION_PAL;
+
+    cx.save();
+    // Thin sediment-colored line along the contact edge — flat stroke,
+    // no shadowBlur, warm brown — NOT #34's dark blurred band.
+    cx.globalAlpha = intensity;
+    cx.strokeStyle = pal.sedimentEdge;
+    cx.lineWidth = 1.5;
+    cx.lineCap = 'round';
+    cx.lineJoin = 'round';
+    cx.beginPath();
+    cx.moveTo(points[0][0], points[0][1]);
+    for (var i = 1; i < points.length; i++) cx.lineTo(points[i][0], points[i][1]);
+    cx.stroke();
+
+    // Very-low-alpha darkening component (alpha 0.09, see block comment
+    // above) — nowhere near #34's shadowAlpha of 0.42/0.5.
+    cx.strokeStyle = pal.contactDark;
+    cx.lineWidth = 2.5;
+    cx.beginPath();
+    cx.moveTo(points[0][0], points[0][1]);
+    for (var di = 1; di < points.length; di++) cx.lineTo(points[di][0], points[di][1]);
+    cx.stroke();
+
+    // Small irregular rubble ellipses scattered along the line.
+    var totalLen = points.length - 1;
+    var rubbleCount = Math.max(3, Math.min(18, Math.round(totalLen * 1.2 * intensity)));
+    for (var ri = 0; ri < rubbleCount; ri++) {
+        var rseed = worldSeed + ri * 4.19;
+        var t = sRand(rseed);
+        var idxF = t * totalLen;
+        var idx0 = Math.floor(idxF);
+        var idx1 = Math.min(points.length - 1, idx0 + 1);
+        var frac = idxF - idx0;
+        var rx = points[idx0][0] + (points[idx1][0] - points[idx0][0]) * frac;
+        var ry = points[idx0][1] + (points[idx1][1] - points[idx0][1]) * frac;
+        var jitterY = (1 + sRand(rseed + 6.53) * 2.5) * side;
+        var rw = 1.5 + sRand(rseed + 8.31) * 3.5;
+        var rh = 0.8 + sRand(rseed + 1.13) * 1.6;
+        cx.globalAlpha = intensity * (0.5 + sRand(rseed + 2.91) * 0.5);
+        cx.fillStyle = (sRand(rseed + 3.7) > 0.5) ? pal.rubbleDark : pal.rubbleMid;
+        cx.beginPath();
+        cx.ellipse(rx + (sRand(rseed + 5.1) - 0.5) * 4, ry + jitterY, rw, rh, 0, 0, Math.PI * 2);
+        cx.fill();
+    }
+    cx.restore();
+}
+
+// drawVerticalStreaks(cx, bounds, options)
+//   bounds  — { sx, sy, sw, sh } screen-space AABB of the panel (e.g.
+//             a wreck hull/deck/bulkhead panel).
+//   options — { intensity, worldSeed, variant, exterior }
+//     variant  : 'rust' (default) | 'mineral'
+//     exterior : true → adds a small biofouling-green tail to each
+//                streak; false → pure rust/mineral only.
+// Draws ACCUMULATION_STREAKS_MIN..MAX thin near-vertical streaks,
+// clipped to `bounds`. Positions/lengths/alphas are all derived from
+// sRand(worldSeed + i * prime) — no gradients per streak, cheap fillRect
+// + a single thin quadratic path per streak for organic drift.
+function drawVerticalStreaks(cx, bounds, options) {
+    if (!options || options.intensity <= 0) return;
+    if (!bounds || bounds.sw <= 0 || bounds.sh <= 0) return;
+    var intensity = options.intensity;
+    var worldSeed = options.worldSeed || 0;
+    var variant = options.variant || 'rust';
+    var exterior = !!options.exterior;
+    var pal = ACCUMULATION_PAL;
+    var sx = bounds.sx, sy = bounds.sy, sw = bounds.sw, sh = bounds.sh;
+
+    var countF = ACCUMULATION_STREAKS_MIN + (ACCUMULATION_STREAKS_MAX - ACCUMULATION_STREAKS_MIN) * intensity;
+    var count = Math.max(ACCUMULATION_STREAKS_MIN, Math.round(countF));
+
+    cx.save();
+    cx.beginPath(); cx.rect(sx, sy, sw, sh); cx.clip();
+
+    for (var i = 0; i < count; i++) {
+        var seed = worldSeed + i * 2.71;
+        var fracX = sRand(seed);
+        var x0 = sx + fracX * sw;
+        var lenFrac = 0.4 + sRand(seed + 4.19) * 0.5;   // 40–90% of sh
+        var len = sh * lenFrac;
+        var y0 = sy + sRand(seed + 6.53) * Math.max(0, sh - len);
+        var width = 1 + sRand(seed + 8.31);              // 1–2 px
+        var alpha = intensity * (0.4 + sRand(seed + 1.91) * 0.5);
+        var drift = (sRand(seed + 3.3) - 0.5) * width * 3;
+
+        var color = (variant === 'mineral')
+            ? pal.mineralPale
+            : (sRand(seed + 5.7) > 0.5 ? pal.rustDark : pal.rustLight);
+        cx.globalAlpha = alpha;
+        cx.fillStyle = color;
+        cx.fillRect(x0 - width / 2, y0, width, len);
+        cx.strokeStyle = color;
+        cx.lineWidth = width;
+        cx.beginPath();
+        cx.moveTo(x0, y0);
+        cx.quadraticCurveTo(x0 + drift, y0 + len * 0.5, x0 + drift * 1.4, y0 + len);
+        cx.stroke();
+
+        if (exterior) {
+            cx.globalAlpha = alpha * 0.6;
+            cx.fillStyle = pal.growthOlive;
+            cx.fillRect(x0 - width, y0 + len * 0.7, width * 2, len * 0.3);
+        }
+    }
+    cx.restore();
+}
+
+// drawGrowthEdge(cx, points, options)
+//   Small dark olive / coralline patches placed deterministically
+//   along selected segments of a screen-space polyline. Coverage
+//   stays low (sparse gate below) so this never competes with #35's
+//   big coral objects or #55's props — it's a thin accent, not a
+//   growth feature of its own.
+function drawGrowthEdge(cx, points, options) {
+    if (!options || options.intensity <= 0) return;
+    if (!points || points.length < 2) return;
+    var intensity = options.intensity;
+    var worldSeed = options.worldSeed || 0;
+    var variant = options.variant || 'olive';
+    var pal = ACCUMULATION_PAL;
+
+    cx.save();
+    var totalLen = points.length - 1;
+    var patchCount = Math.max(1, Math.min(10, Math.round(totalLen * 0.3 * intensity)));
+    for (var i = 0; i < patchCount; i++) {
+        var seed = worldSeed + i * 6.53;
+        // Sparse gate — most candidate slots produce nothing.
+        if (sRand(seed) > (0.25 + intensity * 0.35)) continue;
+        var t = sRand(seed + 2.71);
+        var idxF = t * totalLen;
+        var idx0 = Math.floor(idxF);
+        var idx1 = Math.min(points.length - 1, idx0 + 1);
+        var frac = idxF - idx0;
+        var px = points[idx0][0] + (points[idx1][0] - points[idx0][0]) * frac;
+        var py = points[idx0][1] + (points[idx1][1] - points[idx0][1]) * frac;
+        var pr = 1.5 + sRand(seed + 4.19) * 3;
+        cx.globalAlpha = intensity * (0.5 + sRand(seed + 8.31) * 0.5);
+        cx.fillStyle = (variant === 'coralline' && sRand(seed + 1.13) > 0.5)
+            ? pal.growthCoralline : pal.growthOlive;
+        cx.beginPath();
+        cx.ellipse(px, py, pr * 1.3, pr * 0.7, sRand(seed + 3.3) * Math.PI, 0, Math.PI * 2);
+        cx.fill();
+    }
     cx.restore();
 }
 
@@ -3089,15 +6622,29 @@ function drawUmbrella(cx, x, y) {
     cx.restore();
 }
 
-function drawSeagrass(cx, x, y) {
+function drawSeagrass(cx, x, y, worldX) {
     cx.save();
     cx.strokeStyle = '#2d6a2d';
     cx.lineWidth = 2;
+    // Seed from the feature's world-x so the same tuft has the same
+    // phase across camera movement. Fall back to screen-x only if the
+    // caller has not been updated (defensive; every current call site
+    // passes worldX).
+    var seedBase = (worldX == null ? x : worldX);
+    var profile = SWAY_PROFILES.seagrass;
     for (var i = -2; i <= 2; i++) {
         var bx = x + i * 6;
+        // Per-blade phase from world-x + blade index → neighbouring
+        // tufts at different world positions never move in unison.
+        var seed = seedBase * 0.31 + i * 0.71;
+        var swMid = sampleEnvironmentSway(seed, profile, 0.5);
+        var swTip = sampleEnvironmentSway(seed, profile, 1.0);
         cx.beginPath();
-        cx.moveTo(bx, y);
-        cx.quadraticCurveTo(bx + 3, y - 12, bx + (i % 2 === 0 ? 2 : -2), y - 22);
+        cx.moveTo(bx, y);  // foot pixel-fixed (heightFactor 0 → zero sway)
+        cx.quadraticCurveTo(
+            bx + 3 + swMid.x, y - 12 + swMid.y,
+            bx + (i % 2 === 0 ? 2 : -2) + swTip.x, y - 22 + swTip.y
+        );
         cx.stroke();
     }
     cx.restore();
@@ -3234,22 +6781,106 @@ function drawThermocline(cx, thd) {
 // ── Reef redesign: dedicated coral / sponge / cloud drawers ──
 // All read REEF_PAL (constants.js) and waveTime (state.js) from outer scope.
 
-function drawTableCoral(cx, x, y) {
+// ── Issue #35: per-instance coral variation ──────────────────────
+// Pure, deterministic helpers consumed by drawTableCoral/drawBrainCoral/
+// drawStaghorn/drawSoftCoral/drawGorgonian/drawBarrelSponge so every
+// instance of the same species reads as an individual (different scale,
+// mirrored where geometrically sensible, subtle hue/brightness shift,
+// small shape tweak) without duplicating drawers. Reuses the project-
+// wide sRand() helper — never Math.random(). Sits ON TOP of the #57
+// sway system for softCoral/gorgonian — the sway math itself is
+// untouched, it just draws under the additional cx.scale() transform.
+const CORAL_SCALE_MIN = 0.80;
+const CORAL_SCALE_MAX = 1.25;
+const CORAL_BRIGHTNESS_RANGE = 0.10;   // ±0.10 lightness
+const CORAL_HUE_SHIFT_DEG    = 12;     // ±12°
+
+function coralVariation(seed) {
+    var s = (typeof seed === 'number') ? seed : 0;
+    var r1 = sRand(s * 0.913 + 1.71);
+    var r2 = sRand(s * 1.317 + 3.29);
+    var r3 = sRand(s * 0.427 + 5.71);
+    var r4 = sRand(s * 1.913 + 7.23);
+    var r5 = sRand(s * 2.311 + 9.17);
+    return {
+        seed: s,
+        scale:      CORAL_SCALE_MIN + r1 * (CORAL_SCALE_MAX - CORAL_SCALE_MIN),
+        mirror:     r2 < 0.5 ? -1 : 1,
+        brightness: 1 - CORAL_BRIGHTNESS_RANGE + r3 * (2 * CORAL_BRIGHTNESS_RANGE),
+        hueShift:   (r4 - 0.5) * 2 * CORAL_HUE_SHIFT_DEG,
+        shape:      r5    // 0..1, drawers use this for small extra shape tweaks
+    };
+}
+
+// Hex -> HSL -> tint -> hex. Pure. Handles #rgb and #rrggbb. Returns null
+// for non-hex input so callers can fall back to the untouched color.
+function tintCoralColor(hexColor, brightness, hueShiftDeg) {
+    if (typeof hexColor !== 'string') return null;
+    var hex = hexColor.trim();
+    if (hex[0] !== '#') return null;
+    hex = hex.slice(1);
+    if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+    if (hex.length !== 6) return null;
+    var r = parseInt(hex.slice(0,2), 16) / 255;
+    var g = parseInt(hex.slice(2,4), 16) / 255;
+    var b = parseInt(hex.slice(4,6), 16) / 255;
+    var max = Math.max(r,g,b), min = Math.min(r,g,b);
+    var h = 0, s = 0;
+    var l0 = (max + min) / 2;
+    if (max !== min) {
+        var d = max - min;
+        s = l0 > 0.5 ? d / (2 - max - min) : d / (max + min);
+        if (max === r) { h = ((g - b) / d + (g < b ? 6 : 0)); }
+        else if (max === g) { h = ((b - r) / d + 2); }
+        else { h = ((r - g) / d + 4); }
+        h *= 60;
+    }
+    // apply shifts
+    h = (h + hueShiftDeg + 360) % 360;
+    var l = Math.max(0, Math.min(1, l0 * (brightness || 1)));
+    // HSL -> RGB
+    function hue2rgb(p, q, t) {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1/6) return p + (q - p) * 6 * t;
+        if (t < 1/2) return q;
+        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+        return p;
+    }
+    var R, G, B;
+    if (s === 0) { R = G = B = l; }
+    else {
+        var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        var p = 2 * l - q;
+        R = hue2rgb(p, q, h/360 + 1/3);
+        G = hue2rgb(p, q, h/360);
+        B = hue2rgb(p, q, h/360 - 1/3);
+    }
+    function to2(v) {
+        var n = Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16);
+        return n.length === 1 ? '0' + n : n;
+    }
+    return '#' + to2(R) + to2(G) + to2(B);
+}
+
+function drawTableCoral(cx, x, y, seed) {
+    var v = coralVariation(seed);
     cx.save();
     cx.translate(x, y);
+    cx.scale(v.mirror * v.scale, v.scale);
     cx.lineCap = 'round';
     var w = 90, h = 22;
     // flat cap ellipse
-    cx.fillStyle = REEF_PAL.tableCoral;
+    cx.fillStyle = tintCoralColor(REEF_PAL.tableCoral, v.brightness, v.hueShift) || REEF_PAL.tableCoral;
     cx.beginPath(); cx.ellipse(0, -h, w/2, h/2.2, 0, 0, Math.PI*2); cx.fill();
     // highlight
-    cx.fillStyle = REEF_PAL.tableHi; cx.globalAlpha = 0.6;
+    cx.fillStyle = tintCoralColor(REEF_PAL.tableHi, v.brightness, v.hueShift) || REEF_PAL.tableHi; cx.globalAlpha = 0.6;
     cx.beginPath(); cx.ellipse(0, -h-3, w/2-3, h/2.6, 0, 0, Math.PI*2); cx.fill();
     cx.globalAlpha = 1;
-    // stalk
+    // stalk (structural — untinted)
     cx.fillStyle = '#6a4a26';
     cx.fillRect(-5, -h, 10, h);
-    // foot
+    // foot (structural — untinted)
     cx.globalAlpha = 0.7;
     cx.fillRect(-12, -h*0.4, 24, h*0.3);
     cx.globalAlpha = 1;
@@ -3257,14 +6888,16 @@ function drawTableCoral(cx, x, y) {
 }
 
 function drawBrainCoral(cx, x, y, seed) {
+    var v = coralVariation(seed);
     cx.save();
     cx.translate(x, y);
+    cx.scale(v.mirror * v.scale, v.scale);
     var w = 60;
     // outer ellipse
-    cx.fillStyle = REEF_PAL.brainCoral;
+    cx.fillStyle = tintCoralColor(REEF_PAL.brainCoral, v.brightness, v.hueShift) || REEF_PAL.brainCoral;
     cx.beginPath(); cx.ellipse(0, 0, w/2, w/3.5, 0, 0, Math.PI*2); cx.fill();
     // highlight
-    cx.fillStyle = REEF_PAL.brainHi; cx.globalAlpha = 0.6;
+    cx.fillStyle = tintCoralColor(REEF_PAL.brainHi, v.brightness, v.hueShift) || REEF_PAL.brainHi; cx.globalAlpha = 0.6;
     cx.beginPath(); cx.ellipse(0, -4, w/2-4, w/4, 0, 0, Math.PI*2); cx.fill();
     cx.globalAlpha = 1;
     // gyri lines
@@ -3282,21 +6915,29 @@ function drawBrainCoral(cx, x, y, seed) {
 }
 
 function drawStaghorn(cx, x, y, seed) {
+    var v = coralVariation(seed);
     cx.save();
     cx.translate(x, y);
+    cx.scale(v.mirror * v.scale, v.scale);
     cx.lineCap = 'round';
-    var offsets = [-18, -8, 4, 14, 22];
-    for (var i = 0; i < offsets.length; i++) {
-        var ox = offsets[i];
-        var curl = (i % 2 === 0) ? -4 : 4;
-        var tipX = ox + (i % 2 === 0 ? -2 : 2);
+    var tintedStaghorn = tintCoralColor(REEF_PAL.staghorn, v.brightness, v.hueShift) || REEF_PAL.staghorn;
+    // branch count: 4, 5, or 6 based on shape variation
+    var branchCount = 4 + Math.floor(v.shape * 3);
+    for (var i = 0; i < branchCount; i++) {
+        // even spread across [-20, 20] so coral width stays constant with more branches
+        var ox = Math.round(-20 + (40 / (branchCount - 1)) * i);
+        // per-branch curl direction — use a seed derived from parent seed so
+        // mirroring feels less mechanical than a plain i%2 pattern
+        var curlSeed = sRand(v.seed + i * 0.317 + 2.11);
+        var curl = (curlSeed < 0.5) ? -4 : 4;
+        var tipX = ox + (curlSeed < 0.5 ? -2 : 2);
         // antler branch
-        cx.strokeStyle = REEF_PAL.staghorn; cx.lineWidth = 3;
+        cx.strokeStyle = tintedStaghorn; cx.lineWidth = 3;
         cx.beginPath(); cx.moveTo(ox, 0);
         cx.quadraticCurveTo(ox + curl, -22, tipX, -34);
         cx.stroke();
         // tip circle
-        cx.fillStyle = REEF_PAL.staghorn;
+        cx.fillStyle = tintedStaghorn;
         cx.beginPath(); cx.arc(tipX, -34, 3, 0, Math.PI*2); cx.fill();
         cx.fillStyle = '#fff'; cx.globalAlpha = 0.6;
         cx.beginPath(); cx.arc(tipX, -34, 1.4, 0, Math.PI*2); cx.fill();
@@ -3305,28 +6946,47 @@ function drawStaghorn(cx, x, y, seed) {
     cx.restore();
 }
 
-function drawSoftCoral(cx, x, y, color) {
+function drawSoftCoral(cx, x, y, color, worldX) {
+    // Issue #35: per-instance variation layered ON TOP of #57 sway.
+    // v.scale + v.mirror wrap the whole drawer as a cx transform so
+    // the sway math (unchanged below) draws under it automatically.
+    var v = coralVariation(worldX);
     cx.save();
     cx.translate(x, y);
+    cx.scale(v.mirror * v.scale, v.scale);
     cx.lineCap = 'round';
     var col = color || REEF_PAL.softPink;
+    col = tintCoralColor(col, v.brightness, v.hueShift) || col;
     var h = 70;
     var stalks = [-12, -2, 8, 16];
+    // World-x seed keeps phase stable across camera; per-stalk offset
+    // keeps the 4 stalks of one coral from moving as one plane.
+    var seedBase = (worldX == null ? x : worldX);
+    var profile = SWAY_PROFILES.softCoral;
     for (var i = 0; i < stalks.length; i++) {
         var ox = stalks[i];
+        var seed = seedBase * 0.19 + i * 1.13;
+        var swMid = sampleEnvironmentSway(seed, profile, 0.5);
+        var swTip = sampleEnvironmentSway(seed, profile, 1.0);
         cx.strokeStyle = col; cx.lineWidth = 5; cx.globalAlpha = 0.85;
-        cx.beginPath(); cx.moveTo(ox, 0);
-        cx.quadraticCurveTo(ox - 2, -h*0.5, ox, -h);
+        cx.beginPath(); cx.moveTo(ox, 0);  // foot pixel-fixed
+        cx.quadraticCurveTo(
+            ox - 2 + swMid.x, -h * 0.5 + swMid.y,
+            ox     + swTip.x, -h       + swTip.y
+        );
         cx.stroke();
         cx.globalAlpha = 1;
-        // polyps
+        // Polyps sit on the stalk — sample the sway at each polyp's
+        // height with the SAME per-stalk seed so they track the stalk
+        // rather than drift off it.
         var polyps = [0.3, 0.55, 0.8];
         for (var j = 0; j < polyps.length; j++) {
             var t = polyps[j];
-            var py = -h * t;
+            var swP = sampleEnvironmentSway(seed, profile, t);
+            var py = -h * t + swP.y;
             var pr = 2.2 + (1 - t) * 1.2;
             cx.fillStyle = col;
-            cx.beginPath(); cx.arc(ox - 1, py, pr, 0, Math.PI*2); cx.fill();
+            cx.beginPath(); cx.arc(ox - 1 + swP.x, py, pr, 0, Math.PI * 2); cx.fill();
             cx.strokeStyle = '#fff'; cx.lineWidth = 0.4; cx.globalAlpha = 0.6;
             cx.stroke();
             cx.globalAlpha = 1;
@@ -3335,22 +6995,45 @@ function drawSoftCoral(cx, x, y, color) {
     cx.restore();
 }
 
-function drawGorgonian(cx, x, y, side, color) {
+function drawGorgonian(cx, x, y, side, color, worldX, scaleOverride) {
+    // Issue #35: per-instance variation layered ON TOP of #57 sway.
+    // No mirror here — `side` already anchors direction to the wall.
+    // Issue #59: `scaleOverride` (optional) replaces the coralVariation
+    // scale entirely so a single hero gorgonian can read distinctly larger
+    // than the [0.80, 1.25] variation range. Undefined → normal variation.
+    var v = coralVariation(worldX);
+    var drawScale = (typeof scaleOverride === 'number') ? scaleOverride : v.scale;
     cx.save();
     cx.translate(x, y);
+    cx.scale(drawScale, drawScale);
     cx.lineCap = 'round';
     var col = color || REEF_PAL.gorgBright;
+    col = tintCoralColor(col, v.brightness, v.hueShift) || col;
     var sign = (side === 'right') ? 1 : -1;
     var h = 140;
-    // trunk — rises from wall anchor and curves outward
+    // Gorgonian is deliberately near-rigid: profile flex 0.25, amp 2px.
+    // Base at (0,0) stays fixed; only outer tips move minimally. No
+    // whole-object rotation — every segment anchors at (0,0) directly.
+    var seedBase = (worldX == null ? x : worldX);
+    var profile = SWAY_PROFILES.gorgonian;
+    // trunk — base fixed; mid + outer control points get tiny sway
+    var trunkSeed = seedBase * 0.27 + 0.53;
+    var swTrunkMid = sampleEnvironmentSway(trunkSeed, profile, 0.5);
+    var swTrunkTip = sampleEnvironmentSway(trunkSeed, profile, 1.0);
     cx.strokeStyle = col; cx.lineWidth = 4; cx.globalAlpha = 0.7;
     cx.beginPath(); cx.moveTo(0, 0);
-    cx.quadraticCurveTo(sign * 18, -h * 0.35, sign * 28, -h * 0.65);
+    cx.quadraticCurveTo(
+        sign * 18 + swTrunkMid.x, -h * 0.35 + swTrunkMid.y,
+        sign * 28 + swTrunkTip.x, -h * 0.65 + swTrunkTip.y
+    );
     cx.stroke();
     cx.globalAlpha = 1;
     // branches — fan from straight-up (t=0) to horizontal outward (t=1).
     // All branches point into open water (away from the wall) so they never
     // cross the rock face and appear to change shape as the camera scrolls.
+    // Each branch has its own per-index phase → the fan does NOT move as
+    // one flat plane; the whole fan looks alive without any single object
+    // rotating.
     for (var i = 0; i < 14; i++) {
         var t = i / 13;
         // ang: 0 = vertical up, PI/2 = horizontal outward
@@ -3358,24 +7041,42 @@ function drawGorgonian(cx, x, y, side, color) {
         var len = h * (0.55 + Math.sin(t * Math.PI) * 0.3);
         var x2 = sign * Math.sin(ang) * len * 0.75;
         var y2 = -Math.cos(ang) * len;
+        var branchSeed = seedBase * 0.27 + i * 0.53;
+        var swBrMid = sampleEnvironmentSway(branchSeed, profile, 0.5);
+        var swBrTip = sampleEnvironmentSway(branchSeed, profile, 1.0);
         cx.strokeStyle = col; cx.lineWidth = 2.2; cx.globalAlpha = 0.92;
-        cx.beginPath(); cx.moveTo(0, 0);
-        cx.quadraticCurveTo(sign * Math.sin(ang) * len * 0.25, -len * 0.5, x2, y2);
+        cx.beginPath(); cx.moveTo(0, 0);  // branch base pixel-fixed
+        cx.quadraticCurveTo(
+            sign * Math.sin(ang) * len * 0.25 + swBrMid.x, -len * 0.5 + swBrMid.y,
+            x2 + swBrTip.x, y2 + swBrTip.y
+        );
         cx.stroke();
-        // twig
+        // twig — a stiff extension attached 70% out along the branch.
+        // Same seed as its parent branch → moves as a rigid extension,
+        // stays visibly connected to the branch geometry.
+        var swTwigBase = sampleEnvironmentSway(branchSeed, profile, 0.7);
+        var swTwigMid  = sampleEnvironmentSway(branchSeed, profile, 0.85);
+        var swTwigTip  = sampleEnvironmentSway(branchSeed, profile, 1.0);
         cx.lineWidth = 1.1; cx.globalAlpha = 0.8;
-        cx.beginPath(); cx.moveTo(x2 * 0.7, y2 * 0.7);
-        cx.quadraticCurveTo(x2 * 0.7 + sign * 6, y2 * 0.7 - 4, x2 * 0.7 + sign * 14, y2 * 0.7 - 8);
+        cx.beginPath();
+        cx.moveTo(x2 * 0.7 + swTwigBase.x, y2 * 0.7 + swTwigBase.y);
+        cx.quadraticCurveTo(
+            x2 * 0.7 + sign * 6  + swTwigMid.x, y2 * 0.7 - 4 + swTwigMid.y,
+            x2 * 0.7 + sign * 14 + swTwigTip.x, y2 * 0.7 - 8 + swTwigTip.y
+        );
         cx.stroke();
         cx.globalAlpha = 1;
     }
     cx.restore();
 }
 
-function drawBarrelSponge(cx, x, y, color) {
+function drawBarrelSponge(cx, x, y, color, seed) {
+    var v = coralVariation(seed);
     cx.save();
     cx.translate(x, y);
+    cx.scale(v.mirror * v.scale, v.scale);
     var col = color || REEF_PAL.barrel1;
+    col = tintCoralColor(col, v.brightness, v.hueShift) || col;
     var w = 36, h = 60;
     // tapered barrel body
     cx.fillStyle = col;
@@ -3634,7 +7335,7 @@ function drawPond(cx, x, y) {
     var W = cssWidth, H = cssHeight;
     var mpp = 0.05;
     var diverScreenY = H * 0.45;
-    var floorD = floorAt(x ? (diverX + (x - W * 0.25) * mpp) : diverX);
+    var floorD = floorAt(x ? (diverX + (x - W * DIVER_SCREEN_X_FRACTION) * mpp) : diverX);
     // sunbeam cone — narrows at surface, fans out as it descends
     var beamTop = y - 6;
     var beamBot = diverScreenY + (Math.min(floorD, depth + 22) - depth) / mpp;
@@ -3701,7 +7402,7 @@ function drawPond(cx, x, y) {
 function drawGuideline() {
     if (guidelineNodes.length < 2) return;
     var W = cssWidth, H = cssHeight;
-    var diverScreenX = W * 0.25, diverScreenY = H * 0.45, mpp = 0.05;
+    var diverScreenX = W * DIVER_SCREEN_X_FRACTION, diverScreenY = H * 0.45, mpp = 0.05;
     var cx = ctx;
     cx.save();
     cx.strokeStyle = 'rgba(255,230,130,0.75)';
@@ -3717,7 +7418,76 @@ function drawGuideline() {
     cx.restore();
 }
 
+// Issue #37: Subtle depth-scale ruler on the right edge of the canvas.
+// Short tick every DEPTH_SCALE_TICK_INTERVAL_M metres, labelled tick
+// every DEPTH_SCALE_LABEL_INTERVAL_M metres. World-anchored on Y so the
+// ticks appear to scroll past as the diver descends — giving a visual
+// sense of ascent/descent rate and helping hold stop depths without
+// staring at the dive computer. Screen-anchored on X (right edge).
+//
+// Uses the same depth-to-screen-Y conversion the rest of the file uses:
+// dsy = H * 0.45, mpp = 0.05  →  y = dsy + (d - depth) / mpp.
+//
+// Dimming: drawn BEFORE drawSiltAndTorch in the render pipeline, so the
+// cave/wreck darkness overlay tints the ruler along with everything
+// else that responds to _torchDark. This function does not need its own
+// _torchDark branch.
+function drawDepthScale() {
+    if (gameState !== 'diving') return;
+    var W = cssWidth, H = cssHeight;
+    var dsy = H * 0.45, mpp = 0.05;
+    var cx = ctx;
+    // Right-edge column: short ticks between rightEdgeX and tickInnerX;
+    // labels sit just left of the ticks, right-aligned to labelX. Kept
+    // narrow (~30px total) so the ruler stays clear of the touch-button
+    // strip that lives at right:20px with 48px-wide buttons.
+    var rightEdgeX = W - 4;
+    var tickShortX = W - 10;
+    var tickLongX  = W - 14;
+    var labelX     = W - 18;
+    var tickIntervalM  = DEPTH_SCALE_TICK_INTERVAL_M;
+    var labelIntervalM = DEPTH_SCALE_LABEL_INTERVAL_M;
+    // World-depth range visible on screen. Round to the tick interval so
+    // ticks land on integer depths, not on partial multiples that would
+    // wobble frame-to-frame.
+    var minVisibleDepth = depth - (dsy * mpp);
+    var maxVisibleDepth = depth + ((H - dsy) * mpp);
+    // Clamp: never draw ticks above 0 m (surface) — negative depths
+    // aren't meaningful for a depth ruler.
+    if (minVisibleDepth < 0) minVisibleDepth = 0;
+    // First tick at or below minVisibleDepth aligned to tickIntervalM.
+    var firstTick = Math.ceil(minVisibleDepth / tickIntervalM) * tickIntervalM;
+    cx.save();
+    cx.textBaseline = 'middle';
+    cx.textAlign = 'right';
+    cx.font = '10px monospace';
+    for (var d = firstTick; d <= maxVisibleDepth + 0.001; d += tickIntervalM) {
+        var y = dsy + (d - depth) / mpp;
+        // Skip ticks that would clip off screen (tick line ~1px, label ~10px tall).
+        if (y < 6 || y > H - 6) continue;
+        var isLabelled = (Math.round(d) % labelIntervalM) === 0;
+        var x1 = isLabelled ? tickLongX : tickShortX;
+        cx.strokeStyle = isLabelled
+            ? 'rgba(255,255,255,0.35)'
+            : 'rgba(255,255,255,0.18)';
+        cx.lineWidth = 1;
+        cx.beginPath();
+        cx.moveTo(x1, y);
+        cx.lineTo(rightEdgeX, y);
+        cx.stroke();
+        if (isLabelled) {
+            cx.fillStyle = 'rgba(255,255,255,0.55)';
+            cx.fillText(Math.round(d) + ' m', labelX, y);
+        }
+    }
+    cx.restore();
+}
+
 function drawSiltAndTorch() {
+    // No-op outside the live dive scene — matches the pattern used by
+    // drawNearSurfaceAtmosphere / drawSiteAtmosphere so callers/tests can
+    // invoke this directly in any game state without emitting canvas ops.
+    if (gameState !== 'diving') return;
     // Ease the darkness level toward its target so entering/leaving an
     // overhead environment fades gradually instead of snapping.
     var target = inOverhead ? 1 : 0;
@@ -3730,7 +7500,7 @@ function drawSiltAndTorch() {
     if (s && s.id === 'wreck') return;
 
     var W = cssWidth, H = cssHeight;
-    var diverScreenX = W * 0.25, diverScreenY = H * 0.45, mpp = 0.05;
+    var diverScreenX = W * DIVER_SCREEN_X_FRACTION, diverScreenY = H * 0.45, mpp = 0.05;
     var cx = ctx;
 
     // Cave gloom is a FLAT, uniform darkness — never a diver-centred vignette
@@ -3744,25 +7514,72 @@ function drawSiltAndTorch() {
     if (torchOn) {
         var torchPx = TORCH_RADIUS_M / mpp;
         var effectiveR = torchPx * 1.7 * Math.max(0.3, visibility);
-        var grad = cx.createRadialGradient(diverScreenX, diverScreenY, 0,
-                                            diverScreenX, diverScreenY, effectiveR);
-        grad.addColorStop(0,    'rgba(0,0,0,1)');     // fully clear at the diver
-        grad.addColorStop(0.5,  'rgba(0,0,0,0.92)');
-        grad.addColorStop(0.82, 'rgba(0,0,0,0.45)');
-        grad.addColorStop(1,    'rgba(0,0,0,0)');     // back to full dark at the rim
+        var beamAngle = torchBeamAngle(_diverFacing);
+        var halfA = TORCH_BEAM_HALF_ANGLE_RAD;
+        var nearR = effectiveR * TORCH_NEAR_FIELD_FRACTION;
+
+        cx.save();
         cx.globalCompositeOperation = 'destination-out';
-        cx.fillStyle = grad;
+
+        // Near-field spill — small, all-around, weaker. Keeps the diver's
+        // back/head dimly readable instead of pure black (which reads as
+        // broken rather than atmospheric). Full-screen fill; only the
+        // gradient's inner disc actually erases anything.
+        var spill = cx.createRadialGradient(diverScreenX, diverScreenY, 0,
+                                             diverScreenX, diverScreenY, nearR);
+        spill.addColorStop(0,   'rgba(0,0,0,0.85)');
+        spill.addColorStop(0.6, 'rgba(0,0,0,0.55)');
+        spill.addColorStop(1,   'rgba(0,0,0,0)');
+        cx.fillStyle = spill;
         cx.fillRect(0, 0, W, H);
+
+        // Directional cone — clip to a wedge along the beam axis, then
+        // fill the strong radial gradient. The clip guarantees the
+        // "punch" only opens along the beam direction.
+        cx.save();
+        cx.beginPath();
+        cx.moveTo(diverScreenX, diverScreenY);
+        cx.arc(diverScreenX, diverScreenY, effectiveR * 1.05,
+               beamAngle - halfA, beamAngle + halfA);
+        cx.closePath();
+        cx.clip();
+        var beam = cx.createRadialGradient(diverScreenX, diverScreenY, 0,
+                                            diverScreenX, diverScreenY, effectiveR);
+        beam.addColorStop(0,    'rgba(0,0,0,1)');
+        beam.addColorStop(0.5,  'rgba(0,0,0,0.92)');
+        beam.addColorStop(0.82, 'rgba(0,0,0,0.45)');
+        beam.addColorStop(1,    'rgba(0,0,0,0)');
+        cx.fillStyle = beam;
+        cx.fillRect(0, 0, W, H);
+        cx.restore();
+
         cx.globalCompositeOperation = 'source-over';
-        drawTorchGlowAndSparkles(cx, W, H, diverScreenX, diverScreenY, effectiveR);
+        cx.restore();
+
+        drawTorchGlowAndSparkles(cx, W, H, diverScreenX, diverScreenY,
+                                 effectiveR, beamAngle, halfA);
     }
 }
 
-function drawTorchGlowAndSparkles(cx, W, H, diverScreenX, diverScreenY, effectiveR) {
+function drawTorchGlowAndSparkles(cx, W, H, diverScreenX, diverScreenY, effectiveR,
+                                    beamAngle, beamHalfAngle) {
     var s = activeSite();
-    if (!s || s.id !== 'cave') return;
+    // Issue #31: extended to wreck (was cave-only) so the wreck interior
+    // gets glow/backscatter too. Any other site (open water / reef / shore)
+    // still short-circuits.
+    if (!s || (s.id !== 'cave' && s.id !== 'wreck')) return;
+
+    // Beam-direction params default to the current diver facing so old-style
+    // callers keep working; both current call sites (cave + wreck) pass them
+    // explicitly.
+    if (typeof beamAngle !== 'number') beamAngle = torchBeamAngle(_diverFacing);
+    if (typeof beamHalfAngle !== 'number') beamHalfAngle = TORCH_BEAM_HALF_ANGLE_RAD;
+
     cx.save();
     cx.globalCompositeOperation = 'lighter';
+
+    // Warm all-around glow — omni-directional, matches the near-field spill
+    // in the cutout pass so the diver's immediate surroundings glow softly.
     var warm = cx.createRadialGradient(diverScreenX, diverScreenY, 0,
                                        diverScreenX, diverScreenY, effectiveR * 0.72);
     warm.addColorStop(0, 'rgba(255,220,150,0.10)');
@@ -3771,17 +7588,49 @@ function drawTorchGlowAndSparkles(cx, W, H, diverScreenX, diverScreenY, effectiv
     cx.fillStyle = warm;
     cx.fillRect(0, 0, W, H);
 
-    cx.fillStyle = 'rgba(238,226,184,0.32)';
-    for (var i = 0; i < 36; i++) {
-        var seed = i * 23.7;
-        var ang = sRand(seed) * Math.PI * 2;
-        var rr = Math.pow(sRand(seed + 1), 0.65) * effectiveR * 0.85;
-        var x = diverScreenX + Math.cos(ang) * rr + Math.sin(waveTime * 0.8 + i) * 2;
-        var y = diverScreenY + Math.sin(ang) * rr;
-        if (x < 0 || x > W || y < 0 || y > H) continue;
-        var a = Math.max(0, 1 - rr / effectiveR);
-        cx.globalAlpha = a * 0.85;
-        cx.beginPath(); cx.arc(x, y, 0.7 + sRand(seed + 2) * 1.3, 0, Math.PI * 2); cx.fill();
+    // Volumetric cone-shaped backscatter — suspended particles caught in
+    // the beam. Density scales with 1-visibility (silty water scatters
+    // more). Clipped to the beam wedge so it visibly extends along the
+    // torch direction rather than blooming in every direction.
+    var vis = (typeof visibility === 'number') ? visibility : 0.8;
+    var visClamped = Math.max(0, Math.min(1, vis));
+    // 0.05 in crystal-clear water, up to 0.30 in murky. Cave is usually
+    // clear; wreck interior tends to sit around vis 0.4-0.6, so the wreck
+    // naturally reads dustier without hard-coding a site check.
+    var scatterA = 0.05 + (1 - visClamped) * 0.25;
+    cx.save();
+    cx.beginPath();
+    cx.moveTo(diverScreenX, diverScreenY);
+    cx.arc(diverScreenX, diverScreenY, effectiveR * 1.05,
+           beamAngle - beamHalfAngle, beamAngle + beamHalfAngle);
+    cx.closePath();
+    cx.clip();
+    var scatter = cx.createRadialGradient(diverScreenX, diverScreenY, 0,
+                                          diverScreenX, diverScreenY, effectiveR);
+    scatter.addColorStop(0,    'rgba(255,225,175,' + scatterA.toFixed(3) + ')');
+    scatter.addColorStop(0.55, 'rgba(210,220,200,' + (scatterA * 0.55).toFixed(3) + ')');
+    scatter.addColorStop(1,    'rgba(150,180,200,0)');
+    cx.fillStyle = scatter;
+    cx.fillRect(0, 0, W, H);
+    cx.restore();
+
+    // Deterministic point-sparkles (cave only — cave has clear water and
+    // the sparkles read as fine silt/mica flecks; wreck's murkier ambient
+    // is already conveyed by the backscatter layer above, and steel-
+    // backdrop sparkles read as noise there).
+    if (s.id === 'cave') {
+        cx.fillStyle = 'rgba(238,226,184,0.32)';
+        for (var i = 0; i < 36; i++) {
+            var seed = i * 23.7;
+            var ang = sRand(seed) * Math.PI * 2;
+            var rr = Math.pow(sRand(seed + 1), 0.65) * effectiveR * 0.85;
+            var x = diverScreenX + Math.cos(ang) * rr + Math.sin(waveTime * 0.8 + i) * 2;
+            var y = diverScreenY + Math.sin(ang) * rr;
+            if (x < 0 || x > W || y < 0 || y > H) continue;
+            var a = Math.max(0, 1 - rr / effectiveR);
+            cx.globalAlpha = a * 0.85;
+            cx.beginPath(); cx.arc(x, y, 0.7 + sRand(seed + 2) * 1.3, 0, Math.PI * 2); cx.fill();
+        }
     }
     cx.globalAlpha = 1;
     cx.restore();
@@ -3813,7 +7662,7 @@ function drawLightShafts() {
     var beamFade = (s.id === 'wreck') ? _wreckMetal : 1;
     if (beamFade < 0.02) return;
     var W = cssWidth, H = cssHeight;
-    var diverScreenX = W * 0.25, diverScreenY = H * 0.45, mpp = 0.05;
+    var diverScreenX = W * DIVER_SCREEN_X_FRACTION, diverScreenY = H * 0.45, mpp = 0.05;
     var cx = ctx;
     for (var i = 0; i < s.features.length; i++) {
         var f = s.features[i];
@@ -3920,9 +7769,13 @@ function drawDiveComputer() {
     var contentW = innerW;
 
     // --- Data values ---
+    // Issue #14: ndl/ceilDepth/schedule read from the per-tick cache
+    // (game-loop.js's frameCalc, refreshed once per frame in updateDiving()
+    // right after this frame's tissue update) instead of recomputing —
+    // calculateDecoSchedule() alone was up to ~3000 iterations.
     var po2 = calculatePO2();
-    var ndl = calculateNDL();
-    var ceilDepth = calculateCeiling();
+    var ndl = frameCalc.ndl;
+    var ceilDepth = frameCalc.ceiling;
     var decoStopDepth = decoStop(ceilDepth);
     var avgDepthVal = avgDepthSamples > 0 ? avgDepthAccum / avgDepthSamples : 0;
     var tank = getActiveTank();
@@ -3930,7 +7783,7 @@ function drawDiveComputer() {
     var tBar = tankBar();
     var arRate = Math.abs(ascentRate);
     var inDeco = decoStopDepth > 0;
-    var schedule = inDeco ? calculateDecoSchedule() : null;
+    var schedule = inDeco ? frameCalc.schedule : null;
 
     // --- Region Y positions ---
     var statusTop = innerY;
@@ -3952,7 +7805,10 @@ function drawDiveComputer() {
         var tbY = innerY + s(2);
         var chipH = s(15);
         var modeLabel = diveMode === 'ccr' ? (ccrState.onBailout ? 'BAIL' : 'CC\u00B7BO') : diveMode === 'tec' ? 'OC TEC' : 'REC';
-        var modeTone = diveMode === 'ccr' ? (ccrState.onBailout ? '#ff4b4b' : '#34e6ff') : diveMode === 'tec' ? '#34e6ff' : '#46f08f';
+        // Issue #39: bailout tone is a danger-tier status (mode is degraded);
+        // REC tone is an ok-tier status. #34e6ff (cyan) is a mode chip accent,
+        // not traffic-light \u2014 kept as a literal (out of HUD_COLORS scope).
+        var modeTone = diveMode === 'ccr' ? (ccrState.onBailout ? hudColor('danger') : '#34e6ff') : diveMode === 'tec' ? '#34e6ff' : hudColor('ok');
         cx.font = 'bold ' + s(11) + "px " + DCF;
         cx.textAlign = 'left';
         var mlW = cx.measureText(modeLabel).width;
@@ -3970,7 +7826,8 @@ function drawDiveComputer() {
         cx.beginPath(); cx.roundRect(batX, batY, batW, batH, s(2)); cx.stroke();
         cx.fillStyle = '#8694a1';
         cx.fillRect(batX + batW + s(1), batY + batH * 0.28, s(2), batH * 0.44);
-        cx.fillStyle = '#46f08f';
+        // Issue #39: battery is "full" indicator — ok tier.
+        cx.fillStyle = hudColor('ok');
         cx.fillRect(batX + s(1.5), batY + s(1.5), (batW - s(3)) * 0.82, batH - s(3));
         cx.textAlign = 'left';
     }
@@ -4002,9 +7859,12 @@ function drawDiveComputer() {
     var chevH = s(8);
     var chevGap = s(3);
     var numChevrons = Math.min(6, Math.max(0, Math.round(arRate / 3)));
+    // Issue #39: chevron count already encodes rate independently of colour
+    // (six chevrons at max, filled proportionally), and >18 m/min also
+    // blinks — two non-colour cues in addition to the tier colour swap.
     var chevColor = '#555';
-    if (arRate > 18) chevColor = '#ff3333';
-    else if (arRate > 9) chevColor = '#ffd24d';
+    if (arRate > 18) chevColor = hudColor('danger');
+    else if (arRate > 9) chevColor = hudColor('caution');
     else if (arRate > 0.5) chevColor = '#fff';
     var flashChev = arRate > 18 && Math.floor(Date.now() / 300) % 2 === 0;
 
@@ -4080,9 +7940,9 @@ function drawDiveComputer() {
     if (showStopBox) {
 
         if (inDeco) {
-            // DECO STOP title
+            // DECO STOP title — issue #39: deco is a danger-tier state.
             cx.font = s(14) + "px " + DCF;
-            cx.fillStyle = '#ff4b4b';
+            cx.fillStyle = hudColor('danger');
             cx.textAlign = 'left';
             cx.fillText('DECO STOP', rBX + s(6), rBTop + s(12));
             // Stop depth + time
@@ -4120,12 +7980,16 @@ function drawDiveComputer() {
             cx.fillText('SAFETY STOP', rBX + s(6), rBTop + s(12));
             cx.font = 'bold ' + s(28) + "px " + DCF;
             cx.fillStyle = '#fff';
+            // Issue #13: nominal target depth derived from the real active
+            // window (SAFETY_STOP_ACTIVE_MIN_D..MAX_D, issue #68) instead of
+            // a hardcoded "5" disconnected from the actual 2.4-8.3m zone.
+            var ssTargetD = String(Math.round((SAFETY_STOP_ACTIVE_MIN_D + SAFETY_STOP_ACTIVE_MAX_D) / 2));
             if (safetyStopCountdownStarted && !safetyStopComplete && !safetyStopPaused) {
                 var ssMin = Math.floor(safetyStopRemaining / 60);
                 var ssSec = Math.floor(safetyStopRemaining % 60);
-                cx.fillStyle = '#46f08f';
-                cx.fillText('5', rBX + s(6), rBTop + s(38));
-                var ss5W = cx.measureText('5').width;
+                cx.fillStyle = hudColor('ok');
+                cx.fillText(ssTargetD, rBX + s(6), rBTop + s(38));
+                var ss5W = cx.measureText(ssTargetD).width;
                 cx.font = s(18) + "px " + DCF;
                 cx.fillStyle = '#a8b6cc';
                 cx.fillText('m', rBX + s(6) + ss5W + s(2), rBTop + s(38));
@@ -4136,9 +8000,9 @@ function drawDiveComputer() {
             } else if (safetyStopCountdownStarted && !safetyStopComplete && safetyStopPaused) {
                 var ssMin2 = Math.floor(safetyStopRemaining / 60);
                 var ssSec2 = Math.floor(safetyStopRemaining % 60);
-                cx.fillStyle = '#ffd24d';
-                cx.fillText('5', rBX + s(6), rBTop + s(38));
-                var ss5W2 = cx.measureText('5').width;
+                cx.fillStyle = hudColor('caution');
+                cx.fillText(ssTargetD, rBX + s(6), rBTop + s(38));
+                var ss5W2 = cx.measureText(ssTargetD).width;
                 cx.font = s(18) + "px " + DCF;
                 cx.fillStyle = '#a8b6cc';
                 cx.fillText('m', rBX + s(6) + ss5W2 + s(2), rBTop + s(38));
@@ -4149,21 +8013,21 @@ function drawDiveComputer() {
             } else {
                 var ssDur = calculateSafetyStopDuration();
                 var ssMinPlan = Math.floor(ssDur / 60);
-                cx.fillStyle = '#ffd24d';
-                cx.fillText('5', rBX + s(6), rBTop + s(38));
-                var ss5W3 = cx.measureText('5').width;
+                cx.fillStyle = hudColor('caution');
+                cx.fillText(ssTargetD, rBX + s(6), rBTop + s(38));
+                var ss5W3 = cx.measureText(ssTargetD).width;
                 cx.font = s(18) + "px " + DCF;
                 cx.fillStyle = '#a8b6cc';
                 cx.fillText('m', rBX + s(6) + ss5W3 + s(2), rBTop + s(38));
                 cx.font = 'bold ' + s(28) + "px " + DCF;
-                cx.fillStyle = '#ffd24d';
+                cx.fillStyle = hudColor('caution');
                 cx.font = s(18) + "px " + DCF;
                 var spUnitW = cx.measureText('min').width;
                 cx.font = 'bold ' + s(28) + "px " + DCF;
                 var spNumW = cx.measureText(String(ssMinPlan)).width;
                 var spGroupW = spNumW + s(3) + spUnitW;
                 var spGroupX = rBX + rBW * 0.60 - spGroupW / 2;
-                cx.fillStyle = '#ffd24d';
+                cx.fillStyle = hudColor('caution');
                 cx.textAlign = 'left';
                 cx.fillText(String(ssMinPlan), spGroupX, rBTop + s(38));
                 cx.font = s(18) + "px " + DCF;
@@ -4173,7 +8037,7 @@ function drawDiveComputer() {
         }
     } else if (safetyStopComplete) {
         cx.font = s(14) + "px " + DCF;
-        cx.fillStyle = '#46f08f';
+        cx.fillStyle = hudColor('ok');
         cx.textAlign = 'left';
         cx.fillText('SAFETY STOP', rBX + s(6), rBTop + s(12));
         cx.font = 'bold ' + s(28) + "px " + DCF;
@@ -4190,8 +8054,13 @@ function drawDiveComputer() {
         cx.textAlign = 'right';
         cx.fillText('NDL', ndlRightX, ndlLabelTop);
         cx.font = 'bold ' + s(ndlHero ? 46 : 34) + "px " + DCF;
-        cx.fillStyle = ndl < 5 ? '#ff3333' : ndl < 15 ? '#ffd24d' : '#46f08f';
-        cx.fillText(ndl >= 999 ? '---' : ndl > 99 ? '99' : String(ndl), ndlRightX, ndlLabelTop + s(ndlHero ? 44 : 30));
+        // Issue #39: NDL < 5 is danger tier — prefix with ⚠ so the state is
+        // identifiable in grayscale / for fully colour-blind users.
+        var ndlIsDanger = ndl < 5;
+        cx.fillStyle = ndlIsDanger ? hudColor('danger') : ndl < 15 ? hudColor('caution') : hudColor('ok');
+        var ndlText = ndl >= 999 ? '---' : ndl > 99 ? '99' : String(ndl);
+        if (ndlIsDanger && ndl < 999) ndlText = hudDangerPrefix() + ndlText;
+        cx.fillText(ndlText, ndlRightX, ndlLabelTop + s(ndlHero ? 44 : 30));
         if (ndlHero && ndl < 999) {
             cx.font = s(11) + "px " + DCF;
             cx.fillStyle = '#8694a1';
@@ -4222,12 +8091,26 @@ function drawDiveComputer() {
         cx.roundRect(n2BarX, n2BarTop, n2BarW, n2BarFullH, s(3));
         cx.clip();
         var n2VGrad = cx.createLinearGradient(0, n2BarBot, 0, n2FillTop);
-        n2VGrad.addColorStop(0, '#46f08f');
-        n2VGrad.addColorStop(1, n2LoadFill > 0.7 ? '#ff4b4b' : n2LoadFill > 0.4 ? '#ffd24d' : '#46f08f');
+        n2VGrad.addColorStop(0, hudColor('ok'));
+        n2VGrad.addColorStop(1, n2LoadFill > 0.9 ? hudColor('danger') : n2LoadFill > 0.7 ? hudColor('caution') : hudColor('ok'));
         cx.fillStyle = n2VGrad;
         cx.fillRect(n2BarX, n2FillTop, n2BarW, n2FillH);
         cx.restore();
     }
+    // Issue #39: threshold tick marks \u2014 caution (70 %) + danger (90 %) \u2014
+    // give the bar an unambiguous fill-vs-threshold reading that doesn't
+    // depend on the colour swap alone. Positions match issue #39's own
+    // spec (70/90 %) and the color-swap thresholds above.
+    cx.strokeStyle = 'rgba(255,255,255,0.55)';
+    cx.lineWidth = 1;
+    var _n2Tick70Y = n2BarBot - 0.7 * n2BarFullH;
+    var _n2Tick90Y = n2BarBot - 0.9 * n2BarFullH;
+    cx.beginPath();
+    cx.moveTo(n2BarX - s(2), _n2Tick70Y);
+    cx.lineTo(n2BarX + n2BarW + s(2), _n2Tick70Y);
+    cx.moveTo(n2BarX - s(2), _n2Tick90Y);
+    cx.lineTo(n2BarX + n2BarW + s(2), _n2Tick90Y);
+    cx.stroke();
     cx.font = s(8) + "px " + DCF;
     cx.fillStyle = '#8694a1';
     cx.textAlign = 'center';
@@ -4266,8 +8149,11 @@ function drawDiveComputer() {
     }
 
     if (highestWarn) {
+        // Issue #39: banner already blinks + already carries a ⚠ prefix in
+        // the localised text (S('warnO2'), etc.) — two non-colour cues in
+        // addition to the tier colour swap.
         var wBlink = warnCritical && Math.floor(Date.now() / 380) % 2 === 0;
-        var wCol   = warnCritical ? '#ff4b4b' : '#ffd24d';
+        var wCol   = warnCritical ? hudColor('danger') : hudColor('caution');
         var wbx = contentX + s(4), wbw = contentW - s(8);
         var wby = warnBannerTop,   wbh = warnBannerH;
         // dark pill background
@@ -4344,15 +8230,17 @@ function drawDiveComputer() {
     if (infoPageMode === 0) {
 
     if (diveMode === 'ccr') {
-      // TASK-032D: CCR HUD Display
+      // TASK-032D: CCR HUD Display — issue #39: colours via hudColor().
       var po2Val = ccrState.actualPO2;
-      var ccrPO2Color = po2Val < 0.18 ? '#ff3333' : po2Val > 1.6 ? '#ff3333' : po2Val > 1.4 ? '#ff8800' : po2Val > 1.0 ? '#ffcc00' : '#33ff99';
+      var po2IsDangerCCR = po2Val < 0.18 || po2Val > 1.6;
+      var ccrPO2Color = po2IsDangerCCR ? hudColor('danger') : po2Val > 1.4 ? hudColor('warn') : po2Val > 1.0 ? hudColor('caution') : hudColor('ok');
       var o2Bar = Math.round(ccrState.o2CylPressure);
       var dilBar = Math.round(ccrState.dilCylPressure);
       var scrMin = Math.round(ccrState.scrubberRemaining);
-      var scrColor = scrMin < 10 ? '#ff3333' : scrMin < 30 ? '#ffcc00' : '#33ff99';
+      var scrIsDanger = scrMin < 10;
+      var scrColor = scrIsDanger ? hudColor('danger') : scrMin < 30 ? hudColor('caution') : hudColor('ok');
       var modeText = ccrState.onBailout ? 'BAIL' : 'CCR';
-      var modeColor = ccrState.onBailout ? '#ff3333' : '#33ff99';
+      var modeColor = ccrState.onBailout ? hudColor('danger') : hudColor('ok');
 
       // Row 1: Mode + SP
       cx.font = valueFont; cx.textAlign = 'left';
@@ -4361,39 +8249,42 @@ function drawDiveComputer() {
       cx.fillStyle = '#fff'; cx.textAlign = 'right';
       cx.fillText('SP:' + ccrState.targetSP.toFixed(1), box0X + box0W - padR, bY1);
 
-      // Row 2: PO2
+      // Row 2: PO2 (issue #39: ⚠ prefix on danger)
       cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
       cx.fillText('PO2', box0X + padL, bY2);
       cx.font = valueFont; cx.fillStyle = ccrPO2Color; cx.textAlign = 'right';
-      cx.fillText(po2Val.toFixed(2), box0X + box0W - padR, bY2);
+      cx.fillText((po2IsDangerCCR ? hudDangerPrefix() : '') + po2Val.toFixed(2), box0X + box0W - padR, bY2);
 
       // Row 3: O2 cylinder
-      var o2Color = o2Bar < 30 ? '#ff3333' : '#eaf2ff';
+      var o2IsDangerCCR = o2Bar < 30;
+      var o2Color = o2IsDangerCCR ? hudColor('danger') : '#eaf2ff';
       cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
       cx.fillText('O2', box0X + padL, bY3);
       cx.font = valueFont; cx.fillStyle = o2Color; cx.textAlign = 'right';
-      cx.fillText(o2Bar + ' bar', box0X + box0W - padR, bY3);
+      cx.fillText((o2IsDangerCCR ? hudDangerPrefix() : '') + o2Bar + ' bar', box0X + box0W - padR, bY3);
 
       // Row 4: Diluent cylinder
-      var dilColor = dilBar < 30 ? '#ff3333' : '#eaf2ff';
+      var dilIsDangerCCR = dilBar < 30;
+      var dilColor = dilIsDangerCCR ? hudColor('danger') : '#eaf2ff';
       cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
       cx.fillText('DIL', box0X + padL, bY4);
       cx.font = valueFont; cx.fillStyle = dilColor; cx.textAlign = 'right';
-      cx.fillText(dilBar + ' bar', box0X + box0W - padR, bY4);
+      cx.fillText((dilIsDangerCCR ? hudDangerPrefix() : '') + dilBar + ' bar', box0X + box0W - padR, bY4);
 
       // Row 5: Scrubber
       cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
       cx.fillText('SCR', box0X + padL, bY5);
       cx.font = valueFont; cx.fillStyle = scrColor; cx.textAlign = 'right';
-      cx.fillText(scrMin + ' min', box0X + box0W - padR, bY5);
+      cx.fillText((scrIsDanger ? hudDangerPrefix() : '') + scrMin + ' min', box0X + box0W - padR, bY5);
 
     } else {
-    // OC Gas Box (original)
+    // OC Gas Box (original) — issue #39: colours via hudColor().
     tank = getActiveTank();
     var bestIdx = recommendBestGas();
     var isBest = (activeTank === bestIdx);
     tBar = tankBar();
-    var barColor = tBar > 100 ? '#33ff33' : (tBar >= 50 ? '#ffff33' : '#ff3333');
+    var tankIsDanger = tBar < 50;
+    var barColor = tBar > 100 ? hudColor('ok') : (tBar >= 50 ? hudColor('caution') : hudColor('danger'));
 
     // Row 1: "Gas" label (left-aligned, consistent font)
     cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
@@ -4428,9 +8319,23 @@ function drawDiveComputer() {
         cx.fillRect(barX, barY, barW * barFrac, barH);
         cx.restore();
     }
-    // Numeric value (vertically centered with bar, right-aligned)
+    // Issue #39: threshold tick marks at 50 bar (danger→caution edge) and
+    // 100 bar (caution→ok edge). Renders on top of the fill so the bar is
+    // legible as "fill vs threshold" without relying on colour.
+    cx.strokeStyle = 'rgba(255,255,255,0.55)';
+    cx.lineWidth = 1;
+    var _tk50X = barX + (50 / 200) * barW;
+    var _tk100X = barX + (100 / 200) * barW;
+    cx.beginPath();
+    cx.moveTo(_tk50X, barY - s(1));
+    cx.lineTo(_tk50X, barY + barH + s(1));
+    cx.moveTo(_tk100X, barY - s(1));
+    cx.lineTo(_tk100X, barY + barH + s(1));
+    cx.stroke();
+    // Numeric value (vertically centered with bar, right-aligned) — issue #39
+    // prefixes ⚠ on danger so the value is unambiguous in grayscale.
     cx.font = valueFont; cx.fillStyle = barColor; cx.textAlign = 'right';
-    cx.fillText(Math.round(tBar) + ' bar', box0X + box0W - padR, barY + barH - s(1));
+    cx.fillText((tankIsDanger ? hudDangerPrefix() : '') + Math.round(tBar) + ' bar', box0X + box0W - padR, barY + barH - s(1));
 
     // Row 4: Tank dots (smaller, subtle, active/best highlighted)
     var dotCount = tankCount;
@@ -4443,7 +8348,10 @@ function drawDiveComputer() {
         var hasGas = tk.gasRemaining > 0;
         var isActive = (i === activeTank);
         var isBestDot = (i === bestIdx);
-        var dotColor = hasGas ? (isActive ? '#33ffcc' : (isBestDot ? '#33ff99' : '#aaa')) : '#444';
+        // #33ffcc (active) is an identity accent, not a status tier — kept
+        // as a literal. Issue #39: best-gas dot IS a "safe/available" cue,
+        // so it flips to the CVD palette's ok tone in colour-blind mode.
+        var dotColor = hasGas ? (isActive ? '#33ffcc' : (isBestDot ? hudColor('ok') : '#aaa')) : '#444';
         cx.beginPath();
         cx.arc(dotsStartX + i * dotGap, dotsY, dotR, 0, Math.PI * 2);
         cx.fillStyle = dotColor;
@@ -4459,14 +8367,24 @@ function drawDiveComputer() {
     }
 
     // Row 5: Best gas indicator (label color, right-aligned)
+    // Issue #51: recommendBestGas() returns -1 when no tank has a PO2 inside
+    // the operational window. Surface that as "NO SAFE GAS" in warning colour
+    // rather than pointing at some other tank as "Best".
     cx.font = labelFont; cx.textAlign = 'right';
-    var bestText = isBest ? 'Best: \u2713' : ('Best: T' + (bestIdx + 1));
-    if (!isBest && bestIdx !== null && bestIdx !== activeTank) {
-        // Blink green/grey every 500ms if a better tank is available
-        var blink = Math.floor(Date.now() / 500) % 2 === 0;
-        cx.fillStyle = blink ? '#33ff99' : '#888';
+    var bestText;
+    if (bestIdx === -1) {
+        // Issue #39: "no safe gas" is danger tier \u2014 no valid PO2 window.
+        bestText = hudDangerPrefix() + 'NO SAFE GAS';
+        cx.fillStyle = hudColor('danger');
+    } else if (isBest) {
+        bestText = 'Best: \u2713';
+        cx.fillStyle = hudColor('ok');
     } else {
-        cx.fillStyle = isBest ? '#33ff99' : labelColor;
+        bestText = 'Best: T' + (bestIdx + 1);
+        // Blink ok/grey every 500ms if a better tank is available \u2014 the
+        // blink itself is the primary non-colour cue for "switch me".
+        var blink = Math.floor(Date.now() / 500) % 2 === 0;
+        cx.fillStyle = blink ? hudColor('ok') : '#888';
     }
     cx.fillText(bestText, box0X + box0W - padR, bY5);
     } // end OC/CCR gas box
@@ -4488,7 +8406,8 @@ function drawDiveComputer() {
     cx.font = valueFont; cx.fillStyle = valueColor; cx.textAlign = 'right';
     cx.fillText(avgDepthVal.toFixed(1) + ' m', box1X + box1W - padL, bR2Y);
 
-    // Box 1 Row 3: AMV
+    // Box 1 Row 3: AMV — a configured user preference, not a status tier;
+    // keep the amber literal (not in HUD_COLORS scope).
     var bR3Y = slotY + rowH * 2 + s(14);
     cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
     cx.fillText('AMV', box1X + padL, bR3Y);
@@ -4498,34 +8417,37 @@ function drawDiveComputer() {
     // --- Box 2: GTR / TTS / CEIL ---
     drawSlot(box2X, box2W);
 
-    // Box 2 Row 1: GTR
+    // Box 2 Row 1: GTR (issue #39: colours + ⚠ prefix on danger)
     bR1Y = slotY + rowH * 0 + s(14);
     cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
     cx.fillText('GTR', box2X + padL, bR1Y);
-    var gtrColor2 = '#46f08f';
-    if (gtr < 10) gtrColor2 = '#ff3333';
-    else if (gtr < 30) gtrColor2 = '#ffd24d';
+    var gtrIsDanger = gtr < 10;
+    var gtrColor2 = hudColor('ok');
+    if (gtrIsDanger) gtrColor2 = hudColor('danger');
+    else if (gtr < 30) gtrColor2 = hudColor('caution');
     cx.font = valueFont; cx.fillStyle = gtrColor2; cx.textAlign = 'right';
-    cx.fillText(gtr >= 999 ? '---' : Math.floor(gtr) + ' min', box2X + box2W - padL, bR1Y);
+    var gtrText = gtr >= 999 ? '---' : Math.floor(gtr) + ' min';
+    if (gtrIsDanger && gtr < 999) gtrText = hudDangerPrefix() + gtrText;
+    cx.fillText(gtrText, box2X + box2W - padL, bR1Y);
 
-    // Box 2 Row 2: TTS
+    // Box 2 Row 2: TTS (in-deco is warn tier)
     bR2Y = slotY + rowH * 1 + s(14);
     cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
     cx.fillText('TTS', box2X + padL, bR2Y);
-    var ttsVal = calculateTTS();
+    var ttsVal = frameCalc.tts;
     cx.font = valueFont;
-    cx.fillStyle = ttsVal > 0 ? (inDeco ? '#ff9933' : '#eaf2ff') : '#555';
+    cx.fillStyle = ttsVal > 0 ? (inDeco ? hudColor('warn') : '#eaf2ff') : '#555';
     cx.textAlign = 'right';
     cx.fillText(ttsVal > 0 ? ttsVal + ' min' : '--', box2X + box2W - padL, bR2Y);
 
-    // Box 2 Row 3: PO2
+    // Box 2 Row 3: PO2 (issue #39: ⚠ prefix on danger)
     bR3Y = slotY + rowH * 2 + s(14);
     cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
     cx.fillText('PO2', box2X + padL, bR3Y);
     cx.font = valueFont;
     cx.fillStyle = po2Color(po2);
     cx.textAlign = 'right';
-    cx.fillText(po2.toFixed(2), box2X + box2W - padL, bR3Y);
+    cx.fillText((po2IsDanger(po2) ? hudDangerPrefix() : '') + po2.toFixed(2), box2X + box2W - padL, bR3Y);
     cx.textAlign = 'left';
 
     // Vertical dividers between bottom info boxes
@@ -4550,7 +8472,8 @@ function drawDiveComputer() {
             if (tankIdx < tankCount) {
                 tk = tanks[tankIdx];
                 var tkBar = Math.round(tk.gasRemaining / tk.volume);
-                var tkBarColor = tkBar > 100 ? '#33ff33' : tkBar >= 50 ? '#ffff33' : '#ff3333';
+                var tkIsDanger = tkBar < 50;
+                var tkBarColor = tkBar > 100 ? hudColor('ok') : tkBar >= 50 ? hudColor('caution') : hudColor('danger');
                 var tkMOD = Math.floor(((PO2_HIGH / tk.fO2) - 1) * 10);
                 // Row 1: Tank label
                 cx.font = valueFont; cx.fillStyle = (tankIdx === activeTank) ? '#33ffcc' : '#fff';
@@ -4572,8 +8495,19 @@ function drawDiveComputer() {
                     cx.fillStyle = tkBarColor; cx.fillRect(tBarX, tBarY, tBarW2 * tBarFrac, tBarH2);
                     cx.restore();
                 }
+                // Issue #39: threshold ticks at 50 / 100 bar (same as active-tank bar).
+                cx.strokeStyle = 'rgba(255,255,255,0.55)';
+                cx.lineWidth = 1;
+                var _tkT50X = tBarX + (50 / 200) * tBarW2;
+                var _tkT100X = tBarX + (100 / 200) * tBarW2;
+                cx.beginPath();
+                cx.moveTo(_tkT50X, tBarY - s(1));
+                cx.lineTo(_tkT50X, tBarY + tBarH2 + s(1));
+                cx.moveTo(_tkT100X, tBarY - s(1));
+                cx.lineTo(_tkT100X, tBarY + tBarH2 + s(1));
+                cx.stroke();
                 cx.font = valueFont; cx.fillStyle = tkBarColor; cx.textAlign = 'right';
-                cx.fillText(tkBar + 'b', bX + bW - padL, tBarY + tBarH2 - s(1));
+                cx.fillText((tkIsDanger ? hudDangerPrefix() : '') + tkBar + 'b', bX + bW - padL, tBarY + tBarH2 - s(1));
                 // Row 4: MOD
                 cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
                 cx.fillText('MOD', bX + padL, bY4);
@@ -4628,8 +8562,8 @@ function drawDiveComputer() {
             cx.fillStyle = 'rgba(255,255,255,0.06)';
             cx.fillRect(bx, barAreaTop, barW, barAreaH);
 
-            // Bar color based on ratio
-            var bColor = ratio >= 1.0 ? '#ff3333' : ratio >= 0.8 ? '#ffd24d' : '#46f08f';
+            // Bar color based on ratio — issue #39 via hudColor().
+            var bColor = ratio >= 1.0 ? hudColor('danger') : ratio >= 0.8 ? hudColor('caution') : hudColor('ok');
             cx.fillStyle = bColor;
             cx.fillRect(bx, by, barW, bh);
         }
@@ -4675,31 +8609,37 @@ function drawDiveComputer() {
         var gR2Y = slotY + rowH * 1 + s(14);
         var gR3Y = slotY + rowH * 2 + s(14);
 
-        // Box 0: GF99 / SurfGF / CNS
+        // Box 0: GF99 / SurfGF / CNS — issue #39 via hudColor() + ⚠ prefix.
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('GF99', box0X + padL, gR1Y);
-        var gf99Color = gf99 >= 100 ? '#ff3333' : gf99 >= 80 ? '#ffd24d' : '#46f08f';
+        var gf99IsDanger = gf99 >= 100;
+        var gf99Color = gf99IsDanger ? hudColor('danger') : gf99 >= 80 ? hudColor('caution') : hudColor('ok');
         cx.font = valueFont; cx.fillStyle = gf99Color; cx.textAlign = 'right';
-        cx.fillText(gf99 + '%', box0X + box0W - padL, gR1Y);
+        cx.fillText((gf99IsDanger ? hudDangerPrefix() : '') + gf99 + '%', box0X + box0W - padL, gR1Y);
 
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('SrfGF', box0X + padL, gR2Y);
-        var surfGFColor = surfGF >= 100 ? '#ff3333' : surfGF >= 80 ? '#ffd24d' : '#46f08f';
+        var surfGFIsDanger = surfGF >= 100;
+        var surfGFColor = surfGFIsDanger ? hudColor('danger') : surfGF >= 80 ? hudColor('caution') : hudColor('ok');
         cx.font = valueFont; cx.fillStyle = surfGFColor; cx.textAlign = 'right';
-        cx.fillText(surfGF + '%', box0X + box0W - padL, gR2Y);
+        cx.fillText((surfGFIsDanger ? hudDangerPrefix() : '') + surfGF + '%', box0X + box0W - padL, gR2Y);
 
         var cnsVal = Math.round(cnsPercent);
-        var cnsColor = cnsVal >= 80 ? '#ff3333' : cnsVal >= 50 ? '#ffd24d' : '#46f08f';
+        var cnsIsDanger = cnsVal >= 80;
+        var cnsColor = cnsIsDanger ? hudColor('danger') : cnsVal >= 50 ? hudColor('caution') : hudColor('ok');
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('CNS', box0X + padL, gR3Y);
         cx.font = valueFont; cx.fillStyle = cnsColor; cx.textAlign = 'right';
-        cx.fillText(cnsVal + '%', box0X + box0W - padL, gR3Y);
+        cx.fillText((cnsIsDanger ? hudDangerPrefix() : '') + cnsVal + '%', box0X + box0W - padL, gR3Y);
 
         // Box 1: CEIL / GF Lo / GF Hi
-        var ceilVal = calculateCeiling();
+        // Issue #14: tissues are frozen once the dive ends (updateTissues()
+        // no longer runs), so frameCalc's value from the last diving tick
+        // is numerically identical to a fresh call here.
+        var ceilVal = frameCalc.ceiling;
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('CEIL', box1X + padL, gR1Y);
-        cx.font = valueFont; cx.fillStyle = ceilVal > 0 ? '#ff9933' : '#46f08f'; cx.textAlign = 'right';
+        cx.font = valueFont; cx.fillStyle = ceilVal > 0 ? hudColor('warn') : hudColor('ok'); cx.textAlign = 'right';
         cx.fillText(ceilVal > 0 ? ceilVal.toFixed(1) + 'm' : '0m', box1X + box1W - padL, gR1Y);
 
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
@@ -4712,26 +8652,29 @@ function drawDiveComputer() {
         cx.font = valueFont; cx.fillStyle = valueColor; cx.textAlign = 'right';
         cx.fillText(gfHigh + '%', box1X + box1W - padL, gR3Y);
 
-        // Box 2: TTS / NDL / PO2 (additional useful metrics)
-        var ttsVal2 = calculateTTS();
+        // Box 2: TTS / NDL / PO2 (additional useful metrics) — issue #39 via hudColor().
+        var ttsVal2 = frameCalc.tts;
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('TTS', box2X + padL, gR1Y);
         cx.font = valueFont;
-        cx.fillStyle = ttsVal2 > 0 ? '#ff9933' : '#555';
+        cx.fillStyle = ttsVal2 > 0 ? hudColor('warn') : '#555';
         cx.textAlign = 'right';
         cx.fillText(ttsVal2 > 0 ? ttsVal2 + ' min' : '--', box2X + box2W - padL, gR1Y);
 
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('NDL', box2X + padL, gR2Y);
         cx.font = valueFont;
-        var ndlColor2 = ndl < 5 ? '#ff3333' : ndl < 15 ? '#ffd24d' : '#46f08f';
+        var ndlIsDanger2 = ndl < 5;
+        var ndlColor2 = ndlIsDanger2 ? hudColor('danger') : ndl < 15 ? hudColor('caution') : hudColor('ok');
         cx.fillStyle = ndlColor2; cx.textAlign = 'right';
-        cx.fillText(ndl >= 999 ? '---' : (ndl > 99 ? '99' : ndl) + ' min', box2X + box2W - padL, gR2Y);
+        var ndlText2 = ndl >= 999 ? '---' : (ndl > 99 ? '99' : ndl) + ' min';
+        if (ndlIsDanger2 && ndl < 999) ndlText2 = hudDangerPrefix() + ndlText2;
+        cx.fillText(ndlText2, box2X + box2W - padL, gR2Y);
 
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('PO2', box2X + padL, gR3Y);
         cx.font = valueFont; cx.fillStyle = po2Color(po2); cx.textAlign = 'right';
-        cx.fillText(po2.toFixed(2), box2X + box2W - padL, gR3Y);
+        cx.fillText((po2IsDanger(po2) ? hudDangerPrefix() : '') + po2.toFixed(2), box2X + box2W - padL, gR3Y);
 
         // Vertical dividers
         cx.strokeStyle = '#8694a1';
@@ -4752,22 +8695,25 @@ function drawDiveComputer() {
         var ccrInfoR3Y = slotY + rowH * 2 + s(14);
 
         var po2Actual = ccrState.actualPO2;
-        var po2ActualColor = po2Actual < PO2_HYPOXIA ? '#ff3333'
-            : po2Actual > PO2_HIGH ? '#ff3333'
-            : po2Actual > PO2_ELEVATED ? '#ff8800'
-            : po2Actual > PO2_SAFE ? '#ffcc00' : '#33ff99';
+        var po2ActualIsDanger = po2Actual < PO2_HYPOXIA || po2Actual > PO2_HIGH;
+        var po2ActualColor = po2ActualIsDanger ? hudColor('danger')
+            : po2Actual > PO2_ELEVATED ? hudColor('warn')
+            : po2Actual > PO2_SAFE ? hudColor('caution') : hudColor('ok');
         var o2Bar5 = Math.round(ccrState.o2CylPressure);
         var dilBar5 = Math.round(ccrState.dilCylPressure);
         var scrMin5 = Math.round(ccrState.scrubberRemaining);
-        var scrColor5 = scrMin5 < 10 ? '#ff3333' : scrMin5 < 30 ? '#ffcc00' : '#33ff99';
-        var o2Color5 = o2Bar5 < 30 ? '#ff3333' : '#eaf2ff';
-        var dilColor5 = dilBar5 < 30 ? '#ff3333' : '#eaf2ff';
+        var scrIsDanger5 = scrMin5 < 10;
+        var scrColor5 = scrIsDanger5 ? hudColor('danger') : scrMin5 < 30 ? hudColor('caution') : hudColor('ok');
+        var o2IsDanger5 = o2Bar5 < 30;
+        var dilIsDanger5 = dilBar5 < 30;
+        var o2Color5 = o2IsDanger5 ? hudColor('danger') : '#eaf2ff';
+        var dilColor5 = dilIsDanger5 ? hudColor('danger') : '#eaf2ff';
 
-        // Box 0: PO2 actual / SP target / mode (CCR or BAIL)
+        // Box 0: PO2 actual / SP target / mode (CCR or BAIL) — issue #39 ⚠ on danger.
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('PO2', box0X + padL, ccrInfoR1Y);
         cx.font = valueFont; cx.fillStyle = po2ActualColor; cx.textAlign = 'right';
-        cx.fillText(po2Actual.toFixed(2), box0X + box0W - padL, ccrInfoR1Y);
+        cx.fillText((po2ActualIsDanger ? hudDangerPrefix() : '') + po2Actual.toFixed(2), box0X + box0W - padL, ccrInfoR1Y);
 
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('SP', box0X + padL, ccrInfoR2Y);
@@ -4777,15 +8723,15 @@ function drawDiveComputer() {
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('MODE', box0X + padL, ccrInfoR3Y);
         cx.font = valueFont;
-        cx.fillStyle = ccrState.onBailout ? '#ff3333' : '#33ff99';
+        cx.fillStyle = ccrState.onBailout ? hudColor('danger') : hudColor('ok');
         cx.textAlign = 'right';
-        cx.fillText(ccrState.onBailout ? 'BAIL' : 'CCR', box0X + box0W - padL, ccrInfoR3Y);
+        cx.fillText((ccrState.onBailout ? hudDangerPrefix() : '') + (ccrState.onBailout ? 'BAIL' : 'CCR'), box0X + box0W - padL, ccrInfoR3Y);
 
-        // Box 1: O2 cyl pressure / O2 cyl volume / scrubber
+        // Box 1: O2 cyl pressure / O2 cyl volume / scrubber (⚠ prefix on danger)
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('O2 P', box1X + padL, ccrInfoR1Y);
         cx.font = valueFont; cx.fillStyle = o2Color5; cx.textAlign = 'right';
-        cx.fillText(o2Bar5 + 'b', box1X + box1W - padL, ccrInfoR1Y);
+        cx.fillText((o2IsDanger5 ? hudDangerPrefix() : '') + o2Bar5 + 'b', box1X + box1W - padL, ccrInfoR1Y);
 
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('O2 V', box1X + padL, ccrInfoR2Y);
@@ -4795,13 +8741,13 @@ function drawDiveComputer() {
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('SCR', box1X + padL, ccrInfoR3Y);
         cx.font = valueFont; cx.fillStyle = scrColor5; cx.textAlign = 'right';
-        cx.fillText(scrMin5 + 'm', box1X + box1W - padL, ccrInfoR3Y);
+        cx.fillText((scrIsDanger5 ? hudDangerPrefix() : '') + scrMin5 + 'm', box1X + box1W - padL, ccrInfoR3Y);
 
         // Box 2: diluent pressure / diluent volume / diluent mix label
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('DIL P', box2X + padL, ccrInfoR1Y);
         cx.font = valueFont; cx.fillStyle = dilColor5; cx.textAlign = 'right';
-        cx.fillText(dilBar5 + 'b', box2X + box2W - padL, ccrInfoR1Y);
+        cx.fillText((dilIsDanger5 ? hudDangerPrefix() : '') + dilBar5 + 'b', box2X + box2W - padL, ccrInfoR1Y);
 
         cx.font = labelFont; cx.fillStyle = labelColor; cx.textAlign = 'left';
         cx.fillText('DIL V', box2X + padL, ccrInfoR2Y);
@@ -4831,12 +8777,12 @@ function drawDiveComputer() {
     // ================================================================
     if (diveMode === 'ccr') {
       var ccrWarnText = '';
-      var ccrWarnColor = '#ff3333';
+      var ccrWarnColor = hudColor('danger');
       if (ccrState.actualPO2 < 0.18 && !ccrState.onBailout) ccrWarnText = 'LOW PO2';
       else if (ccrState.actualPO2 > 1.5 && !ccrState.onBailout) ccrWarnText = 'HIGH PO2';
       if (ccrState.scrubberFailed && !ccrState.onBailout) ccrWarnText = 'CO2!';
       if (!ccrState.scrubberFailed && ccrState.scrubberRemaining < 10 && ccrState.scrubberRemaining > 0 && !ccrState.onBailout) {
-        ccrWarnText = 'SCR LOW'; ccrWarnColor = '#ffcc00';
+        ccrWarnText = 'SCR LOW'; ccrWarnColor = hudColor('caution');
       }
       if (ccrWarnText && Math.floor(Date.now() / 500) % 2 === 0) {
         cx.font = 'bold ' + s(14) + "px " + DCF;
@@ -4858,164 +8804,6 @@ function drawDiveComputer() {
     if (hasWarning) playAlertBeep();
 
     cx.restore();
-}
-
-// SECTION: Gas selection setup screen
-// SEARCH TERMS: drawGasSetup, diveMode, tank tabs, preset gases, mode selector
-
-// ============================================================
-//  GAS SELECTION SCREEN — TASK-018
-// ============================================================
-
-function drawGasSetup() {
-    var cx = ctx;
-    var W = cssWidth;
-    var H = cssHeight;
-
-    cx.fillStyle = 'rgba(0,0,0,0.95)';
-    cx.fillRect(0, 0, W, H);
-
-    var centerX = W / 2;
-    var y = H * 0.08;
-
-    // Title
-    cx.textAlign = 'center';
-    cx.font = 'bold 28px monospace';
-    cx.fillStyle = '#fff';
-    cx.fillText(S('gasSetupTitle'), centerX, y);
-    y += 40;
-
-    // BUG-CCR-10: Removed canvas-drawn mode tabs (they looked clickable but
-    // weren't). The HTML gas-setup overlay's mode buttons (modeBtnRec/Tec/Ccr)
-    // and the keyboard M hint are the only entry points now.
-    cx.font = 'bold 14px monospace';
-    cx.fillStyle = '#33ff99';
-    cx.textAlign = 'center';
-    cx.fillText(S('modeLabel') + ': ' + diveMode.toUpperCase(), centerX, y);
-    y += 18;
-    cx.font = '11px monospace';
-    cx.fillStyle = '#555';
-    cx.fillText('M = ' + S('modeLabel') + ' (gas setup only)', centerX, y);
-    y += 16;
-
-    // TASK-032A: CCR gas setup (canvas)
-    if (diveMode === 'ccr') {
-        cx.font = '16px monospace';
-        cx.fillStyle = '#33ff99';
-        cx.textAlign = 'center';
-        cx.fillText(S('ccrO2Cyl') + ': ' + ccrState.o2CylPressure + 'bar \u00D7 ' + ccrState.o2CylVolume + 'L', centerX, y + 20);
-        cx.fillStyle = '#66ccff';
-        cx.fillText(S('ccrDiluent') + ': ' + ccrDilPresetName(), centerX, y + 44);
-        cx.fillText(S('ccrDilCyl') + ': ' + ccrState.dilCylPressure + 'bar \u00D7 ' + ccrState.dilCylVolume + 'L', centerX, y + 66);
-        cx.fillStyle = '#ffcc00';
-        cx.fillText(S('ccrSetpoint') + ': ' + ccrState.targetSP.toFixed(1) + ' bar', centerX, y + 90);
-        cx.fillStyle = '#aaa';
-        cx.fillText(S('ccrScrubber') + ': ' + ccrState.scrubberRemaining + ' min', centerX, y + 112);
-        cx.font = '11px monospace';
-        cx.fillStyle = '#555';
-        cx.fillText('[1-5] Diluent  [/] SP  [,/.] Cyl  [Enter] Start', centerX, y + 140);
-        cx.textAlign = 'left';
-        return;
-    }
-
-    if (isAdvanced()) {
-        // Tank tabs
-        cx.font = 'bold 14px monospace';
-        var tabW = 80;
-        var totalTabW = tankCount * (tabW + 8) + 60;
-        var tabX = centerX - totalTabW / 2;
-        for (var i = 0; i < tankCount; i++) {
-            var isSelected = (i === selectedTankTab);
-            cx.fillStyle = isSelected ? '#33ff99' : '#555';
-            cx.fillRect(tabX, y - 14, tabW, 22);
-            cx.fillStyle = isSelected ? '#000' : '#ccc';
-            cx.textAlign = 'center';
-            cx.fillText('Tank ' + (i + 1), tabX + tabW / 2, y + 2);
-            tabX += tabW + 8;
-        }
-        cx.fillStyle = '#888';
-        cx.font = 'bold 18px monospace';
-        cx.fillText('[+]', tabX + 10, y + 2);
-        cx.fillText('[-]', tabX + 45, y + 2);
-        y += 40;
-    }
-
-    var t = tanks[selectedTankTab];
-    cx.textAlign = 'center';
-
-    // O2
-    cx.font = 'bold 40px monospace';
-    cx.fillStyle = '#33ff33';
-    cx.fillText('O\u2082 ' + Math.round(t.fO2 * 100) + '%', centerX, y);
-    y += 25;
-
-    if (isAdvanced()) {
-        // He
-        cx.font = 'bold 32px monospace';
-        cx.fillStyle = '#44ccff';
-        cx.fillText('He ' + Math.round(t.fHe * 100) + '%', centerX, y);
-        y += 25;
-    }
-
-    // N2
-    cx.font = '20px monospace';
-    cx.fillStyle = '#ccc';
-    cx.fillText('N\u2082: ' + Math.round(t.fN2 * 100) + '%', centerX, y);
-    y += 35;
-
-    // Pressure
-    cx.font = 'bold 18px monospace';
-    cx.fillStyle = '#fff';
-    cx.fillText(S('pressure') + ': ' + t.pressure + ' bar', centerX, y);
-    y += 25;
-
-    // MOD + Label
-    var mod = calculateMOD(t.fO2);
-    cx.font = '16px monospace';
-    cx.fillStyle = '#aaa';
-    cx.fillText('MOD (PO2 1.4): ' + mod.toFixed(0) + 'm    Label: ' + t.label, centerX, y);
-    y += 35;
-
-    // AMV setting (advanced only)
-    if (isAdvanced()) {
-        cx.font = 'bold 18px monospace';
-        cx.fillStyle = '#ffcc00';
-        cx.fillText(S('amvLabel') + ': ' + amvRate + ' L/min', centerX, y);
-        y += 25;
-
-        // Tank size setting
-        cx.font = 'bold 18px monospace';
-        cx.fillStyle = '#66ccff';
-        cx.fillText(S('tankSizeLabel') + ': ' + tanks[selectedTankTab].volume + ' L', centerX, y);
-        y += 25;
-
-        // GF setting
-        cx.font = 'bold 18px monospace';
-        cx.fillStyle = '#ff9966';
-        cx.fillText(S('gfLowLabel') + ': ' + gfLow + '%  /  ' + S('gfHighLabel') + ': ' + gfHigh + '%', centerX, y);
-        y += 25;
-    }
-
-    // Presets
-    cx.font = '13px monospace';
-    cx.fillStyle = '#aaa';
-    if (isAdvanced()) {
-        cx.fillText(S('presetsAdv1'), centerX, y);
-        y += 18;
-        cx.fillText(S('presetsAdv2'), centerX, y);
-        y += 25;
-    } else {
-        cx.fillText(S('presetsBasic'), centerX, y);
-        y += 25;
-    }
-
-    y += 10;
-
-    cx.font = 'bold 20px monospace';
-    cx.fillStyle = '#fff';
-    cx.fillText(S('startDive'), centerX, y);
-
-    cx.textAlign = 'left';
 }
 
 // SECTION: Dive profile chart
@@ -5074,9 +8862,9 @@ function drawDiveProfileChart(cx, x, y, w, h) {
     }
     cx.stroke();
 
-    // Draw ceiling polyline (red, only where ceiling > 0)
+    // Draw ceiling polyline (danger tier, only where ceiling > 0)
     cx.beginPath();
-    cx.strokeStyle = '#ff3333';
+    cx.strokeStyle = hudColor('danger');
     cx.lineWidth = 1.5;
     var inCeiling = false;
     for (i = 0; i < diveProfile.length; i++) {
@@ -5091,6 +8879,40 @@ function drawDiveProfileChart(cx, x, y, w, h) {
         }
     }
     if (inCeiling) cx.stroke();
+
+    // Issue #44: Violation markers — small dots at (t, depth-at-that-t) for
+    // each diveEvents entry so the player can see WHERE in the profile the
+    // mistake happened. Depth is looked up from the nearest diveProfile
+    // sample by timestamp. safetyStopSkipped is drawn amber at the surface
+    // end of the chart (~5 m) since "where" isn't meaningful for it.
+    if (typeof diveEvents !== 'undefined' && diveEvents.length > 0) {
+        for (var ei = 0; ei < diveEvents.length; ei++) {
+            var ev = diveEvents[ei];
+            var evT = ev.t;
+            var evDepth;
+            if (ev.kind === 'safetyStopSkipped') {
+                evT = diveProfile[diveProfile.length - 1].t;
+                evDepth = 5;
+            } else {
+                var bestIdx = 0;
+                var bestDt = Math.abs(diveProfile[0].t - evT);
+                for (var pj = 1; pj < diveProfile.length; pj++) {
+                    var dtp = Math.abs(diveProfile[pj].t - evT);
+                    if (dtp < bestDt) { bestDt = dtp; bestIdx = pj; }
+                }
+                evDepth = diveProfile[bestIdx].depth;
+            }
+            var mx = chartX + (evT / maxT) * chartW;
+            var my = chartY + (evDepth / maxD) * chartH;
+            cx.beginPath();
+            cx.arc(mx, my, 4, 0, Math.PI * 2);
+            cx.fillStyle = ev.kind === 'safetyStopSkipped' ? '#ffb84d' : '#ff3b3b';
+            cx.fill();
+            cx.strokeStyle = 'rgba(0,0,0,0.6)';
+            cx.lineWidth = 1;
+            cx.stroke();
+        }
+    }
 
     // Labels
     cx.font = '11px monospace';
@@ -5135,6 +8957,270 @@ function gsPanel(cx, x, y, w, h, r) {
     cx.stroke();
 }
 
+// ============================================================
+// Issue #46: Instructor overlay ("Learn" mode)
+// ============================================================
+// Narrow (~230px) semi-transparent left-edge panel of six live-physics
+// rows. Called from drawScene() after every darkness/silt/torch pass so
+// it stays fully readable regardless of the world tint.
+//
+// Contract:
+//   - No expensive calculations. Reads existing per-tick state:
+//     bcdGasSurfaceLiters, tissues[], tissuesHe[], bubbles[],
+//     narcosisIndex, amvRate, ccrState. When it needs a schedule/ceiling
+//     it reads frameCalc (populated by updateDiving()) rather than
+//     calling calculateCeiling() fresh.
+//   - Values equal what the dive computer / grade / MOD readout show —
+//     the panel is a WINDOW onto the existing physics, not a second
+//     source of truth.
+//   - All display strings via S(...) so a mid-dive language toggle
+//     updates the overlay on the next frame.
+const INSTRUCTOR_PANEL_W = 230;
+const INSTRUCTOR_ROW_H   = 46;    // px per row (title + value + subtext)
+const INSTRUCTOR_ROWS    = 6;
+const INSTRUCTOR_PAD_X   = 10;
+const INSTRUCTOR_TOP_Y_FRAC = 0.12;   // top edge as fraction of cssHeight
+// Rounded to the same 4-halftime buckets the ZHL16C table uses for its
+// row labels in the tissue-bar page; keeps the panel's compartment label
+// consistent with what a diver already sees on the Info page.
+const INSTRUCTOR_TISSUE_MIN_LOAD = 0.001;  // ignore compartments essentially at 0
+// Highlight thresholds for the leading-tissue % row. Same three-bucket
+// pattern that the existing GF99 row uses on the info page (46f08f /
+// ffd24d / ff3333) — matched deliberately so a diver reading both at
+// once gets the same colour code for the same underlying saturation.
+const INSTRUCTOR_TISSUE_WARN_PCT = 80;
+const INSTRUCTOR_TISSUE_CRIT_PCT = 100;
+
+// Pick the leading compartment (highest saturation as % of surface
+// M-value). Returns { i, pct, ht } or null if no compartment is loaded.
+// Runs the same combinedAB() math the ceiling/GF99 pages use, so a
+// SurfGF row of, e.g., 42% on the info page yields the same pct here for
+// the same tick — this is what the "no double-calculation" requirement
+// in the issue asks for.
+function _instructorLeadingTissue() {
+    var pSurf = 1.0;
+    var lead = -1;
+    var leadPct = -1;
+    for (var i = 0; i < 16; i++) {
+        var ptTotal = tissues[i] + tissuesHe[i];
+        if (ptTotal <= INSTRUCTOR_TISSUE_MIN_LOAD) continue;
+        var ab = combinedAB(i);
+        var mVal = ab.a + pSurf / ab.b;
+        var denom = mVal - pSurf;
+        var pct = denom > 0.0001 ? (ptTotal - pSurf) / denom * 100 : 0;
+        if (pct > leadPct) { leadPct = pct; lead = i; }
+    }
+    if (lead < 0) return null;
+    return { i: lead, pct: leadPct, ht: ZHL16C_N2[lead].ht };
+}
+
+function drawInstructorOverlay() {
+    var cx = ctx;
+    var W = cssWidth;
+    var H = cssHeight;
+
+    var panelW = INSTRUCTOR_PANEL_W;
+    var rowH   = INSTRUCTOR_ROW_H;
+    var panelH = rowH * INSTRUCTOR_ROWS + 46; // + title header
+    var panelX = 8;
+    var panelY = Math.max(8, Math.floor(H * INSTRUCTOR_TOP_Y_FRAC));
+
+    // Panel background — a bit darker than gsPanel + explicit alpha so
+    // it doesn't hide the dive-computer HUD if they ever overlap (they
+    // won't at default HUD placement, but the panel scales with viewport
+    // height and this defends against a small-window edge case).
+    cx.save();
+    cx.beginPath();
+    cx.roundRect(panelX, panelY, panelW, panelH, 10);
+    cx.fillStyle = 'rgba(10, 18, 24, 0.82)';
+    cx.fill();
+    cx.strokeStyle = 'rgba(52, 230, 255, 0.35)';
+    cx.lineWidth = 1;
+    cx.stroke();
+
+    cx.textAlign = 'left';
+    var padX = panelX + INSTRUCTOR_PAD_X;
+
+    // Title
+    cx.font = 'bold 12px monospace';
+    cx.fillStyle = '#34e6ff';
+    cx.fillText(S('instructorTitle'), padX, panelY + 18);
+    cx.font = '9px monospace';
+    cx.fillStyle = '#6b8a95';
+    cx.fillText(S('instructorHintOff'), padX, panelY + 32);
+
+    var rowTopY = panelY + 46;
+
+    // Precompute the values ONCE — the overlay must never trigger a
+    // second calculateCeiling()/calculateNDL() call this frame.
+    var P    = ambientPressure(depth);
+    var gas  = activeGas();
+    var fO2  = gas.fO2;
+    var mod  = calculateMOD(fO2);          // cheap: arithmetic only
+    var end  = calculateEND();             // cheap: arithmetic only
+    var bcdSurf = bcdGasSurfaceLiters;
+    var bcdEff  = P > 0 ? bcdSurf / P : 0;
+    var bcdMax  = (typeof BUOYANCY_PARAMS !== 'undefined' && BUOYANCY_PARAMS.bcdMaxCapacity)
+        ? BUOYANCY_PARAMS.bcdMaxCapacity : 18;
+    var sac  = amvRate * P;                 // surface-liters/min at depth
+    var lead = _instructorLeadingTissue();
+    // Newest bubble in flight (last emitted with depth > 0). We scan
+    // from the end because updateBubbles() splices out surfaced bubbles
+    // in reverse order — the last live entry is the youngest.
+    var newest = null;
+    for (var bi = bubbles.length - 1; bi >= 0; bi--) {
+        if (bubbles[bi].depth > 0.1) { newest = bubbles[bi]; break; }
+    }
+    var bubblePctGain = null;
+    if (newest) {
+        // bubbleDisplayRadius() already applies the (Pe/Pn)^(1/3) growth;
+        // don't reinvent the exponent here.
+        var r0 = newest.emissionRadius;
+        var r1 = bubbleDisplayRadius(newest);
+        if (r0 > 0) bubblePctGain = (r1 / r0 - 1) * 100;
+    }
+
+    var y = rowTopY;
+
+    // Fonts / colours shared across rows
+    var labelFont   = 'bold 10px monospace';
+    var valueFont   = 'bold 13px monospace';
+    var subFont     = '9px monospace';
+    var labelColor  = '#8fb2bd';
+    var valueColor  = '#e0f4fb';
+    var subColor    = '#6b8a95';
+
+    function drawRow(label, value, sub, valColor) {
+        cx.font = labelFont;
+        cx.fillStyle = labelColor;
+        cx.fillText(label, padX, y + 12);
+        cx.font = valueFont;
+        cx.fillStyle = valColor || valueColor;
+        cx.fillText(value, padX, y + 28);
+        cx.font = subFont;
+        cx.fillStyle = subColor;
+        cx.fillText(sub, padX, y + 40);
+        y += rowH;
+    }
+
+    // Row 1 — Ambient pressure
+    drawRow(
+        S('instructorPressureRow'),
+        P.toFixed(2) + ' bar',
+        S('instructorPressureFormula')
+    );
+
+    // Row 2 — BCD Boyle's law (with an inline bar)
+    cx.font = labelFont; cx.fillStyle = labelColor;
+    cx.fillText(S('instructorBcdRow'), padX, y + 12);
+    cx.font = valueFont; cx.fillStyle = valueColor;
+    cx.fillText(bcdSurf.toFixed(1) + 'L / ' + bcdEff.toFixed(1) + 'L', padX, y + 28);
+    // Mini bar: full-width = bcdMaxCapacity effective volume. Uses the
+    // effective (depth-corrected) volume as the bar length so a diver at
+    // depth SEES their BCD shrink under pressure. Surface-equivalent is
+    // shown as a faint outline behind it.
+    var barX = padX;
+    var barY = y + 34;
+    var barW = panelW - INSTRUCTOR_PAD_X * 2;
+    var barH = 5;
+    cx.fillStyle = 'rgba(80, 100, 110, 0.35)';
+    cx.fillRect(barX, barY, barW, barH);
+    var effFrac  = Math.max(0, Math.min(1, bcdEff  / bcdMax));
+    var surfFrac = Math.max(0, Math.min(1, bcdSurf / bcdMax));
+    cx.fillStyle = 'rgba(52, 230, 255, 0.35)';
+    cx.fillRect(barX, barY, barW * surfFrac, barH);
+    cx.fillStyle = '#34e6ff';
+    cx.fillRect(barX, barY, barW * effFrac, barH);
+    cx.font = subFont; cx.fillStyle = subColor;
+    cx.fillText(S('instructorBcdFormula'), padX, y + rowH - 4);
+    y += rowH;
+
+    // Row 3 — Bubble expansion (annotated on the newest live bubble)
+    if (newest && bubblePctGain !== null) {
+        cx.font = labelFont; cx.fillStyle = labelColor;
+        cx.fillText(S('instructorBubbleRow'), padX, y + 12);
+        cx.font = valueFont; cx.fillStyle = '#a0f0ff';
+        var sign = bubblePctGain >= 0 ? '+' : '';
+        cx.fillText(sign + bubblePctGain.toFixed(0) + '% since exhale', padX, y + 28);
+        cx.font = subFont; cx.fillStyle = subColor;
+        cx.fillText(S('instructorBubbleFormula'), padX, y + 40);
+        // Draw a thin annotation line from the panel to that bubble's
+        // on-screen position. Kept subtle (alpha 0.35, 1px) so it reads
+        // as instructional marginalia, not a game HUD element.
+        var metersPerPixel = 0.05;
+        var diverScreenY = H * 0.45;
+        // Issue #100: diver screen anchor moved from W * 0.25 to
+        // W * DIVER_SCREEN_X_FRACTION (0.5). Use the same constant so the
+        // bubble-annotation line lands on the actual bubble sprite.
+        var diverScreenX = W * DIVER_SCREEN_X_FRACTION;
+        var bubScreenX = diverScreenX + newest.x;
+        var bubScreenY = diverScreenY - (depth - newest.depth) / metersPerPixel;
+        if (bubScreenX > panelX + panelW &&
+            bubScreenX < W && bubScreenY > 0 && bubScreenY < H) {
+            cx.save();
+            cx.strokeStyle = 'rgba(160, 240, 255, 0.35)';
+            cx.lineWidth = 1;
+            cx.beginPath();
+            cx.moveTo(panelX + panelW, y + 22);
+            cx.lineTo(bubScreenX, bubScreenY);
+            cx.stroke();
+            cx.restore();
+        }
+        y += rowH;
+    } else {
+        drawRow(
+            S('instructorBubbleRow'),
+            S('instructorBubbleNone'),
+            S('instructorBubbleFormula'),
+            subColor
+        );
+    }
+
+    // Row 4 — Leading tissue compartment
+    if (lead) {
+        // Issue #39 (review follow-up): route through hudColor() like every
+        // other semantic HUD status colour, so this reacts to the CVD palette.
+        var tissueColor = lead.pct >= INSTRUCTOR_TISSUE_CRIT_PCT ? hudColor('danger')
+                        : lead.pct >= INSTRUCTOR_TISSUE_WARN_PCT ? hudColor('caution')
+                        : hudColor('ok');
+        drawRow(
+            S('instructorTissueRow') + ' #' + (lead.i + 1) + '  (t½=' + lead.ht.toFixed(0) + 'min)',
+            Math.max(0, Math.round(lead.pct)) + '% of M-value',
+            S('instructorTissueFormula'),
+            tissueColor
+        );
+    } else {
+        drawRow(
+            S('instructorTissueRow'),
+            '—',
+            S('instructorTissueNone'),
+            subColor
+        );
+    }
+
+    // Row 5 — Gas consumption
+    drawRow(
+        S('instructorConsRow'),
+        sac.toFixed(1) + ' L/min  (×' + P.toFixed(1) + ')',
+        S('instructorConsFormula')
+    );
+
+    // Row 6 — MOD / END
+    // Issue #39 (review follow-up): route through hudColor() instead of a
+    // hardcoded literal so this reacts to the CVD palette.
+    var modColor = depth >= mod ? hudColor('warn') : valueColor;
+    var narcPct = Math.round(narcosisIndex * 100);
+    drawRow(
+        S('instructorGasRow'),
+        'MOD ' + Math.round(mod) + 'm | END ' + Math.round(end) + 'm | N ' + narcPct + '%',
+        S('instructorGasFormula'),
+        modColor
+    );
+
+    cx.restore();
+    cx.textAlign = 'left';
+}
+
 function drawPostDive() {
     var cx = ctx;
     var W = cssWidth;
@@ -5152,7 +9238,7 @@ function drawPostDive() {
     cx.fillText('DIVE LOG', centerX, y);
     y += 30;
     cx.font = 'bold 38px ' + DCF;
-    cx.fillStyle = '#46f08f';
+    cx.fillStyle = hudColor('ok');
     cx.fillText(S('diveComplete'), centerX, y);
     y += 30;
 
@@ -5185,24 +9271,114 @@ function drawPostDive() {
         cx.fillStyle = '#eaf2ff';
         cx.fillText(statCells[sc][1], sccx, y + 63);
     }
-    y += cardH + 26;
+    y += cardH + 20;
+
+    // Issue #44: Debriefing card — graded scoring with 5 sub-scores + stars.
+    // Same gsPanel() style as the stats card. Only shown for successful
+    // surfaces (drawPostDive is the successful-surface renderer; game-over
+    // uses drawGameOver()). gradeDive() lives in physics.js.
+    var grade = gradeDive();
+    var dbH = 218;
+    gsPanel(cx, cardX, y, cardW, dbH, 16);
+    // Title
+    cx.textAlign = 'left';
+    cx.font = 'bold 12px monospace';
+    cx.fillStyle = '#8694a1';
+    cx.fillText(S('debriefTitle'), cardX + 16, y + 22);
+    // Stars + overall score, right-aligned
+    var stars = grade.stars;
+    cx.textAlign = 'right';
+    cx.font = 'bold 22px ' + DCF;
+    // Use precomposed '★' + '☆' padding so both filled + empty positions
+    // render at the same width (unicode monospace-in-'monospace' still
+    // varies slightly, but a 3-char run keeps the visual weight consistent).
+    var starStr = '';
+    for (var st = 0; st < 3; st++) starStr += (st < stars ? '★' : '☆');
+    cx.fillStyle = stars >= 2 ? '#ffd24d' : (stars >= 1 ? '#a8b6cc' : '#6b7a8d');
+    cx.fillText(starStr, cardX + cardW - 66, y + 24);
+    cx.font = 'bold 16px monospace';
+    cx.fillStyle = '#eaf2ff';
+    cx.fillText(String(grade.overall), cardX + cardW - 16, y + 24);
+    // Rows — 5 sub-scores. Each row: label (left), bar + score (right).
+    var rowY = y + 48;
+    var rowH = 33;
+    for (var gi = 0; gi < grade.subs.length; gi++) {
+        var sub = grade.subs[gi];
+        // Issue #39 (review follow-up): route through hudColor() instead of
+        // hardcoded literals so the debrief sub-scores react to the CVD palette.
+        var scoreCol = sub.score >= 75 ? hudColor('ok') : (sub.score >= 50 ? hudColor('caution') : hudColor('danger'));
+        // Label
+        cx.textAlign = 'left';
+        cx.font = 'bold 12px monospace';
+        cx.fillStyle = '#eaf2ff';
+        cx.fillText(sub.label, cardX + 16, rowY);
+        // Score bar
+        var barX = cardX + 190;
+        var barTotalW = cardW - 190 - 60;
+        var barHpx = 6;
+        cx.fillStyle = 'rgba(130,160,180,0.16)';
+        cx.fillRect(barX, rowY - 6, barTotalW, barHpx);
+        cx.fillStyle = scoreCol;
+        cx.fillRect(barX, rowY - 6, barTotalW * (sub.score / 100), barHpx);
+        // Numeric score
+        cx.textAlign = 'right';
+        cx.font = 'bold 12px monospace';
+        cx.fillStyle = scoreCol;
+        cx.fillText(String(sub.score), cardX + cardW - 16, rowY);
+        // One-line hint (ellipsised if too wide for the card)
+        cx.textAlign = 'left';
+        cx.font = '10px monospace';
+        cx.fillStyle = '#8694a1';
+        var noteText = sub.note;
+        var maxNoteW = cardW - 32;
+        if (cx.measureText(noteText).width > maxNoteW) {
+            while (noteText.length > 4 && cx.measureText(noteText + '…').width > maxNoteW) {
+                noteText = noteText.slice(0, -1);
+            }
+            noteText = noteText + '…';
+        }
+        cx.fillText(noteText, cardX + 16, rowY + 14);
+        rowY += rowH;
+    }
+    y += dbH + 18;
+
     cx.textAlign = 'center';
     cx.font = '15px monospace';
     cx.fillStyle = '#a8b6cc';
 
-    // Gas usage per tank
-    for (var ti = 0; ti < tankCount; ti++) {
-        var tk = tanks[ti];
-        var used = tk.totalGas - tk.gasRemaining;
-        cx.fillText('Tank ' + (ti + 1) + ' (' + tk.label + '): ' + used.toFixed(0) + 'L ' + S('gasUsed') + ' / ' + tk.totalGas + 'L', centerX, y);
+    // Gas usage — BUG-24: CCR doesn't breathe from tanks[], so show the
+    // O2/diluent cylinders and scrubber instead of the untouched OC tank
+    // that's just leftover state from a previous mode.
+    if (diveMode === 'ccr') {
+        var o2Used = (ccrState.o2CylPressureStart - ccrState.o2CylPressure) * ccrState.o2CylVolume;
+        var dilUsed = (ccrState.dilCylPressureStart - ccrState.dilCylPressure) * ccrState.dilCylVolume;
+        var scrubUsed = ccrState.scrubberTotal - ccrState.scrubberRemaining;
+        cx.fillText(S('ccrO2Cyl') + ': ' + o2Used.toFixed(0) + 'L ' + S('gasUsed') + ' / ' + ccrState.o2CylPressure.toFixed(0) + ' bar left', centerX, y);
         y += 24;
+        cx.fillText(S('ccrDilCyl') + ': ' + dilUsed.toFixed(0) + 'L ' + S('gasUsed') + ' / ' + ccrState.dilCylPressure.toFixed(0) + ' bar left', centerX, y);
+        y += 24;
+        cx.fillText(S('ccrScrubber') + ': ' + scrubUsed.toFixed(0) + ' min ' + S('gasUsed'), centerX, y);
+        y += 24;
+        if (ccrState.onBailout) {
+            cx.fillStyle = hudColor('caution');
+            cx.fillText(S('ccrBailout'), centerX, y);
+            cx.fillStyle = '#a8b6cc';
+            y += 24;
+        }
+    } else {
+        for (var ti = 0; ti < tankCount; ti++) {
+            var tk = tanks[ti];
+            var used = tk.totalGas - tk.gasRemaining;
+            cx.fillText('Tank ' + (ti + 1) + ' (' + tk.label + '): ' + used.toFixed(0) + 'L ' + S('gasUsed') + ' / ' + tk.totalGas + 'L', centerX, y);
+            y += 24;
+        }
     }
     y += 15;
 
     // Safety stop skipped warning
     if (safetyStopNeeded && !safetyStopComplete) {
         cx.font = 'bold 16px monospace';
-        cx.fillStyle = '#ffd24d';
+        cx.fillStyle = hudColor('caution');
         cx.fillText(S('safetySkipped'), centerX, y);
         y += 22;
         cx.font = '12px monospace';
@@ -5247,10 +9423,10 @@ function drawPostDive() {
         cx.fillStyle = 'rgba(130,160,180,0.14)';
         cx.fillRect(bx, y, barW, barMaxH);
 
-        // N2 fill
-        var color = '#46f08f';
-        if (loading > 0.9) color = '#ff4b4b';
-        else if (loading > 0.7) color = '#ffd24d';
+        // N2 fill — issue #39 via hudColor().
+        var color = hudColor('ok');
+        if (loading > 0.9) color = hudColor('danger');
+        else if (loading > 0.7) color = hudColor('caution');
         cx.fillStyle = color;
         cx.fillRect(bx, y + barMaxH - n2H, barW, n2H);
 
@@ -5278,7 +9454,7 @@ function drawPostDive() {
     y += barMaxH + 25;
     cx.font = '10px monospace';
     cx.textAlign = 'center';
-    cx.fillStyle = '#46f08f';
+    cx.fillStyle = hudColor('ok');
     cx.fillText('\u25A0', centerX - 40, y);
     cx.fillStyle = '#8694a1';
     cx.fillText('N\u2082', centerX - 28, y);
@@ -5365,7 +9541,7 @@ function drawGameOver() {
     cx.fillText('— DIVE TERMINATED —', centerX, y);
     y += 30;
     cx.font = 'bold 46px ' + DCF;
-    cx.fillStyle = '#ff4b4b';
+    cx.fillStyle = hudColor('danger');
     cx.fillText(S('gameOver'), centerX, y);
     y += 40;
 
@@ -5402,7 +9578,7 @@ function drawGameOver() {
 
         // HOW TO AVOID
         cx.font = 'bold 14px monospace';
-        cx.fillStyle = '#46f08f';
+        cx.fillStyle = hudColor('ok');
         cx.fillText(S('howToAvoid'), textX, y);
         y += 20;
         cx.font = '12px monospace';
@@ -5466,6 +9642,213 @@ function drawGameOver() {
     }
 
     cx.textAlign = 'left';
+}
+
+// SECTION: Issue #45 — Scenario-drill overlays (decision + debrief + flicker)
+// SEARCH TERMS: drawDrillOverlay, drawDrillDebrief, drawDrillFlicker, drillState
+
+// Shared: return the currently-visible option list for a drill (filters
+// out multi-tank-only options if tankCount === 1). Duplicates the logic
+// from game-loop.js's _visibleDrillOptions() so the renderer does not
+// depend on a helper the classic-script load order might not have wired
+// yet at first paint.
+function _drillVisibleOptions(drill) {
+    var out = [];
+    for (var i = 0; i < drill.options.length; i++) {
+        var o = drill.options[i];
+        if (o.requiresMultiTank && tankCount <= 1) continue;
+        out.push(o);
+    }
+    return out;
+}
+
+function _drillById(id) {
+    if (!id || typeof DRILLS === 'undefined') return null;
+    for (var i = 0; i < DRILLS.length; i++) if (DRILLS[i].id === id) return DRILLS[i];
+    return null;
+}
+
+// Decision overlay — styled as an amber-bordered card that occupies the
+// centre of the screen. Option rows are recorded in drillState.optionRects
+// (CSS-pixel bounds) so touch.js can hit-test taps against the same coords
+// the diver sees. Kept visually distinct from drawGameOver() (which uses a
+// red palette) to avoid confusion — a drill is a training pause, not a
+// fatal outcome.
+function drawDrillOverlay() {
+    if (!drillState || drillState.phase !== 'overlay') return;
+    var drill = _drillById(drillState.id);
+    if (!drill) return;
+    var strs = S('drills')[drill.stringsKey];
+    if (!strs) return;
+    var options = _drillVisibleOptions(drill);
+
+    var cx = ctx;
+    var W = cssWidth, H = cssHeight;
+    var DCF = "'Barlow Semi Condensed', monospace";
+
+    // Dim the frozen scene behind the card so text stays readable.
+    cx.fillStyle = 'rgba(6,10,16,0.72)';
+    cx.fillRect(0, 0, W, H);
+
+    var panelW = Math.min(640, W - 48);
+    var panelH = Math.min(H - 60, 320 + options.length * 44);
+    var panelX = (W - panelW) / 2;
+    var panelY = (H - panelH) / 2;
+
+    // Amber card
+    cx.fillStyle = 'rgba(30,20,10,0.94)';
+    cx.strokeStyle = 'rgba(255,180,80,0.85)';
+    cx.lineWidth = 2;
+    cx.beginPath();
+    cx.roundRect(panelX, panelY, panelW, panelH, 12);
+    cx.fill();
+    cx.stroke();
+
+    var y = panelY + 22;
+    cx.textAlign = 'center';
+
+    // Header + title
+    cx.font = 'bold 11px monospace';
+    cx.fillStyle = '#ffb84d';
+    cx.fillText('⚠ ' + S('drillHeader'), W / 2, y);
+    y += 22;
+    cx.font = 'bold 26px ' + DCF;
+    cx.fillStyle = '#ffd9a0';
+    cx.fillText(strs.title, W / 2, y);
+    y += 24;
+
+    // Situation text (wrapped)
+    cx.textAlign = 'left';
+    var textX = panelX + 24;
+    var textMaxW = panelW - 48;
+    cx.font = '14px monospace';
+    cx.fillStyle = '#f0e6d6';
+    y = drawWrappedText(cx, strs.text, textX, y + 12, textMaxW, 18);
+    y += 18;
+
+    // Options — record CSS-pixel bounds for touch hit-testing.
+    drillState.optionRects = [];
+    for (var i = 0; i < options.length; i++) {
+        var label = (i + 1) + '. ' + strs.options[i];
+        var rowH = 40;
+        var rowX = textX;
+        var rowY = y;
+        var rowW = textMaxW;
+        cx.fillStyle = 'rgba(60,45,25,0.7)';
+        cx.strokeStyle = 'rgba(255,180,80,0.55)';
+        cx.lineWidth = 1;
+        cx.beginPath();
+        cx.roundRect(rowX, rowY, rowW, rowH, 6);
+        cx.fill();
+        cx.stroke();
+        cx.font = 'bold 14px monospace';
+        cx.fillStyle = '#ffe4b8';
+        cx.fillText(label, rowX + 14, rowY + 26);
+        drillState.optionRects.push({ x: rowX, y: rowY, w: rowW, h: rowH, index: i });
+        y += rowH + 8;
+    }
+
+    // Footer prompt
+    cx.textAlign = 'center';
+    cx.font = '12px monospace';
+    cx.fillStyle = 'rgba(255,220,180,0.55)';
+    cx.fillText(S('drillPromptFooter'), W / 2, panelY + panelH - 14);
+    cx.textAlign = 'left';
+}
+
+// Debrief card — green-bordered card summarising the choice + WHY +
+// REAL-WORLD context. Auto-dismisses after DRILL_DEBRIEF_DURATION_SEC or
+// on Enter. Same visual language as drawGameOver()'s "HOW TO AVOID" pass
+// so returning divers recognise the shape.
+function drawDrillDebrief() {
+    if (!drillState || drillState.phase !== 'debrief') return;
+    var drill = _drillById(drillState.id);
+    if (!drill) return;
+    var strs = S('drills')[drill.stringsKey];
+    if (!strs) return;
+
+    var cx = ctx;
+    var W = cssWidth, H = cssHeight;
+    var DCF = "'Barlow Semi Condensed', monospace";
+
+    cx.fillStyle = 'rgba(6,10,16,0.75)';
+    cx.fillRect(0, 0, W, H);
+
+    var panelW = Math.min(640, W - 48);
+    var panelH = Math.min(H - 60, 340);
+    var panelX = (W - panelW) / 2;
+    var panelY = (H - panelH) / 2;
+    var ok = drillState.correct;
+    var borderCol = ok ? 'rgba(70,240,143,0.85)' : 'rgba(255,140,80,0.85)';
+    var bg = ok ? 'rgba(12,26,18,0.94)' : 'rgba(30,20,12,0.94)';
+
+    cx.fillStyle = bg;
+    cx.strokeStyle = borderCol;
+    cx.lineWidth = 2;
+    cx.beginPath();
+    cx.roundRect(panelX, panelY, panelW, panelH, 12);
+    cx.fill();
+    cx.stroke();
+
+    var y = panelY + 22;
+    cx.textAlign = 'center';
+    cx.font = 'bold 11px monospace';
+    cx.fillStyle = ok ? '#46f08f' : '#ffb060';
+    cx.fillText(S('drillDebriefHeader') + ' — ' + strs.title, W / 2, y);
+    y += 22;
+    cx.font = 'bold 20px ' + DCF;
+    cx.fillStyle = ok ? '#a6f9c8' : '#ffcda0';
+    cx.fillText(ok ? S('drillDebriefCorrect') : S('drillDebriefWrong'), W / 2, y);
+    y += 24;
+
+    cx.textAlign = 'left';
+    var textX = panelX + 24;
+    var textMaxW = panelW - 48;
+
+    cx.font = 'bold 12px monospace';
+    cx.fillStyle = '#fff';
+    cx.fillText(S('drillDebriefWhyLabel'), textX, y);
+    y += 16;
+    cx.font = '12px monospace';
+    cx.fillStyle = ok ? '#c9e8d4' : '#e8d1b8';
+    y = drawWrappedText(cx, strs.why, textX, y, textMaxW, 15);
+    y += 12;
+
+    cx.font = 'bold 12px monospace';
+    cx.fillStyle = '#67d4ff';
+    cx.fillText(S('drillDebriefRealLabel'), textX, y);
+    y += 16;
+    cx.font = '12px monospace';
+    cx.fillStyle = '#9fd8ff';
+    y = drawWrappedText(cx, strs.realWorld, textX, y, textMaxW, 15);
+
+    cx.textAlign = 'center';
+    cx.font = '11px monospace';
+    cx.fillStyle = 'rgba(200,220,240,0.55)';
+    cx.fillText(S('drillDebriefDismiss'), W / 2, panelY + panelH - 14);
+    cx.textAlign = 'left';
+}
+
+// Torch flicker overlay — only relevant during the lightFailure drill's
+// 2-second flicker phase (gameState still 'diving', physics ticking). A
+// simple sin-based alpha modulation painted over the whole scene reads as
+// a failing torch without requiring changes to drawSiltAndTorch()'s
+// existing torch pipeline.
+function drawDrillFlicker() {
+    if (!drillState || drillState.phase !== 'flicker') return;
+    if (drillState.id !== 'lightFailure') return;
+    var cx = ctx;
+    var t = (typeof performance !== 'undefined' && performance.now)
+        ? performance.now() / 1000
+        : Date.now() / 1000;
+    // High-frequency flicker: three overlaid sines to avoid a mechanical
+    // beat pattern. Alpha stays in [0, 0.6] so the scene is never fully
+    // black — the diver still needs to perceive that the light is failing.
+    var a = 0.32 + 0.22 * Math.sin(t * 24) + 0.10 * Math.sin(t * 60 + 1.3) + 0.08 * Math.sin(t * 11 + 0.7);
+    if (a < 0) a = 0;
+    if (a > 0.65) a = 0.65;
+    cx.fillStyle = 'rgba(0,0,0,' + a.toFixed(3) + ')';
+    cx.fillRect(0, 0, cssWidth, cssHeight);
 }
 
 // SECTION: Surface / pre-dive screen

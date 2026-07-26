@@ -2,11 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>2D Diving Simulator — Bühlmann ZHL-16C</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -26,6 +23,8 @@
   <!-- Diving controls -->
   <div id="touch-dive" class="t-group">
     <button class="t-btn" id="touch-dive-help"><span>H</span><span style="font-size:10px;font-weight:normal;margin-top:2px">Help</span></button>
+    <!-- Issue #46: Instructor overlay toggle ("Learn" mode). Sits next to Help so the two didactic controls are grouped. -->
+    <button class="t-btn" id="touch-dive-learn"><span>L</span><span class="t-btn-sub">LEARN</span></button>
     <button class="t-btn" id="touch-gas-info" style="display:none;"><span>I</span><span style="font-size:10px;font-weight:normal;margin-top:2px">Info</span></button>
     <button class="t-btn" id="touch-fast-forward" style="display:none;"><span>F</span><span class="t-btn-sub">x10</span></button>
     <!-- D6: Torch toggle — visible in overhead sites (cave / wreck) -->
@@ -38,22 +37,6 @@
   </div>
   <!-- Gas setup controls -->
   <div id="touch-setup" class="t-group">
-    <div class="t-setup-adj" id="touch-adj-o2">
-      <button class="t-btn" data-key="arrowleft">O₂ −</button>
-      <button class="t-btn" data-key="arrowright">O₂ +</button>
-    </div>
-    <div class="t-setup-adj" id="touch-adj-he" style="display:none">
-      <button class="t-btn" data-key="arrowup">He +</button>
-      <button class="t-btn" data-key="arrowdown">He −</button>
-    </div>
-    <div class="t-setup-adj" id="touch-adj-pres">
-      <button class="t-btn" data-key="pageup">P +</button>
-      <button class="t-btn" data-key="pagedown">P −</button>
-    </div>
-    <div class="t-setup-adj" id="touch-adj-tank" style="display:none">
-      <button class="t-btn" data-key=",">&minus;L</button>
-      <button class="t-btn" data-key=".">+L</button>
-    </div>
     <div id="touch-setup-presets"></div>
     <div id="touch-setup-extras">
       <button class="t-btn" id="touch-setup-lang" style="font-size:13px">Sprache</button>
@@ -77,6 +60,12 @@
 <div id="html-gas-setup"><div class="gs-content"></div></div>
 <!-- WP-017: HTML help overlay -->
 <div id="html-help-overlay"><div class="help-content"></div></div>
+<!-- Issue #67: non-blocking resume-dive banner (replaces blocking confirm() on load) -->
+<div id="resume-dive-banner" style="display:none;">
+  <span id="resume-dive-banner-text"></span>
+  <button id="resume-dive-banner-yes" type="button"></button>
+  <button id="resume-dive-banner-discard" type="button"></button>
+</div>
 <!-- TASK-031D: HTML gas info overlay -->
 <div id="html-gas-info-overlay" style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,10,20,0.92);z-index:200;overflow-y:auto;padding:20px;box-sizing:border-box;"></div>
 <!-- CLAUDE-DESIGN-PLACEHOLDER: horizontal-speed-indicator — fin-kick direction & speed -->
@@ -95,6 +84,20 @@
 <div id="hud-current" data-claude-design="current-indicator"
      data-dir="0" data-strength="0" style="display:none;">
   <span class="hud-chip-label">CURRENT</span><span data-bind="arrow">⇒</span><span data-bind="strength">0.00 m/s</span>
+</div>
+<!-- Issue #27: Rule-of-thirds gas gauge (overhead cave/wreck only).
+     The <span> child is required — style.css targets .hud-thirds-phase-label
+     for the coloured dot and OUTBOUND/TURN/RESERVE text via ::before/::after.
+     The gas % is painted by the container's own ::after using attr(data-pct).
+     game-loop.js sets data-phase + data-pct each tick and toggles display. -->
+<div id="hud-thirds" data-phase="outbound" data-pct="100" style="display:none;">
+  <span class="hud-thirds-phase-label"></span>
+</div>
+<!-- Issue #37: back-way chip — direction + distance to boat/entry.
+     Shown in open-water sites (shore/reef) only, hidden entirely in
+     overhead sites where the guideline already serves this purpose. -->
+<div id="hud-backway" data-dir="0" data-distance="0" style="display:none;">
+  <span data-bind="arrow">◄</span><span data-bind="anchor">⚓</span><span data-bind="distance">0 m</span>
 </div>
 <script src="version.js"></script>
 <script src="constants.js"></script>
