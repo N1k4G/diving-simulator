@@ -11702,6 +11702,262 @@ tests = [
             }
             return 'PASS — ongoing freeflow effect (deadline + drain target) survived save/reload/restore and the consumption multiplier still applies';
         }
+    },
+    // ============================================================
+    //  PR #102 review comment #5 follow-up fixes (persistence defects)
+    // ============================================================
+    {
+        id: 'TC-45-66-VALIDATOR-ACCEPTS-GENUINE-FLICKER',
+        name: 'Issue #45/#66 (review follow-up round 4) — _isValidSaveState() accepts a genuine diving/flicker/lightFailure payload',
+        fn: function() {
+            // This is the exact state the original cross-field mapping wrongly
+            // rejected: startDrill('lightFailure') sets phase='flicker'
+            // WITHOUT touching gameState (only _openDrillOverlay(), reached
+            // once flicker ends, ever sets gameState='drill') — so a save
+            // taken during the 2s pre-roll is gameState='diving' + phase=
+            // 'flicker', not 'drill' + 'flicker' as the old mapping assumed.
+            api.diveMode = 'rec';
+            api.diveSite = 'cave';
+            setupDive([[0.21, 0, 200]]);
+            api.drillsEnabled = true;
+            api.inOverhead = true;
+            api.torchOn = true;
+            api.setDepth(15);
+            var iw = iframe.contentWindow;
+            var savedRaw = iw.localStorage.getItem(iw.SAVE_KEY);
+            try {
+                var started = api.forceDrill('lightFailure');
+                assert(started, 'sanity: forceDrill(lightFailure) should succeed');
+                assert(api.drillState.phase === 'flicker', 'sanity: lightFailure must start in flicker phase');
+                assert(api.gameState === 'diving', 'sanity: gameState must stay "diving" during flicker, not "drill"');
+
+                iw.saveDiveState();
+                var raw = iw.localStorage.getItem(iw.SAVE_KEY);
+                var payload = JSON.parse(raw);
+                assert(payload.gameState === 'diving' && payload.drillState.phase === 'flicker' && payload.drillState.id === 'lightFailure',
+                    'sanity: saved payload must capture the real diving/flicker/lightFailure combination, got ' + JSON.stringify({ gameState: payload.gameState, drillState: payload.drillState }));
+                assert(iw._isValidSaveState(payload) === true,
+                    'a genuine diving/flicker/lightFailure payload must validate as true, not be rejected');
+            } finally {
+                api.drillState.phase = 'inactive';
+                api.drillHasRunThisDive = false;
+                api.inOverhead = false;
+                if (savedRaw !== null) iw.localStorage.setItem(iw.SAVE_KEY, savedRaw);
+                else iw.localStorage.removeItem(iw.SAVE_KEY);
+            }
+            return 'PASS — genuine diving/flicker/lightFailure payload validates as true';
+        }
+    },
+    {
+        id: 'TC-45-66-VALIDATOR-REJECTS-UNKNOWN-OR-NULL-DRILL-ID',
+        name: 'Issue #45/#66 (review follow-up round 4) — _isValidSaveState() rejects an unknown or null drill ID in an active phase',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'shore';
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            var iw = iframe.contentWindow;
+            var savedRaw = iw.localStorage.getItem(iw.SAVE_KEY);
+            try {
+                iw.saveDiveState();
+                var raw = iw.localStorage.getItem(iw.SAVE_KEY);
+
+                // Unknown id — drawDrillOverlay()/resolveDrillOption() both
+                // key off _drillById(id) and silently no-op when it returns
+                // null; this recreates the exact stuck-paused bug.
+                var unknownIdPayload = JSON.parse(raw);
+                unknownIdPayload.gameState = 'drill';
+                unknownIdPayload.drillState.phase = 'overlay';
+                unknownIdPayload.drillState.id = 'not-a-real-drill';
+                assert(iw._isValidSaveState(unknownIdPayload) === false,
+                    'a payload with an unrecognized drill id in an active phase must be rejected');
+
+                // Null id in an active phase — same failure mode.
+                var nullIdPayload = JSON.parse(raw);
+                nullIdPayload.gameState = 'drill';
+                nullIdPayload.drillState.phase = 'overlay';
+                nullIdPayload.drillState.id = null;
+                assert(iw._isValidSaveState(nullIdPayload) === false,
+                    'a payload with a null drill id in an active phase (overlay) must be rejected');
+
+                // The same two checks for 'debrief' and 'effect', the other
+                // two phases that require a real drill.
+                var debriefBadId = JSON.parse(raw);
+                debriefBadId.gameState = 'drill';
+                debriefBadId.drillState.phase = 'debrief';
+                debriefBadId.drillState.id = 'not-a-real-drill';
+                assert(iw._isValidSaveState(debriefBadId) === false,
+                    'a payload with an unrecognized drill id in debrief phase must be rejected');
+
+                var effectNullId = JSON.parse(raw);
+                effectNullId.drillState.phase = 'effect';
+                effectNullId.drillState.id = null;
+                assert(iw._isValidSaveState(effectNullId) === false,
+                    'a payload with a null drill id in effect phase must be rejected');
+            } finally {
+                if (savedRaw !== null) iw.localStorage.setItem(iw.SAVE_KEY, savedRaw);
+                else iw.localStorage.removeItem(iw.SAVE_KEY);
+            }
+            return 'PASS — unknown and null drill ids are rejected in every active phase';
+        }
+    },
+    {
+        id: 'TC-45-66-VALIDATOR-CROSS-FIELD-PHASE-GAMESTATE',
+        name: 'Issue #45/#66 (review follow-up round 4) — _isValidSaveState() enforces the real gameState/drillState.phase relationship',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'shore';
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            var iw = iframe.contentWindow;
+            var savedRaw = iw.localStorage.getItem(iw.SAVE_KEY);
+            try {
+                iw.saveDiveState();
+                var raw = iw.localStorage.getItem(iw.SAVE_KEY);
+
+                // flicker must never coexist with gameState='drill' — only
+                // _openDrillOverlay() (reached AFTER flicker ends) sets
+                // gameState='drill', and it always pairs that with 'overlay'.
+                var flickerDrillGameState = JSON.parse(raw);
+                flickerDrillGameState.gameState = 'drill';
+                flickerDrillGameState.drillState.phase = 'flicker';
+                flickerDrillGameState.drillState.id = 'lightFailure';
+                assert(iw._isValidSaveState(flickerDrillGameState) === false,
+                    'phase="flicker" must never validate with gameState="drill"');
+
+                // flicker must require the lightFailure id specifically —
+                // startDrill()'s only phase='flicker' branch is id==='lightFailure'.
+                var flickerWrongId = JSON.parse(raw);
+                flickerWrongId.drillState.phase = 'flicker';
+                flickerWrongId.drillState.id = 'freeflow';
+                assert(iw._isValidSaveState(flickerWrongId) === false,
+                    'phase="flicker" with a non-lightFailure id must be rejected');
+
+                // 'drill' gameState must never coexist with 'inactive' or
+                // 'flicker' — only 'overlay'/'debrief' ever set gameState='drill'.
+                var drillInactive = JSON.parse(raw);
+                drillInactive.gameState = 'drill';
+                drillInactive.drillState.phase = 'inactive';
+                drillInactive.drillState.id = null;
+                assert(iw._isValidSaveState(drillInactive) === false,
+                    'gameState="drill" with phase="inactive" must be rejected');
+
+                // 'surface' must only ever coexist with 'inactive' — it is
+                // only ever set by startDiveAction(), always immediately
+                // after resetDive() wipes drillState back to its default.
+                var surfaceEffect = JSON.parse(raw);
+                surfaceEffect.gameState = 'surface';
+                surfaceEffect.drillState.phase = 'effect';
+                surfaceEffect.drillState.id = 'freeflow';
+                assert(iw._isValidSaveState(surfaceEffect) === false,
+                    'gameState="surface" with phase="effect" must be rejected');
+
+                // inactive phase must require a null id.
+                var inactiveWithId = JSON.parse(raw);
+                inactiveWithId.drillState.phase = 'inactive';
+                inactiveWithId.drillState.id = 'freeflow';
+                assert(iw._isValidSaveState(inactiveWithId) === false,
+                    'phase="inactive" with a non-null drill id must be rejected');
+            } finally {
+                if (savedRaw !== null) iw.localStorage.setItem(iw.SAVE_KEY, savedRaw);
+                else iw.localStorage.removeItem(iw.SAVE_KEY);
+            }
+            return 'PASS — cross-field gameState/drillState.phase relationship enforced';
+        }
+    },
+    {
+        id: 'TC-45-66-VALIDATOR-FREEFLOW-DRAIN-IDX-BOUNDS',
+        name: 'Issue #45/#66 (review follow-up round 4) — freeflowDrainTankIdx must be consistent with freeflowUntilDiveSec and in tank bounds',
+        fn: function() {
+            api.diveMode = 'tec';
+            api.diveSite = 'shore';
+            setupDive([[0.21, 0, 200], [0.32, 0, 200]]); // 2 tanks
+            api.setDepth(20);
+            var iw = iframe.contentWindow;
+            var savedRaw = iw.localStorage.getItem(iw.SAVE_KEY);
+            try {
+                iw.saveDiveState();
+                var raw = iw.localStorage.getItem(iw.SAVE_KEY);
+
+                // Active effect (freeflowUntilDiveSec > 0) with an
+                // out-of-bounds drain index — the expiry handler in
+                // updateDiving() always keeps these two fields consistent;
+                // an out-of-range index would try to drain a tank that
+                // doesn't exist.
+                var outOfBounds = JSON.parse(raw);
+                outOfBounds.drillState.freeflowUntilDiveSec = outOfBounds.diveTime * 60 + 30;
+                outOfBounds.drillState.freeflowDrainTankIdx = 5; // tankCount is 2
+                assert(iw._isValidSaveState(outOfBounds) === false,
+                    'an active effect with freeflowDrainTankIdx >= tankCount must be rejected');
+
+                var negativeIdx = JSON.parse(raw);
+                negativeIdx.drillState.freeflowUntilDiveSec = negativeIdx.diveTime * 60 + 30;
+                negativeIdx.drillState.freeflowDrainTankIdx = -1;
+                assert(iw._isValidSaveState(negativeIdx) === false,
+                    'an active effect (-1 sentinel while freeflowUntilDiveSec>0) must be rejected — the two fields must agree');
+
+                // No active effect (freeflowUntilDiveSec === 0) but a
+                // leftover real tank index instead of the -1 sentinel.
+                var staleIdx = JSON.parse(raw);
+                staleIdx.drillState.freeflowUntilDiveSec = 0;
+                staleIdx.drillState.freeflowDrainTankIdx = 0;
+                assert(iw._isValidSaveState(staleIdx) === false,
+                    'no active effect (freeflowUntilDiveSec=0) must require freeflowDrainTankIdx=-1, got a stale real index');
+
+                // The valid pairing must still pass.
+                var validPairing = JSON.parse(raw);
+                validPairing.drillState.freeflowUntilDiveSec = validPairing.diveTime * 60 + 30;
+                validPairing.drillState.freeflowDrainTankIdx = 1;
+                assert(iw._isValidSaveState(validPairing) === true,
+                    'a valid (active effect, in-bounds drain index) pairing must still validate as true');
+            } finally {
+                if (savedRaw !== null) iw.localStorage.setItem(iw.SAVE_KEY, savedRaw);
+                else iw.localStorage.removeItem(iw.SAVE_KEY);
+            }
+            return 'PASS — freeflowDrainTankIdx bounds and consistency with freeflowUntilDiveSec enforced';
+        }
+    },
+    {
+        id: 'TC-66-VALIDATOR-REJECTS-OLD-SAVE-VERSION',
+        name: 'Issue #66 (review follow-up round 4) — a v1-shaped payload is rejected under the current v2 schema (explicit-rejection policy)',
+        fn: function() {
+            api.diveMode = 'rec';
+            api.diveSite = 'shore';
+            setupDive([[0.21, 0, 200]]);
+            api.setDepth(20);
+            var iw = iframe.contentWindow;
+            var savedRaw = iw.localStorage.getItem(iw.SAVE_KEY);
+            try {
+                iw.saveDiveState();
+                var raw = iw.localStorage.getItem(iw.SAVE_KEY);
+                var payload = JSON.parse(raw);
+                assert(payload.saveVersion === 2, 'sanity: current SAVE_STATE_VERSION should be 2, got ' + payload.saveVersion);
+                assert(iw._isValidSaveState(payload) === true, 'sanity: the genuine current-version payload must validate as true');
+
+                // A real v1 payload never had drillState/drillHasRunThisDive
+                // at all — reconstruct that exact shape.
+                var v1Payload = JSON.parse(raw);
+                v1Payload.saveVersion = 1;
+                delete v1Payload.drillState;
+                delete v1Payload.drillHasRunThisDive;
+                assert(iw._isValidSaveState(v1Payload) === false,
+                    'a v1-shaped payload (no drill fields, saveVersion=1) must be rejected under the v2 schema, not silently accepted');
+
+                // Even a "helpfully" migrated v1 payload (drill fields
+                // added back in) must still be rejected purely on the
+                // version tag — the policy is explicit rejection, not
+                // migration, for exactly the reason documented at
+                // SAVE_STATE_VERSION's declaration.
+                var v1WithDrillFields = JSON.parse(raw);
+                v1WithDrillFields.saveVersion = 1;
+                assert(iw._isValidSaveState(v1WithDrillFields) === false,
+                    'saveVersion=1 must be rejected regardless of payload shape — the version tag alone is decisive');
+            } finally {
+                if (savedRaw !== null) iw.localStorage.setItem(iw.SAVE_KEY, savedRaw);
+                else iw.localStorage.removeItem(iw.SAVE_KEY);
+            }
+            return 'PASS — v1-versioned payloads rejected under the v2 schema, current-version payload still accepted';
+        }
     }
 ];
 

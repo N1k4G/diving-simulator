@@ -1228,7 +1228,17 @@ var _lastSaveTime = 0;
 // straight into tissue/physics calculations, propagating NaN through the
 // whole simulation. Bump this whenever saveDiveState()'s shape changes in
 // a way that would make an old save invalid to restore.
-var SAVE_STATE_VERSION = 1;
+//
+// v1 -> v2 (issue #45/#66 review follow-up): drillState/drillHasRunThisDive
+// became mandatory fields. Policy is explicit rejection, not migration — a
+// v1 payload with gameState==='drill' has no recorded drillState.phase/id
+// at all, and reconstructing one would mean guessing at lost information
+// (the exact failure mode this version bump exists to prevent). v1 saves
+// are short-lived by nature (auto-expired after 1 hour regardless, see
+// loadSavedDive()'s staleness check below), so outright rejection just
+// means an in-flight v1 dive doesn't resume across this one deploy — a
+// deliberately small, bounded cost against re-introducing a stuck state.
+var SAVE_STATE_VERSION = 2;
 
 // Minimal plausibility check — not a full schema validator, just enough to
 // catch a payload that can't safely feed restoreDiveState(): wrong version,
@@ -1284,13 +1294,17 @@ function _isValidSaveState(state) {
     // (Date.now() - state.savedAt > 3600000) silently passes for a
     // non-finite savedAt, since any comparison against NaN is false.
     if (!Number.isFinite(state.savedAt) || state.savedAt <= 0) return false;
-    // Issue #66 (review follow-up): an unknown diveSite makes activeSite()
-    // return null everywhere — every overhead/silt/thirds/guideline
-    // mechanic silently no-ops as if the diver were in open water forever,
-    // rather than restoring the real site the dive was actually on. Only
-    // genuine DIVE_SITES keys are ever written by a real save (the gas-
-    // setup site picker only offers these four).
-    if (!DIVE_SITES[state.diveSite]) return false;
+    // Issue #66 (review follow-up round 5): an unknown diveSite makes
+    // activeSite() return null everywhere — every overhead/silt/thirds/
+    // guideline mechanic silently no-ops as if the diver were in open
+    // water forever, rather than restoring the real site the dive was
+    // actually on. 'open' is a genuine, intentional value here though (see
+    // its own declaration in state.js: 'open' | 'shore' | 'reef' | 'wreck'
+    // | 'cave') — it's diveSite's actual default before the gas-setup site
+    // picker is ever touched, and nothing forces a selection before
+    // startDiveAction(), so a real save can legitimately carry it. Only
+    // reject values that are neither 'open' nor a real DIVE_SITES key.
+    if (state.diveSite !== 'open' && !DIVE_SITES[state.diveSite]) return false;
 
     // Issue #66 (review follow-up): restoreDiveState() copies state.current
     // field-by-field with no fallback when state.current exists but is
@@ -1342,24 +1356,68 @@ function _isValidSaveState(state) {
     if (state.drillState.id !== null && typeof state.drillState.id !== 'string') return false;
     if (!Number.isInteger(state.drillState.selectedOption)) return false;
     if (typeof state.drillState.correct !== 'boolean') return false;
-    if (!Number.isInteger(state.drillState.freeflowDrainTankIdx)) return false;
     var drillFiniteFields = ['startedAt', 'flickerRemainingSec', 'debriefRemainingSec',
         'freeflowUntilDiveSec', 'lightRestoreAt', 'breathHoldUntilDiveSec'];
     for (var dfi = 0; dfi < drillFiniteFields.length; dfi++) {
         if (!Number.isFinite(state.drillState[drillFiniteFields[dfi]])) return false;
     }
-    // Cross-field consistency: gameState==='drill' only makes sense while
-    // the decision overlay (or its flicker/debrief neighbours) is up;
-    // 'diving'/'surface' can only coexist with 'inactive' or the ongoing
-    // post-decision 'effect' phase, never a phase that implies an overlay
-    // should be on screen right now.
+
+    // Cross-field consistency, verified directly against the state machine
+    // (startDrill()/_openDrillOverlay()/resolveDrillOption()/
+    // dismissDrillDebrief()), not just inferred from comments:
+    //   - startDrill('lightFailure') sets phase='flicker' WITHOUT touching
+    //     gameState — flicker only ever coexists with gameState='diving',
+    //     never 'drill' (that only happens once _openDrillOverlay() runs,
+    //     which is what flicker transitions INTO).
+    //   - _openDrillOverlay() is the only place that sets gameState='drill',
+    //     and it always pairs that with phase='overlay'; resolveDrillOption()
+    //     is the only transition out of 'overlay', into 'debrief' — gameState
+    //     stays 'drill' throughout both.
+    //   - dismissDrillDebrief() is the only transition out of 'debrief',
+    //     into 'effect' AND back to gameState='diving' — 'effect' never
+    //     reverts to 'inactive' on its own (only a fresh startDrill() call
+    //     or resetDive() ever leaves it), so it can legitimately still be
+    //     the recorded phase at 'diving' or 'surface' much later.
+    //   - startDiveAction() is the only place gameState becomes 'surface',
+    //     and it always immediately follows resetDive() (which wipes
+    //     drillState back to {phase:'inactive', id:null,...}) — 'surface'
+    //     can therefore only ever coexist with phase='inactive'.
     var drillPhasesByGameState = {
-        drill: ['flicker', 'overlay', 'debrief'],
-        diving: ['inactive', 'effect'],
-        surface: ['inactive', 'effect']
+        drill: ['overlay', 'debrief'],
+        diving: ['inactive', 'flicker', 'effect'],
+        surface: ['inactive']
     };
     var allowedPhases = drillPhasesByGameState[state.gameState];
     if (allowedPhases && allowedPhases.indexOf(state.drillState.phase) === -1) return false;
+
+    // Issue #66 (review follow-up round 3): an active drill phase with a
+    // null or unrecognized id recreates the exact stuck-forever bug the
+    // previous fix targeted — drawDrillOverlay()/resolveDrillOption() both
+    // key off _drillById(drillState.id) and silently no-op/refuse when it
+    // returns null, so the diver is paused with nothing to interact with.
+    if (state.drillState.phase === 'inactive') {
+        if (state.drillState.id !== null) return false;
+    } else {
+        // flicker/overlay/debrief/effect all require a real catalog entry.
+        if (!_drillById(state.drillState.id)) return false;
+        // flicker is exclusively the lightFailure pre-roll (startDrill()'s
+        // only branch that sets phase='flicker') — no other drill ever
+        // produces this phase.
+        if (state.drillState.phase === 'flicker' && state.drillState.id !== 'lightFailure') return false;
+    }
+
+    // Issue #66 (review follow-up round 3): freeflowDrainTankIdx is only
+    // ever a real tank index (>=0) while an effect is actually running
+    // (freeflowUntilDiveSec>0) — the expiry handler in updateDiving()
+    // resets BOTH fields together back to (0, -1) in the same tick, so the
+    // two must always agree. Bounding it against tankCount also prevents a
+    // restored effect from indexing a tank that doesn't exist.
+    if (!Number.isInteger(state.drillState.freeflowDrainTankIdx)) return false;
+    if (state.drillState.freeflowUntilDiveSec > 0) {
+        if (state.drillState.freeflowDrainTankIdx < 0 || state.drillState.freeflowDrainTankIdx >= state.tankCount) return false;
+    } else if (state.drillState.freeflowDrainTankIdx !== -1) {
+        return false;
+    }
 
     return true;
 }
