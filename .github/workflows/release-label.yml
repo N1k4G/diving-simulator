@@ -12,8 +12,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      issues: write
-      pull-requests: read
+      # write, not read: `gh pr edit --add-label` issues the addLabelsToLabelable
+      # mutation against a PullRequest node, which the issues scope does not cover
+      # ("Resource not accessible by integration"). Safe to elevate here only
+      # because this job never checks out or executes PR code, and reads the
+      # untrusted title through env rather than ${{ }} interpolation.
+      pull-requests: write
     steps:
       - name: Auto-label and enforce release bump
         env:
@@ -33,11 +37,17 @@ jobs:
             inferred=""
             title_lc="$(printf '%s' "$PR_TITLE" | tr '[:upper:]' '[:lower:]')"
 
+            # "build" covers Dependabot's build(deps)/build(deps-dev) titles. It maps to
+            # release:none because every dependency here is a devDependency and deploy.yml
+            # publishes src/ — nothing from node_modules reaches users, so a bump changes no
+            # deployed byte. If a runtime dependency is ever added, move build to release:patch.
+            # "revert" is deliberately absent: reverting a shipped change does alter behaviour,
+            # so it needs a human to pick the bump rather than defaulting to none.
             case "$title_lc" in
               *"[major]"*|*"breaking change"*|*"!:"*) inferred="release:major" ;;
               feat:*|feat\(*|*"[minor]"*) inferred="release:minor" ;;
               fix:*|fix\(*|perf:*|perf\(*|refactor:*|refactor\(*|*"[patch]"*) inferred="release:patch" ;;
-              docs:*|docs\(*|test:*|test\(*|ci:*|ci\(*|chore:*|chore\(*|*"[no release]"*|*"[no-release]"*) inferred="release:none" ;;
+              build:*|build\(*|docs:*|docs\(*|style:*|style\(*|test:*|test\(*|ci:*|ci\(*|chore:*|chore\(*|*"[no release]"*|*"[no-release]"*) inferred="release:none" ;;
             esac
 
             if [ -n "$inferred" ]; then
