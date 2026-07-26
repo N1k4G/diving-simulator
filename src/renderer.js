@@ -4693,6 +4693,28 @@ function drawWreckSteelBack() {
     cx.restore();
 }
 
+// Cached offscreen buffers for restoring the wreck interior (cars/props,
+// already drawn by drawFeatures()/drawStructures() earlier this frame)
+// through the hull skin's line-of-sight hole. The skin's opaque steel fill
+// below is a plain source-over paint, which permanently overwrites whatever
+// was drawn under it — canvas has no layers, so a later destination-out
+// "punch" only reveals transparent pixels, not the props that used to be
+// there. Snapshotting the pre-steel scene and compositing it back through
+// the same hole mask (mirrors the drawDepthColorAbsorption() restore
+// pattern above) fixes that without changing the hole's shape/softness.
+var _wreckHoleRestoreCanvas = null, _wreckHoleRestoreCtx = null;
+var _wreckHoleMaskCanvas = null, _wreckHoleMaskCtx = null;
+
+function _ensureWreckHoleBuffers(W, H) {
+    if (_wreckHoleRestoreCanvas && _wreckHoleRestoreCanvas.width === W && _wreckHoleRestoreCanvas.height === H) return;
+    _wreckHoleRestoreCanvas = document.createElement('canvas');
+    _wreckHoleRestoreCanvas.width = W; _wreckHoleRestoreCanvas.height = H;
+    _wreckHoleRestoreCtx = _wreckHoleRestoreCanvas.getContext('2d');
+    _wreckHoleMaskCanvas = document.createElement('canvas');
+    _wreckHoleMaskCanvas.width = W; _wreckHoleMaskCanvas.height = H;
+    _wreckHoleMaskCtx = _wreckHoleMaskCanvas.getContext('2d');
+}
+
 // Opaque steel hull skin painted OVER the interior (so you cannot see inside
 // from open water). While the diver is inside (overhead), a round line-of-sight
 // hole in the skin lets only the nearby interior show through — beyond it the
@@ -4715,6 +4737,11 @@ function drawWreckHullSkin() {
     // Preserves torch-off behaviour exactly.
     var nearR = haveTorchLight ? rad * TORCH_NEAR_FIELD_FRACTION : rad;
     var coneR = haveTorchLight ? rad * 1.75 : 0;
+    // Issue #45 (test-harness robustness): guard the restore-snapshot path's
+    // drawImage(cx.canvas, ...) the same way drawDepthColorAbsorption() does
+    // — a zero-sized physical canvas buffer (test iframe with display:none)
+    // throws there instead of silently no-oping.
+    var canRestoreHole = rad > 1 && W > 0 && H > 0;
     var beamAngle = torchBeamAngle(_diverFacing);
     var halfA = TORCH_BEAM_HALF_ANGLE_RAD;
 
@@ -4722,6 +4749,42 @@ function drawWreckHullSkin() {
     // punch the near-field circle and (if torch on) the directional cone
     // wedge. destination-out avoids the fill-rule overlap trap that a
     // single evenodd path would hit where circle and wedge intersect.
+    if (canRestoreHole) {
+        // Snapshot the scene exactly as it looks BEFORE the opaque steel
+        // fill erases it, then build the identical hole mask (near-field
+        // circle + directional cone) so it can be punched down and
+        // composited back into the hole once the steel is painted.
+        _ensureWreckHoleBuffers(W, H);
+        _wreckHoleRestoreCtx.clearRect(0, 0, W, H);
+        _wreckHoleRestoreCtx.drawImage(cx.canvas, 0, 0, W, H);
+        _wreckHoleMaskCtx.clearRect(0, 0, W, H);
+        var maskSpill = _wreckHoleMaskCtx.createRadialGradient(dsx, dsy, 0, dsx, dsy, nearR);
+        maskSpill.addColorStop(0,   'rgba(0,0,0,1)');
+        maskSpill.addColorStop(0.7, 'rgba(0,0,0,0.88)');
+        maskSpill.addColorStop(1,   'rgba(0,0,0,0)');
+        _wreckHoleMaskCtx.fillStyle = maskSpill;
+        _wreckHoleMaskCtx.fillRect(0, 0, W, H);
+        if (haveTorchLight) {
+            _wreckHoleMaskCtx.save();
+            _wreckHoleMaskCtx.beginPath();
+            _wreckHoleMaskCtx.moveTo(dsx, dsy);
+            _wreckHoleMaskCtx.arc(dsx, dsy, coneR * 1.05, beamAngle - halfA, beamAngle + halfA);
+            _wreckHoleMaskCtx.closePath();
+            _wreckHoleMaskCtx.clip();
+            var maskBeam = _wreckHoleMaskCtx.createRadialGradient(dsx, dsy, 0, dsx, dsy, coneR);
+            maskBeam.addColorStop(0,    'rgba(0,0,0,1)');
+            maskBeam.addColorStop(0.55, 'rgba(0,0,0,0.95)');
+            maskBeam.addColorStop(0.85, 'rgba(0,0,0,0.65)');
+            maskBeam.addColorStop(1,    'rgba(0,0,0,0)');
+            _wreckHoleMaskCtx.fillStyle = maskBeam;
+            _wreckHoleMaskCtx.fillRect(0, 0, W, H);
+            _wreckHoleMaskCtx.restore();
+        }
+        _wreckHoleRestoreCtx.globalCompositeOperation = 'destination-in';
+        _wreckHoleRestoreCtx.drawImage(_wreckHoleMaskCanvas, 0, 0);
+        _wreckHoleRestoreCtx.globalCompositeOperation = 'source-over';
+    }
+
     cx.save();
     _buildWreckSilhouette(cx, dsx, dsy, mpp);
     cx.clip();                                   // restrict to the ship
@@ -4759,6 +4822,14 @@ function drawWreckHullSkin() {
         cx.globalCompositeOperation = 'source-over';
     }
     cx.restore();
+
+    // Composite the pre-steel snapshot back into the punched hole so the
+    // diver sees the real interior (cars/props/terrain) there instead of
+    // the blank page background the destination-out punch would otherwise
+    // reveal.
+    if (canRestoreHole) {
+        cx.drawImage(_wreckHoleRestoreCanvas, 0, 0);
+    }
 
     // Feather the rim of the near-field circle so the always-visible spill
     // blends into steel instead of a hard disc. The cone's radial-gradient
