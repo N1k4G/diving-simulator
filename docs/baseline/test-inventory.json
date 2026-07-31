@@ -1,0 +1,1407 @@
+{
+  "schemaVersion": 1,
+  "referenceCommit": "30c151f",
+  "legacyHarness": {
+    "path": "src/diving-simulator-tests.html",
+    "disposition": "Parity oracle until WP-12; port assertions incrementally",
+    "tests": [
+      {
+        "id": "TC-01",
+        "name": "Basic Air Dive — 18m, 30min, ascend safely"
+      },
+      {
+        "id": "TC-02",
+        "name": "NDL Exhaustion — 30m until NDL=0"
+      },
+      {
+        "id": "TC-03",
+        "name": "O2 Toxicity — EAN32 at 70m"
+      },
+      {
+        "id": "TC-04",
+        "name": "Gas Depletion — Air at 40m until empty"
+      },
+      {
+        "id": "TC-05",
+        "name": "Safe Ascent — 20m, 10min hold, ascend to surface"
+      },
+      {
+        "id": "TC-06",
+        "name": "DCS — Ceiling Violation (40m→0m skip)"
+      },
+      {
+        "id": "TC-07",
+        "name": "Gas Switch — Air + EAN36 at 25m"
+      },
+      {
+        "id": "TC-08",
+        "name": "Trimix Deep Dive — Tx18/45 at 60m"
+      },
+      {
+        "id": "TC-09",
+        "name": "Safety Stop — triggered at 5m after 20m dive"
+      },
+      {
+        "id": "TC-10",
+        "name": "Barotrauma — forced >18m/min ascent"
+      },
+      {
+        "id": "TC-11",
+        "name": "Breathing Cycle — Bubbles only during exhale"
+      },
+      {
+        "id": "TC-12",
+        "name": "Breathing Cycle — Reduced bubble count per cycle"
+      },
+      {
+        "id": "TC-13",
+        "name": "AMV — Default is 15 L/min"
+      },
+      {
+        "id": "TC-14",
+        "name": "AMV — Gas consumption accuracy at 40m, AMV=20"
+      },
+      {
+        "id": "TC-15",
+        "name": "AMV — GTR accuracy at 40m, AMV=20, 500L"
+      },
+      {
+        "id": "TC-16",
+        "name": "AMV — Range clamping (min 8, max 25)"
+      },
+      {
+        "id": "TC-17",
+        "name": "Shark — Spawns on timer expiry with forced random"
+      },
+      {
+        "id": "TC-18",
+        "name": "Shark — Collision causes SHARK ATTACK game over"
+      },
+      {
+        "id": "TC-19",
+        "name": "Shark — Removed when exiting screen"
+      },
+      {
+        "id": "TC-20",
+        "name": "Shark — Only one active at a time"
+      },
+      {
+        "id": "TC-21",
+        "name": "Shark — GAME_OVER_INFO contains SHARK ATTACK"
+      },
+      {
+        "id": "TC-22",
+        "name": "Safety Stop — No stop needed for shallow dive (≤11m)"
+      },
+      {
+        "id": "TC-23",
+        "name": "Safety Stop — Activates when maxDepth > 11m, duration 3min"
+      },
+      {
+        "id": "TC-24",
+        "name": "Safety Stop — 5min duration when maxDepth > 30m"
+      },
+      {
+        "id": "TC-25",
+        "name": "Safety Stop — 5min duration when NDL dropped below 5"
+      },
+      {
+        "id": "TC-26",
+        "name": "Safety Stop — Countdown starts when depth < 6m"
+      },
+      {
+        "id": "TC-27",
+        "name": "Safety Stop — Countdown decrements in 2.4–8.3m range"
+      },
+      {
+        "id": "TC-28",
+        "name": "Safety Stop — Countdown pauses outside 2.4–8.3m range"
+      },
+      {
+        "id": "TC-29",
+        "name": "Safety Stop — Countdown resets when depth > 11m"
+      },
+      {
+        "id": "TC-30",
+        "name": "Safety Stop — Completes when countdown reaches 0"
+      },
+      {
+        "id": "TC-31",
+        "name": "Safety Stop — resetDive() clears all safety stop state"
+      },
+      {
+        "id": "TC-90-SAFETY-STOP-RESETS-ON-REDESCENT",
+        "name": "Issue #90 — completed safety stop resets after descending back below 11m"
+      },
+      {
+        "id": "TC-14-FRAMECALC-MATCHES-FRESH-CALLS-NO-DECO",
+        "name": "Issue #14 — frameCalc matches fresh calculateCeiling()/NDL()/TTS() calls outside deco"
+      },
+      {
+        "id": "TC-14-FRAMECALC-SCHEDULE-POPULATED-IN-DECO",
+        "name": "Issue #14 — frameCalc.schedule is populated (and matches a fresh call) once in mandatory deco"
+      },
+      {
+        "id": "TC-32",
+        "name": "CCR — ccrAdjustO2Vol clamps within [2,5] L"
+      },
+      {
+        "id": "TC-33",
+        "name": "CCR — ccrAdjustO2Pres clamps within [50,300] bar"
+      },
+      {
+        "id": "TC-34",
+        "name": "CCR — switchMode normalises tankCount/activeTank/selectedTankTab to 1/0/0"
+      },
+      {
+        "id": "TC-35",
+        "name": "CCR — startDiveAction() puts gameState=surface and resets diveTime"
+      },
+      {
+        "id": "TC-36",
+        "name": "CCR — Bailout/SP+/SP- buttons present in #touch-dive"
+      },
+      {
+        "id": "TC-37",
+        "name": "CCR — I key cycling sets infoPageMode to CCR page (5) and back"
+      },
+      {
+        "id": "TC-38",
+        "name": "Phase A — kick right: diverX increases, vel capped at maxSpeed, decays on release"
+      },
+      {
+        "id": "TC-39",
+        "name": "Phase A — kicking uses more gas than staying still (exertion multiplier)"
+      },
+      {
+        "id": "TC-40",
+        "name": "Phase A — diverX and horizontalVelocity survive saveDiveState/restoreDiveState"
+      },
+      {
+        "id": "TC-41",
+        "name": "Phase B — in-band current drifts diverX; out-of-band current has no effect"
+      },
+      {
+        "id": "TC-42",
+        "name": "Phase B — kicking against strong current: still loses ground, uses more gas"
+      },
+      {
+        "id": "TC-43",
+        "name": "Phase B — current level ramps from 0 toward strength over rampTime"
+      },
+      {
+        "id": "TC-44",
+        "name": "Step 0 — geometry helpers: lerpProfile, solidAt, overheadAt work correctly"
+      },
+      {
+        "id": "TC-45",
+        "name": "Step 0 — vertical clamp: floor blocks descent at site floor depth"
+      },
+      {
+        "id": "TC-46",
+        "name": "Step 0 — vertical clamp: ceiling blocks ascent inside cave"
+      },
+      {
+        "id": "TC-47",
+        "name": "Step 0 — horizontal collision: rock structure stops horizontal movement"
+      },
+      {
+        "id": "TC-48",
+        "name": "Step 1 Shore — slope descent: kicking right increases accessible depth"
+      },
+      {
+        "id": "TC-49",
+        "name": "Step 1 Shore — noShark: shark never spawns on shore"
+      },
+      {
+        "id": "TC-50",
+        "name": "Step 2 Reef — reef crest blocks lateral movement; both sides open to MAX_DEPTH"
+      },
+      {
+        "id": "TC-51",
+        "name": "Step 2 Reef — current drifts diver in open water beside reef"
+      },
+      {
+        "id": "TC-52",
+        "name": "Step 2 Reef — crest shallow (5m), both sides open to MAX_DEPTH"
+      },
+      {
+        "id": "TC-53",
+        "name": "Step 3 Wreck — inOverhead true inside hull, false outside"
+      },
+      {
+        "id": "TC-54",
+        "name": "Step 3 Wreck — fast kick near keel inside hull degrades visibility"
+      },
+      {
+        "id": "TC-55",
+        "name": "Step 3 Wreck — wreck site state resets correctly on new dive"
+      },
+      {
+        "id": "TC-56",
+        "name": "Step 4 Cave — badAirWarning true inside dome; ceiling blocks surface attempt"
+      },
+      {
+        "id": "TC-57",
+        "name": "Step 4 Cave — far-exit pond (x=200): ceiling=0, ceilingAt allows surfacing"
+      },
+      {
+        "id": "TC-58",
+        "name": "Step 4 Cave — bad-air dome detected inside unbreathable pocket"
+      },
+      {
+        "id": "TC-59",
+        "name": "Step 4 Cave — guideline nodes recorded while inOverhead; not recorded in open"
+      },
+      {
+        "id": "TC-X1",
+        "name": "Reef descriptor — all new coral/cloud kinds present, geometry correct"
+      },
+      {
+        "id": "TC-X2",
+        "name": "New reef species registered in FISH_TYPES and WILDLIFE_TYPES"
+      },
+      {
+        "id": "TC-X3",
+        "name": "Reef-only species not eligible on other dive sites"
+      },
+      {
+        "id": "TC-CCR-PO2-1",
+        "name": "CCR #4 — 70m, SP 1.3, junk OC tank: no false O2-tox/hypoxia game over"
+      },
+      {
+        "id": "TC-CCR-NARC-1",
+        "name": "CCR #50 — Air diluent END > Tmx 10/70 END at same depth"
+      },
+      {
+        "id": "TC-CCR-NARC-2",
+        "name": "CCR #50 — tanks[0] mutations do not affect narcosis/END in active loop"
+      },
+      {
+        "id": "TC-CCR-NARC-3",
+        "name": "CCR #50 — bailout narcosis/END uses diluent gas (not stale loop mix)"
+      },
+      {
+        "id": "TC-CCR-DYN-1",
+        "name": "CCR #25 — setpoint increase consumes O2 proportional to the correction"
+      },
+      {
+        "id": "TC-CCR-DYN-2",
+        "name": "CCR #25 — rapid descent produces a transient hyperoxia-range PO2 spike"
+      },
+      {
+        "id": "TC-CCR-DYN-3",
+        "name": "CCR #25 — rapid ascent produces a transient hypoxia-range PO2 drop despite full O2 tank"
+      },
+      {
+        "id": "TC-CCR-DYN-4",
+        "name": "CCR #25 — insufficient O2 reserve means setpoint is not fully reached"
+      },
+      {
+        "id": "TC-CCR-SETUP-1",
+        "name": "CCR #5 — startDiveAction() preserves setup-configured values"
+      },
+      {
+        "id": "TC-CCR-POSTDIVE-1",
+        "name": "CCR #24 — post-dive gas usage reflects O2/diluent cylinders"
+      },
+      {
+        "id": "TC-CCR-DIL-1",
+        "name": "CCR #8 — descent 0->30m consumes loopVolume*3 surface liters of diluent"
+      },
+      {
+        "id": "TC-52-DETERMINISM",
+        "name": "Issue #52 — visualProfileDepth is deterministic"
+      },
+      {
+        "id": "TC-52-AMPLITUDE",
+        "name": "Issue #52 — visual offset stays within configured amplitude"
+      },
+      {
+        "id": "TC-52-FLOOR-INVARIANT",
+        "name": "Issue #52 — visual floor ≤ collision floor (no invisible walls)"
+      },
+      {
+        "id": "TC-52-CEILING-INVARIANT",
+        "name": "Issue #52 — visual ceiling ≥ collision ceiling (Cave)"
+      },
+      {
+        "id": "TC-52-COLLISION-UNCHANGED",
+        "name": "Issue #52 — floorAt/ceilingAt values unchanged by this issue"
+      },
+      {
+        "id": "TC-52-WORLD-ANCHORED",
+        "name": "Issue #52 — visual contour is world-anchored (not camera-relative)"
+      },
+      {
+        "id": "TC-52-NOT-MIRROR",
+        "name": "Issue #52 — Cave floor and ceiling use different seeds"
+      },
+      {
+        "id": "TC-41-TILE-REGISTRY",
+        "name": "Issue #41 — buildMaterialTiles produces the 5 expected tiles at declared dimensions"
+      },
+      {
+        "id": "TC-41-TILE-IDENTITY",
+        "name": "Issue #41 — buildMaterialTiles is idempotent (no per-call re-allocation)"
+      },
+      {
+        "id": "TC-41-TILE-DETERMINISTIC",
+        "name": "Issue #41 — tile pixels are stable across repeated reads (getImageData)"
+      },
+      {
+        "id": "TC-41-TILE-API-SURFACE",
+        "name": "Issue #41 — gameAPI exposes buildMaterialTiles / materialTiles / MAT_TILE"
+      },
+      {
+        "id": "TC-34-API-SURFACE",
+        "name": "Issue #34 — gameAPI exposes drawContactBand (function) and CONTACT_AO (object)"
+      },
+      {
+        "id": "TC-34-CONFIG-SANE",
+        "name": "Issue #34 — CONTACT_AO values are in sane numeric ranges"
+      },
+      {
+        "id": "TC-34-DEGENERATE-INPUT",
+        "name": "Issue #34 — drawContactBand is a safe no-op for degenerate inputs"
+      },
+      {
+        "id": "TC-34-STROKES-A-PATH",
+        "name": "Issue #34 — drawContactBand darkens pixels along the drawn line"
+      },
+      {
+        "id": "TC-34-DETERMINISTIC",
+        "name": "Issue #34 — drawContactBand produces identical pixels on repeat calls"
+      },
+      {
+        "id": "TC-34-NO-STATE-LEAK",
+        "name": "Issue #34 — drawContactBand restores canvas state via save/restore"
+      },
+      {
+        "id": "TC-53-API-SURFACE",
+        "name": "Issue #53 — gameAPI exposes visualZoneAt / zoneBlendWeight / debugVisualZones"
+      },
+      {
+        "id": "TC-53-DATA-SHAPE",
+        "name": "Issue #53 — every site declares a well-formed visualZones array with unique ids"
+      },
+      {
+        "id": "TC-53-SHORE-POINTS",
+        "name": "Issue #53 — Shore: known points land in the expected zone"
+      },
+      {
+        "id": "TC-53-REEF-POINTS",
+        "name": "Issue #53 — Reef: plateau/wall/blue-water points resolve correctly"
+      },
+      {
+        "id": "TC-53-WRECK-POINTS",
+        "name": "Issue #53 — Wreck: deck bands and bridge resolve correctly"
+      },
+      {
+        "id": "TC-53-WRECK-EXTERIOR-DOES-NOT-SWALLOW",
+        "name": "Issue #53 — wreck_exterior must not swallow interior zones despite covering the same box"
+      },
+      {
+        "id": "TC-53-CAVE-POINTS",
+        "name": "Issue #53 — Cave: entrance/tunnel/cathedral/exit resolve correctly"
+      },
+      {
+        "id": "TC-53-CATHEDRAL-PRIORITY",
+        "name": "Issue #53 — cave_cathedral (P=25) beats overlapping down_shaft (P=15) — priority rule"
+      },
+      {
+        "id": "TC-53-TIEBREAK-SMALLER-AREA",
+        "name": "Issue #53 — priority tie is broken by smaller-area zone (small-in-large overlap)"
+      },
+      {
+        "id": "TC-53-BOUNDARY-INCLUSIVE",
+        "name": "Issue #53 — boundaries are INCLUSIVE on all four edges (matches solidAt convention)"
+      },
+      {
+        "id": "TC-53-NULL-OUTSIDE-ALL",
+        "name": "Issue #53 — a point outside every declared zone returns null"
+      },
+      {
+        "id": "TC-53-BLEND-WEIGHT-RANGE",
+        "name": "Issue #53 — zoneBlendWeight is always in [0, 1] and behaves correctly at core/edge/outside"
+      },
+      {
+        "id": "TC-CNS-PERSIST-1",
+        "name": "Bug #10 — cnsPercent survives saveDiveState/restoreDiveState"
+      },
+      {
+        "id": "TC-54-API-SURFACE",
+        "name": "Issue #54 — gameAPI exposes sampleLocalAtmosphere / LOCAL_ATMO_DEFAULT / LOCAL_ATMO_CLAMP"
+      },
+      {
+        "id": "TC-54-DEFAULTS-NO-ZONE",
+        "name": "Issue #54 — point outside all zones returns all-default (1.0) atmosphere"
+      },
+      {
+        "id": "TC-54-DEFAULTS-NO-PROFILES",
+        "name": "Issue #54 — site with visualZones but no atmosphereProfiles returns all defaults"
+      },
+      {
+        "id": "TC-54-DEFAULTS-UNKNOWN-ZONE-PROFILE",
+        "name": "Issue #54 — zone with no matching atmosphereProfiles entry returns all defaults"
+      },
+      {
+        "id": "TC-54-PARTIAL-PROFILE",
+        "name": "Issue #54 — profile specifying only visibility leaves all other fields at default"
+      },
+      {
+        "id": "TC-54-CLAMPS",
+        "name": "Issue #54 — deliberately out-of-range profile values are clamped to LOCAL_ATMO_CLAMP bounds"
+      },
+      {
+        "id": "TC-54-DETERMINISM",
+        "name": "Issue #54 — same input twice yields identical output object contents"
+      },
+      {
+        "id": "TC-54-BLEND-CONTINUITY",
+        "name": "Issue #54 — visibility changes monotonically and continuously across a blend margin"
+      },
+      {
+        "id": "TC-54-SHORE-ENTRY-SAMPLE",
+        "name": "Issue #54 — shore_entry profile visibility sampled correctly at core position"
+      },
+      {
+        "id": "TC-54-REEF-DEEP-SAMPLE",
+        "name": "Issue #54 — reef_deep_wall at core shows blue-shifted tint (tintB > 1) and reduced ambient"
+      },
+      {
+        "id": "TC-55-API",
+        "name": "Issue #55 — gameAPI exposes set-dressing functions/constants"
+      },
+      {
+        "id": "TC-55-DATA",
+        "name": "Issue #55 — decorationRules data is well-formed and references real visualZones"
+      },
+      {
+        "id": "TC-55-DETERMINISM-REPEAT",
+        "name": "Issue #55 — sampleSetDressingCandidates is deterministic on repeat calls (all 4 sites)"
+      },
+      {
+        "id": "TC-55-DETERMINISM-SWIM-AWAY-AND-BACK",
+        "name": "Issue #55 — sampling elsewhere and back gives identical first/third results"
+      },
+      {
+        "id": "TC-55-DETERMINISM-NO-TIME",
+        "name": "Issue #55 — sampleSetDressingCandidates takes no time parameter and ignores elapsed diveTime"
+      },
+      {
+        "id": "TC-55-DENSITY-ZERO",
+        "name": "Issue #55 — density 0 produces zero candidates"
+      },
+      {
+        "id": "TC-55-DENSITY-ONE-CELL-COUNT",
+        "name": "Issue #55 — density 1 with a full-coverage zone produces one candidate per iterated cell"
+      },
+      {
+        "id": "TC-55-ZONE-CONTAINMENT",
+        "name": "Issue #55 — candidates only land inside the rule's own target zone rectangle"
+      },
+      {
+        "id": "TC-55-UNKNOWN-KIND-DOES-NOT-THROW",
+        "name": "Issue #55 — drawDecorationProp on an unknown kind warns (rate-limited) and never throws"
+      },
+      {
+        "id": "TC-55-REGRESSION-COLLISION-UNCHANGED",
+        "name": "Issue #55 — pinned floorAt/ceilingAt/solidAt reference values are unchanged by this feature"
+      },
+      {
+        "id": "TC-55-ALL-KINDS-RENDER-WITHOUT-THROW",
+        "name": "Issue #55 — every declared prop kind renders without throwing and paints pixels"
+      },
+      {
+        "id": "TC-55-NO-GAMEPLAY-LEAK",
+        "name": "Issue #55 — drawSetDressing on the real canvas leaves gameplay state untouched"
+      },
+      {
+        "id": "TC-55-WRECK-INTERIOR-DECKS-PRODUCE-CANDIDATES",
+        "name": "Issue #55 — wreck interior-deck rules anchor to the correct deck, not just the first one found"
+      },
+      {
+        "id": "TC-56-API",
+        "name": "Issue #56 — gameAPI exposes surface-accumulation helpers and data"
+      },
+      {
+        "id": "TC-56-PROFILE-UNKNOWN-ZONE",
+        "name": "Issue #56 — accumulationProfileFor falls back to site then neutral defaults"
+      },
+      {
+        "id": "TC-56-PROFILE-CLAMP",
+        "name": "Issue #56 — accumulationProfileFor clamps all values to [0,1]"
+      },
+      {
+        "id": "TC-56-DETERMINISM-STREAKS",
+        "name": "Issue #56 — drawVerticalStreaks is pixel-deterministic for the same worldSeed"
+      },
+      {
+        "id": "TC-56-INTENSITY-ZERO-NO-OP",
+        "name": "Issue #56 — intensity ≤0 early-returns without touching the canvas"
+      },
+      {
+        "id": "TC-56-CONTACT-NOT-BLACK-DOMINATED",
+        "name": "Issue #56 — drawContactAccumulation reads as warm material, not black shadow"
+      },
+      {
+        "id": "TC-56-REGRESSION-COLLISION-UNCHANGED",
+        "name": "Issue #56 — floorAt/ceilingAt/solidAt reference values unchanged after calling accumulation helpers"
+      },
+      {
+        "id": "TC-56-NO-GAMEPLAY-LEAK",
+        "name": "Issue #56 — surface accumulation helpers leave gameplay state untouched"
+      },
+      {
+        "id": "TC-56-DATA-ALL-ZONES-COVERED-OR-DEFAULTED",
+        "name": "Issue #56 — accumulationProfileFor resolves every visual zone to a valid [0,1] profile"
+      },
+      {
+        "id": "TC-57-API",
+        "name": "Issue #57 — sampleEnvironmentSway + SWAY_PROFILES surface on gameAPI"
+      },
+      {
+        "id": "TC-57-ZERO-FLEXIBILITY-STAYS-STILL",
+        "name": "Issue #57 — flexibility=0 → sway is exactly zero"
+      },
+      {
+        "id": "TC-57-FOOT-STAYS-PIXEL-FIXED",
+        "name": "Issue #57 — heightFactor=0 → foot pixel-fixed regardless of anything else"
+      },
+      {
+        "id": "TC-57-DETERMINISM",
+        "name": "Issue #57 — same seed + same waveTime → identical sway"
+      },
+      {
+        "id": "TC-57-NEIGHBOURS-DESYNC",
+        "name": "Issue #57 — different seeds → different phases (neighbours never in sync)"
+      },
+      {
+        "id": "TC-57-CURRENT-BIAS-DIRECTION",
+        "name": "Issue #57 — current bias flips sign with current.direction"
+      },
+      {
+        "id": "TC-57-CURRENT-BIAS-SCALES-WITH-LEVEL",
+        "name": "Issue #57 — bias magnitude scales with current.level"
+      },
+      {
+        "id": "TC-57-AMPLITUDE-BOUNDED",
+        "name": "Issue #57 — sway.x magnitude stays within a sensible multiple of amplitudePx"
+      },
+      {
+        "id": "TC-57-NO-STATE-MUTATION",
+        "name": "Issue #57 — sampleEnvironmentSway does not mutate current or profile"
+      },
+      {
+        "id": "TC-58-API",
+        "name": "Issue #58 — near-surface optics helpers surface on gameAPI"
+      },
+      {
+        "id": "TC-58-FACTOR-MONOTONIC",
+        "name": "Issue #58 — nearSurfaceLightFactor is monotonically non-increasing with depth"
+      },
+      {
+        "id": "TC-58-FACTOR-RANGE",
+        "name": "Issue #58 — nearSurfaceLightFactor always in [0,1]"
+      },
+      {
+        "id": "TC-58-FACTOR-DEEP-ZERO",
+        "name": "Issue #58 — nearSurfaceLightFactor is exactly 0 beyond ~20 m"
+      },
+      {
+        "id": "TC-58-NOOP-OUTSIDE-DIVE",
+        "name": "Issue #58 — draw passes are no-ops outside gameState=\"diving\""
+      },
+      {
+        "id": "TC-58-CAUSTICS-EARLY-RETURN",
+        "name": "Issue #58 — drawCausticsOnVisibleFloor early-returns for tiny lightFactor"
+      },
+      {
+        "id": "TC-43-API",
+        "name": "Issue #43 — parallax helpers surface on gameAPI"
+      },
+      {
+        "id": "TC-43-FACTORS-IN-RANGE",
+        "name": "Issue #43 — every parallax factor lies in the documented layer range"
+      },
+      {
+        "id": "TC-43-NOOP-OUTSIDE-DIVE",
+        "name": "Issue #43 — drawSiteAtmosphere emits zero canvas ops outside gameState=\"diving\""
+      },
+      {
+        "id": "TC-43-CAVE-DEPTH-GATE",
+        "name": "Issue #43 — cave parallax layers are silent outside the cathedral depth band"
+      },
+      {
+        "id": "TC-43-DETERMINISTIC",
+        "name": "Issue #43 — parallax helpers are deterministic under the same world state"
+      },
+      {
+        "id": "TC-43-WORLD-ANCHORED",
+        "name": "Issue #43 — reef midground ridge emits a wave-shape that shifts as diverX changes"
+      },
+      {
+        "id": "TC-31-API",
+        "name": "Issue #31 — torch-beam helpers surface on gameAPI"
+      },
+      {
+        "id": "TC-31-BEAM-ANGLE-SIGN",
+        "name": "Issue #31 — torchBeamAngle points DOWN-RIGHT / DOWN-LEFT (never up)"
+      },
+      {
+        "id": "TC-31-BEAM-ANGLE-DETERMINISTIC",
+        "name": "Issue #31 — torchBeamAngle is a pure deterministic function"
+      },
+      {
+        "id": "TC-31-NOOP-OUTSIDE-DIVE",
+        "name": "Issue #31 — drawSiltAndTorch + drawWreckHullSkin emit zero ops outside diving"
+      },
+      {
+        "id": "TC-31-TORCH-OFF-NO-CONE",
+        "name": "Issue #31 — cave torch-OFF path draws darkness only, never a cone-wedge arc"
+      },
+      {
+        "id": "TC-36-API",
+        "name": "Issue #36 — depth-color-absorption helpers surface on gameAPI"
+      },
+      {
+        "id": "TC-36-FACTOR-MONOTONIC",
+        "name": "Issue #36 — depthColorFactors r/g are monotonically non-increasing with depth"
+      },
+      {
+        "id": "TC-36-FACTOR-RANGE",
+        "name": "Issue #36 — depthColorFactors always returns r/g/b in [0,1], b pinned to 1"
+      },
+      {
+        "id": "TC-36-FACTOR-CONTINUOUS",
+        "name": "Issue #36 — depthColorFactors has no popping (bounded step size)"
+      },
+      {
+        "id": "TC-36-CAVE-SOFTER",
+        "name": "Issue #36 — cave color loss is softened vs. open-water sites at the same depth"
+      },
+      {
+        "id": "TC-36-NOOP-OUTSIDE-DIVE",
+        "name": "Issue #36 — drawDepthColorAbsorption emits zero canvas ops outside gameState=\"diving\""
+      },
+      {
+        "id": "TC-36-TORCH-OFF-NO-RESTORE-BLIT",
+        "name": "Issue #36 — with torch OFF, drawDepthColorAbsorption never touches the restore offscreen buffers"
+      },
+      {
+        "id": "TC-42-DATA-ALL-TYPES-HAVE-SITES",
+        "name": "Issue #42 — every FISH_TYPES / WILDLIFE_TYPES entry has an explicit sites[] filter"
+      },
+      {
+        "id": "TC-42-DATA-CAVE-FREE-OF-BAD-FAUNA",
+        "name": "Issue #42 — whale/jellyfish/octopus (and all fish) excluded from cave"
+      },
+      {
+        "id": "TC-42-ELIGIBLE-CAVE-EMPTY",
+        "name": "Issue #42 — _eligibleTypes() returns empty pool for cave (no fallback to full list)"
+      },
+      {
+        "id": "TC-42-ELIGIBLE-SITE-FILTERING",
+        "name": "Issue #42 — reef/wreck/shore eligible pools respect declared filters"
+      },
+      {
+        "id": "TC-42-FAUNA-BLOCKED-FLOOR",
+        "name": "Issue #42 — faunaBlockedAt() flags points at/below the floor"
+      },
+      {
+        "id": "TC-42-FAUNA-BLOCKED-CEILING",
+        "name": "Issue #42 — faunaBlockedAt() flags points at/above the ceiling"
+      },
+      {
+        "id": "TC-42-FAUNA-BLOCKED-SOLID",
+        "name": "Issue #42 — faunaBlockedAt() flags points inside a solid AABB (cave bedrock)"
+      },
+      {
+        "id": "TC-42-FAUNA-BLOCKED-OPEN-WATER",
+        "name": "Issue #42 — faunaBlockedAt() returns false everywhere in open ocean"
+      },
+      {
+        "id": "TC-42-DRAWFISH-RESPECTS-ALPHA",
+        "name": "Issue #42 — drawFish honours fish.alpha (default 1 = no change)"
+      },
+      {
+        "id": "TC-42-DRAWWILDLIFE-RESPECTS-ALPHA",
+        "name": "Issue #42 — drawWildlife honours w.alpha (default 1 = no change)"
+      },
+      {
+        "id": "TC-42-SPAWN-REJECTS-INSIDE-BEDROCK",
+        "name": "Issue #42 — spawnFish/spawnWildlife reject start positions that fall inside terrain"
+      },
+      {
+        "id": "TC-42-UPDATEFISH-STEERS-AWAY-FROM-FLOOR",
+        "name": "Issue #42 — a fish forced below the floor accumulates upward avoidance velocity"
+      },
+      {
+        "id": "TC-35-API",
+        "name": "Issue #35 — coralVariation + tintCoralColor exposed"
+      },
+      {
+        "id": "TC-35-DETERMINISM",
+        "name": "Issue #35 — coralVariation is deterministic for same seed"
+      },
+      {
+        "id": "TC-35-SCALE-BOUNDED",
+        "name": "Issue #35 — scale stays inside [SCALE_MIN, SCALE_MAX]"
+      },
+      {
+        "id": "TC-35-MIRROR-BOTH-SIDES",
+        "name": "Issue #35 — mirror hits both -1 and +1 across seeds"
+      },
+      {
+        "id": "TC-35-DIFFERENT-SEEDS-DIFFER",
+        "name": "Issue #35 — nearby seeds produce visibly different variation"
+      },
+      {
+        "id": "TC-35-TINT-VALID-HEX",
+        "name": "Issue #35 — tintCoralColor returns a valid #rrggbb hex"
+      },
+      {
+        "id": "TC-35-DRAWERS-DETERMINISTIC",
+        "name": "Issue #35 — same seed produces identical draw-op sequence"
+      },
+      {
+        "id": "TC-33-API",
+        "name": "Issue #33 — wreck-polish helpers surface on gameAPI"
+      },
+      {
+        "id": "TC-33-LIGHT-TORCH-OFF-ZERO",
+        "name": "Issue #33 — sampleTorchLightAtWorldPoint returns 0 exactly with torch off"
+      },
+      {
+        "id": "TC-33-LIGHT-IN-VS-OUT",
+        "name": "Issue #33 — same world point reads higher inside beam cone than outside"
+      },
+      {
+        "id": "TC-33-LIGHT-SOFT-EDGE",
+        "name": "Issue #33 — sampleTorchLightAtWorldPoint edge transition is soft (no hard step)"
+      },
+      {
+        "id": "TC-33-INTERIOR-FACTOR-MONOTONIC",
+        "name": "Issue #33 — interiorObjectDistanceFactor 1 near, 0 far, no popping"
+      },
+      {
+        "id": "TC-33-SILHOUETTE-SUPERSET",
+        "name": "Issue #33 — polygon is a strict superset of the old 3-rect union"
+      },
+      {
+        "id": "TC-33-COLLISION-UNCHANGED",
+        "name": "Issue #33 — floorAt/ceilingAt/solidAt/overheadAt at wreck test points unchanged"
+      },
+      {
+        "id": "TC-33-ENTRY-POINTS-UNCHANGED",
+        "name": "Issue #33 — bow visor / stern ramp / main hatch entry x-ranges unchanged"
+      },
+      {
+        "id": "TC-33-LINE-NET-FEATURES-PRESENT",
+        "name": "Issue #33 — wreck features array contains line + net entries"
+      },
+      {
+        "id": "TC-33-LINE-NET-NO-COLLISION",
+        "name": "Issue #33 — line/net features do NOT add collision structures"
+      },
+      {
+        "id": "TC-33-LINE-NET-WORLD-ANCHORED",
+        "name": "Issue #33 — drawHangingLine / drawNet consume sampleEnvironmentSway with the right profiles"
+      },
+      {
+        "id": "TC-33-INTERIOR-MODULATOR-SCOPE",
+        "name": "Issue #33 — wreckInteriorAlphaMul is 1 outside wreck / outside overhead"
+      },
+      {
+        "id": "TC-32-API",
+        "name": "Issue #32 — public helpers + tuning constants are exposed on gameAPI"
+      },
+      {
+        "id": "TC-32-COLLISION-UNCHANGED",
+        "name": "Issue #32 — floorAt/ceilingAt/solidAt/badAirAt at cave test points unchanged"
+      },
+      {
+        "id": "TC-32-BAD-AIR-TRIGGER-UNCHANGED",
+        "name": "Issue #32 — badAirWarning fires ONLY inside pocket x-range at head-in depth"
+      },
+      {
+        "id": "TC-32-BAD-AIR-LENS-READS-SITES-DATA",
+        "name": "Issue #32 — lens position derives from activeSite().badAir (not hardcoded)"
+      },
+      {
+        "id": "TC-32-SILT-CLOUD-TRACKS-VISIBILITY",
+        "name": "Issue #32 — silt cloud draws more calls at low visibility than high"
+      },
+      {
+        "id": "TC-32-SILT-CLOUD-RESETS-ON-DIVE",
+        "name": "Issue #32 — silt cloud reads only `visibility`; resetDive() clears it"
+      },
+      {
+        "id": "TC-32-SILT-CLOUD-NO-MATH-RANDOM",
+        "name": "Issue #32 — drawCaveSiltCloud never calls Math.random()"
+      },
+      {
+        "id": "TC-32-SILT-CLOUD-DETERMINISM",
+        "name": "Issue #32 — same seed (frozen waveTime, same state) → same draw list"
+      },
+      {
+        "id": "TC-32-EXIT-LIGHT-WORLD-ANCHORED",
+        "name": "Issue #32 — exit light shaft is world-anchored (tracks world-x under camera pan)"
+      },
+      {
+        "id": "TC-32-EXIT-LIGHT-POSITION-MATCHES-ZONE",
+        "name": "Issue #32 — exit shaft origins lie inside cave_exit x-range"
+      },
+      {
+        "id": "TC-32-EXIT-LIGHT-NO-EFFECT-ON-COLLISION",
+        "name": "Issue #32 — drawCaveExitLightShaft does NOT mutate collision state"
+      },
+      {
+        "id": "TC-32-FORMATIONS-DETERMINISTIC",
+        "name": "Issue #32 — drawCaveSpeleothems is deterministic (frozen waveTime → same draws)"
+      },
+      {
+        "id": "TC-32-FORMATIONS-NO-MATH-RANDOM",
+        "name": "Issue #32 — drawCaveSpeleothems never calls Math.random()"
+      },
+      {
+        "id": "TC-59-SHORE-COLLISION-UNCHANGED",
+        "name": "Issue #59 — Shore floorAt/ceilingAt/solidAt at baseline points unchanged"
+      },
+      {
+        "id": "TC-59-REEF-COLLISION-UNCHANGED",
+        "name": "Issue #59 — Reef floorAt/ceilingAt at baseline points unchanged"
+      },
+      {
+        "id": "TC-59-WRECK-COLLISION-UNCHANGED",
+        "name": "Issue #59 — Wreck floorAt/solidAt/overheadAt at baseline points unchanged"
+      },
+      {
+        "id": "TC-59-CAVE-COLLISION-UNCHANGED",
+        "name": "Issue #59 — Cave floorAt/ceilingAt/solidAt/badAirAt at baseline points unchanged"
+      },
+      {
+        "id": "TC-59-SHORE-HERO-LANDMARKS-PRESENT",
+        "name": "Issue #59 — Shore hero landmark data present and sane"
+      },
+      {
+        "id": "TC-59-REEF-SIGNATURE-GORGONIAN",
+        "name": "Issue #59 — Reef signature gorgonian is distinctly larger than the coralVariation range"
+      },
+      {
+        "id": "TC-59-WRECK-DECK-ATMOSPHERE-GRADIENT",
+        "name": "Issue #59 — wreck atmosphere profiles form a monotonic bright→dark gradient by depth"
+      },
+      {
+        "id": "TC-59-CAVE-HERO-COLUMNS-PRESENT",
+        "name": "Issue #59 — Cave cathedral columns hand-placed inside the cathedral zone"
+      },
+      {
+        "id": "TC-59-ZONE-LOOKUP-DETERMINISM",
+        "name": "Issue #59 — visualZoneAt returns the higher-priority sub-zones deterministically"
+      },
+      {
+        "id": "TC-59-DECORATION-DETERMINISM",
+        "name": "Issue #59 — new decorationRules produce identical candidates across repeat calls"
+      },
+      {
+        "id": "TC-59-CAVE-COLUMN-DRAW-DETERMINISM",
+        "name": "Issue #59 — caveColumn feature draws deterministically with no Math.random"
+      },
+      {
+        "id": "TC-59-ATMOSPHERE-PROFILES-IN-CLAMP-RANGE",
+        "name": "Issue #59 — all tuned atmosphere profile values sample within safe clamp range"
+      },
+      {
+        "id": "TC-61-MOD-ZERO-O2",
+        "name": "Issue #61 — calculateMOD(0) treats 0 as a valid fO2, not \"omitted\""
+      },
+      {
+        "id": "TC-9-SHIFT-COMBO-STUCK-KEY",
+        "name": "Issue #9 — releasing Shift before the letter does not leave the uppercase key stuck"
+      },
+      {
+        "id": "TC-26-AVG-DEPTH-TIME-WEIGHTED",
+        "name": "Issue #26 — average depth accumulates time-weighted, not per-frame"
+      },
+      {
+        "id": "TC-70-DECO-FALLBACK-SKIPS-EMPTY-TANK",
+        "name": "Issue #70 — bestGasForDepth() never falls back to an empty tank while a non-empty one exists"
+      },
+      {
+        "id": "TC-68-FF-ZONE-MATCHES-SAFETY-STOP-ZONE",
+        "name": "Issue #68 — fast-forward eligibility matches the safety-stop countdown's own active range"
+      },
+      {
+        "id": "TC-63-TANKCOUNT-SETTER-SYNCS-TANKS",
+        "name": "Issue #63 — gameAPI.tankCount setter pads/truncates tanks[] to match"
+      },
+      {
+        "id": "TC-30-UNIFIED-ASCENT-RATE",
+        "name": "Issue #30 — deco-schedule ascent and non-deco TTS use the same planning ascent rate"
+      },
+      {
+        "id": "TC-65-PHYSICS-SUBSTEP-STABILITY",
+        "name": "Issue #65 — physics substepping keeps velocities bounded at large frame dt"
+      },
+      {
+        "id": "TC-69-FRAMERATE-INDEPENDENT-PROBABILITY",
+        "name": "Issue #69 — perSecondToPerFrameProbability keeps expected event rates equal across framerates (deterministic/analytical)"
+      },
+      {
+        "id": "TC-71-PROFILE-SAMPLE-CATCH-UP",
+        "name": "Issue #71 — profile sampler catches every 2 s boundary crossed under large dt"
+      },
+      {
+        "id": "TC-66-RESTORE-REJECTS-MALFORMED-SAVE",
+        "name": "Issue #66 — loadSavedDive() rejects a malformed/wrong-version payload instead of returning it"
+      },
+      {
+        "id": "TC-67-RESUME-BANNER-NON-BLOCKING",
+        "name": "Issue #67 — saved dive triggers non-blocking banner (never a blocking confirm()) with working Resume/Discard buttons"
+      },
+      {
+        "id": "TC-51-HYPOXIC-NOT-RECOMMENDED-SHALLOW",
+        "name": "Issue #51 — recommendBestGas() does not recommend a hypoxic gas at shallow depth"
+      },
+      {
+        "id": "TC-51-INWINDOW-GAS-STILL-BEST",
+        "name": "Issue #51 — a gas inside the PO2 window is still correctly chosen as best"
+      },
+      {
+        "id": "TC-51-NO-SAFE-GAS-RETURNS-SENTINEL",
+        "name": "Issue #51 — \"no safe gas available\" returns the -1 sentinel, not activeTank"
+      },
+      {
+        "id": "TC-51-AUTO-SWITCH-NEVER-SILENTLY-HYPOXIC",
+        "name": "Issue #51 — auto-switch on empty tank never silently picks a hypoxic gas"
+      },
+      {
+        "id": "TC-6-ARROWS-ADJUST-O2",
+        "name": "Issue #6 — arrowleft/right adjust O2 fraction by ±1%"
+      },
+      {
+        "id": "TC-6-ARROWS-ADJUST-HE-TEC-ONLY",
+        "name": "Issue #6 — arrowup/down adjust He only in tec mode (silent in rec)"
+      },
+      {
+        "id": "TC-6-PGUP-PGDN-PRESSURE",
+        "name": "Issue #6 — PgUp/PgDn adjust tank pressure by ±10 bar"
+      },
+      {
+        "id": "TC-6-BRACKET-KEYS-ADJUST-AMV-OC-ONLY",
+        "name": "Issue #6 — [/] adjust AMV in OC mode without touching CCR setpoint"
+      },
+      {
+        "id": "TC-6-COMMA-DOT-ADJUST-TANK-SIZE-OC-ONLY",
+        "name": "Issue #6 — ,/. adjust OC tank size in tec mode"
+      },
+      {
+        "id": "TC-6-G-KEY-ADJUSTS-GF-LOW",
+        "name": "Issue #6 — g raises GF Low, Shift+G lowers it (±5)"
+      },
+      {
+        "id": "TC-6-F-KEY-ADJUSTS-GF-HIGH",
+        "name": "Issue #6 — f raises GF High, Shift+F lowers it (±5)"
+      },
+      {
+        "id": "TC-6-TAB-CYCLES-TANK-TAB",
+        "name": "Issue #6 — TAB cycles selectedTankTab forward and wraps at tankCount"
+      },
+      {
+        "id": "TC-6-PLUS-MINUS-ADD-REMOVE-TANK",
+        "name": "Issue #6 — + adds a tank, - removes one (tec only)"
+      },
+      {
+        "id": "TC-6-CCR-KEYS-DO-NOT-LEAK-TO-OC",
+        "name": "Issue #6 — [/] and ,/. keep CCR meaning in CCR mode, no AMV/volume leak"
+      },
+      {
+        "id": "TC-38-BCD-FIRST-DEPTH-QUEUES-HINT",
+        "name": "Issue #38 — first descent past 2m enqueues the BCD hint exactly once"
+      },
+      {
+        "id": "TC-38-LOCALSTORAGE-SUPPRESSES-REPEAT",
+        "name": "Issue #38 — localStorage flag suppresses the hint on a fresh dive"
+      },
+      {
+        "id": "TC-38-NDL-TRIGGER-FIRES-ONCE",
+        "name": "Issue #38 — NDL trigger fires when NDL drops below 10 min"
+      },
+      {
+        "id": "TC-38-SAFETY-STOP-EDGE-FIRES",
+        "name": "Issue #38 — safetyStopNeeded rising edge queues the safety-stop hint"
+      },
+      {
+        "id": "TC-38-DECO-CEILING-EDGE-FIRES",
+        "name": "Issue #38 — deco ceiling > 0 rising edge queues the deco hint"
+      },
+      {
+        "id": "TC-38-OVERHEAD-EDGE-FIRES",
+        "name": "Issue #38 — inOverhead rising edge queues the overhead hint"
+      },
+      {
+        "id": "TC-38-CURRENT-EDGE-FIRES",
+        "name": "Issue #38 — current.active rising edge queues the current hint"
+      },
+      {
+        "id": "TC-38-NO-HINT-DURING-FAST-FORWARD",
+        "name": "Issue #38 — hint queue does not start a new toast while fast-forwarding"
+      },
+      {
+        "id": "TC-38-DISMISS-SURVIVES-RESETDIVE",
+        "name": "Issue #38 — \"don't show hints again\" opt-out survives resetDive()"
+      },
+      {
+        "id": "TC-38-HINT-TIMER-COUNTDOWN",
+        "name": "Issue #38 — visible hint counts down in real seconds and clears text"
+      },
+      {
+        "id": "TC-27-API",
+        "name": "Issue #27 — rule-of-thirds gameAPI surface + constants exposed"
+      },
+      {
+        "id": "TC-27-SNAPSHOT-ON-ENTRY",
+        "name": "Issue #27 — starting gas snapshot = sum across ALL tanks on first overhead entry"
+      },
+      {
+        "id": "TC-27-PHASE-TRANSITIONS",
+        "name": "Issue #27 — phase transitions outbound → turn → reserve across ⅔ and ⅓ thresholds"
+      },
+      {
+        "id": "TC-27-TURN-BEEP-ONCE",
+        "name": "Issue #27 — playAlertBeep fires exactly once across a continuous turn-phase excursion"
+      },
+      {
+        "id": "TC-27-HUD-VISIBILITY",
+        "name": "Issue #27 — #hud-thirds visibility gated on inOverhead && gameState === \"diving\""
+      },
+      {
+        "id": "TC-27-LEAVE-AND-REENTER-RESETS-SNAPSHOT",
+        "name": "Issue #27 — leaving overhead clears snapshot; re-entry re-snapshots against current gas"
+      },
+      {
+        "id": "TC-101-SHORE-ROCK-INVENTORY",
+        "name": "Issue #101 — shore site declares the documented 4 rock AABBs (regression pin)"
+      },
+      {
+        "id": "TC-101-ROCK-CORNER-BLOCKS-DESCENT",
+        "name": "Issue #101 — descending onto the shoulder of a shore rock stops within 0.5 m of dTop"
+      },
+      {
+        "id": "TC-101-DOME-SAG-BOUND",
+        "name": "Issue #101 — bounded rock-dome constants keep visual sag ≤ 1.5 m for any shore rock"
+      },
+      {
+        "id": "TC-101-ROCK-INTERIOR-STAYS-SOLID",
+        "name": "Issue #101 — every shore rock AABB is still solid throughout its interior"
+      },
+      {
+        "id": "TC-37-BACKWAY-SHORE-DIRECTION-DISTANCE",
+        "name": "Issue #37 — back-way chip: shore site, correct direction + distance from boat"
+      },
+      {
+        "id": "TC-37-BACKWAY-REEF-VISIBLE",
+        "name": "Issue #37 — back-way chip: reef site (open water) shows chip past threshold"
+      },
+      {
+        "id": "TC-37-BACKWAY-HIDDEN-NEAR-BOAT",
+        "name": "Issue #37 — back-way chip hidden when |diverX-boatX| <= BACKWAY_MIN_DISTANCE_M"
+      },
+      {
+        "id": "TC-37-BACKWAY-HIDDEN-OVERHEAD-SITES",
+        "name": "Issue #37 — back-way chip hidden in cave and wreck sites (overhead / guideline serves)"
+      },
+      {
+        "id": "TC-37-BACKWAY-HIDDEN-OPEN-AND-NOT-DIVING",
+        "name": "Issue #37 — back-way chip hidden in \"open\" site and outside gameState=diving"
+      },
+      {
+        "id": "TC-37-BACKWAY-DOM-UPDATE",
+        "name": "Issue #37 — updateDiving() drives the #hud-backway DOM correctly"
+      },
+      {
+        "id": "TC-37-DEPTH-SCALE-DRAWS-ONLY-WHILE-DIVING",
+        "name": "Issue #37 — drawDepthScale() is a no-op outside gameState=diving"
+      },
+      {
+        "id": "TC-29-GAS-INFO-CLOSE-BTN-NO-INLINE-HANDLER",
+        "name": "Issue #29 — gas-info overlay close button has no inline onclick (CSP script-src compat) and still closes on click"
+      },
+      {
+        "id": "TC-44-FAST-ASCENT-EVENT",
+        "name": "Issue #44 — a provoked fast ascent records exactly one fastAscent event with the right time/depth"
+      },
+      {
+        "id": "TC-44-TEXTBOOK-DIVE-3-STARS",
+        "name": "Issue #44 — a textbook dive (clean events, completed safety stop, gas reserve) grades 3 stars with all subs >= 90"
+      },
+      {
+        "id": "TC-44-SAFETY-SKIPPED-SUB2",
+        "name": "Issue #44 — a dive that skipped a needed safety stop scores the Safety Stop sub as 30"
+      },
+      {
+        "id": "TC-44-LANG-TOGGLE-DE",
+        "name": "Issue #44 — DE language yields translated debriefing labels"
+      },
+      {
+        "id": "TC-100-DIVER-CENTERED",
+        "name": "Issue #100 — diver screen anchor is centered (0.5), not the old 25%-from-left offset"
+      },
+      {
+        "id": "TC-39-HUD-COLORS-SHAPE",
+        "name": "Issue #39 — HUD_COLORS_DEFAULT and HUD_COLORS_CVD both expose ok/caution/warn/danger as hex strings"
+      },
+      {
+        "id": "TC-39-COLOR-MODE-TOGGLE-SWAPS-PALETTE",
+        "name": "Issue #39 — flipping gameAPI.colorMode swaps every colour-reading function to the CVD palette"
+      },
+      {
+        "id": "TC-39-INVALID-COLOR-MODE-IGNORED",
+        "name": "Issue #39 — invalid colorMode values leave the current palette unchanged"
+      },
+      {
+        "id": "TC-39-DANGER-PREFIX-VALUE",
+        "name": "Issue #39 — hudDangerPrefix() returns a non-empty string starting with the ⚠ glyph"
+      },
+      {
+        "id": "TC-39-LOCALSTORAGE-PERSISTS-CHOICE",
+        "name": "Issue #39 — colorMode toggle is written to localStorage under HUD_COLORS_STORAGE_KEY"
+      },
+      {
+        "id": "TC-39-COLORS-TOGGLE-BUTTON-PRESENT",
+        "name": "Issue #39 — gas-setup exposes a \"colors\" toggle button whose click flips colorMode"
+      },
+      {
+        "id": "TC-39-DANGER-PO2-PREFIX-RENDERS",
+        "name": "Issue #39 — the dive-computer HUD prepends ⚠ to danger-tier PO2 readings"
+      },
+      {
+        "id": "TC-39-N2-BAR-DRAWS-THRESHOLD-TICKS",
+        "name": "Issue #39 — the vertical N₂ loading bar renders two horizontal threshold ticks at the 70%/90% fractional positions"
+      },
+      {
+        "id": "TC-39-N2-BAR-THRESHOLD-VALUES-70-90",
+        "name": "Issue #39 — the N₂ bar's caution/danger colour swap fires at 70%/90% loading, matching the tick marks"
+      },
+      {
+        "id": "TC-39-TANK-BAR-DRAWS-THRESHOLD-TICKS",
+        "name": "Issue #39 — the horizontal gas/tank pressure bar renders two vertical threshold ticks at 50/100 bar"
+      },
+      {
+        "id": "TC-39-HUDCOLOR-UNKNOWN-TIER-FALLBACK",
+        "name": "Issue #39 — hudColor(unknownTier) safely falls back to the ok tone rather than returning undefined"
+      },
+      {
+        "id": "TC-46-DEFAULT-OFF",
+        "name": "Issue #46 — instructorMode defaults to false and no key besides L touches it"
+      },
+      {
+        "id": "TC-46-L-KEY-TOGGLE",
+        "name": "Issue #46 — L (both cases) toggles instructorMode while diving"
+      },
+      {
+        "id": "TC-46-L-KEY-DIVING-ONLY",
+        "name": "Issue #46 — L is a no-op outside the diving state (setup/surface/gameover/post-dive)"
+      },
+      {
+        "id": "TC-46-VALUES-MATCH-COMPUTER",
+        "name": "Issue #46 — panel-displayable values equal the game’s own physics readouts (no double-calc)"
+      },
+      {
+        "id": "TC-46-HIDES-UNDER-HELP",
+        "name": "Issue #46 — drawInstructorOverlay is skipped when showHelp / infoPageMode / non-diving"
+      },
+      {
+        "id": "TC-46-RENDER-NO-EXTRA-CALCS",
+        "name": "Issue #46 — drawInstructorOverlay does NOT re-run calculateNDL / calculateCeiling / calculateDecoSchedule"
+      },
+      {
+        "id": "TC-46-STRINGS-EN-DE",
+        "name": "Issue #46 — instructor strings resolve in both EN and DE"
+      },
+      {
+        "id": "TC-46-LEADING-TISSUE-PICKS-HIGHEST",
+        "name": "Issue #46 — leading-tissue picker returns the highest saturation compartment"
+      },
+      {
+        "id": "TC-45-TOGGLE-GATES-TRIGGER",
+        "name": "Issue #45 — drill trigger no-ops when drillsEnabled is false"
+      },
+      {
+        "id": "TC-45-MAX-ONE-PER-DIVE",
+        "name": "Issue #45 — at most one drill fires per dive"
+      },
+      {
+        "id": "TC-45-NO-DRILL-DURING-ALARM",
+        "name": "Issue #45 — drills refuse while an alarm is already active"
+      },
+      {
+        "id": "TC-45-MIN-DIVETIME-GATE",
+        "name": "Issue #45 — drills refuse before the min dive-time window opens"
+      },
+      {
+        "id": "TC-45-PHYSICS-FROZEN-DURING-OVERLAY",
+        "name": "Issue #45 — no dive-time / tissue tick while decision overlay is up"
+      },
+      {
+        "id": "TC-45-LIGHT-FAILURE-CORRECT",
+        "name": "Issue #45 — lightFailure correct option restores torch after dark period"
+      },
+      {
+        "id": "TC-45-LIGHT-FAILURE-WRONG-SILT",
+        "name": "Issue #45 — lightFailure wrong \"swim fast\" option drops visibility"
+      },
+      {
+        "id": "TC-45-FREEFLOW-CORRECT-MULTIPLIER",
+        "name": "Issue #45 — freeflow correct option applies ×N consumption for the duration"
+      },
+      {
+        "id": "TC-45-FREEFLOW-BACKUP-DRAIN",
+        "name": "Issue #45 — freeflow \"switch to backup\" drains the OLD tank in parallel"
+      },
+      {
+        "id": "TC-45-CO2-BAILOUT-CORRECT",
+        "name": "Issue #45 — co2 drill correct option sets ccrState.onBailout"
+      },
+      {
+        "id": "TC-45-CO2-WRONG-KEEPS-COUNTING",
+        "name": "Issue #45 — co2 drill wrong option leaves scrubberFailed active"
+      },
+      {
+        "id": "TC-45-KEYBOARD-SELECT",
+        "name": "Issue #45 — key \"1\" during overlay resolves option 0"
+      },
+      {
+        "id": "TC-45-TOUCH-TAP-SELECT",
+        "name": "Issue #45 — a canvas tap inside an optionRect resolves that option"
+      },
+      {
+        "id": "TC-45-DEBRIEF-DISMISS",
+        "name": "Issue #45 — debrief card auto-dismisses via Enter path"
+      },
+      {
+        "id": "TC-45-DIVE-EVENT-LOGGED",
+        "name": "Issue #45 — drill outcome logs to diveEvents"
+      },
+      {
+        "id": "TC-45-CATALOG-BILINGUAL",
+        "name": "Issue #45 — every DRILLS entry has EN + DE strings"
+      },
+      {
+        "id": "TC-4-CCR-HYPOXIA-30S-NOT-10S",
+        "name": "Issue #4 — CCR hypoxia game-over waits for the 30s CCR-specific check, not the generic 10s OC one"
+      },
+      {
+        "id": "TC-25-CCR-DESCENT-PARTIAL-TOPOFF",
+        "name": "Issue #25 — combined PO2 mass balance degrades gracefully when diluent is insufficient for a full top-off"
+      },
+      {
+        "id": "TC-44-GAS-RESERVE-USES-REMAINING-NOT-CONFIGURED",
+        "name": "Issue #44 — gas reserve sub-score reads gasRemaining/volume, not the static configured fill pressure"
+      },
+      {
+        "id": "TC-44-27-THIRDS-LATCH-SURVIVES-OVERHEAD-EXIT",
+        "name": "Issue #44/#27 — a rule-of-thirds reserve violation is still graded after leaving the overhead"
+      },
+      {
+        "id": "TC-51-EMPTY-ACTIVE-NO-SAFE-ALT-ENDS-DIVE",
+        "name": "Issue #51 — an empty active tank with no safe switch target ends the dive instead of silently continuing"
+      },
+      {
+        "id": "TC-70-DECO-SIM-FLAGS-OUT-OF-GAS",
+        "name": "Issue #70 — calculateDecoSchedule() flags outOfGas and stops extending the plan instead of using an empty tank's mix"
+      },
+      {
+        "id": "TC-14-FRAMECALC-NO-DOUBLE-CALC-IN-DECO-TICK",
+        "name": "Issue #14 — a single deco tick with UNSEEN onboarding hints still computes the ceiling/NDL once and the deco schedule once"
+      },
+      {
+        "id": "TC-45-LIGHT-FAILURE-WRONG-ASCEND-HAS-EFFECT",
+        "name": "Issue #45 (review follow-up) — lightFailure \"ascend\" wrong option immediately starts a real ascent and drops visibility"
+      },
+      {
+        "id": "TC-45-FREEFLOW-WRONG-BREATHHOLD-RISKS-BAROTRAUMA",
+        "name": "Issue #45 (review follow-up) — freeflow \"hold breath\" wrong option makes ANY subsequent ascent risk barotrauma, not just a fast one"
+      },
+      {
+        "id": "TC-66-VALIDATOR-REJECTS-MISSING-REQUIRED-FIELDS",
+        "name": "Issue #66 (review follow-up) — _isValidSaveState() rejects payloads missing numeric/structural fields beyond depth and tissues"
+      },
+      {
+        "id": "TC-38-HINT-HIDDEN-DURING-FAST-FORWARD-AND-INFOPAGE",
+        "name": "Issue #38 (review follow-up) — an already-visible hint toast is hidden during fast-forward and over dive-computer info pages"
+      },
+      {
+        "id": "TC-39-INSTRUCTOR-AND-DEBRIEF-COLORS-USE-PALETTE",
+        "name": "Issue #39 (review follow-up) — instructor-tissue, instructor-MOD, and debrief sub-score colours all route through hudColor()"
+      },
+      {
+        "id": "TC-39-DEBRIEF-SCORE-COLOR-USES-PALETTE",
+        "name": "Issue #39 (review follow-up) — post-dive debrief sub-score colours route through hudColor()"
+      },
+      {
+        "id": "TC-53-100-VISUAL-ZONE-DEBUG-ANCHOR-MATCHES-DIVER-CENTER",
+        "name": "Issue #53/#100 (review follow-up) — VISUAL_ZONE_DEBUG.diverSx matches the centered DIVER_SCREEN_X_FRACTION anchor"
+      },
+      {
+        "id": "TC-54-SINGLE-ATMOSPHERE-SAMPLE-PER-FRAME",
+        "name": "Issue #54 (review follow-up) — drawScene() samples local atmosphere at most once per frame, not 2-4x"
+      },
+      {
+        "id": "TC-58-CAUSTICS-CLIPPED-TO-REAL-FLOOR",
+        "name": "Issue #58 (review follow-up round 2) — every drawn caustics point is on the TERRAIN side of the actual visual floor drawTerrain() renders"
+      },
+      {
+        "id": "TC-58-REEF-CAUSTICS-RESPECT-SLOPE",
+        "name": "Issue #58 (review follow-up) — no reef caustics point is drawn on a steep coral-wall slope"
+      },
+      {
+        "id": "TC-45-66-DRILL-OVERLAY-SURVIVES-RESUME",
+        "name": "Issue #45/#66 (review follow-up, blocker) — a drill decision overlay is still resolvable after a save/reload/restore cycle"
+      },
+      {
+        "id": "TC-45-66-DRILL-EFFECT-TIMERS-SURVIVE-RESUME",
+        "name": "Issue #45/#66 (review follow-up, blocker) — an ongoing drill effect (freeflow multiplier) survives a save/reload/restore cycle"
+      },
+      {
+        "id": "TC-45-66-VALIDATOR-ACCEPTS-GENUINE-FLICKER",
+        "name": "Issue #45/#66 (review follow-up round 4) — _isValidSaveState() accepts a genuine diving/flicker/lightFailure payload"
+      },
+      {
+        "id": "TC-45-66-VALIDATOR-REJECTS-UNKNOWN-OR-NULL-DRILL-ID",
+        "name": "Issue #45/#66 (review follow-up round 4) — _isValidSaveState() rejects an unknown or null drill ID in an active phase"
+      },
+      {
+        "id": "TC-45-66-VALIDATOR-CROSS-FIELD-PHASE-GAMESTATE",
+        "name": "Issue #45/#66 (review follow-up round 4) — _isValidSaveState() enforces the real gameState/drillState.phase relationship"
+      },
+      {
+        "id": "TC-45-66-VALIDATOR-FREEFLOW-DRAIN-IDX-BOUNDS",
+        "name": "Issue #45/#66 (review follow-up round 4) — freeflowDrainTankIdx must be consistent with freeflowUntilDiveSec and in tank bounds"
+      },
+      {
+        "id": "TC-66-VALIDATOR-REJECTS-OLD-SAVE-VERSION",
+        "name": "Issue #66 (review follow-up round 4) — a v1-shaped payload is rejected under the current v2 schema (explicit-rejection policy)"
+      }
+    ]
+  },
+  "playwright": [
+    {
+      "id": "PW-GAME",
+      "path": "tests/game.spec.js",
+      "coverage": "Legacy in-browser suite"
+    },
+    {
+      "id": "PW-SMOKE",
+      "path": "tests/smoke.spec.js",
+      "coverage": "Desktop/mobile input and startup smoke"
+    },
+    {
+      "id": "PW-RELOAD",
+      "path": "tests/reload-resume.spec.js",
+      "coverage": "Save/reload/drill recovery"
+    }
+  ]
+}

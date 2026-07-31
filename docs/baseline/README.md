@@ -1,0 +1,59 @@
+# WP-01 baseline
+
+The baseline freezes observable behavior before core or renderer extraction.
+
+## Generate fixtures
+
+```bash
+npm run baseline:generate
+```
+
+The generator runs the current browser client, records deterministic model
+checkpoints, and inventories the legacy in-browser tests. Do not hand-edit
+calculated values in `tests/fixtures/traces/baseline-v1.json`. Change the
+generator, review the behavior difference, and regenerate.
+
+## Collect performance evidence
+
+Open:
+
+```text
+src/diving-simulator.html?diagnostics=1
+```
+
+The overlay reports frame, update, planner, and render timing. The same data is
+available through:
+
+```js
+window.gameAPI.resetDiagnostics({
+  runId: 'wreck-engine-01',
+  sceneId: 'wreck-engine',
+  deviceId: 'recorded-device-id'
+});
+
+// Warm and capture at least 300 frames, then:
+window.gameAPI.exportDiagnostics();
+```
+
+Record at least 300 warmed samples per scene and device for each of three
+independent runs. A device record must include model, OS, browser/WebView,
+chipset and RAM where available, viewport, DPR, quality tier, source commit,
+build identifier, and capture command. Desktop results do not satisfy a
+physical-device acceptance gate.
+
+The reproducible headless desktop reference can be captured after committing
+the code under measurement:
+
+```bash
+npm run baseline:perf
+```
+
+It writes `artifacts/wp-01/desktop-reference/performance.json`. The artifact is
+diagnostic evidence only and labels itself accordingly.
+
+## Reference client
+
+The reference commit is `30c151f`. The legacy harness remains the behavioral
+oracle until WP-12. Its current cases are generated into
+`docs/baseline/test-inventory.json`; assertions migrate incrementally rather
+than disappearing during extraction.

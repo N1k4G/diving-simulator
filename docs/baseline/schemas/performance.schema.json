@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://diving-simulator.example/schemas/performance-v1.json",
+  "title": "Diving Simulator performance evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "capturedAt",
+    "buildVersion",
+    "frameBudgetMs",
+    "context",
+    "environment",
+    "metrics"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "diving-simulator-performance" },
+    "capturedAt": { "type": "string", "format": "date-time" },
+    "buildVersion": { "type": "string" },
+    "frameBudgetMs": { "type": "number", "exclusiveMinimum": 0 },
+    "context": { "type": "object" },
+    "environment": {
+      "type": "object",
+      "required": ["userAgent", "viewportCssPx", "devicePixelRatio"]
+    },
+    "metrics": {
+      "type": "object",
+      "required": ["frame", "update", "planner", "render"],
+      "additionalProperties": { "$ref": "#/$defs/metric" }
+    }
+  },
+  "$defs": {
+    "nullableNumber": { "type": ["number", "null"] },
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sampleCount",
+        "minMs",
+        "medianMs",
+        "p95Ms",
+        "p99Ms",
+        "maxMs",
+        "longFrameCount",
+        "totalTimeAboveBudgetMsPer1000"
+      ],
+      "properties": {
+        "sampleCount": { "type": "integer", "minimum": 0 },
+        "minMs": { "$ref": "#/$defs/nullableNumber" },
+        "medianMs": { "$ref": "#/$defs/nullableNumber" },
+        "p95Ms": { "$ref": "#/$defs/nullableNumber" },
+        "p99Ms": { "$ref": "#/$defs/nullableNumber" },
+        "maxMs": { "$ref": "#/$defs/nullableNumber" },
+        "longFrameCount": { "type": "integer", "minimum": 0 },
+        "totalTimeAboveBudgetMsPer1000": { "type": "number", "minimum": 0 }
+      }
+    }
+  }
+}

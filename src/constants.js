@@ -557,6 +557,7 @@ const STRINGS = {
     ctrlBasic: '[1-4] gas presets  [M] Mode (Rec/Tec/CCR)',
     startDive: 'Start Dive',
     langToggle: '[L] Language: English',
+    simulationBoundary: 'SIMULATION ONLY — Not a dive computer or dive-planning tool. Do not use these outputs for a real dive.',
     // Issue #67: non-blocking resume-dive banner (replaces blocking confirm())
     resumeBannerText: 'A saved dive was found. Resume?',
     resumeBannerYes: 'Resume',
@@ -791,6 +792,7 @@ const STRINGS = {
     ctrlBasic: '[1-4] Gas-Presets  [M] Modus (Rec/Tec/CCR)',
     startDive: 'Tauchgang starten',
     langToggle: '[L] Sprache: Deutsch',
+    simulationBoundary: 'NUR SIMULATION — Kein Tauchcomputer oder Werkzeug zur Tauchgangsplanung. Verwende diese Werte nicht für einen echten Tauchgang.',
     // Issue #67: non-blocking resume-dive banner (replaces blocking confirm())
     resumeBannerText: 'Ein gespeicherter Tauchgang wurde gefunden. Fortsetzen?',
     resumeBannerYes: 'Fortsetzen',

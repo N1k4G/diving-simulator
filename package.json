@@ -8,6 +8,8 @@
     "lint": "eslint src/*.js --max-warnings=0",
     "test": "playwright test",
     "screenshots": "node scripts/screenshots.mjs",
+    "baseline:generate": "node scripts/generate-baseline.mjs",
+    "baseline:perf": "node scripts/capture-baseline-performance.mjs",
     "license-check": "license-checker --excludePrivatePackages --onlyAllow \"MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;CC0-1.0;CC-BY-3.0;Python-2.0;WTFPL;Unlicense;BlueOak-1.0.0\"",
     "prepare": "husky"
   },

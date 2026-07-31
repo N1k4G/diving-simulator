@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "referenceCommit": "30c151f",
+  "events": [
+    {
+      "id": "alert.warning",
+      "owner": "audio/accessibility",
+      "migration": "preserve behind semantic AudioService event",
+      "implementation": "src/state.js:playAlertBeep",
+      "waveform": "square",
+      "frequencyHz": 800,
+      "durationMs": 300,
+      "gain": 0.15,
+      "throttleMs": 5000,
+      "haptic": [100, 50, 100],
+      "triggers": [
+        "tank pressure below 50 bar",
+        "PO2 above configured high threshold",
+        "ascent above 9 m/min",
+        "diver above decompression stop",
+        "narcosis index above 0.20",
+        "CCR low/high PO2",
+        "CCR scrubber warning/failure",
+        "overhead rule-of-thirds turn threshold"
+      ],
+      "visualEquivalent": "warning text/banner or HUD state",
+      "knownGaps": ["no master mute", "no bus priority", "no interruption/output policy", "renderer can trigger audio"]
+    },
+    {
+      "id": "info.betterGas",
+      "owner": "audio/model",
+      "migration": "split into a dedicated semantic event",
+      "implementation": "src/game-loop.js -> src/state.js:playInfoTone",
+      "waveform": "sine",
+      "frequencyHz": 600,
+      "durationMs": 150,
+      "gain": 0.15,
+      "throttleMs": 0,
+      "triggers": ["a valid better gas becomes available"],
+      "visualEquivalent": "BEST gas indicator",
+      "knownGaps": ["shares alert AudioContext", "no mute or mixing policy"]
+    },
+    {
+      "id": "info.decoStopChanged",
+      "owner": "audio/model",
+      "migration": "split into a dedicated semantic event",
+      "implementation": "src/game-loop.js -> src/state.js:playInfoTone",
+      "waveform": "sine",
+      "frequencyHz": 600,
+      "durationMs": 150,
+      "gain": 0.15,
+      "throttleMs": 0,
+      "triggers": ["required decompression stop depth changes"],
+      "visualEquivalent": "STOP depth readout",
+      "knownGaps": ["indistinguishable from better-gas tone", "no mute or mixing policy"]
+    }
+  ],
+  "plannedButAbsent": [
+    "breathing",
+    "bubbles",
+    "ambience",
+    "environment beds",
+    "silt/impact cues"
+  ]
+}

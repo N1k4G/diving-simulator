@@ -127,6 +127,16 @@ canvas { display: block; }
   font-size: 30px; font-weight: bold; margin-bottom: 18px; text-align: center;
   letter-spacing: 0.1em; color: #eef6f8;
 }
+#html-gas-setup .gs-simulation-boundary {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 204, 0, 0.55);
+  border-radius: 6px;
+  background: rgba(255, 204, 0, 0.08);
+  color: #ffe48a;
+  font: 600 12px/1.45 sans-serif;
+  text-align: center;
+}
 #html-gas-setup .gs-value {
   font-size: 32px; font-weight: bold; margin: 8px 0 4px;
 }

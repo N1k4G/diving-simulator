@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "referenceCommit": "30c151f",
+  "status": "baseline inventory; no external review claimed",
+  "owners": {
+    "product": "intended use and presentation",
+    "model": "implemented numerical behavior",
+    "domain-reviewer": "real-world diving/decompression accuracy",
+    "legal": "release wording, classification, and territories",
+    "localization": "equivalent EN/DE meaning"
+  },
+  "claims": [
+    {
+      "id": "USE-BOUNDARY-001",
+      "classification": "intended-use boundary",
+      "source": ["STRINGS.en.simulationBoundary", "STRINGS.de.simulationBoundary"],
+      "ui": ["gas setup"],
+      "owner": "product",
+      "reviewStatus": "provisional; legal and domain review required before public store release",
+      "evidence": []
+    },
+    {
+      "id": "OVERHEAD-001",
+      "classification": "training and risk advice",
+      "source": ["STRINGS.*.overheadDanger", "STRINGS.*.hintOverhead"],
+      "ui": ["game over", "onboarding hint"],
+      "owner": "domain-reviewer",
+      "reviewStatus": "unreviewed",
+      "evidence": ["docs/research/algorithm-realism-current-anchors.md"]
+    },
+    {
+      "id": "SAFETY-STOP-001",
+      "classification": "decompression and prevention advice",
+      "source": ["STRINGS.*.safetyExpl", "STRINGS.*.helpSafety", "STRINGS.*.hintSafetyStop", "STRINGS.*.gradeNotes.safety*"],
+      "ui": ["post-dive", "help", "onboarding hint", "debrief"],
+      "owner": "domain-reviewer",
+      "reviewStatus": "unreviewed; absolute risk wording requires correction or support",
+      "evidence": ["docs/research/adaptive-safety-stop.md", "docs/research/algorithm-realism-current-anchors.md"]
+    },
+    {
+      "id": "DECOMPRESSION-001",
+      "classification": "model output and real-world risk advice",
+      "source": ["STRINGS.*.helpNDL", "STRINGS.*.helpDeco", "STRINGS.*.helpTTS", "STRINGS.*.hintNdl", "STRINGS.*.hintDeco", "STRINGS.*.gradeNotes.deco*"],
+      "ui": ["help", "HUD", "onboarding hint", "debrief"],
+      "owner": "model",
+      "reviewStatus": "algorithm audit exists but source anchors are stale",
+      "evidence": ["docs/research/algorithm-realism-current-anchors.md"]
+    },
+    {
+      "id": "GAS-001",
+      "classification": "gas planning and consumption advice",
+      "source": ["STRINGS.*.helpGTR", "STRINGS.*.helpAMV", "STRINGS.*.helpBest", "STRINGS.*.helpTank", "STRINGS.*.gradeNotes.gas*"],
+      "ui": ["help", "HUD", "debrief"],
+      "owner": "domain-reviewer",
+      "reviewStatus": "unreviewed",
+      "evidence": ["docs/research/algorithm-realism-current-anchors.md"]
+    },
+    {
+      "id": "OXYGEN-001",
+      "classification": "oxygen exposure thresholds and prevention advice",
+      "source": ["STRINGS.*.helpPO2", "STRINGS.*.warnO2", "STRINGS.*.ccrHypoxia", "STRINGS.*.ccrHyperoxia", "STRINGS.*.gameOverInfo.O2 TOXICITY — CNS SEIZURE", "STRINGS.*.gameOverInfo.HYPOXIA — LOSS OF CONSCIOUSNESS"],
+      "ui": ["help", "HUD warning", "CCR warning", "game over"],
+      "owner": "domain-reviewer",
+      "reviewStatus": "unreviewed",
+      "evidence": ["docs/research/ccr-rebreather-operations.md", "docs/research/algorithm-realism-current-anchors.md"]
+    },
+    {
+      "id": "ASCENT-001",
+      "classification": "ascent-rate and pulmonary injury advice",
+      "source": ["STRINGS.*.controlsText", "STRINGS.*.helpAscent", "STRINGS.*.warnSlow", "STRINGS.*.gradeNotes.ascent*", "STRINGS.*.gameOverInfo.PULMONARY BAROTRAUMA — PNEUMOTHORAX"],
+      "ui": ["help", "HUD warning", "debrief", "game over"],
+      "owner": "domain-reviewer",
+      "reviewStatus": "unreviewed",
+      "evidence": ["docs/research/buoyancy-bcd-physics.md"]
+    },
+    {
+      "id": "NARCOSIS-001",
+      "classification": "medical mechanism, thresholds, symptoms, and prevention advice",
+      "source": ["STRINGS.*.warnNarc", "STRINGS.*.helpNarc", "STRINGS.*.helpTec", "STRINGS.*.gameOverInfo.NITROGEN NARCOSIS — UNCONSCIOUSNESS"],
+      "ui": ["help", "HUD warning", "game over"],
+      "owner": "domain-reviewer",
+      "reviewStatus": "unreviewed; research document records disputed/unverified points",
+      "evidence": ["docs/research/nitrogen-narcosis.md"]
+    },
+    {
+      "id": "CCR-001",
+      "classification": "equipment behavior, failure, and bailout advice",
+      "source": ["STRINGS.*.helpCcr", "STRINGS.*.ccrCO2", "STRINGS.*.drills.co2.*"],
+      "ui": ["help", "CCR HUD", "training drill"],
+      "owner": "domain-reviewer",
+      "reviewStatus": "unreviewed",
+      "evidence": ["docs/research/ccr-rebreather-operations.md"]
+    },
+    {
+      "id": "DRILL-LIGHT-001",
+      "classification": "overhead emergency training advice",
+      "source": ["STRINGS.*.drills.lightFailure.*"],
+      "ui": ["training drill"],
+      "owner": "domain-reviewer",
+      "reviewStatus": "unreviewed",
+      "evidence": []
+    },
+    {
+      "id": "DRILL-FREEFLOW-001",
+      "classification": "regulator emergency training advice",
+      "source": ["STRINGS.*.drills.freeflow.*"],
+      "ui": ["training drill"],
+      "owner": "domain-reviewer",
+      "reviewStatus": "unreviewed",
+      "evidence": []
+    },
+    {
+      "id": "PHYSICS-001",
+      "classification": "educational formulas and model explanations",
+      "source": ["STRINGS.*.instructor*"],
+      "ui": ["instructor overlay"],
+      "owner": "model",
+      "reviewStatus": "requires re-anchored implementation audit",
+      "evidence": ["docs/research/buoyancy-bcd-physics.md", "docs/research/algorithm-realism-current-anchors.md"]
+    },
+    {
+      "id": "GAMEOVER-001",
+      "classification": "medical consequence and prevention inventory",
+      "source": ["STRINGS.*.gameOverInfo.OUT OF GAS", "STRINGS.*.gameOverInfo.DECOMPRESSION SICKNESS"],
+      "ui": ["game over"],
+      "owner": "domain-reviewer",
+      "reviewStatus": "unreviewed",
+      "evidence": ["docs/research/algorithm-realism-current-anchors.md"]
+    },
+    {
+      "id": "SHARK-001",
+      "classification": "fictional consequence with incidental real-world advice",
+      "source": ["STRINGS.*.gameOverInfo.SHARK ATTACK"],
+      "ui": ["game over"],
+      "owner": "product",
+      "reviewStatus": "unreviewed; clearly separate fiction from safety guidance",
+      "evidence": []
+    }
+  ],
+  "externalGates": {
+    "domainReview": "BLOCKED_EXTERNAL",
+    "legalReview": "BLOCKED_EXTERNAL",
+    "germanEquivalenceReview": "BLOCKED_EXTERNAL"
+  }
+}
