@@ -2270,6 +2270,8 @@ window.gameAPI = {
     drawTorchGlowAndSparkles: drawTorchGlowAndSparkles,
     get diverFacing() { return _diverFacing; },
     set diverFacing(v) { _diverFacing = (v === -1) ? -1 : 1; },
+    get wreckMetal() { return _wreckMetal; },
+    set wreckMetal(v) { _wreckMetal = Math.max(0, Math.min(1, +v || 0)); },
     // Issue #33: Wreck visual polish — ferry silhouette, object-relative
     // interior distance falloff, torch-relative object lighting query
     // helper, line/net feature drawers.

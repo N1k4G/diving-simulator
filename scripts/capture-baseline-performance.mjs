@@ -10,7 +10,6 @@ const root = path.resolve(import.meta.dirname, '..');
 const port = 4174;
 const baseUrl = `http://127.0.0.1:${port}`;
 const cliArguments = process.argv.slice(2);
-
 function argumentValue(name, fallback) {
   const index = cliArguments.indexOf(name);
   return index === -1 ? fallback : cliArguments[index + 1];
@@ -29,7 +28,6 @@ const sourceCommit = argumentValue('--source-commit', null) || execFileSync('git
   cwd: root,
   encoding: 'utf8'
 }).trim();
-
 const allScenes = [
   { id: 'shore-meadow', site: 'shore', x: 40, depth: 10, torch: false },
   { id: 'reef-plateau', site: 'reef', x: 0, depth: 5, torch: false },

@@ -268,20 +268,17 @@ function depthColorFactors(d, siteId) {
     return { r: r, g: g, b: 1 };
 }
 
-// Cached offscreen buffers for the torch color-restore composite (built
-// once, resized only if the viewport itself changes — never allocated
-// per frame). _restore holds a snapshot of the scene BEFORE the tint is
-// applied; _mask holds a soft alpha shape (near-field circle + directional
-// cone, reusing #31's exact beam geometry) used to punch _restore down to
-// only the torch-lit area before compositing it back on top of the tint.
-var _depthColorRestoreCanvas = null, _depthColorRestoreCtx = null;
+// Cached regional buffers for the torch color-restore composite. _effect
+// holds the tint with a transparent torch-shaped opening; _mask holds the
+// soft near-field circle and directional cone used to cut that opening.
+var _depthColorEffectCanvas = null, _depthColorEffectCtx = null;
 var _depthColorMaskCanvas = null, _depthColorMaskCtx = null;
 
 function _ensureDepthColorBuffers(W, H) {
-    if (_depthColorRestoreCanvas && _depthColorRestoreCanvas.width === W && _depthColorRestoreCanvas.height === H) return;
-    _depthColorRestoreCanvas = document.createElement('canvas');
-    _depthColorRestoreCanvas.width = W; _depthColorRestoreCanvas.height = H;
-    _depthColorRestoreCtx = _depthColorRestoreCanvas.getContext('2d');
+    if (_depthColorEffectCanvas && _depthColorEffectCanvas.width === W && _depthColorEffectCanvas.height === H) return;
+    _depthColorEffectCanvas = document.createElement('canvas');
+    _depthColorEffectCanvas.width = W; _depthColorEffectCanvas.height = H;
+    _depthColorEffectCtx = _depthColorEffectCanvas.getContext('2d');
     _depthColorMaskCanvas = document.createElement('canvas');
     _depthColorMaskCanvas.width = W; _depthColorMaskCanvas.height = H;
     _depthColorMaskCtx = _depthColorMaskCanvas.getContext('2d');
@@ -308,80 +305,86 @@ function drawDepthColorAbsorption() {
 
     var cx = ctx;
     var restoring = !!torchOn;
-    // Issue #45 (test-harness robustness): the torch-lit restore path calls
-    // drawImage(cx.canvas, 0, 0, W, H) below — if the underlying physical
-    // canvas buffer has 0 width or height (test iframe with display:none,
-    // window.innerWidth === 0), drawImage throws
-    //   "The image argument is a canvas element with a width or height of 0."
-    // to the browser console, which Playwright's console-error assertion
-    // treats as a real bug even though nothing is visible. Skip the
-    // restore-mask branch (plain tint still applies as a solid fill, no
-    // drawImage) whenever the physical buffer is zero-sized.
-    if (restoring && (cx.canvas.width === 0 || cx.canvas.height === 0)) {
-        restoring = false;
-    }
+    var tintColor = 'rgb(' + Math.round(255 * f.r) + ',' + Math.round(255 * f.g) + ',' + Math.round(255 * f.b) + ')';
     var beamAngle, halfA, exceptionR;
     if (restoring) {
+        var _depthStageStarted = window.baselineDiagnostics.start();
         beamAngle = torchBeamAngle(_diverFacing);
         halfA = TORCH_BEAM_HALF_ANGLE_RAD;
         var torchPx = TORCH_RADIUS_M / mpp;
         exceptionR = torchPx * 1.7 * Math.max(0.3, visibility);
     }
 
-    cx.save();
-    cx.beginPath();
-    cx.rect(0, top, W, H - top);
-    cx.clip();
-
     if (restoring) {
-        _ensureDepthColorBuffers(W, H);
-        // 1. Snapshot the scene exactly as it looks BEFORE the tint.
-        _depthColorRestoreCtx.clearRect(0, 0, W, H);
-        _depthColorRestoreCtx.drawImage(cx.canvas, 0, 0, W, H);
+        // The mask is zero outside the torch radius, so both offscreen
+        // buffers stay tightly bounded to the visible torch region.
+        var maskExtent = exceptionR * 1.05 + 2;
+        var regionLeft = Math.max(0, Math.floor(diverScreenX - maskExtent));
+        var regionTop = Math.max(top, Math.floor(diverScreenY - maskExtent));
+        var regionRight = Math.min(W, Math.ceil(diverScreenX + maskExtent));
+        var regionBottom = Math.min(H, Math.ceil(diverScreenY + maskExtent));
+        var regionW = Math.max(1, regionRight - regionLeft);
+        var regionH = Math.max(1, regionBottom - regionTop);
+        var localDiverX = diverScreenX - regionLeft;
+        var localDiverY = diverScreenY - regionTop;
+        _ensureDepthColorBuffers(regionW, regionH);
         // 2. Build the soft union mask (near-field circle ∪ directional
         //    cone) by drawing both gradients with plain source-over —
         //    alpha-over-transparent compositing sums correctly (never
         //    exceeds 1), so this is a proper soft union, not a hack.
-        _depthColorMaskCtx.clearRect(0, 0, W, H);
+        _depthColorMaskCtx.clearRect(0, 0, regionW, regionH);
         var nearR = exceptionR * TORCH_NEAR_FIELD_FRACTION;
-        var nearGrad = _depthColorMaskCtx.createRadialGradient(diverScreenX, diverScreenY, 0, diverScreenX, diverScreenY, nearR);
+        var nearGrad = _depthColorMaskCtx.createRadialGradient(localDiverX, localDiverY, 0, localDiverX, localDiverY, nearR);
         nearGrad.addColorStop(0, 'rgba(0,0,0,0.7)');
         nearGrad.addColorStop(1, 'rgba(0,0,0,0)');
         _depthColorMaskCtx.fillStyle = nearGrad;
-        _depthColorMaskCtx.fillRect(0, 0, W, H);
+        _depthColorMaskCtx.fillRect(0, 0, regionW, regionH);
         _depthColorMaskCtx.save();
         _depthColorMaskCtx.beginPath();
-        _depthColorMaskCtx.moveTo(diverScreenX, diverScreenY);
-        _depthColorMaskCtx.arc(diverScreenX, diverScreenY, exceptionR * 1.05, beamAngle - halfA, beamAngle + halfA);
+        _depthColorMaskCtx.moveTo(localDiverX, localDiverY);
+        _depthColorMaskCtx.arc(localDiverX, localDiverY, exceptionR * 1.05, beamAngle - halfA, beamAngle + halfA);
         _depthColorMaskCtx.closePath();
         _depthColorMaskCtx.clip();
-        var wedgeGrad = _depthColorMaskCtx.createRadialGradient(diverScreenX, diverScreenY, 0, diverScreenX, diverScreenY, exceptionR);
+        var wedgeGrad = _depthColorMaskCtx.createRadialGradient(localDiverX, localDiverY, 0, localDiverX, localDiverY, exceptionR);
         wedgeGrad.addColorStop(0,    'rgba(0,0,0,1)');
         wedgeGrad.addColorStop(0.7,  'rgba(0,0,0,0.85)');
         wedgeGrad.addColorStop(1,    'rgba(0,0,0,0)');
         _depthColorMaskCtx.fillStyle = wedgeGrad;
-        _depthColorMaskCtx.fillRect(0, 0, W, H);
+        _depthColorMaskCtx.fillRect(0, 0, regionW, regionH);
         _depthColorMaskCtx.restore();
-        // 3. Punch the snapshot down to only the masked (torch-lit) area.
-        _depthColorRestoreCtx.globalCompositeOperation = 'destination-in';
-        _depthColorRestoreCtx.drawImage(_depthColorMaskCanvas, 0, 0);
-        _depthColorRestoreCtx.globalCompositeOperation = 'source-over';
+        window.baselineDiagnostics.record('renderDepthMask', _depthStageStarted);
+        _depthStageStarted = window.baselineDiagnostics.start();
+        // Cut the torch-shaped opening out of a regional tint layer.
+        _depthColorEffectCtx.clearRect(0, 0, regionW, regionH);
+        _depthColorEffectCtx.fillStyle = tintColor;
+        _depthColorEffectCtx.fillRect(0, 0, regionW, regionH);
+        _depthColorEffectCtx.globalCompositeOperation = 'destination-out';
+        _depthColorEffectCtx.drawImage(_depthColorMaskCanvas, 0, 0);
+        _depthColorEffectCtx.globalCompositeOperation = 'source-over';
+        window.baselineDiagnostics.record('renderDepthEffectBuild', _depthStageStarted);
     }
 
-    // 4. Apply the tint over the whole (clipped) underwater area.
+    // Apply the tint over the clipped underwater area. Four non-overlapping
+    // rectangles cover the area outside the regional effect layer.
+    var _depthTintStarted = window.baselineDiagnostics.start();
     cx.globalCompositeOperation = 'multiply';
-    cx.fillStyle = 'rgb(' + Math.round(255 * f.r) + ',' + Math.round(255 * f.g) + ',' + Math.round(255 * f.b) + ')';
-    cx.fillRect(0, top, W, H - top);
-    cx.globalCompositeOperation = 'source-over';
+    cx.fillStyle = tintColor;
 
     // 5. Composite the pre-tint, masked snapshot back on top — colors
     //    survive smoothly within the torch's reach, fade back to fully
     //    tinted at the mask's soft edge.
     if (restoring) {
-        cx.drawImage(_depthColorRestoreCanvas, 0, 0);
+        cx.fillRect(0, top, W, regionTop - top);
+        cx.fillRect(0, regionTop, regionLeft, regionH);
+        cx.fillRect(regionRight, regionTop, W - regionRight, regionH);
+        cx.fillRect(0, regionBottom, W, H - regionBottom);
+        cx.drawImage(_depthColorEffectCanvas, regionLeft, regionTop, regionW, regionH);
+    } else {
+        cx.fillRect(0, top, W, H - top);
     }
+    cx.globalCompositeOperation = 'source-over';
+    window.baselineDiagnostics.record('renderDepthTint', _depthTintStarted);
 
-    cx.restore();
 }
 
 // ── Material texture tiles (issue #41) ─────────────────────────────
@@ -750,6 +753,7 @@ function drawScene() {
     var W = cssWidth;
     var H = cssHeight;
     var cx = ctx;
+    var _renderPassStarted = window.baselineDiagnostics.start();
 
     // Issue #41: lazily build material texture tiles on first render.
     if (!_matTiles) buildMaterialTiles();
@@ -938,6 +942,8 @@ function drawScene() {
     // and boat shadow. Runs at the same slot as drawSiteAtmosphere
     // (behind terrain) so it's part of the water/background layer.
     drawNearSurfaceAtmosphere(_localAtmo);
+    window.baselineDiagnostics.record('renderBackground', _renderPassStarted);
+    _renderPassStarted = window.baselineDiagnostics.start();
 
     // Phase C: Site terrain (floor + ceiling) drawn before entities
     drawTerrain();
@@ -955,6 +961,8 @@ function drawScene() {
     drawSetDressing(activeSite(), _visLeftM, _visRightM, metersPerPixel);
     // Cenote-only: refractive halocline band at ~7 m
     if (_isCave) drawHalocline(cx, W, H, diverScreenY, metersPerPixel);
+    window.baselineDiagnostics.record('renderTerrainDetail', _renderPassStarted);
+    _renderPassStarted = window.baselineDiagnostics.start();
     // Wreck: steel hull skin BEHIND the interior objects (so behind cars/decks
     // you see metal, not ocean). Clipped to the ship silhouette only.
     drawWreckSteelBack();
@@ -971,6 +979,8 @@ function drawScene() {
     // Wreck: highlight the three penetration points so they're findable from
     // outside (drawn over the hull skin; fades as the diver enters).
     drawWreckEntryMarkers();
+    window.baselineDiagnostics.record('renderWorldGeometry', _renderPassStarted);
+    _renderPassStarted = window.baselineDiagnostics.start();
 
     // ── Depth scale (DiveSim Redesign spec) ─────────────────────
     cx.save();
@@ -1122,6 +1132,8 @@ function drawScene() {
 
     // Phase C: Guideline rope (drawn before diver so diver sits on top)
     drawGuideline();
+    window.baselineDiagnostics.record('renderEntities', _renderPassStarted);
+    _renderPassStarted = window.baselineDiagnostics.start();
 
     // Issue #36: depth-dependent color absorption — tints every world
     // object drawn so far (terrain, structures, features, particles, fish,
@@ -1130,6 +1142,8 @@ function drawScene() {
     // passes and #54's local-atmosphere pass so those layer on top of an
     // already-tinted scene, matching the ordering the issue calls for.
     drawDepthColorAbsorption();
+    window.baselineDiagnostics.record('renderDepthAbsorption', _renderPassStarted);
+    _renderPassStarted = window.baselineDiagnostics.start();
 
     // Issue #32: cave-only turbidity cloud from stirred silt. Reads
     // ONLY the existing `visibility` state (no second reservoir), no-op
@@ -1166,6 +1180,8 @@ function drawScene() {
     // the diver stays crisp. HUD is on a separate DOM layer, so it's
     // physically unable to be touched by this pass.
     drawLocalAtmospherePass(_localAtmo, W, H, W * DIVER_SCREEN_X_FRACTION, diverScreenY, metersPerPixel);
+    window.baselineDiagnostics.record('renderPostEffects', _renderPassStarted);
+    _renderPassStarted = window.baselineDiagnostics.start();
 
     // Diver (Phase B: tilt toward current direction proportional to current.level)
     var diverTilt = 0;
@@ -1263,6 +1279,7 @@ function drawScene() {
         && !showHelp && !showGasInfo && infoPageMode === 0) {
         drawInstructorOverlay();
     }
+    window.baselineDiagnostics.record('renderForeground', _renderPassStarted);
 }
 
 // Issue #54: local atmosphere composite pass. One pass, one canvas
@@ -4693,26 +4710,17 @@ function drawWreckSteelBack() {
     cx.restore();
 }
 
-// Cached offscreen buffers for restoring the wreck interior (cars/props,
-// already drawn by drawFeatures()/drawStructures() earlier this frame)
-// through the hull skin's line-of-sight hole. The skin's opaque steel fill
-// below is a plain source-over paint, which permanently overwrites whatever
-// was drawn under it — canvas has no layers, so a later destination-out
-// "punch" only reveals transparent pixels, not the props that used to be
-// there. Snapshotting the pre-steel scene and compositing it back through
-// the same hole mask (mirrors the drawDepthColorAbsorption() restore
-// pattern above) fixes that without changing the hole's shape/softness.
-var _wreckHoleRestoreCanvas = null, _wreckHoleRestoreCtx = null;
-var _wreckHoleMaskCanvas = null, _wreckHoleMaskCtx = null;
+// Cached overlay for the wreck hull skin. Steel is drawn into this transparent
+// layer and the line-of-sight hole is punched there before compositing it over
+// the already-rendered interior. This preserves the interior without copying
+// the main canvas into an offscreen restore buffer.
+var _wreckHoleOverlayCanvas = null, _wreckHoleOverlayCtx = null;
 
 function _ensureWreckHoleBuffers(W, H) {
-    if (_wreckHoleRestoreCanvas && _wreckHoleRestoreCanvas.width === W && _wreckHoleRestoreCanvas.height === H) return;
-    _wreckHoleRestoreCanvas = document.createElement('canvas');
-    _wreckHoleRestoreCanvas.width = W; _wreckHoleRestoreCanvas.height = H;
-    _wreckHoleRestoreCtx = _wreckHoleRestoreCanvas.getContext('2d');
-    _wreckHoleMaskCanvas = document.createElement('canvas');
-    _wreckHoleMaskCanvas.width = W; _wreckHoleMaskCanvas.height = H;
-    _wreckHoleMaskCtx = _wreckHoleMaskCanvas.getContext('2d');
+    if (_wreckHoleOverlayCanvas && _wreckHoleOverlayCanvas.width === W && _wreckHoleOverlayCanvas.height === H) return;
+    _wreckHoleOverlayCanvas = document.createElement('canvas');
+    _wreckHoleOverlayCanvas.width = W; _wreckHoleOverlayCanvas.height = H;
+    _wreckHoleOverlayCtx = _wreckHoleOverlayCanvas.getContext('2d');
 }
 
 // Opaque steel hull skin painted OVER the interior (so you cannot see inside
@@ -4737,76 +4745,95 @@ function drawWreckHullSkin() {
     // Preserves torch-off behaviour exactly.
     var nearR = haveTorchLight ? rad * TORCH_NEAR_FIELD_FRACTION : rad;
     var coneR = haveTorchLight ? rad * 1.75 : 0;
-    // Issue #45 (test-harness robustness): guard the restore-snapshot path's
-    // drawImage(cx.canvas, ...) the same way drawDepthColorAbsorption() does
-    // — a zero-sized physical canvas buffer (test iframe with display:none)
-    // throws there instead of silently no-oping.
+    // Hidden test iframes can expose a zero-sized viewport; in that case the
+    // direct no-hole path avoids allocating an unusable overlay.
     var canRestoreHole = rad > 1 && W > 0 && H > 0;
     var beamAngle = torchBeamAngle(_diverFacing);
     var halfA = TORCH_BEAM_HALF_ANGLE_RAD;
+    var holeLeft = 0, holeTop = 0, holeRight = W, holeBottom = H;
+    var holeW = W, holeH = H;
 
     // Skin pass: fill the silhouette with steel, then destination-out
     // punch the near-field circle and (if torch on) the directional cone
     // wedge. destination-out avoids the fill-rule overlap trap that a
     // single evenodd path would hit where circle and wedge intersect.
     if (canRestoreHole) {
-        // Snapshot the scene exactly as it looks BEFORE the opaque steel
-        // fill erases it, then build the identical hole mask (near-field
-        // circle + directional cone) so it can be punched down and
-        // composited back into the hole once the steel is painted.
-        _ensureWreckHoleBuffers(W, H);
-        _wreckHoleRestoreCtx.clearRect(0, 0, W, H);
-        _wreckHoleRestoreCtx.drawImage(cx.canvas, 0, 0, W, H);
-        _wreckHoleMaskCtx.clearRect(0, 0, W, H);
-        var maskSpill = _wreckHoleMaskCtx.createRadialGradient(dsx, dsy, 0, dsx, dsy, nearR);
-        maskSpill.addColorStop(0,   'rgba(0,0,0,1)');
-        maskSpill.addColorStop(0.7, 'rgba(0,0,0,0.88)');
-        maskSpill.addColorStop(1,   'rgba(0,0,0,0)');
-        _wreckHoleMaskCtx.fillStyle = maskSpill;
-        _wreckHoleMaskCtx.fillRect(0, 0, W, H);
+        // Bound the overlay to the union of the near-field circle and the
+        // directional cone. Cardinal angles are included when they fall
+        // inside the cone so the bounding box contains its true extrema.
+        var holeExtent = nearR + 2;
+        var holeMinX = dsx - holeExtent, holeMaxX = dsx + holeExtent;
+        var holeMinY = dsy - holeExtent, holeMaxY = dsy + holeExtent;
         if (haveTorchLight) {
-            _wreckHoleMaskCtx.save();
-            _wreckHoleMaskCtx.beginPath();
-            _wreckHoleMaskCtx.moveTo(dsx, dsy);
-            _wreckHoleMaskCtx.arc(dsx, dsy, coneR * 1.05, beamAngle - halfA, beamAngle + halfA);
-            _wreckHoleMaskCtx.closePath();
-            _wreckHoleMaskCtx.clip();
-            var maskBeam = _wreckHoleMaskCtx.createRadialGradient(dsx, dsy, 0, dsx, dsy, coneR);
-            maskBeam.addColorStop(0,    'rgba(0,0,0,1)');
-            maskBeam.addColorStop(0.55, 'rgba(0,0,0,0.95)');
-            maskBeam.addColorStop(0.85, 'rgba(0,0,0,0.65)');
-            maskBeam.addColorStop(1,    'rgba(0,0,0,0)');
-            _wreckHoleMaskCtx.fillStyle = maskBeam;
-            _wreckHoleMaskCtx.fillRect(0, 0, W, H);
-            _wreckHoleMaskCtx.restore();
+            var coneExtent = coneR * 1.05 + 2;
+            var boundAngles = [beamAngle - halfA, beamAngle + halfA, beamAngle];
+            var cardinalAngles = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
+            for (var bai = 0; bai < cardinalAngles.length; bai++) {
+                var angleDelta = Math.atan2(
+                    Math.sin(cardinalAngles[bai] - beamAngle),
+                    Math.cos(cardinalAngles[bai] - beamAngle)
+                );
+                if (Math.abs(angleDelta) <= halfA) boundAngles.push(cardinalAngles[bai]);
+            }
+            for (bai = 0; bai < boundAngles.length; bai++) {
+                var boundX = dsx + Math.cos(boundAngles[bai]) * coneExtent;
+                var boundY = dsy + Math.sin(boundAngles[bai]) * coneExtent;
+                holeMinX = Math.min(holeMinX, boundX);
+                holeMaxX = Math.max(holeMaxX, boundX);
+                holeMinY = Math.min(holeMinY, boundY);
+                holeMaxY = Math.max(holeMaxY, boundY);
+            }
         }
-        _wreckHoleRestoreCtx.globalCompositeOperation = 'destination-in';
-        _wreckHoleRestoreCtx.drawImage(_wreckHoleMaskCanvas, 0, 0);
-        _wreckHoleRestoreCtx.globalCompositeOperation = 'source-over';
+        holeLeft = Math.max(0, Math.floor(holeMinX));
+        holeTop = Math.max(0, Math.floor(holeMinY));
+        holeRight = Math.min(W, Math.ceil(holeMaxX));
+        holeBottom = Math.min(H, Math.ceil(holeMaxY));
+        holeW = Math.max(1, holeRight - holeLeft);
+        holeH = Math.max(1, holeBottom - holeTop);
+        // Keep allocation capacity stable while _wreckMetal eases toward 1;
+        // resizing to each one-pixel bounds change creates periodic stalls.
+        // Only the bounded source rectangle is cleared and blitted below.
+        _ensureWreckHoleBuffers(W, H);
+        _wreckHoleOverlayCtx.clearRect(0, 0, holeW, holeH);
+
+        // Paint the opaque part of the hull directly, excluding only the
+        // small rectangle that needs a soft transparency gradient.
+        cx.save();
+        _buildWreckSilhouette(cx, dsx, dsy, mpp);
+        cx.clip();
+        cx.beginPath();
+        cx.rect(0, 0, W, H);
+        cx.rect(holeLeft, holeTop, holeW, holeH);
+        cx.clip('evenodd');
+        drawWreckBackdrop(cx, W, H, dsx, dsy, mpp);
+        cx.restore();
     }
 
-    cx.save();
-    _buildWreckSilhouette(cx, dsx, dsy, mpp);
-    cx.clip();                                   // restrict to the ship
-    drawWreckBackdrop(cx, W, H, dsx, dsy, mpp);  // paint steel
+    var skinCx = canRestoreHole ? _wreckHoleOverlayCtx : cx;
+    var _wreckOverlayStarted = window.baselineDiagnostics.start();
+    skinCx.save();
+    if (canRestoreHole) skinCx.translate(-holeLeft, -holeTop);
+    _buildWreckSilhouette(skinCx, dsx, dsy, mpp);
+    skinCx.clip();                                   // restrict to the ship
+    drawWreckBackdrop(skinCx, W, H, dsx, dsy, mpp);  // paint steel
     if (rad > 1) {
-        cx.globalCompositeOperation = 'destination-out';
+        skinCx.globalCompositeOperation = 'destination-out';
         // Near-field spill — always present when the diver is inside.
-        var spill = cx.createRadialGradient(dsx, dsy, 0, dsx, dsy, nearR);
+        var spill = skinCx.createRadialGradient(dsx, dsy, 0, dsx, dsy, nearR);
         spill.addColorStop(0,   'rgba(0,0,0,1)');
         spill.addColorStop(0.7, 'rgba(0,0,0,0.88)');
         spill.addColorStop(1,   'rgba(0,0,0,0)');
-        cx.fillStyle = spill;
-        cx.fillRect(0, 0, W, H);
+        skinCx.fillStyle = spill;
+        skinCx.fillRect(0, 0, W, H);
         // Directional cone — only when torch is on.
         if (haveTorchLight) {
-            cx.save();
-            cx.beginPath();
-            cx.moveTo(dsx, dsy);
-            cx.arc(dsx, dsy, coneR * 1.05, beamAngle - halfA, beamAngle + halfA);
-            cx.closePath();
-            cx.clip();
-            var beam = cx.createRadialGradient(dsx, dsy, 0, dsx, dsy, coneR);
+            skinCx.save();
+            skinCx.beginPath();
+            skinCx.moveTo(dsx, dsy);
+            skinCx.arc(dsx, dsy, coneR * 1.05, beamAngle - halfA, beamAngle + halfA);
+            skinCx.closePath();
+            skinCx.clip();
+            var beam = skinCx.createRadialGradient(dsx, dsy, 0, dsx, dsy, coneR);
             // Strong alpha kept high across most of the cone so the beam
             // reads unmistakably against the steel-on-steel interior
             // (where a soft gradient would fade into the surrounding
@@ -4815,20 +4842,24 @@ function drawWreckHullSkin() {
             beam.addColorStop(0.55, 'rgba(0,0,0,0.95)');
             beam.addColorStop(0.85, 'rgba(0,0,0,0.65)');
             beam.addColorStop(1,    'rgba(0,0,0,0)');
-            cx.fillStyle = beam;
-            cx.fillRect(0, 0, W, H);
-            cx.restore();
+            skinCx.fillStyle = beam;
+            skinCx.fillRect(0, 0, W, H);
+            skinCx.restore();
         }
-        cx.globalCompositeOperation = 'source-over';
+        skinCx.globalCompositeOperation = 'source-over';
     }
-    cx.restore();
+    skinCx.restore();
+    window.baselineDiagnostics.record('renderWreckOverlayBuild', _wreckOverlayStarted);
 
-    // Composite the pre-steel snapshot back into the punched hole so the
-    // diver sees the real interior (cars/props/terrain) there instead of
-    // the blank page background the destination-out punch would otherwise
-    // reveal.
+    // Composite the transparent steel overlay over the preserved interior.
     if (canRestoreHole) {
-        cx.drawImage(_wreckHoleRestoreCanvas, 0, 0);
+        _wreckOverlayStarted = window.baselineDiagnostics.start();
+        cx.drawImage(
+            _wreckHoleOverlayCanvas,
+            0, 0, holeW, holeH,
+            holeLeft, holeTop, holeW, holeH
+        );
+        window.baselineDiagnostics.record('renderWreckOverlayBlit', _wreckOverlayStarted);
     }
 
     // Feather the rim of the near-field circle so the always-visible spill
