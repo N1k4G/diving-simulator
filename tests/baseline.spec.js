@@ -68,6 +68,7 @@ test('baseline: generated contracts are complete and internally consistent', asy
   const features = readJson('docs/baseline/feature-inventory.json');
   const claims = readJson('docs/baseline/claims-register.json');
   const audio = readJson('docs/baseline/audio-inventory.json');
+  const performance = readJson('artifacts/wp-01/desktop-reference/performance.json');
   const traceSchema = readJson('docs/baseline/schemas/trace.schema.json');
   const performanceSchema = readJson('docs/baseline/schemas/performance.schema.json');
 
@@ -103,6 +104,16 @@ test('baseline: generated contracts are complete and internally consistent', asy
     'info.betterGas',
     'info.decoStopChanged'
   ]);
+  expect(performance.sourceCommit).toMatch(/^[0-9a-f]{40}$/);
+  expect(performance.acceptanceClass).toBe('desktop-synthetic-reference');
+  expect(performance.runs).toHaveLength(12);
+  for (const run of performance.runs) {
+    expect(run.context.sourceCommit).toBe(performance.sourceCommit);
+    expect(run.metrics.frame.sampleCount).toBe(300);
+    expect(run.metrics.update.sampleCount).toBe(300);
+    expect(run.metrics.planner.sampleCount).toBe(300);
+    expect(run.metrics.render.sampleCount).toBe(300);
+  }
   expect(traceSchema.properties.schemaVersion.const).toBe(1);
   expect(performanceSchema.properties.schemaVersion.const).toBe(1);
 });
