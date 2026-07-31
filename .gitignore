@@ -16,6 +16,8 @@ node_modules/
 test-results/
 playwright-report/
 .playwright/
+debug.log
+.tmp/
 
 # Generated review screenshots
 screenshots/

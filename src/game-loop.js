@@ -1809,6 +1809,29 @@ function captureBaselineCheckpoint(scenarioId, checkpointId) {
     };
 }
 
+function runBaselineDiagnosticFrames(count, dtReal) {
+    if (!window.baselineDiagnostics.enabled) {
+        throw new Error('diagnostics must be enabled with ?diagnostics=1');
+    }
+    count = Math.max(1, Math.min(1000, Math.floor(count)));
+    dtReal = Number.isFinite(dtReal) ? Math.max(0, Math.min(0.1, dtReal)) : 0;
+
+    for (var i = 0; i < count; i++) {
+        var frameStarted = window.baselineDiagnostics.start();
+        var updateStarted = window.baselineDiagnostics.start();
+        updateDiving(dtReal);
+        window.baselineDiagnostics.record('update', updateStarted);
+
+        var renderStarted = window.baselineDiagnostics.start();
+        drawScene();
+        drawDiveComputer();
+        drawDrillFlicker();
+        window.baselineDiagnostics.record('render', renderStarted);
+        window.baselineDiagnostics.record('frame', frameStarted);
+    }
+    return window.baselineDiagnostics.exportSnapshot();
+}
+
 (function _wireResumeBanner() {
     const yes = document.getElementById('resume-dive-banner-yes');
     const no = document.getElementById('resume-dive-banner-discard');
@@ -1830,6 +1853,7 @@ window.gameAPI = {
     resetDiagnostics: function(context) { window.baselineDiagnostics.reset(context); },
     exportDiagnostics: function() { return window.baselineDiagnostics.exportSnapshot(); },
     captureBaselineCheckpoint: captureBaselineCheckpoint,
+    runBaselineDiagnosticFrames: runBaselineDiagnosticFrames,
     get depth() { return depth; },
     get maxDepth() { return maxDepth; },
     set maxDepth(v) { maxDepth = v; },

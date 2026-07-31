@@ -59,9 +59,10 @@ try {
 
     for (const scene of scenes) {
       for (let run = 1; run <= runCount; run++) {
+        console.log(`capturing ${scene.id} run ${run}/${runCount}`);
         await page.goto(`${baseUrl}/src/diving-simulator.html?diagnostics=1`);
         await page.waitForFunction(() => Boolean(window.gameAPI));
-        await page.evaluate(({ sceneConfig, runNumber, commit }) => {
+        runs.push(await page.evaluate(({ sceneConfig, runNumber, commit, target }) => {
           const api = window.gameAPI;
           api.gameState = 'diving';
           api.diveMode = 'rec';
@@ -78,20 +79,23 @@ try {
           api.drillsEnabled = false;
           api.current.active = false;
           api.current.rolledThisDive = true;
-          api.resetDiagnostics({
+          const context = {
             runId: `${sceneConfig.id}-${runNumber}`,
             sceneId: sceneConfig.id,
             sourceCommit: commit,
             acceptanceClass: 'desktop-synthetic-reference'
-          });
-        }, { sceneConfig: scene, runNumber: run, commit: sourceCommit });
-
-        await page.waitForFunction(
-          target => window.gameAPI.exportDiagnostics().metrics.frame.sampleCount >= target,
-          sampleTarget,
-          { timeout: 20000 }
-        );
-        runs.push(await page.evaluate(() => window.gameAPI.exportDiagnostics()));
+          };
+          api.resetDiagnostics({ warmupFor: context.runId });
+          api.runBaselineDiagnosticFrames(30, 0);
+          api.resetDiagnostics(context);
+          return api.runBaselineDiagnosticFrames(target, 0);
+        }, {
+          sceneConfig: scene,
+          runNumber: run,
+          commit: sourceCommit,
+          target: sampleTarget
+        }));
+        console.log(`completed ${scene.id} run ${run}/${runCount}`);
       }
     }
 

@@ -51,6 +51,15 @@ test('baseline: diagnostics are opt-in and export named metrics', async ({ page 
   expect(exported.metrics.render.sampleCount).toBeGreaterThan(0);
   expect(exported.metrics.frame.p95Ms).toBeGreaterThanOrEqual(exported.metrics.frame.medianMs);
   await expect(page.locator('#baseline-diagnostics')).toContainText('WP-01 DIAGNOSTICS');
+
+  const direct = await page.evaluate(() => {
+    window.gameAPI.resetDiagnostics({ runId: 'direct-test' });
+    return window.gameAPI.runBaselineDiagnosticFrames(5, 0);
+  });
+  expect(direct.metrics.frame.sampleCount).toBe(5);
+  expect(direct.metrics.update.sampleCount).toBe(5);
+  expect(direct.metrics.planner.sampleCount).toBe(5);
+  expect(direct.metrics.render.sampleCount).toBe(5);
 });
 
 test('baseline: generated contracts are complete and internally consistent', async () => {

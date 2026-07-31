@@ -35,6 +35,15 @@ window.gameAPI.resetDiagnostics({
 window.gameAPI.exportDiagnostics();
 ```
 
+For deterministic direct CPU sampling without RAF pacing:
+
+```js
+window.gameAPI.runBaselineDiagnosticFrames(300, 0);
+```
+
+Direct sampling is useful for same-machine comparisons but does not measure
+presented FPS or GPU pacing.
+
 Record at least 300 warmed samples per scene and device for each of three
 independent runs. A device record must include model, OS, browser/WebView,
 chipset and RAM where available, viewport, DPR, quality tier, source commit,
