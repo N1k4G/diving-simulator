@@ -97,6 +97,7 @@ async function directorySize(directory) {
 try {
   await waitForServer();
   const browser = await chromium.launch({
+    args: ['--enable-precise-memory-info'],
     env: {
       ...process.env,
       CHROME_LOG_FILE: path.join(
@@ -145,9 +146,11 @@ try {
     const frameSamples = await page.evaluate(target =>
       new Promise(resolve => {
         const samples = [];
-        let previous = performance.now();
+        let previous = null;
         const sample = now => {
-          samples.push(now - previous);
+          if (previous !== null) {
+            samples.push(now - previous);
+          }
           previous = now;
           if (samples.length >= target) {
             resolve(samples);
