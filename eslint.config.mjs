@@ -469,4 +469,25 @@ export default [
     ...config,
     files: ["src/**/*.ts", "*.config.mts"],
   })),
+  {
+    files: ["src/**/*.ts"],
+    ignores: ["src/**/*.test.ts", "src/app/i18n/catalog.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "AssignmentExpression[left.type='MemberExpression'][left.property.name=/^(textContent|innerText)$/][right.type='Literal'][right.value!='']",
+          message: "Put user-facing text in src/app/i18n/catalog.ts and translate it by key.",
+        },
+        {
+          selector: "Property[key.type='Identifier'][key.name=/^(heading|label|title|message|description|text|placeholder|ariaLabel)$/][value.type='Literal'][value.value!='']",
+          message: "Put user-facing copy in src/app/i18n/catalog.ts and store only translated values here.",
+        },
+        {
+          selector: "CallExpression[callee.type='MemberExpression'][callee.property.name='setAttribute'][arguments.0.value=/^(aria-label|title|placeholder)$/][arguments.1.type='Literal'][arguments.1.value!='']",
+          message: "Translate user-facing attributes through src/app/i18n/catalog.ts.",
+        },
+      ],
+    },
+  },
 ];

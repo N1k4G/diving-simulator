@@ -1,22 +1,44 @@
 import { VERSION as pixiVersion } from "pixi.js";
 
 import "./diagnostic.css";
+import {
+  detectPreferredLocale,
+  translate,
+  type SupportedLocale,
+} from "./i18n/catalog";
 
 export interface BootstrapDiagnostic {
   heading: string;
+  eyebrow: string;
   milestone: string;
   pixiVersion: string;
   legacyClientUrl: string;
+  statusLabels: {
+    typescript: string;
+    vite: string;
+    pixi: string;
+    ready: string;
+  };
+  legacyLinkLabel: string;
 }
 
 export function createBootstrapDiagnostic(
   version = pixiVersion,
+  locale: SupportedLocale = detectPreferredLocale(),
 ): BootstrapDiagnostic {
   return {
-    heading: "Diving Simulator",
-    milestone: "WP-02 dual-client bootstrap",
+    heading: translate(locale, "diagnostic.heading"),
+    eyebrow: translate(locale, "diagnostic.eyebrow"),
+    milestone: translate(locale, "diagnostic.milestone"),
     pixiVersion: version,
     legacyClientUrl: "/src/diving-simulator.html",
+    statusLabels: {
+      typescript: translate(locale, "diagnostic.status.typescript"),
+      vite: translate(locale, "diagnostic.status.vite"),
+      pixi: translate(locale, "diagnostic.status.pixi"),
+      ready: translate(locale, "diagnostic.status.ready"),
+    },
+    legacyLinkLabel: translate(locale, "diagnostic.legacyLink"),
   };
 }
 
@@ -29,7 +51,7 @@ export function renderBootstrapDiagnostic(
 
   const eyebrow = document.createElement("p");
   eyebrow.className = "diagnostic-eyebrow";
-  eyebrow.textContent = "Migration diagnostic";
+  eyebrow.textContent = diagnostic.eyebrow;
 
   const heading = document.createElement("h1");
   heading.textContent = diagnostic.heading;
@@ -41,15 +63,18 @@ export function renderBootstrapDiagnostic(
   const status = document.createElement("dl");
   status.className = "diagnostic-status";
   status.append(
-    createStatusRow("TypeScript", "ready"),
-    createStatusRow("Vite", "ready"),
-    createStatusRow("PixiJS", `v${diagnostic.pixiVersion}`),
+    createStatusRow(
+      diagnostic.statusLabels.typescript,
+      diagnostic.statusLabels.ready,
+    ),
+    createStatusRow(diagnostic.statusLabels.vite, diagnostic.statusLabels.ready),
+    createStatusRow(diagnostic.statusLabels.pixi, `v${diagnostic.pixiVersion}`),
   );
 
   const legacyLink = document.createElement("a");
   legacyLink.className = "legacy-link";
   legacyLink.href = diagnostic.legacyClientUrl;
-  legacyLink.textContent = "Open the legacy simulator";
+  legacyLink.textContent = diagnostic.legacyLinkLabel;
 
   shell.append(eyebrow, heading, milestone, status, legacyLink);
   root.replaceChildren(shell);

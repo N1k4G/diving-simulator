@@ -190,6 +190,8 @@ The same suite runs headless under Playwright via `npm run test:e2e` (it loads t
 
 The production game remains the plain HTML/CSS/JS client during the migration. A separate TypeScript/Vite bootstrap at the repository root provides the new client without changing `src/diving-simulator.html` or its script order. Install tooling with `npm install`, then:
 
+New TypeScript UI copy is keyed in `src/app/i18n/catalog.ts`; direct user-facing literals are rejected by ESLint. Locale-aware depth, pressure, duration, and gas-fraction formatting lives in `src/app/i18n/formatters.ts`. This establishes the EN/DE boundary early without claiming that the full product translation is complete.
+
 | Command | What it does |
 |---------|--------------|
 | `npm run dev` | Starts the new Vite migration client with source maps |
