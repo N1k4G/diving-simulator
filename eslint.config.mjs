@@ -1,4 +1,5 @@
 import globals from "globals";
+import tseslint from "typescript-eslint";
 
 // All top-level symbols shared across the 8 script files.
 // Generated from: grep -hP "^(?:const|var|let|function)\s+(\w+)" src/*.js
@@ -345,8 +346,9 @@ const gameGlobals = {
   DEPTH_COLOR_R_NEAR: "readonly", DEPTH_COLOR_R_FAR: "readonly", DEPTH_COLOR_R_LOSS: "readonly",
   DEPTH_COLOR_G_NEAR: "readonly", DEPTH_COLOR_G_FAR: "readonly", DEPTH_COLOR_G_LOSS: "readonly",
   DEPTH_COLOR_CAVE_STRENGTH: "readonly",
-  _depthColorRestoreCanvas: "writable", _depthColorRestoreCtx: "writable",
+  _depthColorEffectCanvas: "writable", _depthColorEffectCtx: "writable",
   _depthColorMaskCanvas: "writable", _depthColorMaskCtx: "writable",
+  _wreckHoleOverlayCanvas: "writable", _wreckHoleOverlayCtx: "writable",
   // Issue #101: Rock-silhouette dome caps (renderer.js), read from game-loop.js
   ROCK_DOME_MAX_PX: "readonly",
   ROCK_DOME_SH_FRAC: "readonly", ROCK_DOME_SW_FRAC: "readonly",
@@ -405,6 +407,9 @@ const gameGlobals = {
 
 export default [
   {
+    ignores: ["dist/**", "node_modules/**", "playwright-report/**", "test-results/**"],
+  },
+  {
     files: ["src/*.js"],
     ignores: ["src/version.js"],
     languageOptions: {
@@ -434,4 +439,34 @@ export default [
       "no-fallthrough": "warn",
     },
   },
+  {
+    files: ["tests/**/*.js", "scripts/**/*.mjs", "*.config.js", "*.config.mjs"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "module",
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+        ...gameGlobals,
+      },
+    },
+    rules: {
+      "no-unreachable": "error",
+      "no-duplicate-case": "error",
+      "no-constant-condition": ["error", { "checkLoops": false }],
+      "no-dupe-keys": "error",
+      "no-self-assign": "error",
+      "no-sparse-arrays": "error",
+      "use-isnan": "error",
+      "valid-typeof": "error",
+      "no-undef": "error",
+      "no-redeclare": ["error", { "builtinGlobals": false }],
+      "eqeqeq": ["warn", "always", { "null": "ignore" }],
+      "no-fallthrough": "warn",
+    },
+  },
+  ...tseslint.configs.recommended.map((config) => ({
+    ...config,
+    files: ["src/**/*.ts", "*.config.mts"],
+  })),
 ];
