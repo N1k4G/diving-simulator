@@ -4,6 +4,8 @@ type Unit<Name extends string> = number & { readonly [unitBrand]: Name };
 
 export type Bars = Unit<"bars">;
 export type Fraction = Unit<"fraction">;
+export type Litres = Unit<"litres">;
+export type LitresPerMinute = Unit<"litres-per-minute">;
 export type Metres = Unit<"metres">;
 export type Minutes = Unit<"minutes">;
 export type Seconds = Unit<"seconds">;
@@ -18,6 +20,14 @@ export function fraction(value: number): Fraction {
   }
 
   return value as Fraction;
+}
+
+export function litres(value: number): Litres {
+  return nonNegative(value, "litres") as Litres;
+}
+
+export function litresPerMinute(value: number): LitresPerMinute {
+  return nonNegative(value, "litres per minute") as LitresPerMinute;
 }
 
 export function metres(value: number): Metres {
