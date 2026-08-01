@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "kind": "diving-simulator-wp06-performance",
+  "sourceCommit": "bd26cf59cbc747ae56e3afeacc2a9821f0478fb9",
+  "capturedAt": "2026-08-01T19:56:04.034Z",
+  "generatedBy": "npm run wp06:perf --",
+  "acceptanceClass": "desktop-synthetic-reference",
+  "acceptanceLimitations": [
+    "Headless desktop Chromium is diagnostic evidence only.",
+    "requestAnimationFrame cadence includes scheduler time and is not a GPU trace.",
+    "Chromium JS heap excludes GPU allocations and native process memory.",
+    "This artifact does not satisfy any physical Android or iOS gate."
+  ],
+  "environment": {
+    "platform": "win32 10.0.26200",
+    "cpu": "Intel(R) Core(TM) Ultra 7 155U",
+    "logicalCpuCount": 14,
+    "totalSystemMemoryBytes": 33782067200,
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
+    "viewportCssPx": {
+      "width": 1280,
+      "height": 800
+    },
+    "devicePixelRatio": 1
+  },
+  "scenario": {
+    "id": "wreck-engine-room",
+    "renderer": "pixi",
+    "warmedRouteSeconds": 12.25,
+    "measuredFrames": 600
+  },
+  "budgets": {
+    "renderP95Ms": 16.67,
+    "longFrameThresholdMs": 33,
+    "longFrameMaximumPercent": 1,
+    "coldStartMaximumMs": 3000,
+    "installedSizeMaximumBytes": 157286400
+  },
+  "startup": {
+    "navigation": {
+      "responseEndMs": 7.800000011920929,
+      "domInteractiveMs": 18.19999998807907,
+      "loadEventEndMs": 62.30000001192093
+    },
+    "rendererReadyAfterAcceptanceMs": 766.5
+  },
+  "frames": {
+    "sampleCount": 600,
+    "minMs": 66.5,
+    "medianMs": 83.29999999999927,
+    "p95Ms": 100,
+    "p99Ms": 150,
+    "maxMs": 183.1999999999971,
+    "longFrameCount": 600,
+    "longFramePercent": 100
+  },
+  "memory": {
+    "before": {
+      "usedJsHeapBytes": 5073977,
+      "totalJsHeapBytes": 8703697
+    },
+    "after": {
+      "usedJsHeapBytes": 5525181,
+      "totalJsHeapBytes": 7120417
+    }
+  },
+  "package": {
+    "distBytes": 2770390
+  }
+}

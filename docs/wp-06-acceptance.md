@@ -33,6 +33,13 @@ Last updated: 2026-08-01
 | Cross-client input trace | One immutable keyboard trace (`ArrowDown` hold, `T` edge-toggle) drives the legacy Canvas and packaged Pixi clients; normalized vertical direction and torch response match | Pass locally; authoritative numerical parity remains covered separately by `tests/parity` |
 | Desktop performance instrumentation | `npm run wp06:perf` measures packaged renderer startup, warmed engine-room frame cadence, JS heap, and bundle bytes | Diagnostic only; never substitutes for physical-device evidence |
 
+The desktop reference captured from `bd26cf5` is stored at
+`artifacts/wp-06/desktop-reference/performance.json`. It records a 766.5 ms
+renderer start after acceptance, a 2,770,390-byte production directory, and
+451,204 bytes of JS-heap growth. Headless Chromium throttled every sampled RAF
+interval above 33 ms (p95 100 ms), so this run explicitly does **not** pass or
+fail the device frame budget; a foreground hardware trace is still required.
+
 ## Remaining WP-06 gates
 
 - Validate Web Audio interruption/output behavior and memory on physical devices.
