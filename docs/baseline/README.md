@@ -46,7 +46,10 @@ presented FPS or GPU pacing. The canonical harness disables the diagnostics
 overlay, pauses the page's RAF loop, and yields after every warm-up and capture
 frame so long synchronous tasks do not inflate the measurements. It passes
 `dtReal=0` to isolate update/render CPU cost; the update metric therefore does
-not represent the cost of a live simulation tick.
+not represent the cost of a live simulation tick. A run containing a frame of
+one second or more is treated as host/browser suspension and retried (up to
+three attempts); repeated threshold failures abort the capture instead of
+publishing misleading evidence.
 
 Record at least 300 warmed samples per scene and device for each of three
 independent runs. A device record must include model, OS, browser/WebView,

@@ -24,6 +24,7 @@ const outputPath = path.resolve(
   root,
   argumentValue('--output', 'artifacts/wp-01/desktop-reference/performance.json')
 );
+const suspendedFrameThresholdMs = Number(argumentValue('--suspended-frame-threshold-ms', '1000'));
 const sourceCommit = argumentValue('--source-commit', null) || execFileSync('git', ['rev-parse', 'HEAD'], {
   cwd: root,
   encoding: 'utf8'
@@ -44,6 +45,9 @@ if (!Number.isInteger(sampleTarget) || sampleTarget < 1) {
 }
 if (!Number.isInteger(runCount) || runCount < 1) {
   throw new Error('--runs must be a positive integer');
+}
+if (!Number.isFinite(suspendedFrameThresholdMs) || suspendedFrameThresholdMs <= 0) {
+  throw new Error('--suspended-frame-threshold-ms must be a positive number');
 }
 if (!scenes.length) {
   throw new Error(`unknown --scene value: ${selectedSceneId}`);
@@ -85,10 +89,12 @@ try {
 
     for (const scene of scenes) {
       for (let run = 1; run <= runCount; run++) {
-        console.log(`capturing ${scene.id} run ${run}/${runCount}`);
-        await page.goto(`${baseUrl}/src/diving-simulator.html?diagnostics=1&diagnosticsOverlay=0`);
-        await page.waitForFunction(() => Boolean(window.gameAPI));
-        runs.push(await page.evaluate(async ({ sceneConfig, runNumber, commit, target }) => {
+        let capturedRun = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          console.log(`capturing ${scene.id} run ${run}/${runCount} attempt ${attempt}/3`);
+          await page.goto(`${baseUrl}/src/diving-simulator.html?diagnostics=1&diagnosticsOverlay=0`);
+          await page.waitForFunction(() => Boolean(window.gameAPI));
+          capturedRun = await page.evaluate(async ({ sceneConfig, runNumber, commit, target }) => {
           const api = window.gameAPI;
           api.gameState = 'diving';
           api.diveMode = 'rec';
@@ -127,12 +133,27 @@ try {
           } finally {
             window.__baselineCapturePaused = false;
           }
-        }, {
-          sceneConfig: scene,
-          runNumber: run,
-          commit: sourceCommit,
-          target: sampleTarget
-        }));
+          }, {
+            sceneConfig: scene,
+            runNumber: run,
+            commit: sourceCommit,
+            target: sampleTarget
+          });
+
+          if (capturedRun.metrics.frame.maxMs < suspendedFrameThresholdMs) break;
+          console.warn(
+            `discarding ${scene.id} run ${run}: frame max ` +
+            `${capturedRun.metrics.frame.maxMs.toFixed(1)} ms indicates host suspension`
+          );
+          capturedRun = null;
+        }
+        if (!capturedRun) {
+          throw new Error(
+            `${scene.id} run ${run} exceeded the ${suspendedFrameThresholdMs} ms ` +
+            'host-suspension threshold on all three attempts'
+          );
+        }
+        runs.push(capturedRun);
         console.log(`completed ${scene.id} run ${run}/${runCount}`);
       }
     }
