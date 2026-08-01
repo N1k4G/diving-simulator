@@ -29,11 +29,11 @@ Last updated: 2026-08-01
 | CSP compatibility | Production Worker uses a same-origin module URL permitted by `src/_headers` `worker-src 'self'` | Pass in browser automation; deployed-header verification remains a release check |
 | Audio policy | Unit tests assert legacy tone definitions, warning throttle, and voice cap; browser test exercises mute | Pass locally |
 | Save restore | Browser test changes authoritative depth, reloads, re-accepts the boundary, and observes the restored depth | Pass locally |
+| Warning accessibility | Packaged browser tests restore valid low-gas, high-oxygen, and failure states and assert the visible `role=alert` copy | Pass locally |
 
 ## Remaining WP-06 gates
 
 - Extract or adapt enough legacy route input to run an automated same-input Canvas/Pixi trace comparison.
-- Exercise low-gas, oxygen, and failure warning variants in browser accessibility tests.
 - Validate Web Audio interruption/output behavior and memory on physical devices.
 - Record sustained route performance, startup, resume, memory, and audio budgets on the supported physical-device matrix.
 
