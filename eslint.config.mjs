@@ -491,7 +491,11 @@ export default [
     },
   },
   {
-    files: ["src/core/**/*.ts"],
+    files: [
+      "src/core/**/*.ts",
+      "src/save/**/*.ts",
+      "src/presentation/**/*.ts",
+    ],
     rules: {
       "no-restricted-globals": [
         "error",
@@ -507,13 +511,13 @@ export default [
           paths: [
             {
               name: "pixi.js",
-              message: "The authoritative core must not depend on rendering.",
+              message: "Model, save, and presentation contracts must not depend on rendering.",
             },
           ],
           patterns: [
             {
               group: ["../app/**", "../render/**", "../platform/**"],
-              message: "Dependencies must point from adapters toward the core.",
+              message: "Dependencies must point from adapters toward model contracts.",
             },
           ],
         },
