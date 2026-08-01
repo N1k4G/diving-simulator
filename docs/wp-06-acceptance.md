@@ -1,6 +1,7 @@
 # WP-06 acceptance record
 
-Status: `IN_PROGRESS`
+Status: `BLOCKED_EXTERNAL` — local implementation and automation complete;
+physical-device acceptance outstanding.
 
 Last updated: 2026-08-01
 
@@ -54,4 +55,4 @@ No physical-device result is claimed from the desktop browser run.
 | Android 10+ | Not assigned | Not assigned | `BLOCKED_EXTERNAL` | Model, OS, chipset/RAM, 15-minute frame/memory trace, startup, audio, background/resume |
 | iOS 16+ | Not assigned | Not assigned | `BLOCKED_EXTERNAL` | Model, OS, 15-minute frame/memory trace, startup, audio, interruption, background/resume |
 
-WP-06 must remain `IN_PROGRESS` until these rows and the remaining gates are complete.
+WP-06 must remain `BLOCKED_EXTERNAL` until these rows and the remaining gates are complete.
