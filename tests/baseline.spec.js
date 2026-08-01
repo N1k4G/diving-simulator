@@ -195,11 +195,11 @@ test('baseline: tolerance comparison supports exact paths, globs, and overrides'
 });
 
 test('baseline: every live checkpoint matches its fixture within declared tolerances', async ({ page }) => {
-  test.setTimeout(180000);
   const traces = readJson('tests/fixtures/traces/baseline-v1.json');
 
   await page.goto('/src/diving-simulator.html');
   await page.waitForFunction(() => Boolean(window.gameAPI));
+  await page.evaluate(() => { window.__baselineCapturePaused = true; });
   const actualScenarios = await page.evaluate(runBaselineScenarios);
 
   expect(actualScenarios).toHaveLength(traces.scenarios.length);

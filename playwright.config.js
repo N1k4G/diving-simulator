@@ -8,9 +8,9 @@ module.exports = defineConfig({
     headless: true,
   },
   webServer: {
-    command: 'npx http-server . -p 8080 --silent',
+    command: 'node node_modules/http-server/bin/http-server . -p 8080 --silent',
     port: 8080,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === '1' || !process.env.CI,
   },
   reporter: [['list'], ['html', { open: 'never' }]],
 });

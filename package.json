@@ -6,7 +6,7 @@
   "license": "MIT",
   "scripts": {
     "lint": "eslint src/*.js --max-warnings=0",
-    "test": "playwright test",
+    "test": "node scripts/run-playwright-tests.mjs",
     "screenshots": "node scripts/screenshots.mjs",
     "baseline:generate": "node scripts/generate-baseline.mjs",
     "baseline:perf": "node scripts/capture-baseline-performance.mjs",
