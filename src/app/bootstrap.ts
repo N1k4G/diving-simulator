@@ -1,11 +1,23 @@
 import { VERSION as pixiVersion } from "pixi.js";
 
+import { createInitialDiveState } from "../core/dive-state";
+import {
+  DEFAULT_PLANNER_SETTINGS,
+  type PlannerForecast,
+} from "../planner/dive-planner";
 import "./diagnostic.css";
 import {
   detectPreferredLocale,
   translate,
   type SupportedLocale,
 } from "./i18n/catalog";
+import { PlannerWorkerClient } from "./planner-worker-client";
+
+declare global {
+  interface Window {
+    plannerWorkerDiagnostic?: Promise<PlannerForecast>;
+  }
+}
 
 export interface BootstrapDiagnostic {
   heading: string;
@@ -80,6 +92,19 @@ export function renderBootstrapDiagnostic(
   root.replaceChildren(shell);
 }
 
+export async function verifyPlannerWorker(
+  client = new PlannerWorkerClient(),
+): Promise<PlannerForecast> {
+  try {
+    return await client.forecast(
+      createInitialDiveState(0),
+      DEFAULT_PLANNER_SETTINGS,
+    );
+  } finally {
+    client.dispose();
+  }
+}
+
 function createStatusRow(label: string, value: string): HTMLDivElement {
   const row = document.createElement("div");
   const term = document.createElement("dt");
@@ -99,4 +124,8 @@ if (typeof document !== "undefined") {
   }
 
   renderBootstrapDiagnostic(root);
+  window.plannerWorkerDiagnostic = verifyPlannerWorker();
+  void window.plannerWorkerDiagnostic.catch((error: unknown) => {
+    console.error(error);
+  });
 }
