@@ -109,6 +109,7 @@ try {
     const page = await browser.newPage({
       viewport: { width: 1280, height: 800 },
       deviceScaleFactor: 1,
+      locale: 'en-US',
     });
     await page.goto(baseUrl, { waitUntil: 'networkidle' });
     const navigation = await page.evaluate(() => {
