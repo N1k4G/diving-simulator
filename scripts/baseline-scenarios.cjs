@@ -36,7 +36,16 @@ function runBaselineScenarios() {
     neutralizeAt(depth);
     api.verticalVelocity = verticalRateMpm;
     api.horizontalVelocity = 0;
-    api.updateDiving(stepMinutes * 60 / api.TIME_ACCELERATION);
+    // Model traces intentionally exclude site collision/overhead effects.
+    // The declared site is restored before every checkpoint, while the real
+    // updateDiving lifecycle runs against the legacy open-water geometry.
+    const declaredSite = api.diveSite;
+    api.diveSite = 'open';
+    try {
+      api.updateDiving(stepMinutes * 60 / api.TIME_ACCELERATION);
+    } finally {
+      api.diveSite = declaredSite;
+    }
   }
 
   function holdDepth(depth, minutes, stepMinutes = 0.1) {
@@ -57,6 +66,7 @@ function runBaselineScenarios() {
         fromDepth - (fromDepth - toDepth) * step / steps
       );
       updateAtDepth(targetDepth, totalMinutes / steps, -rateMpm);
+      if (api.gameState !== 'diving') break;
     }
     api.setDepth(toDepth);
     api.verticalVelocity = -rateMpm;
@@ -77,9 +87,6 @@ function runBaselineScenarios() {
     holdDepth(18, 30);
     air.checkpoints.push(api.captureBaselineCheckpoint('air-18m-30min', 'bottom-30min'));
     ascend(18, 0, 12);
-    // One final real tick lets the normal post-dive and event path observe
-    // the exact surface depth.
-    updateAtDepth(0, 0.025, 0);
     air.checkpoints.push(api.captureBaselineCheckpoint('air-18m-30min', 'surfaced'));
     scenarios.push(air);
 

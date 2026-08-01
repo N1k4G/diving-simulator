@@ -17,7 +17,10 @@ The scenarios drive the real `updateDiving()` lifecycle, including tissue and
 gas consumption, CNS tracking, safety-stop state, event capture, CCR cylinder
 use, a technical ascent and gas switch, and CCR bailout. Playwright replays
 every checkpoint with the exact/epsilon/glob policy stored in the fixture; JSON
-Schema validation is enforced with Ajv Draft 2020-12.
+Schema validation is enforced with Ajv Draft 2020-12. Model updates use the
+legacy open-water geometry so site collision and overhead effects cannot turn
+pinned depth profiles into artificial ascent events; each checkpoint still
+records its declared shore, wreck, or cave site.
 
 ## Collect performance evidence
 
