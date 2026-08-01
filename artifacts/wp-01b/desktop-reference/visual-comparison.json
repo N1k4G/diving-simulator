@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "kind": "diving-simulator-pixel-comparison",
+  "beforeSourceCommit": "bcee12e",
+  "afterSourceCommit": "ee5f5ba7ae789b7163bdb3585e69cc4d62c7b48f",
+  "method": "Seeded DPR-1 canvas pixel comparison after one dt=0 direct diagnostic frame",
+  "results": [
+    {
+      "sceneId": "wreck-engine-room",
+      "width": 759,
+      "height": 839,
+      "pixelCount": 636801,
+      "changedPixels": 49106,
+      "changedPixelPercent": 7.711357237190268,
+      "changedChannels": 99426,
+      "meanAbsoluteDeltaPerChannel": 0.07640338190423696,
+      "maxChannelDelta": 18
+    },
+    {
+      "sceneId": "cave-upper-tunnel",
+      "width": 759,
+      "height": 839,
+      "pixelCount": 636801,
+      "changedPixels": 11912,
+      "changedPixelPercent": 1.8706000775752551,
+      "changedChannels": 15314,
+      "meanAbsoluteDeltaPerChannel": 0.00868481676379277,
+      "maxChannelDelta": 7
+    }
+  ]
+}

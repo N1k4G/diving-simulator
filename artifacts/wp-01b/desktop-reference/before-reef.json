@@ -1,0 +1,217 @@
+{
+  "schemaVersion": 1,
+  "kind": "diving-simulator-performance-baseline",
+  "sourceCommit": "bcee12e",
+  "generatedBy": "npm run baseline:perf -- --serve-root .tmp/wp01b-before --source-commit bcee12e --scene reef-plateau --output artifacts/wp-01b/desktop-reference/before-reef.json",
+  "acceptanceClass": "desktop-synthetic-reference",
+  "acceptanceLimitations": [
+    "Headless desktop Chromium is diagnostic evidence only.",
+    "This artifact does not satisfy any physical Android or iOS gate.",
+    "Compare changes only on the same machine, browser build, viewport and DPR."
+  ],
+  "sampling": {
+    "warmedSamplesPerRun": 300,
+    "independentRunsPerScene": 3,
+    "frameBudgetMs": 16.67
+  },
+  "scenes": [
+    {
+      "id": "reef-plateau",
+      "site": "reef",
+      "x": 0,
+      "depth": 5,
+      "torch": false
+    }
+  ],
+  "runs": [
+    {
+      "schemaVersion": 1,
+      "kind": "diving-simulator-performance",
+      "capturedAt": "2026-08-01T07:51:43.129Z",
+      "buildVersion": "dev",
+      "frameBudgetMs": 16.67,
+      "context": {
+        "runId": "reef-plateau-1",
+        "sceneId": "reef-plateau",
+        "sourceCommit": "bcee12e",
+        "acceptanceClass": "desktop-synthetic-reference"
+      },
+      "environment": {
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+        "viewportCssPx": {
+          "width": 759,
+          "height": 839
+        },
+        "devicePixelRatio": 1
+      },
+      "metrics": {
+        "frame": {
+          "sampleCount": 300,
+          "minMs": 1.800000011920929,
+          "medianMs": 3.800000011920929,
+          "p95Ms": 7.400000035762787,
+          "p99Ms": 10.199999988079071,
+          "maxMs": 16.100000023841858,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "update": {
+          "sampleCount": 300,
+          "minMs": 0.10000002384185791,
+          "medianMs": 0.3999999761581421,
+          "p95Ms": 0.6000000238418579,
+          "p99Ms": 0.9000000357627869,
+          "maxMs": 2.800000011920929,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "planner": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.20000004768371582,
+          "p95Ms": 0.40000003576278687,
+          "p99Ms": 0.6000000238418579,
+          "maxMs": 0.699999988079071,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "render": {
+          "sampleCount": 300,
+          "minMs": 1.699999988079071,
+          "medianMs": 3.400000035762787,
+          "p95Ms": 7,
+          "p99Ms": 9.5,
+          "maxMs": 15.600000023841858,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "diving-simulator-performance",
+      "capturedAt": "2026-08-01T07:51:49.948Z",
+      "buildVersion": "dev",
+      "frameBudgetMs": 16.67,
+      "context": {
+        "runId": "reef-plateau-2",
+        "sceneId": "reef-plateau",
+        "sourceCommit": "bcee12e",
+        "acceptanceClass": "desktop-synthetic-reference"
+      },
+      "environment": {
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+        "viewportCssPx": {
+          "width": 759,
+          "height": 839
+        },
+        "devicePixelRatio": 1
+      },
+      "metrics": {
+        "frame": {
+          "sampleCount": 300,
+          "minMs": 1.5,
+          "medianMs": 2.200000047683716,
+          "p95Ms": 4.199999988079071,
+          "p99Ms": 4.900000035762787,
+          "maxMs": 6.899999976158142,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "update": {
+          "sampleCount": 300,
+          "minMs": 0.09999996423721313,
+          "medianMs": 0.20000004768371582,
+          "p95Ms": 0.5,
+          "p99Ms": 0.5,
+          "maxMs": 1,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "planner": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.30000001192092896,
+          "p99Ms": 0.40000003576278687,
+          "maxMs": 0.699999988079071,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "render": {
+          "sampleCount": 300,
+          "minMs": 1.300000011920929,
+          "medianMs": 2,
+          "p95Ms": 3.800000011920929,
+          "p99Ms": 4.699999988079071,
+          "maxMs": 6.800000011920929,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "diving-simulator-performance",
+      "capturedAt": "2026-08-01T07:51:54.719Z",
+      "buildVersion": "dev",
+      "frameBudgetMs": 16.67,
+      "context": {
+        "runId": "reef-plateau-3",
+        "sceneId": "reef-plateau",
+        "sourceCommit": "bcee12e",
+        "acceptanceClass": "desktop-synthetic-reference"
+      },
+      "environment": {
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+        "viewportCssPx": {
+          "width": 759,
+          "height": 839
+        },
+        "devicePixelRatio": 1
+      },
+      "metrics": {
+        "frame": {
+          "sampleCount": 300,
+          "minMs": 1.399999976158142,
+          "medianMs": 1.699999988079071,
+          "p95Ms": 2.900000035762787,
+          "p99Ms": 3.699999988079071,
+          "maxMs": 5.399999976158142,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "update": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.19999998807907104,
+          "p95Ms": 0.30000001192092896,
+          "p99Ms": 0.40000003576278687,
+          "maxMs": 1.699999988079071,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "planner": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.20000004768371582,
+          "p99Ms": 0.30000001192092896,
+          "maxMs": 0.40000003576278687,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "render": {
+          "sampleCount": 300,
+          "minMs": 1.199999988079071,
+          "medianMs": 1.5,
+          "p95Ms": 2.699999988079071,
+          "p99Ms": 3.399999976158142,
+          "maxMs": 5.300000011920929,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        }
+      }
+    }
+  ]
+}
