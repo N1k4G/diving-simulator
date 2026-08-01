@@ -20,10 +20,31 @@ interface GoldenCheckpoint {
     depth_m: number;
     maxDepth_m: number;
     diveTime_min: number;
+    diveMode?: string;
+    activeTankIndex?: number;
+  };
+  configuration?: {
+    amv_lpm?: number;
   };
   tissues: {
     n2_bar: number[];
     he_bar: number[];
+  };
+  tanks?: {
+    fO2: number;
+    fHe: number;
+    volume_l: number;
+    pressure_bar: number;
+    gasRemaining_l: number;
+  }[];
+  ccr?: {
+    targetPO2_bar: number;
+    actualPO2_bar: number;
+    diluent: { fO2: number; fHe: number };
+    o2Pressure_bar: number;
+    diluentPressure_bar: number;
+    scrubberRemaining_min: number;
+    onBailout: boolean;
   };
 }
 
@@ -107,6 +128,25 @@ describe("pure tissue model parity", () => {
     expect(Object.isFrozen(state)).toBe(true);
     expect(Object.isFrozen(state.tissues.nitrogenBar)).toBe(true);
     expect(state.tissues.nitrogenBar).not.toBe(checkpoint.tissues.n2_bar);
+  });
+
+  it("adapts canonical gas, timer, and CCR checkpoint fields", () => {
+    const checkpoint = findCheckpoint(
+      findScenario("ccr-30m-20min"),
+      "bottom-20min",
+    );
+    const state = diveStateFromLegacyCheckpoint(checkpoint, 100);
+
+    expect(state.elapsedTimeS).toBe(1200);
+    expect(state.activeTankIndex).toBe(0);
+    expect(state.tanks[0]?.gasRemainingL).toBe(2400);
+    expect(state.surfaceAirConsumptionLpm).toBe(15);
+    expect(state.ccr?.targetPo2Bar).toBe(1.3);
+    expect(state.ccr?.actualPo2Bar).toBe(1.3);
+    expect(state.ccr?.oxygenCylinderPressureBar).toBe(200);
+    expect(state.ccr?.diluentCylinderPressureBar).toBe(200);
+    expect(state.ccr?.scrubberRemainingS).toBe(10_800);
+    expect(state.ccr?.onBailout).toBe(false);
   });
 });
 
