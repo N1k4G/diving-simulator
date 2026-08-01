@@ -1,35 +1,46 @@
 {
   "schemaVersion": 1,
   "kind": "diving-simulator-golden-traces",
-  "referenceCommit": "30c151f",
+  "referenceCommit": "2ef23125e7ebb52746c5c32b76db5636ead7fb7f",
   "generator": "npm run baseline:generate",
   "tolerances": {
     "exact": [
+      "schemaVersion",
       "scenarioId",
       "checkpointId",
       "state.gameState",
       "state.diveMode",
       "state.diveSite",
       "state.activeTankIndex",
-      "state.safetyStop.*",
+      "state.safetyStop.needed",
+      "state.safetyStop.countdownStarted",
+      "state.safetyStop.paused",
+      "state.safetyStop.complete",
       "tanks.length",
       "ccr.onBailout",
-      "events"
+      "events.length",
+      "events.*.kind"
     ],
     "absoluteEpsilon": {
       "default": 1e-9,
       "planner.ceiling_m": 0.000001,
-      "planner.ndl_min": 0,
+      "planner.ndl_min": 1e-9,
       "planner.tts_min": 0.000001,
+      "planner.schedule.stops.*.depth": 0.000001,
+      "planner.schedule.stops.*.time": 0.000001,
+      "planner.schedule.tts": 0.000001,
+      "state.safetyStop.remaining_min": 0.000001,
       "tissues.*_bar": 1e-9,
       "tanks.*.pressure_bar": 0.000001,
-      "tanks.*.gasRemaining_l": 0.000001
+      "tanks.*.gasRemaining_l": 0.000001,
+      "ccr.*Pressure_bar": 0.000001,
+      "ccr.scrubberRemaining_min": 0.000001
     }
   },
   "scenarios": [
     {
       "scenarioId": "air-18m-30min",
-      "description": "Air at 18 m for 30 min followed by a 9 m/min direct ascent",
+      "description": "Air at 18 m for 30 min followed by a 12 m/min direct ascent",
       "checkpoints": [
         {
           "schemaVersion": 1,
@@ -142,15 +153,15 @@
             "diveSite": "shore",
             "depth_m": 18,
             "maxDepth_m": 18,
-            "diveTime_min": 30,
+            "diveTime_min": 30.000000000000156,
             "diverX_m": 0,
             "verticalVelocity_mpm": 0,
             "horizontalVelocity_mps": 0,
             "activeTankIndex": 0,
-            "cns_percent": 0,
-            "narcosisIndex": 0,
+            "cns_percent": 4.199999999999975,
+            "narcosisIndex": 0.1039999999808827,
             "safetyStop": {
-              "needed": false,
+              "needed": true,
               "remaining_min": 0,
               "countdownStarted": false,
               "paused": false,
@@ -166,7 +177,7 @@
           "planner": {
             "ceiling_m": 0,
             "ndl_min": 3,
-            "tts_min": 5,
+            "tts_min": 7,
             "schedule": null
           },
           "tissues": {
@@ -214,7 +225,7 @@
               "fN2": 0.79,
               "volume_l": 12,
               "pressure_bar": 200,
-              "gasRemaining_l": 2400,
+              "gasRemaining_l": 1140.0000000000052,
               "switchDepth_m": null
             }
           ],
@@ -238,23 +249,23 @@
           "scenarioId": "air-18m-30min",
           "checkpointId": "surfaced",
           "state": {
-            "gameState": "diving",
+            "gameState": "post-dive",
             "diveMode": "rec",
             "diveSite": "shore",
             "depth_m": 0,
             "maxDepth_m": 18,
-            "diveTime_min": 32.00000000000003,
+            "diveTime_min": 31.475000000000072,
             "diverX_m": 0,
-            "verticalVelocity_mpm": 0,
+            "verticalVelocity_mpm": -12,
             "horizontalVelocity_mps": 0,
             "activeTankIndex": 0,
-            "cns_percent": 0,
-            "narcosisIndex": 0,
+            "cns_percent": 4.245499999999973,
+            "narcosisIndex": 0.020063618224854536,
             "safetyStop": {
-              "needed": false,
-              "remaining_min": 0,
-              "countdownStarted": false,
-              "paused": false,
+              "needed": true,
+              "remaining_min": 282,
+              "countdownStarted": true,
+              "paused": true,
               "complete": false
             }
           },
@@ -272,22 +283,22 @@
           },
           "tissues": {
             "n2_bar": [
-              1.9569318919538885,
-              1.9515559102915647,
-              1.8415856912658093,
-              1.6791846209369385,
-              1.4994494203800253,
-              1.3389084085534282,
-              1.1984306315931947,
-              1.0830127710098907,
-              0.992837438994764,
-              0.9338255277637825,
-              0.8939957351747791,
-              0.8621771442509263,
-              0.8368212730977285,
-              0.816433993059017,
-              0.800336312090242,
-              0.7876517151814657
+              2.0052605302075874,
+              1.980288685497532,
+              1.8562565188550337,
+              1.685698245000447,
+              1.5014025894166103,
+              1.3387239032717708,
+              1.1973430887498542,
+              1.0816933635545913,
+              0.9916012483023204,
+              0.932754270990646,
+              0.8930812561269236,
+              0.8614128493826847,
+              0.8361919203982698,
+              0.8159226697778934,
+              0.7999240481973431,
+              0.7873210875295258
             ],
             "he_bar": [
               0,
@@ -315,7 +326,7 @@
               "fN2": 0.79,
               "volume_l": 12,
               "pressure_bar": 200,
-              "gasRemaining_l": 2400,
+              "gasRemaining_l": 1098.4488042645928,
               "switchDepth_m": null
             }
           ],
@@ -332,13 +343,19 @@
             "scrubberRemaining_min": 180,
             "onBailout": false
           },
-          "events": []
+          "events": [
+            {
+              "t": 31.475000000000072,
+              "kind": "safetyStopSkipped",
+              "value": 0
+            }
+          ]
         }
       ]
     },
     {
       "scenarioId": "trimix-45m-20min",
-      "description": "Trimix 21/35 at 45 m for 20 min with an available 50% deco gas",
+      "description": "Trimix 21/35 at 45 m for 20 min, ascent to 21 m, and switch to 50% deco gas",
       "checkpoints": [
         {
           "schemaVersion": 1,
@@ -460,15 +477,15 @@
             "diveSite": "wreck",
             "depth_m": 45,
             "maxDepth_m": 45,
-            "diveTime_min": 20,
+            "diveTime_min": 20.000000000000014,
             "diverX_m": 0,
             "verticalVelocity_mpm": 0,
             "horizontalVelocity_mps": 0,
             "activeTankIndex": 0,
-            "cns_percent": 0,
-            "narcosisIndex": 0,
+            "cns_percent": 11.199999999999958,
+            "narcosisIndex": 0.24066025446766776,
             "safetyStop": {
-              "needed": false,
+              "needed": true,
               "remaining_min": 0,
               "countdownStarted": false,
               "paused": false,
@@ -552,7 +569,7 @@
               "fN2": 0.44000000000000006,
               "volume_l": 12,
               "pressure_bar": 200,
-              "gasRemaining_l": 2400,
+              "gasRemaining_l": 750,
               "switchDepth_m": null
             },
             {
@@ -579,16 +596,276 @@
             "onBailout": false
           },
           "events": []
+        },
+        {
+          "schemaVersion": 1,
+          "scenarioId": "trimix-45m-20min",
+          "checkpointId": "ascent-21m",
+          "state": {
+            "gameState": "diving",
+            "diveMode": "tec",
+            "diveSite": "wreck",
+            "depth_m": 21,
+            "maxDepth_m": 45,
+            "diveTime_min": 22.666666666666586,
+            "diverX_m": 0,
+            "verticalVelocity_mpm": -9,
+            "horizontalVelocity_mps": 0,
+            "activeTankIndex": 0,
+            "cns_percent": 12.165732087227369,
+            "narcosisIndex": 0.05543753938826498,
+            "safetyStop": {
+              "needed": true,
+              "remaining_min": 0,
+              "countdownStarted": false,
+              "paused": false,
+              "complete": false
+            }
+          },
+          "configuration": {
+            "gfLow_percent": 35,
+            "gfHigh_percent": 75,
+            "amv_lpm": 15,
+            "tankVolume_l": 12
+          },
+          "planner": {
+            "ceiling_m": 10.683948442379783,
+            "ndl_min": 0,
+            "tts_min": 23,
+            "schedule": {
+              "stops": [
+                {
+                  "depth": 12,
+                  "time": 4
+                },
+                {
+                  "depth": 9,
+                  "time": 2
+                },
+                {
+                  "depth": 6,
+                  "time": 4
+                },
+                {
+                  "depth": 3,
+                  "time": 9
+                }
+              ],
+              "tts": 23
+            }
+          },
+          "tissues": {
+            "n2_bar": [
+              2.144106471440581,
+              2.04500367718384,
+              1.8463407142516375,
+              1.6336268767898687,
+              1.4331068316042743,
+              1.2706866886630939,
+              1.1373311604522551,
+              1.0325087946324463,
+              0.9531063558542692,
+              0.9021953652566497,
+              0.868267673544184,
+              0.8414030394643246,
+              0.820141415707087,
+              0.8031376845514562,
+              0.789768043213417,
+              0.7792675365529274
+            ],
+            "he_bar": [
+              1.5912843145454174,
+              1.6764008510496844,
+              1.6867586560074874,
+              1.5978736711988726,
+              1.421342817278921,
+              1.2074696141011927,
+              0.9802148031774083,
+              0.7670370658777332,
+              0.58438696061287,
+              0.4572389399857496,
+              0.368123546066242,
+              0.2950541443044531,
+              0.2355951321686136,
+              0.18702014628995045,
+              0.14818405793130973,
+              0.11727630283830859
+            ]
+          },
+          "tanks": [
+            {
+              "fO2": 0.21,
+              "fHe": 0.35,
+              "fN2": 0.44000000000000006,
+              "volume_l": 12,
+              "pressure_bar": 200,
+              "gasRemaining_l": 579.1065342440909,
+              "switchDepth_m": null
+            },
+            {
+              "fO2": 0.5,
+              "fHe": 0,
+              "fN2": 0.5,
+              "volume_l": 12,
+              "pressure_bar": 200,
+              "gasRemaining_l": 2400,
+              "switchDepth_m": null
+            }
+          ],
+          "ccr": {
+            "targetPO2_bar": 0.7,
+            "actualPO2_bar": 0.21,
+            "diluent": {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79
+            },
+            "o2Pressure_bar": 200,
+            "diluentPressure_bar": 200,
+            "scrubberRemaining_min": 180,
+            "onBailout": false
+          },
+          "events": []
+        },
+        {
+          "schemaVersion": 1,
+          "scenarioId": "trimix-45m-20min",
+          "checkpointId": "deco-gas-21m",
+          "state": {
+            "gameState": "diving",
+            "diveMode": "tec",
+            "diveSite": "wreck",
+            "depth_m": 21,
+            "maxDepth_m": 45,
+            "diveTime_min": 22.691666666666585,
+            "diverX_m": 0,
+            "verticalVelocity_mpm": 0,
+            "horizontalVelocity_mps": 0,
+            "activeTankIndex": 1,
+            "cns_percent": 12.170482087227368,
+            "narcosisIndex": 0.054027549150963805,
+            "safetyStop": {
+              "needed": true,
+              "remaining_min": 0,
+              "countdownStarted": false,
+              "paused": false,
+              "complete": false
+            }
+          },
+          "configuration": {
+            "gfLow_percent": 35,
+            "gfHigh_percent": 75,
+            "amv_lpm": 15,
+            "tankVolume_l": 12
+          },
+          "planner": {
+            "ceiling_m": 10.662455443778889,
+            "ndl_min": 0,
+            "tts_min": 23,
+            "schedule": {
+              "stops": [
+                {
+                  "depth": 12,
+                  "time": 4
+                },
+                {
+                  "depth": 9,
+                  "time": 2
+                },
+                {
+                  "depth": 6,
+                  "time": 4
+                },
+                {
+                  "depth": 3,
+                  "time": 9
+                }
+              ],
+              "tts": 23
+            }
+          },
+          "tissues": {
+            "n2_bar": [
+              2.1413120608540126,
+              2.043470468553351,
+              1.845634292717726,
+              1.6333486103047377,
+              1.4330447924871617,
+              1.270716419087172,
+              1.1373946826927406,
+              1.0325771796807004,
+              0.9531672884479263,
+              0.9022468991908057,
+              0.8683110529406537,
+              0.841438928755843,
+              0.8201707469640028,
+              0.8031613787422496,
+              0.7897870642036381,
+              0.7792827404050819
+            ],
+            "he_bar": [
+              1.5864377932235403,
+              1.6728915666213002,
+              1.6844730320188461,
+              1.5965494618696572,
+              1.4207352375538362,
+              1.2072968918814129,
+              0.9802846962879181,
+              0.7672132277957222,
+              0.584588245586765,
+              0.4574291256068648,
+              0.3682938780590961,
+              0.29520144521643976,
+              0.23571949429297523,
+              0.18712311491734412,
+              0.1482682736966443,
+              0.11734457973849988
+            ]
+          },
+          "tanks": [
+            {
+              "fO2": 0.21,
+              "fHe": 0.35,
+              "fN2": 0.44000000000000006,
+              "volume_l": 12,
+              "pressure_bar": 200,
+              "gasRemaining_l": 579.1065342440909,
+              "switchDepth_m": null
+            },
+            {
+              "fO2": 0.5,
+              "fHe": 0,
+              "fN2": 0.5,
+              "volume_l": 12,
+              "pressure_bar": 200,
+              "gasRemaining_l": 2398.8375,
+              "switchDepth_m": null
+            }
+          ],
+          "ccr": {
+            "targetPO2_bar": 0.7,
+            "actualPO2_bar": 0.21,
+            "diluent": {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79
+            },
+            "o2Pressure_bar": 200,
+            "diluentPressure_bar": 200,
+            "scrubberRemaining_min": 180,
+            "onBailout": false
+          },
+          "events": []
         }
       ]
     },
     {
-      "scenarioId": "ccr-30m-20min",
-      "description": "CCR at 1.3 bar setpoint and trimix 15/45 diluent at 30 m for 20 min",
+      "scenarioId": "ccr-30m-30min",
+      "description": "CCR at 1.3 bar with trimix 15/45 diluent at 30 m for 30 min and ascent to 12 m",
       "checkpoints": [
         {
           "schemaVersion": 1,
-          "scenarioId": "ccr-30m-20min",
+          "scenarioId": "ccr-30m-30min",
           "checkpointId": "surface",
           "state": {
             "gameState": "diving",
@@ -689,23 +966,23 @@
         },
         {
           "schemaVersion": 1,
-          "scenarioId": "ccr-30m-20min",
-          "checkpointId": "bottom-20min",
+          "scenarioId": "ccr-30m-30min",
+          "checkpointId": "bottom-30min",
           "state": {
             "gameState": "diving",
             "diveMode": "ccr",
             "diveSite": "cave",
             "depth_m": 30,
             "maxDepth_m": 30,
-            "diveTime_min": 20,
+            "diveTime_min": 30.000000000000156,
             "diverX_m": 0,
             "verticalVelocity_mpm": 0,
             "horizontalVelocity_mps": 0,
             "activeTankIndex": 0,
-            "cns_percent": 0,
-            "narcosisIndex": 0,
+            "cns_percent": 16.7999999999999,
+            "narcosisIndex": 0.07244779156005937,
             "safetyStop": {
-              "needed": false,
+              "needed": true,
               "remaining_min": 0,
               "countdownStarted": false,
               "paused": false,
@@ -719,55 +996,59 @@
             "tankVolume_l": 12
           },
           "planner": {
-            "ceiling_m": 2.2926615440217613,
+            "ceiling_m": 3.853940630976087,
             "ndl_min": 0,
-            "tts_min": 5,
+            "tts_min": 10,
             "schedule": {
               "stops": [
                 {
+                  "depth": 6,
+                  "time": 3
+                },
+                {
                   "depth": 3,
-                  "time": 2
+                  "time": 3
                 }
               ],
-              "tts": 5
+              "tts": 10
             }
           },
           "tissues": {
             "n2_bar": [
-              1.2187839669117644,
-              1.1604794524765785,
-              1.0823669589200244,
-              1.0095109863286305,
-              0.9453489002834795,
-              0.8954098191049592,
-              0.8554253853622091,
-              0.8245292142212648,
-              0.8013994588947722,
-              0.7866829359438713,
-              0.7769222385169823,
-              0.7692189661675377,
-              0.7631378432809554,
-              0.75828420208407,
-              0.7544738303139178,
-              0.7514847835496111
+              1.2426998152573534,
+              1.2127505686873505,
+              1.1540060379337278,
+              1.0848705300054182,
+              1.0144789198410478,
+              0.9542222253790298,
+              0.9027916574066346,
+              0.8612142427487892,
+              0.8290799040495362,
+              0.8081964655790819,
+              0.7941610997897077,
+              0.782981512602033,
+              0.7740926542479942,
+              0.7669580995795323,
+              0.7613323783770072,
+              0.7569041288978058
             ],
             "he_bar": [
-              1.4061229621645575,
-              1.3927260137907136,
-              1.3324046683761488,
-              1.2133725836806732,
-              1.0450803138744846,
-              0.8668629483592254,
-              0.6908009373674878,
-              0.5330821243691523,
-              0.4020086507886369,
-              0.31252715563450084,
-              0.25055584037029943,
-              0.2001591149811004,
-              0.15940818412923763,
-              0.12628013461572185,
-              0.09989545522117504,
-              0.078959576317984
+              1.4069836234113,
+              1.4055671630644333,
+              1.3898278529388013,
+              1.3351731268110463,
+              1.2234446151292735,
+              1.0723371580041123,
+              0.8960210251344078,
+              0.7182546828328249,
+              0.5576311364861434,
+              0.44170426969340004,
+              0.3585688353263039,
+              0.2892930395363993,
+              0.23220600921482415,
+              0.1851042228969273,
+              0.14715117726043858,
+              0.11676181514982331
             ]
           },
           "tanks": [
@@ -789,10 +1070,533 @@
               "fHe": 0.45,
               "fN2": 0.4
             },
+            "o2Pressure_bar": 188.0000000000024,
+            "diluentPressure_bar": 200,
+            "scrubberRemaining_min": 150.0000000000017,
+            "onBailout": false
+          },
+          "events": []
+        },
+        {
+          "schemaVersion": 1,
+          "scenarioId": "ccr-30m-30min",
+          "checkpointId": "ascent-12m",
+          "state": {
+            "gameState": "diving",
+            "diveMode": "ccr",
+            "diveSite": "cave",
+            "depth_m": 12,
+            "maxDepth_m": 30,
+            "diveTime_min": 32.00000000000004,
+            "diverX_m": 0,
+            "verticalVelocity_mpm": -9,
+            "horizontalVelocity_mps": 0,
+            "activeTankIndex": 0,
+            "cns_percent": 17.91999999999985,
+            "narcosisIndex": 0.01849344600320777,
+            "safetyStop": {
+              "needed": true,
+              "remaining_min": 0,
+              "countdownStarted": false,
+              "paused": false,
+              "complete": false
+            }
+          },
+          "configuration": {
+            "gfLow_percent": 35,
+            "gfHigh_percent": 75,
+            "amv_lpm": 15,
+            "tankVolume_l": 12
+          },
+          "planner": {
+            "ceiling_m": 3.2524245991825573,
+            "ndl_min": 0,
+            "tts_min": 8,
+            "schedule": {
+              "stops": [
+                {
+                  "depth": 6,
+                  "time": 3
+                },
+                {
+                  "depth": 3,
+                  "time": 3
+                }
+              ],
+              "tts": 8
+            }
+          },
+          "tissues": {
+            "n2_bar": [
+              1.1350191770726723,
+              1.147915893522527,
+              1.1178529645272741,
+              1.0651792414236292,
+              1.0044338862684423,
+              0.9492671121916658,
+              0.9005932408798684,
+              0.8604093525261778,
+              0.8289205885206553,
+              0.8082768164812779,
+              0.7943286384088953,
+              0.783178015652626,
+              0.7742874401837296,
+              0.7671360688858027,
+              0.7614875941717598,
+              0.7570356422761263
+            ],
+            "he_bar": [
+              1.1227223053011013,
+              1.2134071473821733,
+              1.2642634598530809,
+              1.2575957012185273,
+              1.1835030997177733,
+              1.057698840526176,
+              0.8972094261949257,
+              0.7274412012511848,
+              0.5695182132063126,
+              0.45350815034609465,
+              0.36943272333181765,
+              0.2988720560898687,
+              0.24040991864758135,
+              0.1919712834126694,
+              0.1528142443644998,
+              0.121382246333329
+            ]
+          },
+          "tanks": [
+            {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79,
+              "volume_l": 12,
+              "pressure_bar": 200,
+              "gasRemaining_l": 2400,
+              "switchDepth_m": null
+            }
+          ],
+          "ccr": {
+            "targetPO2_bar": 1.3,
+            "actualPO2_bar": 1.3,
+            "diluent": {
+              "fO2": 0.15,
+              "fHe": 0.45,
+              "fN2": 0.4
+            },
+            "o2Pressure_bar": 185.48515932402168,
+            "diluentPressure_bar": 200,
+            "scrubberRemaining_min": 148.00000000000125,
+            "onBailout": false
+          },
+          "events": []
+        }
+      ]
+    },
+    {
+      "scenarioId": "ccr-bailout-30m",
+      "description": "CCR at 30 m followed by irreversible open-circuit bailout and ascent to 18 m",
+      "checkpoints": [
+        {
+          "schemaVersion": 1,
+          "scenarioId": "ccr-bailout-30m",
+          "checkpointId": "surface",
+          "state": {
+            "gameState": "diving",
+            "diveMode": "ccr",
+            "diveSite": "shore",
+            "depth_m": 0,
+            "maxDepth_m": 0,
+            "diveTime_min": 0,
+            "diverX_m": 0,
+            "verticalVelocity_mpm": 0,
+            "horizontalVelocity_mps": 0,
+            "activeTankIndex": 0,
+            "cns_percent": 0,
+            "narcosisIndex": 0,
+            "safetyStop": {
+              "needed": false,
+              "remaining_min": 0,
+              "countdownStarted": false,
+              "paused": false,
+              "complete": false
+            }
+          },
+          "configuration": {
+            "gfLow_percent": 35,
+            "gfHigh_percent": 75,
+            "amv_lpm": 15,
+            "tankVolume_l": 12
+          },
+          "planner": {
+            "ceiling_m": 0,
+            "ndl_min": 999,
+            "tts_min": 0,
+            "schedule": null
+          },
+          "tissues": {
+            "n2_bar": [
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001
+            ],
+            "he_bar": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "tanks": [
+            {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79,
+              "volume_l": 12,
+              "pressure_bar": 200,
+              "gasRemaining_l": 2400,
+              "switchDepth_m": null
+            }
+          ],
+          "ccr": {
+            "targetPO2_bar": 1.3,
+            "actualPO2_bar": 1.3,
+            "diluent": {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79
+            },
             "o2Pressure_bar": 200,
             "diluentPressure_bar": 200,
             "scrubberRemaining_min": 180,
             "onBailout": false
+          },
+          "events": []
+        },
+        {
+          "schemaVersion": 1,
+          "scenarioId": "ccr-bailout-30m",
+          "checkpointId": "pre-bailout",
+          "state": {
+            "gameState": "diving",
+            "diveMode": "ccr",
+            "diveSite": "shore",
+            "depth_m": 30,
+            "maxDepth_m": 30,
+            "diveTime_min": 9.99999999999998,
+            "diverX_m": 0,
+            "verticalVelocity_mpm": 0,
+            "horizontalVelocity_mps": 0,
+            "activeTankIndex": 0,
+            "cns_percent": 5.600000000000004,
+            "narcosisIndex": 0.32980781691596356,
+            "safetyStop": {
+              "needed": true,
+              "remaining_min": 0,
+              "countdownStarted": false,
+              "paused": false,
+              "complete": false
+            }
+          },
+          "configuration": {
+            "gfLow_percent": 35,
+            "gfHigh_percent": 75,
+            "amv_lpm": 15,
+            "tankVolume_l": 12
+          },
+          "planner": {
+            "ceiling_m": 0,
+            "ndl_min": 5,
+            "tts_min": 7,
+            "schedule": null
+          },
+          "tissues": {
+            "n2_bar": [
+              2.178374874999998,
+              1.851589781631612,
+              1.5565292262334818,
+              1.3395698449341564,
+              1.174554370468318,
+              1.0578546747428932,
+              0.9702252441115007,
+              0.9055125271499722,
+              0.858589660597955,
+              0.8293613059658069,
+              0.8102307127069819,
+              0.7952713309978823,
+              0.7835464200947864,
+              0.7742405731294186,
+              0.7669670707377443,
+              0.7612808957883448
+            ],
+            "he_bar": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "tanks": [
+            {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79,
+              "volume_l": 12,
+              "pressure_bar": 200,
+              "gasRemaining_l": 2400,
+              "switchDepth_m": null
+            }
+          ],
+          "ccr": {
+            "targetPO2_bar": 1.3,
+            "actualPO2_bar": 1.3,
+            "diluent": {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79
+            },
+            "o2Pressure_bar": 196.0000000000008,
+            "diluentPressure_bar": 200,
+            "scrubberRemaining_min": 170.00000000000057,
+            "onBailout": false
+          },
+          "events": []
+        },
+        {
+          "schemaVersion": 1,
+          "scenarioId": "ccr-bailout-30m",
+          "checkpointId": "bailed-out",
+          "state": {
+            "gameState": "diving",
+            "diveMode": "ccr",
+            "diveSite": "shore",
+            "depth_m": 30,
+            "maxDepth_m": 30,
+            "diveTime_min": 10.02499999999998,
+            "diverX_m": 0,
+            "verticalVelocity_mpm": 0,
+            "horizontalVelocity_mps": 0,
+            "activeTankIndex": 0,
+            "cns_percent": 5.614000000000004,
+            "narcosisIndex": 0.3298111942815718,
+            "safetyStop": {
+              "needed": true,
+              "remaining_min": 0,
+              "countdownStarted": false,
+              "paused": false,
+              "complete": false
+            }
+          },
+          "configuration": {
+            "gfLow_percent": 35,
+            "gfHigh_percent": 75,
+            "amv_lpm": 15,
+            "tankVolume_l": 12
+          },
+          "planner": {
+            "ceiling_m": 0,
+            "ndl_min": 3,
+            "tts_min": 7,
+            "schedule": null
+          },
+          "tissues": {
+            "n2_bar": [
+              2.180033136108411,
+              1.8533339464115959,
+              1.558054684264924,
+              1.3408039190429661,
+              1.1755059378685506,
+              1.0585783443623655,
+              0.9707636723612991,
+              0.9059068036304483,
+              0.8588756545298106,
+              0.8295782951799933,
+              0.8104019016376462,
+              0.7954063597413068,
+              0.7836528964695231,
+              0.7743242571033131,
+              0.7670328597840503,
+              0.7613326463404699
+            ],
+            "he_bar": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "tanks": [
+            {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79,
+              "volume_l": 12,
+              "pressure_bar": 200,
+              "gasRemaining_l": 2400,
+              "switchDepth_m": null
+            }
+          ],
+          "ccr": {
+            "targetPO2_bar": 1.3,
+            "actualPO2_bar": 1.3,
+            "diluent": {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79
+            },
+            "o2Pressure_bar": 195.9900000000008,
+            "diluentPressure_bar": 200,
+            "scrubberRemaining_min": 169.97500000000056,
+            "onBailout": true
+          },
+          "events": []
+        },
+        {
+          "schemaVersion": 1,
+          "scenarioId": "ccr-bailout-30m",
+          "checkpointId": "bailout-ascent-18m",
+          "state": {
+            "gameState": "diving",
+            "diveMode": "ccr",
+            "diveSite": "shore",
+            "depth_m": 18,
+            "maxDepth_m": 30,
+            "diveTime_min": 11.35833333333332,
+            "diverX_m": 0,
+            "verticalVelocity_mpm": -9,
+            "horizontalVelocity_mps": 0,
+            "activeTankIndex": 0,
+            "cns_percent": 5.935481481481481,
+            "narcosisIndex": 0.1902942286447493,
+            "safetyStop": {
+              "needed": true,
+              "remaining_min": 0,
+              "countdownStarted": false,
+              "paused": false,
+              "complete": false
+            }
+          },
+          "configuration": {
+            "gfLow_percent": 35,
+            "gfHigh_percent": 75,
+            "amv_lpm": 15,
+            "tankVolume_l": 12
+          },
+          "planner": {
+            "ceiling_m": 0,
+            "ndl_min": 15,
+            "tts_min": 7,
+            "schedule": null
+          },
+          "tissues": {
+            "n2_bar": [
+              2.2509400456665447,
+              1.9354136613363992,
+              1.632949990849253,
+              1.4026916274516756,
+              1.2238470002198951,
+              1.0956353340323688,
+              0.9984856951102035,
+              0.9262837410084663,
+              0.8736951463946334,
+              0.8408399814427747,
+              0.8192956266504514,
+              0.8024269904131522,
+              0.7891923703988604,
+              0.7786800435673003,
+              0.7704584883815633,
+              0.7640280762479754
+            ],
+            "he_bar": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "tanks": [
+            {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79,
+              "volume_l": 12,
+              "pressure_bar": 200,
+              "gasRemaining_l": 2400,
+              "switchDepth_m": null
+            }
+          ],
+          "ccr": {
+            "targetPO2_bar": 1.3,
+            "actualPO2_bar": 1.3,
+            "diluent": {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79
+            },
+            "o2Pressure_bar": 195.9900000000008,
+            "diluentPressure_bar": 177.51633689436554,
+            "scrubberRemaining_min": 169.97500000000056,
+            "onBailout": true
           },
           "events": []
         }
