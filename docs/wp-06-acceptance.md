@@ -31,6 +31,7 @@ Last updated: 2026-08-01
 | Save restore | Browser test changes authoritative depth, reloads, re-accepts the boundary, and observes the restored depth | Pass locally |
 | Warning accessibility | Packaged browser tests restore valid low-gas, high-oxygen, and failure states and assert the visible `role=alert` copy | Pass locally |
 | Cross-client input trace | One immutable keyboard trace (`ArrowDown` hold, `T` edge-toggle) drives the legacy Canvas and packaged Pixi clients; normalized vertical direction and torch response match | Pass locally; authoritative numerical parity remains covered separately by `tests/parity` |
+| Desktop performance instrumentation | `npm run wp06:perf` measures packaged renderer startup, warmed engine-room frame cadence, JS heap, and bundle bytes | Diagnostic only; never substitutes for physical-device evidence |
 
 ## Remaining WP-06 gates
 
