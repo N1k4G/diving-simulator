@@ -9,24 +9,50 @@ const require = createRequire(import.meta.url);
 const root = path.resolve(import.meta.dirname, '..');
 const port = 4174;
 const baseUrl = `http://127.0.0.1:${port}`;
-const sampleTarget = 300;
-const runCount = 3;
-const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
+const cliArguments = process.argv.slice(2);
+
+function argumentValue(name, fallback) {
+  const index = cliArguments.indexOf(name);
+  return index === -1 ? fallback : cliArguments[index + 1];
+}
+
+const sampleTarget = Number(argumentValue('--samples', '300'));
+const runCount = Number(argumentValue('--runs', '3'));
+const selectedSceneId = argumentValue('--scene', null);
+const servedRoot = path.resolve(root, argumentValue('--serve-root', '.'));
+const outputPath = path.resolve(
+  root,
+  argumentValue('--output', 'artifacts/wp-01/desktop-reference/performance.json')
+);
+const sourceCommit = argumentValue('--source-commit', null) || execFileSync('git', ['rev-parse', 'HEAD'], {
   cwd: root,
   encoding: 'utf8'
 }).trim();
 
-const scenes = [
+const allScenes = [
   { id: 'shore-meadow', site: 'shore', x: 40, depth: 10, torch: false },
   { id: 'reef-plateau', site: 'reef', x: 0, depth: 5, torch: false },
   { id: 'wreck-engine-room', site: 'wreck', x: 102, depth: 58, torch: true },
   { id: 'cave-upper-tunnel', site: 'cave', x: 80, depth: 16, torch: true }
 ];
+const scenes = selectedSceneId
+  ? allScenes.filter(scene => scene.id === selectedSceneId)
+  : allScenes;
+
+if (!Number.isInteger(sampleTarget) || sampleTarget < 1) {
+  throw new Error('--samples must be a positive integer');
+}
+if (!Number.isInteger(runCount) || runCount < 1) {
+  throw new Error('--runs must be a positive integer');
+}
+if (!scenes.length) {
+  throw new Error(`unknown --scene value: ${selectedSceneId}`);
+}
 
 const server = spawn(
   process.execPath,
-  [require.resolve('http-server/bin/http-server'), root, '-p', String(port), '--silent'],
-  { cwd: root, stdio: 'ignore', windowsHide: true }
+  [require.resolve('http-server/bin/http-server'), servedRoot, '-p', String(port), '--silent'],
+  { cwd: servedRoot, stdio: 'ignore', windowsHide: true }
 );
 
 async function waitForServer() {
@@ -60,9 +86,9 @@ try {
     for (const scene of scenes) {
       for (let run = 1; run <= runCount; run++) {
         console.log(`capturing ${scene.id} run ${run}/${runCount}`);
-        await page.goto(`${baseUrl}/src/diving-simulator.html?diagnostics=1`);
+        await page.goto(`${baseUrl}/src/diving-simulator.html?diagnostics=1&diagnosticsOverlay=0`);
         await page.waitForFunction(() => Boolean(window.gameAPI));
-        runs.push(await page.evaluate(({ sceneConfig, runNumber, commit, target }) => {
+        runs.push(await page.evaluate(async ({ sceneConfig, runNumber, commit, target }) => {
           const api = window.gameAPI;
           api.gameState = 'diving';
           api.diveMode = 'rec';
@@ -85,10 +111,22 @@ try {
             sourceCommit: commit,
             acceptanceClass: 'desktop-synthetic-reference'
           };
-          api.resetDiagnostics({ warmupFor: context.runId });
-          api.runBaselineDiagnosticFrames(30, 0);
-          api.resetDiagnostics(context);
-          return api.runBaselineDiagnosticFrames(target, 0);
+          window.__baselineCapturePaused = true;
+          try {
+            api.resetDiagnostics({ warmupFor: context.runId });
+            for (let frame = 0; frame < 30; frame++) {
+              api.runBaselineDiagnosticFrames(1, 0);
+              await new Promise(resolve => setTimeout(resolve, 0));
+            }
+            api.resetDiagnostics(context);
+            for (let frame = 0; frame < target; frame++) {
+              api.runBaselineDiagnosticFrames(1, 0);
+              await new Promise(resolve => setTimeout(resolve, 0));
+            }
+            return api.exportDiagnostics();
+          } finally {
+            window.__baselineCapturePaused = false;
+          }
         }, {
           sceneConfig: scene,
           runNumber: run,
@@ -103,12 +141,13 @@ try {
       schemaVersion: 1,
       kind: 'diving-simulator-performance-baseline',
       sourceCommit,
-      generatedBy: 'npm run baseline:perf',
+      generatedBy: `npm run baseline:perf -- ${cliArguments.join(' ')}`.trim(),
       acceptanceClass: 'desktop-synthetic-reference',
       acceptanceLimitations: [
         'Headless desktop Chromium is diagnostic evidence only.',
         'This artifact does not satisfy any physical Android or iOS gate.',
-        'Compare changes only on the same machine, browser build, viewport and DPR.'
+        'Compare changes only on the same machine, browser build, viewport and DPR.',
+        'The update metric uses dtReal=0 to isolate CPU cost; it is not representative of a live simulation tick.'
       ],
       sampling: {
         warmedSamplesPerRun: sampleTarget,
@@ -118,10 +157,10 @@ try {
       scenes,
       runs
     };
-    const outputDirectory = path.join(root, 'artifacts', 'wp-01', 'desktop-reference');
+    const outputDirectory = path.dirname(outputPath);
     await mkdir(outputDirectory, { recursive: true });
     await writeFile(
-      path.join(outputDirectory, 'performance.json'),
+      outputPath,
       `${JSON.stringify(artifact, null, 2)}\n`,
       'utf8'
     );
@@ -130,4 +169,5 @@ try {
   }
 } finally {
   server.kill();
+  server.unref();
 }

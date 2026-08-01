@@ -1,15 +1,16 @@
 // WP-01 baseline diagnostics.
 //
 // The collector is opt-in so ordinary and deployed sessions pay only a few
-// boolean checks. Enable it with `?diagnostics=1`. A later Vite entry can omit
-// this file entirely from production builds without changing the evidence
-// contract.
+// boolean checks. Enable it with `?diagnostics=1`. game-loop.js supplies a
+// no-op observer when this optional script is omitted.
 (function() {
     'use strict';
 
     var FRAME_BUDGET_MS = 16.67;
     var MAX_SAMPLES = 1200;
     var enabled = new URLSearchParams(window.location.search).get('diagnostics') === '1';
+    var overlayEnabled = enabled &&
+        new URLSearchParams(window.location.search).get('diagnosticsOverlay') !== '0';
     var context = {};
     var samples = {};
     var overlay = null;
@@ -32,13 +33,16 @@
     }
 
     function record(name, startedAt) {
-        if (!enabled || !samples[name] || !startedAt) return;
+        if (!enabled || !startedAt) return;
+        if (!samples[name]) samples[name] = [];
         var duration = performance.now() - startedAt;
         if (!Number.isFinite(duration) || duration < 0) return;
         var series = samples[name];
         series.push(duration);
         if (series.length > MAX_SAMPLES) series.shift();
-        renderOverlay(false);
+        if (name === 'frame' || name === 'update' || name === 'planner' || name === 'render') {
+            renderOverlay(false);
+        }
     }
 
     function percentile(sorted, fraction) {
@@ -66,7 +70,7 @@
         for (var i = 0; i < series.length; i++) {
             if (series[i] > FRAME_BUDGET_MS) {
                 longFrameCount++;
-                longFrameTime += series[i];
+                longFrameTime += series[i] - FRAME_BUDGET_MS;
             }
         }
         return {
@@ -106,7 +110,7 @@
     }
 
     function ensureOverlay() {
-        if (!enabled || overlay || !document.body) return;
+        if (!overlayEnabled || overlay || !document.body) return;
         overlay = document.createElement('pre');
         overlay.id = 'baseline-diagnostics';
         overlay.setAttribute('aria-hidden', 'true');
@@ -126,7 +130,7 @@
     }
 
     function renderOverlay(force) {
-        if (!enabled) return;
+        if (!overlayEnabled) return;
         var now = performance.now();
         if (!force && now - lastOverlayUpdate < 500) return;
         lastOverlayUpdate = now;

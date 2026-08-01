@@ -25,6 +25,16 @@
 // SECTION: Surface and diving update functions
 // SEARCH TERMS: updateSurface, updateDiving, fastForwardActive, gameOverReason
 
+// Diagnostics are an optional observer. Keep the reference client runnable
+// when diagnostics.js is omitted from a production or legacy script list.
+var DIAG = window.baselineDiagnostics || {
+    enabled: false,
+    start: function() { return 0; },
+    record: function() {},
+    reset: function() {},
+    exportSnapshot: function() { return null; }
+};
+
 // Phase A: Exertion multiplier for gas consumption while kicking.
 function effectiveAMV(kicking) {
     return amvRate * (kicking ? FINKICK_PARAMS.exertionFactor : 1);
@@ -470,7 +480,7 @@ function updateDiving(dtReal) {
     // renderer's reads later this same frame, use these values instead of
     // recomputing (calculateDecoSchedule() alone was up to ~3000 iterations,
     // previously invoked up to 3x per frame across game-loop.js + renderer.js).
-    var _plannerDiagnosticStart = window.baselineDiagnostics.start();
+    var _plannerDiagnosticStart = DIAG.start();
     frameCalc.ceiling = calculateCeiling();
     frameCalc.ndl = calculateNDL();
     // Issue #14: pass the ceiling just computed above straight through so
@@ -480,7 +490,7 @@ function updateDiving(dtReal) {
     // time this same tick — it previously did both unconditionally.
     frameCalc.schedule = decoStop(frameCalc.ceiling) > 0 ? calculateDecoSchedule(frameCalc.ceiling) : null;
     frameCalc.tts = calculateTTS(frameCalc.ceiling, frameCalc.schedule);
-    window.baselineDiagnostics.record('planner', _plannerDiagnosticStart);
+    DIAG.record('planner', _plannerDiagnosticStart);
 
     // WP-038: Update CNS tracking
     updateCNS(dtDiveMinutes);
@@ -1112,7 +1122,11 @@ function computeBackwayState() {
 // ============================================================
 
 function gameLoop(timestamp) {
-    var _frameDiagnosticStart = window.baselineDiagnostics.start();
+    if (window.__baselineCapturePaused) {
+        requestAnimationFrame(gameLoop);
+        return;
+    }
+    var _frameDiagnosticStart = DIAG.start();
     if (!lastFrameTime) lastFrameTime = timestamp;
     var dtReal = (timestamp - lastFrameTime) / 1000;
     lastFrameTime = timestamp;
@@ -1137,17 +1151,17 @@ function gameLoop(timestamp) {
         case 'diving':
             document.getElementById('html-gas-setup').style.display = 'none';
             if (!showHelp && !showGasInfo) {
-                var _updateDiagnosticStart = window.baselineDiagnostics.start();
+                var _updateDiagnosticStart = DIAG.start();
                 updateDiving(dtReal);
-                window.baselineDiagnostics.record('update', _updateDiagnosticStart);
+                DIAG.record('update', _updateDiagnosticStart);
             }
-            var _renderDiagnosticStart = window.baselineDiagnostics.start();
+            var _renderDiagnosticStart = DIAG.start();
             drawScene();
             drawDiveComputer();
             // Issue #45: torch-flicker pre-roll for the lightFailure drill.
             // Only fires when drillState.phase === 'flicker' && id === 'lightFailure'.
             drawDrillFlicker();
-            window.baselineDiagnostics.record('render', _renderDiagnosticStart);
+            DIAG.record('render', _renderDiagnosticStart);
             if (showHelp && !_helpShown) { showHtmlHelp(); _helpShown = true; }
             if (!showHelp && _helpShown) { hideHtmlHelp(); _helpShown = false; }
             break;
@@ -1160,7 +1174,7 @@ function gameLoop(timestamp) {
             // gas / tissue / clock updates run.
             document.getElementById('html-gas-setup').style.display = 'none';
             _updateDrillTiming(dtReal);
-            _renderDiagnosticStart = window.baselineDiagnostics.start();
+            _renderDiagnosticStart = DIAG.start();
             drawScene();
             drawDiveComputer();
             if (drillState.phase === 'debrief') {
@@ -1181,16 +1195,16 @@ function gameLoop(timestamp) {
                     }
                 }
             }
-            window.baselineDiagnostics.record('render', _renderDiagnosticStart);
+            DIAG.record('render', _renderDiagnosticStart);
             break;
         case 'gameover':
             document.getElementById('html-gas-setup').style.display = 'none';
             // TASK-031D: Close gas info on gameover
             if (_gasInfoShown) { hideHtmlGasInfo(); _gasInfoShown = false; }
-            _renderDiagnosticStart = window.baselineDiagnostics.start();
+            _renderDiagnosticStart = DIAG.start();
             drawScene();
             drawGameOver();
-            window.baselineDiagnostics.record('render', _renderDiagnosticStart);
+            DIAG.record('render', _renderDiagnosticStart);
             if (keys['enter']) {
                 keys['enter'] = false;
                 gameState = 'gas-setup';
@@ -1213,7 +1227,7 @@ function gameLoop(timestamp) {
     // Periodic dive state save + beforeunload guard
     maybeSaveDiveState(timestamp);
 
-    window.baselineDiagnostics.record('frame', _frameDiagnosticStart);
+    DIAG.record('frame', _frameDiagnosticStart);
     requestAnimationFrame(gameLoop);
 }
 
@@ -1810,26 +1824,26 @@ function captureBaselineCheckpoint(scenarioId, checkpointId) {
 }
 
 function runBaselineDiagnosticFrames(count, dtReal) {
-    if (!window.baselineDiagnostics.enabled) {
+    if (!DIAG.enabled) {
         throw new Error('diagnostics must be enabled with ?diagnostics=1');
     }
     count = Math.max(1, Math.min(1000, Math.floor(count)));
     dtReal = Number.isFinite(dtReal) ? Math.max(0, Math.min(0.1, dtReal)) : 0;
 
     for (var i = 0; i < count; i++) {
-        var frameStarted = window.baselineDiagnostics.start();
-        var updateStarted = window.baselineDiagnostics.start();
+        var frameStarted = DIAG.start();
+        var updateStarted = DIAG.start();
         updateDiving(dtReal);
-        window.baselineDiagnostics.record('update', updateStarted);
+        DIAG.record('update', updateStarted);
 
-        var renderStarted = window.baselineDiagnostics.start();
+        var renderStarted = DIAG.start();
         drawScene();
         drawDiveComputer();
         drawDrillFlicker();
-        window.baselineDiagnostics.record('render', renderStarted);
-        window.baselineDiagnostics.record('frame', frameStarted);
+        DIAG.record('render', renderStarted);
+        DIAG.record('frame', frameStarted);
     }
-    return window.baselineDiagnostics.exportSnapshot();
+    return DIAG.exportSnapshot();
 }
 
 (function _wireResumeBanner() {
@@ -1849,9 +1863,9 @@ window.gameAPI = {
     // `function` declarations do). Expose the live object directly — tests
     // need to observe real keydown/keyup mutations, not a snapshot.
     get keys() { return keys; },
-    get diagnosticsEnabled() { return window.baselineDiagnostics.enabled; },
-    resetDiagnostics: function(context) { window.baselineDiagnostics.reset(context); },
-    exportDiagnostics: function() { return window.baselineDiagnostics.exportSnapshot(); },
+    get diagnosticsEnabled() { return DIAG.enabled; },
+    resetDiagnostics: function(context) { DIAG.reset(context); },
+    exportDiagnostics: function() { return DIAG.exportSnapshot(); },
     captureBaselineCheckpoint: captureBaselineCheckpoint,
     runBaselineDiagnosticFrames: runBaselineDiagnosticFrames,
     get depth() { return depth; },

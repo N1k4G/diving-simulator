@@ -35,14 +35,18 @@ window.gameAPI.resetDiagnostics({
 window.gameAPI.exportDiagnostics();
 ```
 
-For deterministic direct CPU sampling without RAF pacing:
+For deterministic direct CPU sampling with event-loop yielding between frames:
 
 ```js
 window.gameAPI.runBaselineDiagnosticFrames(300, 0);
 ```
 
 Direct sampling is useful for same-machine comparisons but does not measure
-presented FPS or GPU pacing.
+presented FPS or GPU pacing. The canonical harness disables the diagnostics
+overlay, pauses the page's RAF loop, and yields after every warm-up and capture
+frame so long synchronous tasks do not inflate the measurements. It passes
+`dtReal=0` to isolate update/render CPU cost; the update metric therefore does
+not represent the cost of a live simulation tick.
 
 Record at least 300 warmed samples per scene and device for each of three
 independent runs. A device record must include model, OS, browser/WebView,

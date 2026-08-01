@@ -62,6 +62,28 @@ test('baseline: diagnostics are opt-in and export named metrics', async ({ page 
   expect(direct.metrics.render.sampleCount).toBe(5);
 });
 
+test('baseline: reference client boots when diagnostics.js is absent', async ({ page }) => {
+  await page.route('**/src/diving-simulator.html', async route => {
+    const response = await route.fetch();
+    const body = (await response.text()).replace(
+      /\s*<script src="diagnostics\.js"><\/script>/,
+      ''
+    );
+    await route.fulfill({ response, body });
+  });
+
+  await page.goto('/src/diving-simulator.html');
+  await page.waitForFunction(() => Boolean(window.gameAPI));
+  expect(await page.evaluate(() => window.gameAPI.diagnosticsEnabled)).toBe(false);
+  expect(await page.evaluate(() => window.gameAPI.exportDiagnostics())).toBeNull();
+
+  await page.evaluate(() => {
+    window.gameAPI.gameState = 'surface';
+    window.gameAPI.setKeys({ s: true });
+  });
+  await page.waitForFunction(() => window.gameAPI.gameState === 'diving');
+});
+
 test('baseline: generated contracts are complete and internally consistent', async () => {
   const traces = readJson('tests/fixtures/traces/baseline-v1.json');
   const tests = readJson('docs/baseline/test-inventory.json');
