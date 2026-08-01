@@ -1,6 +1,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const Ajv2020 = require('ajv/dist/2020').default;
+const addFormats = require('ajv-formats');
 const { test, expect } = require('@playwright/test');
+const { runBaselineScenarios } = require('../scripts/baseline-scenarios.cjs');
+const { compareCheckpoint, epsilonFor } = require('./helpers/compare-checkpoint.cjs');
 
 const root = path.resolve(__dirname, '..');
 
@@ -93,13 +97,27 @@ test('baseline: generated contracts are complete and internally consistent', asy
   const performance = readJson('artifacts/wp-01/desktop-reference/performance.json');
   const traceSchema = readJson('docs/baseline/schemas/trace.schema.json');
   const performanceSchema = readJson('docs/baseline/schemas/performance.schema.json');
+  const ajv = new Ajv2020({ allErrors: true, strict: true });
+  addFormats(ajv);
+  const validateTraces = ajv.compile(traceSchema);
+  const validatePerformanceRun = ajv.compile(performanceSchema);
+
+  expect(validateTraces(traces), ajv.errorsText(validateTraces.errors)).toBe(true);
+  for (const run of performance.runs) {
+    expect(
+      validatePerformanceRun(run),
+      ajv.errorsText(validatePerformanceRun.errors)
+    ).toBe(true);
+  }
 
   expect(traces.schemaVersion).toBe(1);
-  expect(traces.referenceCommit).toBe('30c151f');
+  expect(traces.referenceCommit).toMatch(/^[0-9a-f]{40}$/);
+  expect(tests.referenceCommit).toBe(traces.referenceCommit);
   expect(traces.scenarios.map(scenario => scenario.scenarioId)).toEqual([
     'air-18m-30min',
     'trimix-45m-20min',
-    'ccr-30m-20min'
+    'ccr-30m-30min',
+    'ccr-bailout-30m'
   ]);
   for (const scenario of traces.scenarios) {
     expect(scenario.checkpoints.length).toBeGreaterThan(0);
@@ -109,6 +127,19 @@ test('baseline: generated contracts are complete and internally consistent', asy
       expect(checkpoint.tissues.he_bar).toHaveLength(16);
     }
   }
+
+  const [air, trimix, ccr, bailout] = traces.scenarios;
+  expect(air.checkpoints[1].tanks[0].gasRemaining_l)
+    .toBeLessThan(air.checkpoints[0].tanks[0].gasRemaining_l);
+  expect(air.checkpoints[1].state.cns_percent).toBeGreaterThan(0);
+  expect(air.checkpoints[1].state.safetyStop.needed).toBe(true);
+  expect(air.checkpoints.at(-1).events.length).toBeGreaterThan(0);
+  expect(trimix.checkpoints.at(-1).state.activeTankIndex).toBe(1);
+  expect(ccr.checkpoints[1].ccr.o2Pressure_bar)
+    .toBeLessThan(ccr.checkpoints[0].ccr.o2Pressure_bar);
+  expect(bailout.checkpoints[2].ccr.onBailout).toBe(true);
+  expect(bailout.checkpoints.at(-1).ccr.diluentPressure_bar)
+    .toBeLessThan(bailout.checkpoints[2].ccr.diluentPressure_bar);
 
   expect(tests.legacyHarness.tests.length).toBeGreaterThan(300);
   const testIds = tests.legacyHarness.tests.map(entry => entry.id);
@@ -140,26 +171,49 @@ test('baseline: generated contracts are complete and internally consistent', asy
   expect(performanceSchema.properties.schemaVersion.const).toBe(1);
 });
 
-test('baseline: live checkpoint matches the generated surface fixture', async ({ page }) => {
+test('baseline: tolerance comparison supports exact paths, globs, and overrides', async () => {
+  const policy = {
+    exact: ['state.mode'],
+    absoluteEpsilon: {
+      default: 0.001,
+      'tissues.*_bar': 0.01,
+      'planner.ceiling_m': 0.000001
+    }
+  };
+  expect(epsilonFor('tissues.n2_bar.0', policy)).toBe(0.01);
+  expect(epsilonFor('planner.ceiling_m', policy)).toBe(0.000001);
+  expect(compareCheckpoint(
+    { state: { mode: 'tec' }, tissues: { n2_bar: [1] }, planner: { ceiling_m: 3 } },
+    { state: { mode: 'tec' }, tissues: { n2_bar: [1.005] }, planner: { ceiling_m: 3.0000005 } },
+    policy
+  )).toEqual([]);
+  expect(compareCheckpoint(
+    { state: { mode: 'tec' }, tissues: { n2_bar: [1] }, planner: { ceiling_m: 3 } },
+    { state: { mode: 'rec' }, tissues: { n2_bar: [1.02] }, planner: { ceiling_m: 3.00001 } },
+    policy
+  )).toHaveLength(3);
+});
+
+test('baseline: every live checkpoint matches its fixture within declared tolerances', async ({ page }) => {
+  test.setTimeout(180000);
   const traces = readJson('tests/fixtures/traces/baseline-v1.json');
-  const expected = traces.scenarios[0].checkpoints[0];
 
   await page.goto('/src/diving-simulator.html');
   await page.waitForFunction(() => Boolean(window.gameAPI));
-  const actual = await page.evaluate(() => {
-    const api = window.gameAPI;
-    api.diveMode = 'rec';
-    api.tanks.length = 0;
-    api.tankCount = 0;
-    api.resetDive();
-    api.initTissues();
-    api.initCCR();
-    api.pushTank(0.21, 0, 200);
-    api.activeTank = 0;
-    api.diveSite = 'shore';
-    api.gameState = 'diving';
-    return api.captureBaselineCheckpoint('air-18m-30min', 'surface');
-  });
+  const actualScenarios = await page.evaluate(runBaselineScenarios);
 
-  expect(actual).toEqual(expected);
+  expect(actualScenarios).toHaveLength(traces.scenarios.length);
+  for (let scenarioIndex = 0; scenarioIndex < traces.scenarios.length; scenarioIndex++) {
+    const expectedScenario = traces.scenarios[scenarioIndex];
+    const actualScenario = actualScenarios[scenarioIndex];
+    expect(actualScenario.scenarioId).toBe(expectedScenario.scenarioId);
+    expect(actualScenario.checkpoints).toHaveLength(expectedScenario.checkpoints.length);
+    for (let checkpointIndex = 0; checkpointIndex < expectedScenario.checkpoints.length; checkpointIndex++) {
+      const expected = expectedScenario.checkpoints[checkpointIndex];
+      const actual = actualScenario.checkpoints[checkpointIndex];
+      const failures = compareCheckpoint(expected, actual, traces.tolerances);
+      expect(failures, `${expected.scenarioId}/${expected.checkpointId}\n${failures.join('\n')}`)
+        .toEqual([]);
+    }
+  }
 });

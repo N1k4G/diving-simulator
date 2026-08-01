@@ -13,6 +13,12 @@ checkpoints, and inventories the legacy in-browser tests. Do not hand-edit
 calculated values in `tests/fixtures/traces/baseline-v1.json`. Change the
 generator, review the behavior difference, and regenerate.
 
+The scenarios drive the real `updateDiving()` lifecycle, including tissue and
+gas consumption, CNS tracking, safety-stop state, event capture, CCR cylinder
+use, a technical ascent and gas switch, and CCR bailout. Playwright replays
+every checkpoint with the exact/epsilon/glob policy stored in the fixture; JSON
+Schema validation is enforced with Ajv Draft 2020-12.
+
 ## Collect performance evidence
 
 Open:
@@ -67,9 +73,16 @@ npm run baseline:perf
 It writes `artifacts/wp-01/desktop-reference/performance.json`. The artifact is
 diagnostic evidence only and labels itself accordingly.
 
-## Reference client
+## Coverage boundaries
 
-The reference commit is `30c151f`. The legacy harness remains the behavioral
-oracle until WP-12. Its current cases are generated into
-`docs/baseline/test-inventory.json`; assertions migrate incrementally rather
-than disappearing during extraction.
+The generated fixture and test inventory record the full current Git commit as
+their `referenceCommit`; tests require those values to agree. The legacy
+harness remains the behavioral oracle until WP-12. Its current cases are
+generated into `docs/baseline/test-inventory.json`; assertions migrate
+incrementally rather than disappearing during extraction.
+
+Controlled hypoxia/hyperoxia and injected failure traces remain in WP-03, where
+the extracted model owns those transitions. Save/resume continuity remains in
+WP-05 alongside schema migration. These are explicit deferrals, not claims of
+current baseline coverage. Physical Android/iOS evidence, domain review, and
+legal review remain `BLOCKED_EXTERNAL`.

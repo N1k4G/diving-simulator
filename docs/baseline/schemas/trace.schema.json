@@ -39,6 +39,12 @@
         "absoluteEpsilon": {
           "type": "object",
           "required": ["default"],
+          "properties": {
+            "default": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
           "additionalProperties": {
             "type": "number",
             "minimum": 0

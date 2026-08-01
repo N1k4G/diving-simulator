@@ -23,11 +23,31 @@
     "context": { "type": "object" },
     "environment": {
       "type": "object",
-      "required": ["userAgent", "viewportCssPx", "devicePixelRatio"]
+      "additionalProperties": false,
+      "required": ["userAgent", "viewportCssPx", "devicePixelRatio"],
+      "properties": {
+        "userAgent": { "type": "string", "minLength": 1 },
+        "viewportCssPx": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["width", "height"],
+          "properties": {
+            "width": { "type": "number", "exclusiveMinimum": 0 },
+            "height": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        },
+        "devicePixelRatio": { "type": "number", "exclusiveMinimum": 0 }
+      }
     },
     "metrics": {
       "type": "object",
       "required": ["frame", "update", "planner", "render"],
+      "properties": {
+        "frame": { "$ref": "#/$defs/metric" },
+        "update": { "$ref": "#/$defs/metric" },
+        "planner": { "$ref": "#/$defs/metric" },
+        "render": { "$ref": "#/$defs/metric" }
+      },
       "additionalProperties": { "$ref": "#/$defs/metric" }
     }
   },
