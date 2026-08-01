@@ -1,7 +1,7 @@
 name: PR Checks
 
-# Runs on every pull request targeting main: lint, the game test suite, and a
-# set of review screenshots. Deployment lives in deploy.yml and only runs on
+# Runs on every pull request targeting main: both client checks and a set of
+# review screenshots. Deployment lives in deploy.yml and only runs on
 # push to main (i.e. after a PR is merged) — nothing here deploys.
 on:
   pull_request:
@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build and type-check migration client
+        run: npm run build
+
       - name: Lint
         run: npm run lint
 
@@ -36,8 +39,11 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Run game tests
-        run: npm test
+      - name: Run migration client unit tests
+        run: npm run test:unit
+
+      - name: Run legacy client tests
+        run: npm run test:e2e
 
       - name: Generate review screenshots
         run: npm run screenshots

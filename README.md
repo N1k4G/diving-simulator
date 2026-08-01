@@ -182,24 +182,33 @@ Four authored sites, each playable with any dive mode, selected on the gas-setup
 
 ## Testing
 
-Open `src/diving-simulator-tests.html` in a browser to run the automated test suite. Tests cover decompression math, gas consumption, PO₂ calculations, breathing cycle, AMV bounds, and gameAPI integration.
+Open `src/diving-simulator-tests.html` in a browser to run the legacy client's automated test suite. Tests cover decompression math, gas consumption, PO₂ calculations, breathing cycle, AMV bounds, and gameAPI integration.
 
-The same suite runs headless under Playwright via `npm test` (it loads the test harness and asserts `window.testResults`).
+The same suite runs headless under Playwright via `npm run test:e2e` (it loads the test harness and asserts `window.testResults`). The migration client has an independent Vitest unit suite.
 
 ## Development & CI
 
-The game is plain HTML/CSS/JS with no build step. Install dev tooling with `npm install`, then:
+The production game remains the plain HTML/CSS/JS client during the migration. A separate TypeScript/Vite bootstrap at the repository root provides the new client without changing `src/diving-simulator.html` or its script order. Install tooling with `npm install`, then:
 
 | Command | What it does |
 |---------|--------------|
-| `npm run lint` | ESLint over `src/*.js` (a `husky` pre-commit hook also lints staged files with `--max-warnings=0`) |
-| `npm test` | Runs the in-browser test suite headless via Playwright |
+| `npm run dev` | Starts the new Vite migration client with source maps |
+| `npm run dev:legacy` | Serves the unchanged legacy client at `src/diving-simulator.html` |
+| `npm run build` | Type-checks and creates the migration client production bundle in `dist/` |
+| `npm run typecheck` | Runs strict TypeScript checks without emitting files |
+| `npm run lint` | Lints TypeScript, legacy JavaScript, tests, scripts, and configuration |
+| `npm test` | Runs migration unit tests, then the full legacy Playwright suite |
+| `npm run test:unit` | Runs the migration client's Vitest suite |
+| `npm run test:legacy` | Runs the focused legacy Playwright smoke test |
+| `npm run test:parity` | Runs the deterministic legacy baseline trace test |
+| `npm run test:e2e` | Runs the full legacy Playwright suite |
+| `npm run test:perf` | Captures the opt-in performance baseline |
 | `npm run screenshots` | Captures review screenshots (phone + desktop, setup + in-dive) to `screenshots/` via `scripts/screenshots.mjs` |
 
 **CI pipelines** (GitHub Actions):
 
-- **`.github/workflows/pr.yml`** — runs on every pull request to `main`: lint → tests → review screenshots (uploaded as artifacts). It **does not deploy**.
-- **`.github/workflows/deploy.yml`** — runs on push to `main` (i.e. after a PR is merged): lint → tests, then deploys to Cloudflare Pages.
+- **`.github/workflows/pr.yml`** — runs on every pull request to `main`: migration build/type-check → lint/license checks → migration unit tests → legacy browser tests → review screenshots (uploaded as artifacts). It **does not deploy**.
+- **`.github/workflows/deploy.yml`** — runs the same dual-client checks on push to `main` (i.e. after a PR is merged), then deploys the legacy client to Cloudflare Pages until the migration cutover.
 
 So a PR is fully checked (and produces screenshots for review) before merge, and deployment only happens once the change lands on `main`.
 
