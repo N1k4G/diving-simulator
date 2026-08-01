@@ -32,6 +32,15 @@ test('production starts the Pixi wreck shell with semantic HUD and controls', as
     'aria-pressed',
     'true',
   );
+  await expect(page.getByRole('button', { name: 'Mute audio' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  await page.getByRole('button', { name: 'Mute audio' }).click();
+  await expect(page.getByRole('button', { name: 'Mute audio' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
 
   await page.getByRole('button', { name: 'Toggle torch' }).click();
   await expect(page.getByRole('button', { name: 'Toggle torch' })).toHaveAttribute(
@@ -46,4 +55,11 @@ test('production starts the Pixi wreck shell with semantic HUD and controls', as
   await page.keyboard.up('ArrowDown');
   await expect(depthValue).not.toHaveText(initialDepth || '');
   await expect(page.locator('[role="alert"]')).toBeHidden();
+
+  const savedDepth = await depthValue.textContent();
+  await page.reload();
+  await page
+    .getByRole('button', { name: 'I understand — start simulation' })
+    .click();
+  await expect(page.locator('.wreck-hud dd').first()).toHaveText(savedDepth || '');
 });

@@ -1,4 +1,7 @@
 import type { PresentationState } from "../presentation/presentation-state";
+import { WebAudioService } from "../audio/audio-service";
+import type { DiveState } from "../core/dive-state";
+import { LocalSaveRepository } from "../save/save-repository";
 import {
   createSelectedRenderer,
   type WreckZone,
@@ -31,6 +34,7 @@ interface HudElements {
   readonly status: HTMLElement;
   readonly warning: HTMLElement;
   readonly torch: HTMLButtonElement;
+  readonly mute: HTMLButtonElement;
 }
 
 const zoneMessageKeys: Record<WreckZone, MessageKey> = {
@@ -129,22 +133,68 @@ async function startWreckSimulation(
 ): Promise<void> {
   const hud = createWreckShell(locale);
   root.replaceChildren(hud.shell);
+  const audio = new WebAudioService();
+  const audioResume = audio.resume();
   const renderer = await createSelectedRenderer();
+  const repository = new LocalSaveRepository(window.localStorage);
+  const loadResult = repository.load();
+  let nextSaveAtS = 5;
   const controller = new GameController({
     renderer,
-    onFrame: (frame) => updateHud(hud, frame, locale),
+    initialState:
+      loadResult.status === "loaded" ? loadResult.saveGame.state : undefined,
+    onAuthoritativeState: (state) => {
+      if (state.elapsedTimeS >= nextSaveAtS) {
+        saveState(repository, state);
+        nextSaveAtS = state.elapsedTimeS + 5;
+      }
+    },
+    onFrame: (frame) => {
+      updateHud(hud, frame, locale);
+      audio.update({
+        elapsedRealS: frame.scene.elapsedRealS,
+        warningActive: selectWarning(frame.presentation) !== null,
+      });
+    },
   });
 
   bindContinuousControl(hud.shell, controller);
   hud.torch.addEventListener("click", () => controller.toggleTorch());
-  window.addEventListener("pagehide", () => controller.destroy(), {
+  hud.mute.addEventListener("click", () => {
+    audio.setMuted(!audio.muted);
+    hud.mute.setAttribute("aria-pressed", String(audio.muted));
+  });
+  const handleVisibility = () => {
+    const action = document.hidden ? audio.suspend() : audio.resume();
+    void action.catch((error: unknown) => console.error(error));
+  };
+  document.addEventListener("visibilitychange", handleVisibility);
+  window.addEventListener("pagehide", () => {
+    document.removeEventListener("visibilitychange", handleVisibility);
+    saveState(repository, controller.authoritativeState);
+    controller.destroy();
+    audio.destroy();
+  }, {
     once: true,
   });
   try {
+    await audioResume;
     await controller.start(hud.viewport);
   } catch (error) {
     controller.destroy();
+    audio.destroy();
     throw error;
+  }
+}
+
+function saveState(
+  repository: LocalSaveRepository,
+  state: DiveState,
+): void {
+  try {
+    repository.save(state);
+  } catch (error) {
+    console.error(error);
   }
 }
 
@@ -165,7 +215,16 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     translate(locale, "wreck.hud.normal"),
   );
   normalStatus.setAttribute("aria-label", translate(locale, "wreck.hud.status"));
-  topbar.append(identity, normalStatus);
+  const topbarActions = document.createElement("div");
+  topbarActions.className = "topbar-actions";
+  const mute = document.createElement("button");
+  mute.type = "button";
+  mute.className = "audio-control";
+  mute.setAttribute("aria-label", translate(locale, "wreck.controls.mute"));
+  mute.setAttribute("aria-pressed", "false");
+  mute.textContent = translate(locale, "wreck.symbol.audio");
+  topbarActions.append(normalStatus, mute);
+  topbar.append(identity, topbarActions);
 
   const viewport = document.createElement("div");
   viewport.className = "wreck-viewport";
@@ -229,6 +288,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     status: normalStatus,
     warning,
     torch,
+    mute,
   };
 }
 

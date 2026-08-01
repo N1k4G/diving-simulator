@@ -1,6 +1,7 @@
 import {
   createInitialDiveState,
   freezeDiveState,
+  type DiveState,
 } from "../core/dive-state";
 import { DiveModel } from "../core/dive-model";
 import { NO_INPUT, type InputIntent } from "../core/inputs";
@@ -39,12 +40,15 @@ export interface GameControllerOptions {
   readonly renderer: SceneRenderer;
   readonly onFrame: (frame: Readonly<GameFrame>) => void;
   readonly plannerClient?: PlannerWorkerClient;
+  readonly initialState?: DiveState;
+  readonly onAuthoritativeState?: (state: DiveState) => void;
 }
 
 export class GameController {
   readonly #renderer: SceneRenderer;
   readonly #onFrame: (frame: Readonly<GameFrame>) => void;
   readonly #plannerClient: PlannerWorkerClient;
+  readonly #onAuthoritativeState: ((state: DiveState) => void) | null;
   readonly #forecastScheduler = new ForecastScheduler();
   readonly #pressed = new Set<ContinuousControl>();
   readonly #model: DiveModel;
@@ -66,15 +70,19 @@ export class GameController {
   constructor(options: Readonly<GameControllerOptions>) {
     this.#renderer = options.renderer;
     this.#onFrame = options.onFrame;
+    this.#onAuthoritativeState = options.onAuthoritativeState ?? null;
     this.#plannerClient = options.plannerClient ?? new PlannerWorkerClient();
-    const initial = createInitialDiveState(0x57524543);
-    this.#model = new DiveModel(
-      freezeDiveState({
-        ...initial,
-        depthM: metres(START_DEPTH_M),
-        maxDepthM: metres(START_DEPTH_M),
-      }),
+    const initial = options.initialState ?? createWreckInitialState();
+    this.#model = new DiveModel(initial);
+    this.#diverDepthM = clamp(
+      initial.depthM,
+      MIN_DEPTH_M,
+      MAX_DEPTH_M,
     );
+  }
+
+  get authoritativeState(): DiveState {
+    return this.#model.snapshot;
   }
 
   async start(host: HTMLElement): Promise<void> {
@@ -150,6 +158,7 @@ export class GameController {
         seconds(1),
         this.#createInputIntent(),
       );
+      this.#onAuthoritativeState?.(this.#model.snapshot);
       this.#simulationAccumulatorS -= 1;
       this.#requestForecast();
     }
@@ -284,4 +293,13 @@ function controlForKey(key: string): ContinuousControl | null {
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
+}
+
+function createWreckInitialState(): DiveState {
+  const initial = createInitialDiveState(0x57524543);
+  return freezeDiveState({
+    ...initial,
+    depthM: metres(START_DEPTH_M),
+    maxDepthM: metres(START_DEPTH_M),
+  });
 }

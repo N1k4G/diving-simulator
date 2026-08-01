@@ -247,6 +247,30 @@ summary:focus-visible {
   font-weight: 800;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  pointer-events: auto;
+}
+
+.audio-control {
+  width: 2.3rem;
+  height: 2.3rem;
+  border: 1px solid rgb(131 217 231 / 48%);
+  border-radius: 50%;
+  color: #bcecf4;
+  background: rgb(3 24 32 / 80%);
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.audio-control[aria-pressed="true"] {
+  color: #031117;
+  background: #f6db72;
+  text-decoration: line-through;
+}
+
 .wreck-viewport {
   position: absolute;
   inset: 0;
