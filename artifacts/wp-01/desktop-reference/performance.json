@@ -1,13 +1,14 @@
 {
   "schemaVersion": 1,
   "kind": "diving-simulator-performance-baseline",
-  "sourceCommit": "d7f36081fc59f9495c051df020135dfb8db4a7a4",
-  "generatedBy": "npm run baseline:perf",
+  "sourceCommit": "131542189b7b5042784eba7c6fe68f029c8b1f7c",
+  "generatedBy": "npm run baseline:perf --",
   "acceptanceClass": "desktop-synthetic-reference",
   "acceptanceLimitations": [
     "Headless desktop Chromium is diagnostic evidence only.",
     "This artifact does not satisfy any physical Android or iOS gate.",
-    "Compare changes only on the same machine, browser build, viewport and DPR."
+    "Compare changes only on the same machine, browser build, viewport and DPR.",
+    "The update metric uses dtReal=0 to isolate CPU cost; it is not representative of a live simulation tick."
   ],
   "sampling": {
     "warmedSamplesPerRun": 300,
@@ -48,17 +49,17 @@
     {
       "schemaVersion": 1,
       "kind": "diving-simulator-performance",
-      "capturedAt": "2026-07-31T06:38:23.839Z",
+      "capturedAt": "2026-08-01T20:35:47.536Z",
       "buildVersion": "dev",
       "frameBudgetMs": 16.67,
       "context": {
         "runId": "shore-meadow-1",
         "sceneId": "shore-meadow",
-        "sourceCommit": "d7f36081fc59f9495c051df020135dfb8db4a7a4",
+        "sourceCommit": "131542189b7b5042784eba7c6fe68f029c8b1f7c",
         "acceptanceClass": "desktop-synthetic-reference"
       },
       "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
         "viewportCssPx": {
           "width": 759,
           "height": 839
@@ -68,60 +69,60 @@
       "metrics": {
         "frame": {
           "sampleCount": 300,
-          "minMs": 0.5999999642372131,
-          "medianMs": 1.100000023841858,
-          "p95Ms": 3.599999964237213,
-          "p99Ms": 804.1999999880791,
-          "maxMs": 3201,
-          "longFrameCount": 5,
-          "totalTimeAboveBudgetMsPer1000": 28158.333333333332
+          "minMs": 1,
+          "medianMs": 2.799999952316284,
+          "p95Ms": 5.199999988079071,
+          "p99Ms": 5.699999988079071,
+          "maxMs": 9.700000047683716,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
         },
         "update": {
           "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.19999998807907104,
-          "p95Ms": 0.6000000238418579,
-          "p99Ms": 0.7999999523162842,
-          "maxMs": 1.800000011920929,
+          "minMs": 0.09999996423721313,
+          "medianMs": 0.5,
+          "p95Ms": 1,
+          "p99Ms": 1.399999976158142,
+          "maxMs": 1.600000023841858,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "planner": {
           "sampleCount": 300,
           "minMs": 0,
-          "medianMs": 0.10000002384185791,
-          "p95Ms": 0.40000003576278687,
-          "p99Ms": 0.5,
-          "maxMs": 1.399999976158142,
+          "medianMs": 0.3999999761581421,
+          "p95Ms": 0.800000011920929,
+          "p99Ms": 1,
+          "maxMs": 1.100000023841858,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "render": {
           "sampleCount": 300,
-          "minMs": 0.5,
-          "medianMs": 0.9000000357627869,
-          "p95Ms": 3.100000023841858,
-          "p99Ms": 803.5,
-          "maxMs": 3199.5,
-          "longFrameCount": 5,
-          "totalTimeAboveBudgetMsPer1000": 28141.666666666668
+          "minMs": 0.7999999523162842,
+          "medianMs": 2.200000047683716,
+          "p95Ms": 4.300000011920929,
+          "p99Ms": 4.600000023841858,
+          "maxMs": 8.900000035762787,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
         }
       }
     },
     {
       "schemaVersion": 1,
       "kind": "diving-simulator-performance",
-      "capturedAt": "2026-07-31T06:38:42.435Z",
+      "capturedAt": "2026-08-01T20:36:06.427Z",
       "buildVersion": "dev",
       "frameBudgetMs": 16.67,
       "context": {
         "runId": "shore-meadow-2",
         "sceneId": "shore-meadow",
-        "sourceCommit": "d7f36081fc59f9495c051df020135dfb8db4a7a4",
+        "sourceCommit": "131542189b7b5042784eba7c6fe68f029c8b1f7c",
         "acceptanceClass": "desktop-synthetic-reference"
       },
       "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
         "viewportCssPx": {
           "width": 759,
           "height": 839
@@ -131,60 +132,123 @@
       "metrics": {
         "frame": {
           "sampleCount": 300,
-          "minMs": 2.100000023841858,
-          "medianMs": 2.900000035762787,
-          "p95Ms": 5,
-          "p99Ms": 3207.800000011921,
-          "maxMs": 3386.5,
-          "longFrameCount": 5,
-          "totalTimeAboveBudgetMsPer1000": 53346.99999988079
+          "minMs": 2.199999988079071,
+          "medianMs": 3.800000011920929,
+          "p95Ms": 5.300000011920929,
+          "p99Ms": 6,
+          "maxMs": 7.300000011920929,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
         },
         "update": {
           "sampleCount": 300,
-          "minMs": 0.19999998807907104,
-          "medianMs": 0.5,
-          "p95Ms": 0.699999988079071,
-          "p99Ms": 0.9000000357627869,
-          "maxMs": 1.100000023841858,
+          "minMs": 0.3999999761581421,
+          "medianMs": 0.800000011920929,
+          "p95Ms": 1.100000023841858,
+          "p99Ms": 1.300000011920929,
+          "maxMs": 3.899999976158142,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "planner": {
           "sampleCount": 300,
-          "minMs": 0.10000002384185791,
-          "medianMs": 0.3999999761581421,
-          "p95Ms": 0.5,
-          "p99Ms": 0.699999988079071,
-          "maxMs": 0.800000011920929,
+          "minMs": 0.19999998807907104,
+          "medianMs": 0.6000000238418579,
+          "p95Ms": 0.800000011920929,
+          "p99Ms": 1,
+          "maxMs": 1.100000023841858,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "render": {
+          "sampleCount": 300,
+          "minMs": 1.5999999642372131,
+          "medianMs": 2.900000035762787,
+          "p95Ms": 4.5,
+          "p99Ms": 5,
+          "maxMs": 6.100000023841858,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "diving-simulator-performance",
+      "capturedAt": "2026-08-01T20:36:24.704Z",
+      "buildVersion": "dev",
+      "frameBudgetMs": 16.67,
+      "context": {
+        "runId": "shore-meadow-3",
+        "sceneId": "shore-meadow",
+        "sourceCommit": "131542189b7b5042784eba7c6fe68f029c8b1f7c",
+        "acceptanceClass": "desktop-synthetic-reference"
+      },
+      "environment": {
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
+        "viewportCssPx": {
+          "width": 759,
+          "height": 839
+        },
+        "devicePixelRatio": 1
+      },
+      "metrics": {
+        "frame": {
+          "sampleCount": 300,
+          "minMs": 2.399999976158142,
+          "medianMs": 3.699999988079071,
+          "p95Ms": 5.199999988079071,
+          "p99Ms": 5.800000011920929,
+          "maxMs": 7.399999976158142,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "update": {
+          "sampleCount": 300,
+          "minMs": 0.2999999523162842,
+          "medianMs": 0.800000011920929,
+          "p95Ms": 1.100000023841858,
+          "p99Ms": 1.399999976158142,
+          "maxMs": 2.799999952316284,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "planner": {
+          "sampleCount": 300,
+          "minMs": 0.19999998807907104,
+          "medianMs": 0.5999999642372131,
+          "p95Ms": 0.800000011920929,
+          "p99Ms": 0.8999999761581421,
+          "maxMs": 1.5,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "render": {
           "sampleCount": 300,
           "minMs": 1.699999988079071,
-          "medianMs": 2.5,
-          "p95Ms": 4.299999952316284,
-          "p99Ms": 3206.800000011921,
-          "maxMs": 3385.300000011921,
-          "longFrameCount": 5,
-          "totalTimeAboveBudgetMsPer1000": 53330
+          "medianMs": 2.899999976158142,
+          "p95Ms": 4.300000011920929,
+          "p99Ms": 5.099999964237213,
+          "maxMs": 6.5,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
         }
       }
     },
     {
       "schemaVersion": 1,
       "kind": "diving-simulator-performance",
-      "capturedAt": "2026-07-31T06:38:59.162Z",
+      "capturedAt": "2026-08-01T20:36:42.245Z",
       "buildVersion": "dev",
       "frameBudgetMs": 16.67,
       "context": {
-        "runId": "shore-meadow-3",
-        "sceneId": "shore-meadow",
-        "sourceCommit": "d7f36081fc59f9495c051df020135dfb8db4a7a4",
+        "runId": "reef-plateau-1",
+        "sceneId": "reef-plateau",
+        "sourceCommit": "131542189b7b5042784eba7c6fe68f029c8b1f7c",
         "acceptanceClass": "desktop-synthetic-reference"
       },
       "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
         "viewportCssPx": {
           "width": 759,
           "height": 839
@@ -194,20 +258,335 @@
       "metrics": {
         "frame": {
           "sampleCount": 300,
-          "minMs": 1.5999999642372131,
-          "medianMs": 3,
-          "p95Ms": 4.5,
-          "p99Ms": 2803.199999988079,
-          "maxMs": 3013.800000011921,
-          "longFrameCount": 5,
-          "totalTimeAboveBudgetMsPer1000": 48258.999999960266
+          "minMs": 4,
+          "medianMs": 6,
+          "p95Ms": 8.5,
+          "p99Ms": 10.900000035762787,
+          "maxMs": 13.699999988079071,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
         },
         "update": {
           "sampleCount": 300,
-          "minMs": 0.10000002384185791,
-          "medianMs": 0.5,
-          "p95Ms": 0.699999988079071,
-          "p99Ms": 0.8999999761581421,
+          "minMs": 0.3999999761581421,
+          "medianMs": 0.8999999761581421,
+          "p95Ms": 1.199999988079071,
+          "p99Ms": 1.5999999642372131,
+          "maxMs": 4.5,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "planner": {
+          "sampleCount": 300,
+          "minMs": 0.19999998807907104,
+          "medianMs": 0.6000000238418579,
+          "p95Ms": 0.8999999761581421,
+          "p99Ms": 1,
+          "maxMs": 1.300000011920929,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "render": {
+          "sampleCount": 300,
+          "minMs": 3.300000011920929,
+          "medianMs": 5.199999988079071,
+          "p95Ms": 7.5,
+          "p99Ms": 9.900000035762787,
+          "maxMs": 12.800000011920929,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "diving-simulator-performance",
+      "capturedAt": "2026-08-01T20:36:59.471Z",
+      "buildVersion": "dev",
+      "frameBudgetMs": 16.67,
+      "context": {
+        "runId": "reef-plateau-2",
+        "sceneId": "reef-plateau",
+        "sourceCommit": "131542189b7b5042784eba7c6fe68f029c8b1f7c",
+        "acceptanceClass": "desktop-synthetic-reference"
+      },
+      "environment": {
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
+        "viewportCssPx": {
+          "width": 759,
+          "height": 839
+        },
+        "devicePixelRatio": 1
+      },
+      "metrics": {
+        "frame": {
+          "sampleCount": 300,
+          "minMs": 3.800000011920929,
+          "medianMs": 6,
+          "p95Ms": 8,
+          "p99Ms": 12.899999976158142,
+          "maxMs": 14.200000047683716,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "update": {
+          "sampleCount": 300,
+          "minMs": 0.2999999523162842,
+          "medianMs": 0.8999999761581421,
+          "p95Ms": 1.199999988079071,
+          "p99Ms": 1.5999999642372131,
+          "maxMs": 1.899999976158142,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "planner": {
+          "sampleCount": 300,
+          "minMs": 0.19999998807907104,
+          "medianMs": 0.699999988079071,
+          "p95Ms": 0.9000000357627869,
+          "p99Ms": 1.100000023841858,
+          "maxMs": 1.300000011920929,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "render": {
+          "sampleCount": 300,
+          "minMs": 3.300000011920929,
+          "medianMs": 5.199999988079071,
+          "p95Ms": 6.900000035762787,
+          "p99Ms": 11.400000035762787,
+          "maxMs": 13.300000011920929,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "diving-simulator-performance",
+      "capturedAt": "2026-08-01T20:37:17.104Z",
+      "buildVersion": "dev",
+      "frameBudgetMs": 16.67,
+      "context": {
+        "runId": "reef-plateau-3",
+        "sceneId": "reef-plateau",
+        "sourceCommit": "131542189b7b5042784eba7c6fe68f029c8b1f7c",
+        "acceptanceClass": "desktop-synthetic-reference"
+      },
+      "environment": {
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
+        "viewportCssPx": {
+          "width": 759,
+          "height": 839
+        },
+        "devicePixelRatio": 1
+      },
+      "metrics": {
+        "frame": {
+          "sampleCount": 300,
+          "minMs": 4.300000011920929,
+          "medianMs": 6.300000011920929,
+          "p95Ms": 8.199999988079071,
+          "p99Ms": 9.300000011920929,
+          "maxMs": 14.699999988079071,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "update": {
+          "sampleCount": 300,
+          "minMs": 0.3999999761581421,
+          "medianMs": 0.8999999761581421,
+          "p95Ms": 1.2000000476837158,
+          "p99Ms": 1.5999999642372131,
+          "maxMs": 2.699999988079071,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "planner": {
+          "sampleCount": 300,
+          "minMs": 0.2999999523162842,
+          "medianMs": 0.699999988079071,
+          "p95Ms": 0.9000000357627869,
+          "p99Ms": 1.300000011920929,
+          "maxMs": 2.399999976158142,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "render": {
+          "sampleCount": 300,
+          "minMs": 3.699999988079071,
+          "medianMs": 5.400000035762787,
+          "p95Ms": 7.299999952316284,
+          "p99Ms": 8.5,
+          "maxMs": 13.900000035762787,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "diving-simulator-performance",
+      "capturedAt": "2026-08-01T20:38:15.130Z",
+      "buildVersion": "dev",
+      "frameBudgetMs": 16.67,
+      "context": {
+        "runId": "wreck-engine-room-1",
+        "sceneId": "wreck-engine-room",
+        "sourceCommit": "131542189b7b5042784eba7c6fe68f029c8b1f7c",
+        "acceptanceClass": "desktop-synthetic-reference"
+      },
+      "environment": {
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
+        "viewportCssPx": {
+          "width": 759,
+          "height": 839
+        },
+        "devicePixelRatio": 1
+      },
+      "metrics": {
+        "frame": {
+          "sampleCount": 300,
+          "minMs": 118.40000003576279,
+          "medianMs": 153.4000000357628,
+          "p95Ms": 168.89999997615814,
+          "p99Ms": 172.5,
+          "maxMs": 178.9000000357628,
+          "longFrameCount": 300,
+          "totalTimeAboveBudgetMsPer1000": 136642.6666671048
+        },
+        "update": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.19999998807907104,
+          "p95Ms": 0.40000003576278687,
+          "p99Ms": 0.800000011920929,
+          "maxMs": 3.199999988079071,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "planner": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0,
+          "p95Ms": 0.10000002384185791,
+          "p99Ms": 0.19999998807907104,
+          "maxMs": 3,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "render": {
+          "sampleCount": 300,
+          "minMs": 118.19999998807907,
+          "medianMs": 153.20000004768372,
+          "p95Ms": 168.69999998807907,
+          "p99Ms": 172.30000001192093,
+          "maxMs": 178.60000002384186,
+          "longFrameCount": 300,
+          "totalTimeAboveBudgetMsPer1000": 136415.00000178916
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "diving-simulator-performance",
+      "capturedAt": "2026-08-01T20:39:10.999Z",
+      "buildVersion": "dev",
+      "frameBudgetMs": 16.67,
+      "context": {
+        "runId": "wreck-engine-room-2",
+        "sceneId": "wreck-engine-room",
+        "sourceCommit": "131542189b7b5042784eba7c6fe68f029c8b1f7c",
+        "acceptanceClass": "desktop-synthetic-reference"
+      },
+      "environment": {
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
+        "viewportCssPx": {
+          "width": 759,
+          "height": 839
+        },
+        "devicePixelRatio": 1
+      },
+      "metrics": {
+        "frame": {
+          "sampleCount": 300,
+          "minMs": 95.5,
+          "medianMs": 148.9000000357628,
+          "p95Ms": 167.79999995231628,
+          "p99Ms": 175.70000004768372,
+          "maxMs": 192.29999995231628,
+          "longFrameCount": 300,
+          "totalTimeAboveBudgetMsPer1000": 129683.33333353301
+        },
+        "update": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.19999998807907104,
+          "p95Ms": 0.3999999761581421,
+          "p99Ms": 0.800000011920929,
+          "maxMs": 3.700000047683716,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "planner": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0,
+          "p95Ms": 0.10000002384185791,
+          "p99Ms": 0.20000004768371582,
+          "maxMs": 3.400000035762787,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "render": {
+          "sampleCount": 300,
+          "minMs": 95.39999997615814,
+          "medianMs": 148.5,
+          "p95Ms": 167.5999999642372,
+          "p99Ms": 175.30000001192093,
+          "maxMs": 192,
+          "longFrameCount": 300,
+          "totalTimeAboveBudgetMsPer1000": 129478.33333194355
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "diving-simulator-performance",
+      "capturedAt": "2026-08-01T20:40:05.959Z",
+      "buildVersion": "dev",
+      "frameBudgetMs": 16.67,
+      "context": {
+        "runId": "wreck-engine-room-3",
+        "sceneId": "wreck-engine-room",
+        "sourceCommit": "131542189b7b5042784eba7c6fe68f029c8b1f7c",
+        "acceptanceClass": "desktop-synthetic-reference"
+      },
+      "environment": {
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
+        "viewportCssPx": {
+          "width": 759,
+          "height": 839
+        },
+        "devicePixelRatio": 1
+      },
+      "metrics": {
+        "frame": {
+          "sampleCount": 300,
+          "minMs": 110.59999996423721,
+          "medianMs": 146.69999998807907,
+          "p95Ms": 161.80000001192093,
+          "p99Ms": 167.30000001192093,
+          "maxMs": 172,
+          "longFrameCount": 300,
+          "totalTimeAboveBudgetMsPer1000": 128637.999997736
+        },
+        "update": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.19999998807907104,
+          "p95Ms": 0.30000001192092896,
+          "p99Ms": 0.5999999642372131,
           "maxMs": 1,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
@@ -215,417 +594,39 @@
         "planner": {
           "sampleCount": 300,
           "minMs": 0,
-          "medianMs": 0.3999999761581421,
-          "p95Ms": 0.5,
-          "p99Ms": 0.6000000238418579,
-          "maxMs": 0.7999999523162842,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "render": {
-          "sampleCount": 300,
-          "minMs": 1.399999976158142,
-          "medianMs": 2.5,
-          "p95Ms": 3.900000035762787,
-          "p99Ms": 2802.300000011921,
-          "maxMs": 3013.100000023842,
-          "longFrameCount": 5,
-          "totalTimeAboveBudgetMsPer1000": 48239.33333337307
-        }
-      }
-    },
-    {
-      "schemaVersion": 1,
-      "kind": "diving-simulator-performance",
-      "capturedAt": "2026-07-31T06:39:17.272Z",
-      "buildVersion": "dev",
-      "frameBudgetMs": 16.67,
-      "context": {
-        "runId": "reef-plateau-1",
-        "sceneId": "reef-plateau",
-        "sourceCommit": "d7f36081fc59f9495c051df020135dfb8db4a7a4",
-        "acceptanceClass": "desktop-synthetic-reference"
-      },
-      "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
-        "viewportCssPx": {
-          "width": 759,
-          "height": 839
-        },
-        "devicePixelRatio": 1
-      },
-      "metrics": {
-        "frame": {
-          "sampleCount": 300,
-          "minMs": 3.600000023841858,
-          "medianMs": 6,
-          "p95Ms": 13.800000011920929,
-          "p99Ms": 1108.0999999642372,
-          "maxMs": 1146.3999999761581,
-          "longFrameCount": 14,
-          "totalTimeAboveBudgetMsPer1000": 46263.99999976158
-        },
-        "update": {
-          "sampleCount": 300,
-          "minMs": 0.19999998807907104,
-          "medianMs": 0.6000000238418579,
-          "p95Ms": 0.800000011920929,
-          "p99Ms": 1.100000023841858,
-          "maxMs": 4.699999988079071,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "planner": {
-          "sampleCount": 300,
-          "minMs": 0.19999998807907104,
-          "medianMs": 0.40000003576278687,
-          "p95Ms": 0.6000000238418579,
-          "p99Ms": 0.800000011920929,
-          "maxMs": 0.800000011920929,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "render": {
-          "sampleCount": 300,
-          "minMs": 3.199999988079071,
-          "medianMs": 5.399999976158142,
-          "p95Ms": 13.300000011920929,
-          "p99Ms": 1106.699999988079,
-          "maxMs": 1144.4000000357628,
-          "longFrameCount": 13,
-          "totalTimeAboveBudgetMsPer1000": 46157.33333309492
-        }
-      }
-    },
-    {
-      "schemaVersion": 1,
-      "kind": "diving-simulator-performance",
-      "capturedAt": "2026-07-31T06:39:35.082Z",
-      "buildVersion": "dev",
-      "frameBudgetMs": 16.67,
-      "context": {
-        "runId": "reef-plateau-2",
-        "sceneId": "reef-plateau",
-        "sourceCommit": "d7f36081fc59f9495c051df020135dfb8db4a7a4",
-        "acceptanceClass": "desktop-synthetic-reference"
-      },
-      "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
-        "viewportCssPx": {
-          "width": 759,
-          "height": 839
-        },
-        "devicePixelRatio": 1
-      },
-      "metrics": {
-        "frame": {
-          "sampleCount": 300,
-          "minMs": 3.699999988079071,
-          "medianMs": 5.699999988079071,
-          "p95Ms": 11.400000035762787,
-          "p99Ms": 1114.300000011921,
-          "maxMs": 1154.800000011921,
-          "longFrameCount": 13,
-          "totalTimeAboveBudgetMsPer1000": 46590.666666428246
-        },
-        "update": {
-          "sampleCount": 300,
-          "minMs": 0.2999999523162842,
-          "medianMs": 0.5999999642372131,
-          "p95Ms": 0.800000011920929,
-          "p99Ms": 1.0999999642372131,
-          "maxMs": 3,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "planner": {
-          "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.40000003576278687,
-          "p95Ms": 0.6000000238418579,
-          "p99Ms": 0.800000011920929,
-          "maxMs": 1.899999976158142,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "render": {
-          "sampleCount": 300,
-          "minMs": 3.199999988079071,
-          "medianMs": 5,
-          "p95Ms": 10.800000011920929,
-          "p99Ms": 1109.8999999761581,
-          "maxMs": 1153.800000011921,
-          "longFrameCount": 13,
-          "totalTimeAboveBudgetMsPer1000": 46534.33333297571
-        }
-      }
-    },
-    {
-      "schemaVersion": 1,
-      "kind": "diving-simulator-performance",
-      "capturedAt": "2026-07-31T06:39:52.981Z",
-      "buildVersion": "dev",
-      "frameBudgetMs": 16.67,
-      "context": {
-        "runId": "reef-plateau-3",
-        "sceneId": "reef-plateau",
-        "sourceCommit": "d7f36081fc59f9495c051df020135dfb8db4a7a4",
-        "acceptanceClass": "desktop-synthetic-reference"
-      },
-      "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
-        "viewportCssPx": {
-          "width": 759,
-          "height": 839
-        },
-        "devicePixelRatio": 1
-      },
-      "metrics": {
-        "frame": {
-          "sampleCount": 300,
-          "minMs": 4.100000023841858,
-          "medianMs": 5.899999976158142,
-          "p95Ms": 14.400000035762787,
-          "p99Ms": 1119.5,
-          "maxMs": 1149.5999999642372,
-          "longFrameCount": 13,
-          "totalTimeAboveBudgetMsPer1000": 47512.99999932448
-        },
-        "update": {
-          "sampleCount": 300,
-          "minMs": 0.30000001192092896,
-          "medianMs": 0.5999999642372131,
-          "p95Ms": 0.800000011920929,
-          "p99Ms": 1.100000023841858,
-          "maxMs": 4.900000035762787,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "planner": {
-          "sampleCount": 300,
-          "minMs": 0.19999998807907104,
-          "medianMs": 0.40000003576278687,
-          "p95Ms": 0.6000000238418579,
-          "p99Ms": 0.8999999761581421,
-          "maxMs": 1.300000011920929,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "render": {
-          "sampleCount": 300,
-          "minMs": 3.5,
-          "medianMs": 5.200000047683716,
-          "p95Ms": 13.600000023841858,
-          "p99Ms": 1118.800000011921,
-          "maxMs": 1148.5,
-          "longFrameCount": 13,
-          "totalTimeAboveBudgetMsPer1000": 47465.33333361149
-        }
-      }
-    },
-    {
-      "schemaVersion": 1,
-      "kind": "diving-simulator-performance",
-      "capturedAt": "2026-07-31T06:40:54.175Z",
-      "buildVersion": "dev",
-      "frameBudgetMs": 16.67,
-      "context": {
-        "runId": "wreck-engine-room-1",
-        "sceneId": "wreck-engine-room",
-        "sourceCommit": "d7f36081fc59f9495c051df020135dfb8db4a7a4",
-        "acceptanceClass": "desktop-synthetic-reference"
-      },
-      "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
-        "viewportCssPx": {
-          "width": 759,
-          "height": 839
-        },
-        "devicePixelRatio": 1
-      },
-      "metrics": {
-        "frame": {
-          "sampleCount": 300,
-          "minMs": 125.79999995231628,
-          "medianMs": 185.5,
-          "p95Ms": 203.60000002384186,
-          "p99Ms": 210.39999997615814,
-          "maxMs": 215.39999997615814,
-          "longFrameCount": 300,
-          "totalTimeAboveBudgetMsPer1000": 183218.33333333334
-        },
-        "update": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.19999998807907104,
-          "p95Ms": 0.30000001192092896,
-          "p99Ms": 0.699999988079071,
-          "maxMs": 3.699999988079071,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "planner": {
-          "sampleCount": 300,
-          "minMs": 0,
           "medianMs": 0,
           "p95Ms": 0.10000002384185791,
-          "p99Ms": 0.5,
-          "maxMs": 3.5,
+          "p99Ms": 0.19999998807907104,
+          "maxMs": 0.9000000357627869,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "render": {
           "sampleCount": 300,
-          "minMs": 125.79999995231628,
-          "medianMs": 185.10000002384186,
-          "p95Ms": 203.4000000357628,
-          "p99Ms": 209.80000001192093,
-          "maxMs": 214.70000004768372,
+          "minMs": 110.39999997615814,
+          "medianMs": 146.5,
+          "p95Ms": 161.60000002384186,
+          "p99Ms": 167.19999998807907,
+          "maxMs": 171.89999997615814,
           "longFrameCount": 300,
-          "totalTimeAboveBudgetMsPer1000": 182828.66666436195
+          "totalTimeAboveBudgetMsPer1000": 128458.66666734316
         }
       }
     },
     {
       "schemaVersion": 1,
       "kind": "diving-simulator-performance",
-      "capturedAt": "2026-07-31T06:41:56.659Z",
-      "buildVersion": "dev",
-      "frameBudgetMs": 16.67,
-      "context": {
-        "runId": "wreck-engine-room-2",
-        "sceneId": "wreck-engine-room",
-        "sourceCommit": "d7f36081fc59f9495c051df020135dfb8db4a7a4",
-        "acceptanceClass": "desktop-synthetic-reference"
-      },
-      "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
-        "viewportCssPx": {
-          "width": 759,
-          "height": 839
-        },
-        "devicePixelRatio": 1
-      },
-      "metrics": {
-        "frame": {
-          "sampleCount": 300,
-          "minMs": 155.5999999642372,
-          "medianMs": 188.5,
-          "p95Ms": 206,
-          "p99Ms": 211.80000001192093,
-          "maxMs": 216.19999998807907,
-          "longFrameCount": 300,
-          "totalTimeAboveBudgetMsPer1000": 188201.0000004371
-        },
-        "update": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.19999998807907104,
-          "p95Ms": 0.3999999761581421,
-          "p99Ms": 0.9000000357627869,
-          "maxMs": 2.899999976158142,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "planner": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0,
-          "p95Ms": 0.10000002384185791,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 2.799999952316284,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "render": {
-          "sampleCount": 300,
-          "minMs": 155.5,
-          "medianMs": 188,
-          "p95Ms": 205.80000001192093,
-          "p99Ms": 211.60000002384186,
-          "maxMs": 215.69999998807907,
-          "longFrameCount": 300,
-          "totalTimeAboveBudgetMsPer1000": 187740.33333480358
-        }
-      }
-    },
-    {
-      "schemaVersion": 1,
-      "kind": "diving-simulator-performance",
-      "capturedAt": "2026-07-31T06:42:58.185Z",
-      "buildVersion": "dev",
-      "frameBudgetMs": 16.67,
-      "context": {
-        "runId": "wreck-engine-room-3",
-        "sceneId": "wreck-engine-room",
-        "sourceCommit": "d7f36081fc59f9495c051df020135dfb8db4a7a4",
-        "acceptanceClass": "desktop-synthetic-reference"
-      },
-      "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
-        "viewportCssPx": {
-          "width": 759,
-          "height": 839
-        },
-        "devicePixelRatio": 1
-      },
-      "metrics": {
-        "frame": {
-          "sampleCount": 300,
-          "minMs": 128.9000000357628,
-          "medianMs": 185.70000004768372,
-          "p95Ms": 200.4000000357628,
-          "p99Ms": 210.60000002384186,
-          "maxMs": 216.5,
-          "longFrameCount": 300,
-          "totalTimeAboveBudgetMsPer1000": 184829.33333396912
-        },
-        "update": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.19999998807907104,
-          "p95Ms": 0.30000001192092896,
-          "p99Ms": 0.5,
-          "maxMs": 1.100000023841858,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "planner": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0,
-          "p95Ms": 0.10000002384185791,
-          "p99Ms": 0.10000002384185791,
-          "maxMs": 0.8999999761581421,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "render": {
-          "sampleCount": 300,
-          "minMs": 128.80000001192093,
-          "medianMs": 185.19999998807907,
-          "p95Ms": 200.10000002384186,
-          "p99Ms": 210.4000000357628,
-          "maxMs": 216.4000000357628,
-          "longFrameCount": 300,
-          "totalTimeAboveBudgetMsPer1000": 184457.3333364725
-        }
-      }
-    },
-    {
-      "schemaVersion": 1,
-      "kind": "diving-simulator-performance",
-      "capturedAt": "2026-07-31T06:43:35.898Z",
+      "capturedAt": "2026-08-01T20:40:39.258Z",
       "buildVersion": "dev",
       "frameBudgetMs": 16.67,
       "context": {
         "runId": "cave-upper-tunnel-1",
         "sceneId": "cave-upper-tunnel",
-        "sourceCommit": "d7f36081fc59f9495c051df020135dfb8db4a7a4",
+        "sourceCommit": "131542189b7b5042784eba7c6fe68f029c8b1f7c",
         "acceptanceClass": "desktop-synthetic-reference"
       },
       "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
         "viewportCssPx": {
           "width": 759,
           "height": 839
@@ -635,123 +636,60 @@
       "metrics": {
         "frame": {
           "sampleCount": 300,
-          "minMs": 80,
-          "medianMs": 113.20000004768372,
-          "p95Ms": 127.60000002384186,
-          "p99Ms": 131.80000001192093,
-          "maxMs": 135,
+          "minMs": 40.700000047683716,
+          "medianMs": 60.5,
+          "p95Ms": 67.5,
+          "p99Ms": 70.10000002384186,
+          "maxMs": 71.09999996423721,
           "longFrameCount": 300,
-          "totalTimeAboveBudgetMsPer1000": 112887.00000047684
+          "totalTimeAboveBudgetMsPer1000": 43275.00000019862
         },
         "update": {
           "sampleCount": 300,
-          "minMs": 0.09999996423721313,
+          "minMs": 0,
           "medianMs": 0.30000001192092896,
           "p95Ms": 0.5,
-          "p99Ms": 0.7000000476837158,
-          "maxMs": 1.199999988079071,
+          "p99Ms": 0.699999988079071,
+          "maxMs": 1,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "planner": {
           "sampleCount": 300,
           "minMs": 0,
-          "medianMs": 0.10000002384185791,
-          "p95Ms": 0.20000004768371582,
-          "p99Ms": 0.3999999761581421,
-          "maxMs": 0.9000000357627869,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "render": {
-          "sampleCount": 300,
-          "minMs": 79.80000001192093,
-          "medianMs": 112.69999998807907,
-          "p95Ms": 127.19999998807907,
-          "p99Ms": 131.5,
-          "maxMs": 134.10000002384186,
-          "longFrameCount": 300,
-          "totalTimeAboveBudgetMsPer1000": 112475.66666642825
-        }
-      }
-    },
-    {
-      "schemaVersion": 1,
-      "kind": "diving-simulator-performance",
-      "capturedAt": "2026-07-31T06:44:12.948Z",
-      "buildVersion": "dev",
-      "frameBudgetMs": 16.67,
-      "context": {
-        "runId": "cave-upper-tunnel-2",
-        "sceneId": "cave-upper-tunnel",
-        "sourceCommit": "d7f36081fc59f9495c051df020135dfb8db4a7a4",
-        "acceptanceClass": "desktop-synthetic-reference"
-      },
-      "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
-        "viewportCssPx": {
-          "width": 759,
-          "height": 839
-        },
-        "devicePixelRatio": 1
-      },
-      "metrics": {
-        "frame": {
-          "sampleCount": 300,
-          "minMs": 77.09999996423721,
-          "medianMs": 111.69999998807907,
-          "p95Ms": 124.19999998807907,
-          "p99Ms": 130.60000002384186,
-          "maxMs": 133.89999997615814,
-          "longFrameCount": 300,
-          "totalTimeAboveBudgetMsPer1000": 111116.66666607063
-        },
-        "update": {
-          "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.2999999523162842,
-          "p95Ms": 0.5,
-          "p99Ms": 0.7999999523162842,
-          "maxMs": 0.9000000357627869,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "planner": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.10000002384185791,
-          "p95Ms": 0.20000004768371582,
-          "p99Ms": 0.3999999761581421,
+          "medianMs": 0.19999998807907104,
+          "p95Ms": 0.30000001192092896,
+          "p99Ms": 0.40000003576278687,
           "maxMs": 0.6000000238418579,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "render": {
           "sampleCount": 300,
-          "minMs": 77,
-          "medianMs": 111.29999995231628,
-          "p95Ms": 123.60000002384186,
-          "p99Ms": 130.4000000357628,
-          "maxMs": 133.5999999642372,
+          "minMs": 40.5,
+          "medianMs": 60,
+          "p95Ms": 67.20000004768372,
+          "p99Ms": 69.89999997615814,
+          "maxMs": 70.79999995231628,
           "longFrameCount": 300,
-          "totalTimeAboveBudgetMsPer1000": 110735.33333420753
+          "totalTimeAboveBudgetMsPer1000": 42943.66666952763
         }
       }
     },
     {
       "schemaVersion": 1,
       "kind": "diving-simulator-performance",
-      "capturedAt": "2026-07-31T06:44:50.269Z",
+      "capturedAt": "2026-08-01T20:41:12.551Z",
       "buildVersion": "dev",
       "frameBudgetMs": 16.67,
       "context": {
-        "runId": "cave-upper-tunnel-3",
+        "runId": "cave-upper-tunnel-2",
         "sceneId": "cave-upper-tunnel",
-        "sourceCommit": "d7f36081fc59f9495c051df020135dfb8db4a7a4",
+        "sourceCommit": "131542189b7b5042784eba7c6fe68f029c8b1f7c",
         "acceptanceClass": "desktop-synthetic-reference"
       },
       "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
         "viewportCssPx": {
           "width": 759,
           "height": 839
@@ -761,43 +699,106 @@
       "metrics": {
         "frame": {
           "sampleCount": 300,
-          "minMs": 79.90000003576279,
-          "medianMs": 113,
-          "p95Ms": 122.69999998807907,
-          "p99Ms": 127.59999996423721,
-          "maxMs": 130,
+          "minMs": 44.59999996423721,
+          "medianMs": 60.5,
+          "p95Ms": 67.70000004768372,
+          "p99Ms": 70.19999998807907,
+          "maxMs": 76.59999996423721,
           "longFrameCount": 300,
-          "totalTimeAboveBudgetMsPer1000": 111988.9999995629
+          "totalTimeAboveBudgetMsPer1000": 43915.0000015894
         },
         "update": {
           "sampleCount": 300,
           "minMs": 0.09999996423721313,
-          "medianMs": 0.20000004768371582,
-          "p95Ms": 0.40000003576278687,
-          "p99Ms": 0.5,
-          "maxMs": 1.2999999523162842,
+          "medianMs": 0.30000001192092896,
+          "p95Ms": 0.5,
+          "p99Ms": 0.699999988079071,
+          "maxMs": 3.900000035762787,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "planner": {
           "sampleCount": 300,
           "minMs": 0,
-          "medianMs": 0.10000002384185791,
-          "p95Ms": 0.20000004768371582,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 1.100000023841858,
+          "medianMs": 0.19999998807907104,
+          "p95Ms": 0.30000001192092896,
+          "p99Ms": 0.40000003576278687,
+          "maxMs": 3.800000011920929,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "render": {
           "sampleCount": 300,
-          "minMs": 79.80000001192093,
-          "medianMs": 112.69999998807907,
-          "p95Ms": 122.30000001192093,
-          "p99Ms": 127.30000001192093,
-          "maxMs": 129.5999999642372,
+          "minMs": 44.39999997615814,
+          "medianMs": 60.10000002384186,
+          "p95Ms": 67.40000003576279,
+          "p99Ms": 69.80000001192093,
+          "maxMs": 76.30000001192093,
           "longFrameCount": 300,
-          "totalTimeAboveBudgetMsPer1000": 111607.33333349228
+          "totalTimeAboveBudgetMsPer1000": 43573.33333512141
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "diving-simulator-performance",
+      "capturedAt": "2026-08-01T20:41:45.853Z",
+      "buildVersion": "dev",
+      "frameBudgetMs": 16.67,
+      "context": {
+        "runId": "cave-upper-tunnel-3",
+        "sceneId": "cave-upper-tunnel",
+        "sourceCommit": "131542189b7b5042784eba7c6fe68f029c8b1f7c",
+        "acceptanceClass": "desktop-synthetic-reference"
+      },
+      "environment": {
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
+        "viewportCssPx": {
+          "width": 759,
+          "height": 839
+        },
+        "devicePixelRatio": 1
+      },
+      "metrics": {
+        "frame": {
+          "sampleCount": 300,
+          "minMs": 43.19999998807907,
+          "medianMs": 59.89999997615814,
+          "p95Ms": 68.29999995231628,
+          "p99Ms": 71.60000002384186,
+          "maxMs": 79.59999996423721,
+          "longFrameCount": 300,
+          "totalTimeAboveBudgetMsPer1000": 43243.666666746074
+        },
+        "update": {
+          "sampleCount": 300,
+          "minMs": 0.09999996423721313,
+          "medianMs": 0.30000001192092896,
+          "p95Ms": 0.5,
+          "p99Ms": 0.7999999523162842,
+          "maxMs": 1.2000000476837158,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "planner": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.19999998807907104,
+          "p95Ms": 0.30000001192092896,
+          "p99Ms": 0.40000003576278687,
+          "maxMs": 0.5999999642372131,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "render": {
+          "sampleCount": 300,
+          "minMs": 43,
+          "medianMs": 59.5,
+          "p95Ms": 68,
+          "p99Ms": 70.79999995231628,
+          "maxMs": 79.29999995231628,
+          "longFrameCount": 300,
+          "totalTimeAboveBudgetMsPer1000": 42910.33333202197
         }
       }
     }
