@@ -1,5 +1,10 @@
 const { expect, test } = require('@playwright/test');
 
+const CROSS_CLIENT_TRACE = Object.freeze([
+  Object.freeze({ kind: 'hold', key: 'ArrowDown', durationMs: 1250 }),
+  Object.freeze({ kind: 'press', key: 't' }),
+]);
+
 test('wreck slice requires the simulation-use boundary before WebGL starts', async ({ page }) => {
   await page.goto('/dist/');
 
@@ -99,6 +104,47 @@ test('persisted safety states produce visible semantic warnings', async ({ page 
   );
 });
 
+test('the same input trace drives equivalent legacy and Pixi control semantics', async ({ page }) => {
+  await page.goto('/src/diving-simulator.html');
+  await page.waitForFunction(() => Boolean(window.gameAPI));
+  await page.evaluate(() => {
+    const api = window.gameAPI;
+    api.diveSite = 'wreck';
+    api.resetDive();
+    api.tanks.length = 0;
+    api.tankCount = 0;
+    api.pushTank(0.21, 0, 200);
+    api.activeTank = 0;
+    api.gameState = 'diving';
+    api.setDepth(26);
+    api.maxDepth = 26;
+    api.diverX = 18;
+    api.verticalVelocity = 0;
+    api.torchOn = true;
+    api.clearKeys();
+  });
+  const legacyBefore = await readLegacyObservation(page);
+  await replayInputTrace(page, CROSS_CLIENT_TRACE);
+  const legacyAfter = await readLegacyObservation(page);
+
+  await page.goto('/dist/');
+  await page
+    .getByRole('button', { name: 'I understand — start simulation' })
+    .click();
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  const pixiBefore = await readPixiObservation(page);
+  await replayInputTrace(page, CROSS_CLIENT_TRACE);
+  const pixiAfter = await readPixiObservation(page);
+
+  expect(normalizeControlResponse(legacyBefore, legacyAfter)).toEqual({
+    verticalDirection: 'deeper',
+    torchToggled: true,
+  });
+  expect(normalizeControlResponse(pixiBefore, pixiAfter)).toEqual(
+    normalizeControlResponse(legacyBefore, legacyAfter),
+  );
+});
+
 async function mutateSavedState(page, variant) {
   await page.evaluate(selectedVariant => {
     const key = 'diving-simulator.save-game';
@@ -123,4 +169,48 @@ async function mutateSavedState(page, variant) {
     }
     localStorage.setItem(key, JSON.stringify(save));
   }, variant);
+}
+
+async function replayInputTrace(page, trace) {
+  for (const step of trace) {
+    if (step.kind === 'hold') {
+      await page.keyboard.down(step.key);
+      await page.waitForTimeout(step.durationMs);
+      await page.keyboard.up(step.key);
+    } else {
+      await page.keyboard.press(step.key);
+    }
+  }
+  await page.waitForTimeout(150);
+}
+
+async function readLegacyObservation(page) {
+  return page.evaluate(() => ({
+    depthM: window.gameAPI.depth,
+    torchOn: window.gameAPI.torchOn,
+  }));
+}
+
+async function readPixiObservation(page) {
+  const depthText = await page.locator('.wreck-hud dd').first().textContent();
+  return {
+    depthM: Number.parseFloat((depthText || '').replace(',', '.')),
+    torchOn:
+      (await page
+        .getByRole('button', { name: 'Toggle torch' })
+        .getAttribute('aria-pressed')) === 'true',
+  };
+}
+
+function normalizeControlResponse(before, after) {
+  const depthDeltaM = after.depthM - before.depthM;
+  return {
+    verticalDirection:
+      depthDeltaM < -0.02
+        ? 'shallower'
+        : depthDeltaM > 0.02
+          ? 'deeper'
+          : 'stationary',
+    torchToggled: after.torchOn !== before.torchOn,
+  };
 }
