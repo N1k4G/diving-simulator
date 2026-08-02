@@ -21,6 +21,15 @@ function percentChange(before, after) {
   return (after - before) * 100 / before;
 }
 
+function regressedMoreThan(before, after, limitPercent) {
+  if (before === 0) return after > 0;
+  return percentChange(before, after) > limitPercent;
+}
+
+function environmentKey(run) {
+  return JSON.stringify(run.environment);
+}
+
 const beforePaths = argumentValue('--before').split(',');
 const afterPath = argumentValue('--after');
 const outputDirectory = path.resolve(root, argumentValue('--output'));
@@ -28,6 +37,7 @@ const beforeParts = await Promise.all(beforePaths.map(readJson));
 const after = await readJson(afterPath);
 const beforeRuns = beforeParts.flatMap(part => part.runs);
 const beforeScenes = beforeParts.flatMap(part => part.scenes);
+const expectedScenes = ['shore-meadow', 'reef-plateau', 'wreck-engine-room', 'cave-upper-tunnel'];
 const targetScenes = ['wreck-engine-room', 'cave-upper-tunnel'];
 const metricFields = [
   'minMs',
@@ -38,6 +48,52 @@ const metricFields = [
   'longFrameCount',
   'totalTimeAboveBudgetMsPer1000'
 ];
+
+if (beforeParts.some(part => part.acceptanceClass !== 'relative-hotspot-ranking') ||
+    after.acceptanceClass !== 'relative-hotspot-ranking') {
+  throw new Error('before and after captures must use the relative-hotspot-ranking acceptance class');
+}
+const comparisonSessionId = after.comparisonSessionId;
+if (!comparisonSessionId || beforeParts.some(part => part.comparisonSessionId !== comparisonSessionId)) {
+  throw new Error('before and after captures must share a non-empty --comparison-session-id');
+}
+const beforeCaptureTimes = beforeParts.map(part => Date.parse(part.captureStartedAt));
+const afterCaptureTime = Date.parse(after.captureStartedAt);
+if (beforeCaptureTimes.some(time => !Number.isFinite(time)) || !Number.isFinite(afterCaptureTime)) {
+  throw new Error('before and after captures must record captureStartedAt');
+}
+const earliestCaptureTime = Math.min(...beforeCaptureTimes);
+const latestBeforeCaptureTime = Math.max(...beforeCaptureTimes);
+const latestCaptureTime = Math.max(...beforeCaptureTimes, afterCaptureTime);
+if (latestCaptureTime - earliestCaptureTime > 30 * 60 * 1000) {
+  throw new Error('before and after captures must start within the same 30-minute comparison window');
+}
+if (afterCaptureTime < latestBeforeCaptureTime) {
+  throw new Error('the after capture must start after every before capture');
+}
+if (beforeParts.some(part => part.sourceCommit !== beforeParts[0].sourceCommit)) {
+  throw new Error('all before captures must use the same source commit');
+}
+if (beforeParts[0].sourceCommit === after.sourceCommit) {
+  throw new Error('before and after captures must identify different source commits');
+}
+const allRuns = [...beforeRuns, ...after.runs];
+if (!allRuns.length || allRuns.some(run => environmentKey(run) !== environmentKey(allRuns[0]))) {
+  throw new Error('before and after runs must use the same browser, viewport, and DPR');
+}
+for (const [label, runs] of [['before', beforeRuns], ['after', after.runs]]) {
+  const runIds = new Set(runs.map(run => run.context.runId));
+  if (runs.length !== expectedScenes.length * 3 || runIds.size !== runs.length) {
+    throw new Error(`${label} capture must contain exactly 12 unique runs`);
+  }
+  for (const sceneId of expectedScenes) {
+    for (let run = 1; run <= 3; run++) {
+      if (!runIds.has(`${sceneId}-${run}`)) {
+        throw new Error(`${label} capture is missing ${sceneId}-${run}`);
+      }
+    }
+  }
+}
 
 const before = {
   ...beforeParts[0],
@@ -50,7 +106,7 @@ const before = {
     yieldedBetweenSamples: true,
     diagnosticsOverlay: false,
     backgroundAnimationLoopPaused: true,
-    note: 'The same measurement-only harness adjustments were applied to the archived source commit and the optimized commit.'
+    note: 'The same measurement-only harness adjustments were applied to the baseline source commit and the optimized commit.'
   }
 };
 
@@ -88,8 +144,7 @@ const runGates = targetRuns.map(run => {
   const longFrameImprovement = -(render.longFrameCount.changePercent || 0);
   const primaryPassed = p95Improvement >= 20 || longFrameImprovement >= 50;
   const regressions = metricFields.filter(field => {
-    const change = render[field].changePercent;
-    return change != null && change > 5;
+    return regressedMoreThan(render[field].before, render[field].after, 5);
   });
   return {
     runId: run.runId,
@@ -107,6 +162,11 @@ const comparison = {
   beforeSourceCommit: before.sourceCommit,
   afterSourceCommit: after.sourceCommit,
   acceptanceClass: after.acceptanceClass,
+  comparisonSessionId,
+  captureWindow: {
+    beforeStartedAt: before.captureStartedAt,
+    afterStartedAt: after.captureStartedAt
+  },
   targetScenes,
   gate: {
     minimumWarmedSamplesPerRun: 300,
@@ -120,13 +180,17 @@ const comparison = {
 };
 
 const reportLines = [
-  '# WP-01B desktop synthetic comparison',
+  '# WP-01B desktop relative-hotspot comparison',
   '',
   `Before: \`${before.sourceCommit}\``,
   '',
   `After: \`${after.sourceCommit}\``,
   '',
-  'This is yielded headless Chromium diagnostic evidence at 759 x 839 CSS px and DPR 1. It is not physical-device acceptance.',
+  `Comparison session: \`${comparisonSessionId}\``,
+  '',
+  `Captures started at ${before.captureStartedAt} and ${after.captureStartedAt}.`,
+  '',
+  'This is back-to-back, yielded headless Chromium relative-hotspot evidence at 759 x 839 CSS px and DPR 1. It is not physical-device acceptance.',
   '',
   '| Scene / run | Render median | Render p95 | Long frames | Gate |',
   '| --- | ---: | ---: | ---: | --- |'
@@ -146,7 +210,7 @@ reportLines.push(
   '',
   `Corrected WP-01B gate: **${comparison.gate.passed ? 'PASS' : 'FAIL'}**.`,
   '',
-  'The authoritative golden trace file was regenerated and remained byte-for-byte unchanged.'
+  'The authoritative golden trace was regenerated; its numerical scenario payload remained unchanged.'
 );
 
 await mkdir(outputDirectory, { recursive: true });

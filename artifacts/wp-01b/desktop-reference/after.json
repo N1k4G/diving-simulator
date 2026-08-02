@@ -1,13 +1,17 @@
 {
   "schemaVersion": 1,
   "kind": "diving-simulator-performance-baseline",
-  "sourceCommit": "ee5f5ba7ae789b7163bdb3585e69cc4d62c7b48f",
-  "generatedBy": "npm run baseline:perf -- --samples 300 --runs 3 --output artifacts/wp-01b/desktop-reference/after.json",
-  "acceptanceClass": "desktop-synthetic-reference",
+  "sourceCommit": "3159eee808c0fe39f5ad193ae2d6ad95fe0bbb88",
+  "generatedBy": "npm run baseline:perf -- --comparison-session-id wp01b-20260802-guarded-tip --output artifacts/wp-01b/desktop-reference/after.json",
+  "acceptanceClass": "relative-hotspot-ranking",
+  "captureStartedAt": "2026-08-02T16:23:46.320Z",
+  "comparisonSessionId": "wp01b-20260802-guarded-tip",
   "acceptanceLimitations": [
     "Headless desktop Chromium is diagnostic evidence only.",
     "This artifact does not satisfy any physical Android or iOS gate.",
-    "Compare changes only on the same machine, browser build, viewport and DPR."
+    "Same-harness developer-machine sessions varied roughly 3x for unchanged wreck renderer code (49.3-53.4 ms versus 146.7-153.4 ms medians); broader recorded evidence ranges from 14.2 ms to 153.4 ms. This artifact ranks scene cost and does not establish an absolute frame time.",
+    "Before/after timing comparisons are valid only when captured back to back in the same session; comparing a fresh capture with a committed artifact from an earlier session is invalid.",
+    "The update metric uses dtReal=0 to isolate CPU cost; it is not representative of a live simulation tick."
   ],
   "sampling": {
     "warmedSamplesPerRun": 300,
@@ -48,17 +52,17 @@
     {
       "schemaVersion": 1,
       "kind": "diving-simulator-performance",
-      "capturedAt": "2026-08-01T07:55:01.072Z",
+      "capturedAt": "2026-08-02T16:23:51.918Z",
       "buildVersion": "dev",
       "frameBudgetMs": 16.67,
       "context": {
         "runId": "shore-meadow-1",
         "sceneId": "shore-meadow",
-        "sourceCommit": "ee5f5ba7ae789b7163bdb3585e69cc4d62c7b48f",
-        "acceptanceClass": "desktop-synthetic-reference"
+        "sourceCommit": "3159eee808c0fe39f5ad193ae2d6ad95fe0bbb88",
+        "acceptanceClass": "relative-hotspot-ranking"
       },
       "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
         "viewportCssPx": {
           "width": 759,
           "height": 839
@@ -68,81 +72,81 @@
       "metrics": {
         "frame": {
           "sampleCount": 300,
-          "minMs": 1,
-          "medianMs": 1.600000023841858,
-          "p95Ms": 2.600000023841858,
-          "p99Ms": 3.100000023841858,
-          "maxMs": 7,
+          "minMs": 0.8000000715255737,
+          "medianMs": 1.2000000476837158,
+          "p95Ms": 2.200000047683716,
+          "p99Ms": 2.799999952316284,
+          "maxMs": 4.600000023841858,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "update": {
           "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.20000004768371582,
-          "p95Ms": 0.5,
+          "minMs": 0.09999990463256836,
+          "medianMs": 0.2999999523162842,
+          "p95Ms": 0.40000009536743164,
           "p99Ms": 0.6000000238418579,
-          "maxMs": 1.9000000357627869,
+          "maxMs": 2.399999976158142,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "planner": {
           "sampleCount": 300,
           "minMs": 0,
-          "medianMs": 0.10000002384185791,
-          "p95Ms": 0.30000001192092896,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 0.6000000238418579,
+          "medianMs": 0.19999992847442627,
+          "p95Ms": 0.30000007152557373,
+          "p99Ms": 0.5,
+          "maxMs": 2.299999952316284,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "render": {
           "sampleCount": 300,
-          "minMs": 0.8999999761581421,
-          "medianMs": 1.399999976158142,
-          "p95Ms": 2.199999988079071,
-          "p99Ms": 2.600000023841858,
-          "maxMs": 6.699999988079071,
+          "minMs": 0.6000000238418579,
+          "medianMs": 0.9000000953674316,
+          "p95Ms": 1.7999999523162842,
+          "p99Ms": 2.3000000715255737,
+          "maxMs": 4.200000047683716,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderBackground": {
           "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.30000001192092896,
-          "p95Ms": 0.5,
-          "p99Ms": 0.5999999642372131,
-          "maxMs": 0.6000000238418579,
+          "minMs": 0.09999990463256836,
+          "medianMs": 0.20000004768371582,
+          "p95Ms": 0.3999999761581421,
+          "p99Ms": 0.5,
+          "maxMs": 0.5,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderTerrainDetail": {
           "sampleCount": 300,
-          "minMs": 0.19999998807907104,
-          "medianMs": 0.40000003576278687,
-          "p95Ms": 0.7000000476837158,
+          "minMs": 0.10000002384185791,
+          "medianMs": 0.30000007152557373,
+          "p95Ms": 0.6000000238418579,
           "p99Ms": 1,
-          "maxMs": 1.5,
+          "maxMs": 2.8000000715255737,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderWorldGeometry": {
           "sampleCount": 300,
           "minMs": 0,
-          "medianMs": 0.09999996423721313,
-          "p95Ms": 0.19999998807907104,
-          "p99Ms": 0.20000004768371582,
-          "maxMs": 0.30000001192092896,
+          "medianMs": 0,
+          "p95Ms": 0.10000002384185791,
+          "p99Ms": 0.19999992847442627,
+          "maxMs": 0.20000004768371582,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderEntities": {
           "sampleCount": 300,
           "minMs": 0,
-          "medianMs": 0.19999998807907104,
-          "p95Ms": 0.30000001192092896,
-          "p99Ms": 0.5999999642372131,
-          "maxMs": 3.5,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.20000004768371582,
+          "p99Ms": 0.30000007152557373,
+          "maxMs": 0.40000009536743164,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
@@ -150,7 +154,7 @@
           "sampleCount": 300,
           "minMs": 0,
           "medianMs": 0,
-          "p95Ms": 0.10000002384185791,
+          "p95Ms": 0,
           "p99Ms": 0.10000002384185791,
           "maxMs": 0.10000002384185791,
           "longFrameCount": 0,
@@ -169,10 +173,10 @@
         "renderPostEffects": {
           "sampleCount": 300,
           "minMs": 0,
-          "medianMs": 0.09999996423721313,
-          "p95Ms": 0.19999998807907104,
-          "p99Ms": 0.19999998807907104,
-          "maxMs": 0.30000001192092896,
+          "medianMs": 0,
+          "p95Ms": 0.10000002384185791,
+          "p99Ms": 0.20000004768371582,
+          "maxMs": 0.20000004768371582,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
@@ -181,8 +185,8 @@
           "minMs": 0,
           "medianMs": 0.10000002384185791,
           "p95Ms": 0.20000004768371582,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 0.3999999761581421,
+          "p99Ms": 0.2999999523162842,
+          "maxMs": 0.5999999046325684,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         }
@@ -191,17 +195,17 @@
     {
       "schemaVersion": 1,
       "kind": "diving-simulator-performance",
-      "capturedAt": "2026-08-01T07:55:06.918Z",
+      "capturedAt": "2026-08-02T16:23:57.023Z",
       "buildVersion": "dev",
       "frameBudgetMs": 16.67,
       "context": {
         "runId": "shore-meadow-2",
         "sceneId": "shore-meadow",
-        "sourceCommit": "ee5f5ba7ae789b7163bdb3585e69cc4d62c7b48f",
-        "acceptanceClass": "desktop-synthetic-reference"
+        "sourceCommit": "3159eee808c0fe39f5ad193ae2d6ad95fe0bbb88",
+        "acceptanceClass": "relative-hotspot-ranking"
       },
       "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
         "viewportCssPx": {
           "width": 759,
           "height": 839
@@ -211,61 +215,61 @@
       "metrics": {
         "frame": {
           "sampleCount": 300,
-          "minMs": 1,
-          "medianMs": 1.4000000357627869,
-          "p95Ms": 2.399999976158142,
-          "p99Ms": 2.799999952316284,
+          "minMs": 0.8999999761581421,
+          "medianMs": 1.2000000476837158,
+          "p95Ms": 2,
+          "p99Ms": 2.5,
           "maxMs": 4.799999952316284,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "update": {
           "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.20000004768371582,
-          "p95Ms": 0.40000003576278687,
-          "p99Ms": 0.5,
-          "maxMs": 0.5999999642372131,
+          "minMs": 0.09999990463256836,
+          "medianMs": 0.2999999523162842,
+          "p95Ms": 0.40000009536743164,
+          "p99Ms": 0.5999999046325684,
+          "maxMs": 1.5,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "planner": {
           "sampleCount": 300,
           "minMs": 0,
-          "medianMs": 0.10000002384185791,
-          "p95Ms": 0.30000001192092896,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 0.5,
+          "medianMs": 0.19999992847442627,
+          "p95Ms": 0.30000007152557373,
+          "p99Ms": 0.40000009536743164,
+          "maxMs": 0.6000000238418579,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "render": {
           "sampleCount": 300,
-          "minMs": 0.7999999523162842,
-          "medianMs": 1.199999988079071,
-          "p95Ms": 2,
-          "p99Ms": 2.5,
-          "maxMs": 4.399999976158142,
+          "minMs": 0.6999999284744263,
+          "medianMs": 0.9000000953674316,
+          "p95Ms": 1.600000023841858,
+          "p99Ms": 2,
+          "maxMs": 4.199999928474426,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderBackground": {
           "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.2999999523162842,
+          "minMs": 0.09999990463256836,
+          "medianMs": 0.20000004768371582,
           "p95Ms": 0.5,
           "p99Ms": 0.6000000238418579,
-          "maxMs": 3.600000023841858,
+          "maxMs": 0.8000000715255737,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderTerrainDetail": {
           "sampleCount": 300,
-          "minMs": 0.19999998807907104,
-          "medianMs": 0.3999999761581421,
-          "p95Ms": 0.699999988079071,
-          "p99Ms": 0.9000000357627869,
-          "maxMs": 1.199999988079071,
+          "minMs": 0.19999992847442627,
+          "medianMs": 0.30000007152557373,
+          "p95Ms": 0.5999999046325684,
+          "p99Ms": 0.8999999761581421,
+          "maxMs": 2.799999952316284,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
@@ -273,19 +277,19 @@
           "sampleCount": 300,
           "minMs": 0,
           "medianMs": 0,
-          "p95Ms": 0.19999998807907104,
-          "p99Ms": 0.19999998807907104,
-          "maxMs": 0.30000001192092896,
+          "p95Ms": 0.10000002384185791,
+          "p99Ms": 0.19999992847442627,
+          "maxMs": 0.2999999523162842,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderEntities": {
           "sampleCount": 300,
           "minMs": 0,
-          "medianMs": 0.19999998807907104,
-          "p95Ms": 0.30000001192092896,
-          "p99Ms": 0.40000003576278687,
-          "maxMs": 0.5,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.20000004768371582,
+          "p99Ms": 0.30000007152557373,
+          "maxMs": 0.40000009536743164,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
@@ -293,9 +297,9 @@
           "sampleCount": 300,
           "minMs": 0,
           "medianMs": 0,
-          "p95Ms": 0.09999996423721313,
+          "p95Ms": 0.09999990463256836,
           "p99Ms": 0.10000002384185791,
-          "maxMs": 0.19999998807907104,
+          "maxMs": 0.10000002384185791,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
@@ -305,27 +309,27 @@
           "medianMs": 0,
           "p95Ms": 0.10000002384185791,
           "p99Ms": 0.10000002384185791,
-          "maxMs": 0.19999998807907104,
+          "maxMs": 0.2999999523162842,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderPostEffects": {
           "sampleCount": 300,
           "minMs": 0,
-          "medianMs": 0.09999996423721313,
-          "p95Ms": 0.19999998807907104,
-          "p99Ms": 0.20000004768371582,
-          "maxMs": 0.30000001192092896,
+          "medianMs": 0,
+          "p95Ms": 0.10000002384185791,
+          "p99Ms": 0.19999992847442627,
+          "maxMs": 0.20000004768371582,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderForeground": {
           "sampleCount": 300,
           "minMs": 0,
-          "medianMs": 0.09999996423721313,
-          "p95Ms": 0.19999998807907104,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 0.5999999642372131,
+          "medianMs": 0.09999990463256836,
+          "p95Ms": 0.10000002384185791,
+          "p99Ms": 0.20000004768371582,
+          "maxMs": 0.20000004768371582,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         }
@@ -334,17 +338,17 @@
     {
       "schemaVersion": 1,
       "kind": "diving-simulator-performance",
-      "capturedAt": "2026-08-01T07:55:12.543Z",
+      "capturedAt": "2026-08-02T16:24:03.469Z",
       "buildVersion": "dev",
       "frameBudgetMs": 16.67,
       "context": {
         "runId": "shore-meadow-3",
         "sceneId": "shore-meadow",
-        "sourceCommit": "ee5f5ba7ae789b7163bdb3585e69cc4d62c7b48f",
-        "acceptanceClass": "desktop-synthetic-reference"
+        "sourceCommit": "3159eee808c0fe39f5ad193ae2d6ad95fe0bbb88",
+        "acceptanceClass": "relative-hotspot-ranking"
       },
       "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
         "viewportCssPx": {
           "width": 759,
           "height": 839
@@ -354,81 +358,81 @@
       "metrics": {
         "frame": {
           "sampleCount": 300,
-          "minMs": 1,
-          "medianMs": 1.4000000357627869,
-          "p95Ms": 2.5,
-          "p99Ms": 2.800000011920929,
-          "maxMs": 5.600000023841858,
+          "minMs": 0.7999999523162842,
+          "medianMs": 1.6999999284744263,
+          "p95Ms": 2.600000023841858,
+          "p99Ms": 3,
+          "maxMs": 8.299999952316284,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "update": {
           "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.19999998807907104,
-          "p95Ms": 0.40000003576278687,
-          "p99Ms": 0.5,
-          "maxMs": 0.6000000238418579,
+          "minMs": 0.10000002384185791,
+          "medianMs": 0.3999999761581421,
+          "p95Ms": 0.6000000238418579,
+          "p99Ms": 0.6999999284744263,
+          "maxMs": 0.7000000476837158,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "planner": {
           "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.10000002384185791,
-          "p95Ms": 0.2999999523162842,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 0.30000001192092896,
+          "minMs": 0.09999990463256836,
+          "medianMs": 0.20000004768371582,
+          "p95Ms": 0.3999999761581421,
+          "p99Ms": 0.5,
+          "maxMs": 0.5,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "render": {
           "sampleCount": 300,
-          "minMs": 0.7999999523162842,
-          "medianMs": 1.2000000476837158,
-          "p95Ms": 2.199999988079071,
-          "p99Ms": 2.400000035762787,
-          "maxMs": 5.5,
+          "minMs": 0.6999999284744263,
+          "medianMs": 1.2999999523162842,
+          "p95Ms": 2.1999999284744263,
+          "p99Ms": 2.5,
+          "maxMs": 7.699999928474426,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderBackground": {
           "sampleCount": 300,
-          "minMs": 0.09999996423721313,
+          "minMs": 0.09999990463256836,
           "medianMs": 0.2999999523162842,
           "p95Ms": 0.5,
-          "p99Ms": 0.800000011920929,
+          "p99Ms": 0.7000000476837158,
           "maxMs": 1,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderTerrainDetail": {
           "sampleCount": 300,
-          "minMs": 0.19999998807907104,
-          "medianMs": 0.3999999761581421,
-          "p95Ms": 0.7000000476837158,
-          "p99Ms": 0.9000000357627869,
-          "maxMs": 1,
+          "minMs": 0.10000002384185791,
+          "medianMs": 0.40000009536743164,
+          "p95Ms": 0.7999999523162842,
+          "p99Ms": 0.8999999761581421,
+          "maxMs": 5.700000047683716,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderWorldGeometry": {
           "sampleCount": 300,
           "minMs": 0,
-          "medianMs": 0.09999996423721313,
-          "p95Ms": 0.19999998807907104,
-          "p99Ms": 0.19999998807907104,
-          "maxMs": 0.30000001192092896,
+          "medianMs": 0,
+          "p95Ms": 0.10000002384185791,
+          "p99Ms": 0.20000004768371582,
+          "maxMs": 0.20000004768371582,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderEntities": {
           "sampleCount": 300,
           "minMs": 0,
-          "medianMs": 0.19999998807907104,
-          "p95Ms": 0.30000001192092896,
-          "p99Ms": 0.40000003576278687,
-          "maxMs": 3.5,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.2999999523162842,
+          "p99Ms": 0.30000007152557373,
+          "maxMs": 0.40000009536743164,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
@@ -448,17 +452,17 @@
           "medianMs": 0,
           "p95Ms": 0.10000002384185791,
           "p99Ms": 0.10000002384185791,
-          "maxMs": 0.20000004768371582,
+          "maxMs": 0.10000002384185791,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderPostEffects": {
           "sampleCount": 300,
           "minMs": 0,
-          "medianMs": 0,
-          "p95Ms": 0.19999998807907104,
-          "p99Ms": 0.20000004768371582,
-          "maxMs": 0.3999999761581421,
+          "medianMs": 0.09999990463256836,
+          "p95Ms": 0.10000002384185791,
+          "p99Ms": 0.19999992847442627,
+          "maxMs": 0.2999999523162842,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
@@ -467,8 +471,8 @@
           "minMs": 0,
           "medianMs": 0.10000002384185791,
           "p95Ms": 0.20000004768371582,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 0.30000001192092896,
+          "p99Ms": 0.2999999523162842,
+          "maxMs": 0.3999999761581421,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         }
@@ -477,17 +481,17 @@
     {
       "schemaVersion": 1,
       "kind": "diving-simulator-performance",
-      "capturedAt": "2026-08-01T07:55:18.878Z",
+      "capturedAt": "2026-08-02T16:24:09.526Z",
       "buildVersion": "dev",
       "frameBudgetMs": 16.67,
       "context": {
         "runId": "reef-plateau-1",
         "sceneId": "reef-plateau",
-        "sourceCommit": "ee5f5ba7ae789b7163bdb3585e69cc4d62c7b48f",
-        "acceptanceClass": "desktop-synthetic-reference"
+        "sourceCommit": "3159eee808c0fe39f5ad193ae2d6ad95fe0bbb88",
+        "acceptanceClass": "relative-hotspot-ranking"
       },
       "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
         "viewportCssPx": {
           "width": 759,
           "height": 839
@@ -497,70 +501,336 @@
       "metrics": {
         "frame": {
           "sampleCount": 300,
-          "minMs": 1.5999999642372131,
-          "medianMs": 2.199999988079071,
-          "p95Ms": 3.800000011920929,
-          "p99Ms": 4.5,
-          "maxMs": 5.699999988079071,
+          "minMs": 1.6999999284744263,
+          "medianMs": 2.200000047683716,
+          "p95Ms": 3.899999976158142,
+          "p99Ms": 5.299999952316284,
+          "maxMs": 7.099999904632568,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "update": {
           "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.20000004768371582,
-          "p95Ms": 0.40000003576278687,
-          "p99Ms": 0.5,
-          "maxMs": 0.800000011920929,
+          "minMs": 0.19999992847442627,
+          "medianMs": 0.30000007152557373,
+          "p95Ms": 0.5999999046325684,
+          "p99Ms": 0.6000000238418579,
+          "maxMs": 0.6000000238418579,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "planner": {
           "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.10000002384185791,
-          "p95Ms": 0.30000001192092896,
-          "p99Ms": 0.30000001192092896,
+          "minMs": 0.09999990463256836,
+          "medianMs": 0.20000004768371582,
+          "p95Ms": 0.3999999761581421,
+          "p99Ms": 0.5,
           "maxMs": 0.5,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "render": {
           "sampleCount": 300,
-          "minMs": 1.4000000357627869,
-          "medianMs": 1.9000000357627869,
-          "p95Ms": 3.5,
-          "p99Ms": 4.199999988079071,
-          "maxMs": 5.399999976158142,
+          "minMs": 1.399999976158142,
+          "medianMs": 1.899999976158142,
+          "p95Ms": 3.399999976158142,
+          "p99Ms": 4.899999976158142,
+          "maxMs": 6.399999976158142,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderBackground": {
           "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.19999998807907104,
+          "minMs": 0.09999990463256836,
+          "medianMs": 0.20000004768371582,
           "p95Ms": 0.3999999761581421,
-          "p99Ms": 0.5999999642372131,
-          "maxMs": 0.6000000238418579,
+          "p99Ms": 0.5,
+          "maxMs": 0.5999999046325684,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderTerrainDetail": {
           "sampleCount": 300,
-          "minMs": 0.19999998807907104,
-          "medianMs": 0.3999999761581421,
-          "p95Ms": 0.699999988079071,
-          "p99Ms": 1,
-          "maxMs": 1.399999976158142,
+          "minMs": 0.19999992847442627,
+          "medianMs": 0.30000007152557373,
+          "p95Ms": 0.7000000476837158,
+          "p99Ms": 0.8999999761581421,
+          "maxMs": 2,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderWorldGeometry": {
           "sampleCount": 300,
-          "minMs": 0.5999999642372131,
+          "minMs": 0.5999999046325684,
+          "medianMs": 0.8000000715255737,
+          "p95Ms": 1.600000023841858,
+          "p99Ms": 2,
+          "maxMs": 2.8000000715255737,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderEntities": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.30000007152557373,
+          "p99Ms": 0.3999999761581421,
+          "maxMs": 2.4000000953674316,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderDepthAbsorption": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0,
+          "p95Ms": 0,
+          "p99Ms": 0.10000002384185791,
+          "maxMs": 0.10000002384185791,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderPostEffects": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0,
+          "p95Ms": 0.10000002384185791,
+          "p99Ms": 0.20000004768371582,
+          "maxMs": 0.30000007152557373,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderForeground": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.20000004768371582,
+          "p99Ms": 0.30000007152557373,
+          "maxMs": 3.299999952316284,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "diving-simulator-performance",
+      "capturedAt": "2026-08-02T16:24:15.685Z",
+      "buildVersion": "dev",
+      "frameBudgetMs": 16.67,
+      "context": {
+        "runId": "reef-plateau-2",
+        "sceneId": "reef-plateau",
+        "sourceCommit": "3159eee808c0fe39f5ad193ae2d6ad95fe0bbb88",
+        "acceptanceClass": "relative-hotspot-ranking"
+      },
+      "environment": {
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
+        "viewportCssPx": {
+          "width": 759,
+          "height": 839
+        },
+        "devicePixelRatio": 1
+      },
+      "metrics": {
+        "frame": {
+          "sampleCount": 300,
+          "minMs": 1.7999999523162842,
+          "medianMs": 2.5,
+          "p95Ms": 3.899999976158142,
+          "p99Ms": 5,
+          "maxMs": 6.200000047683716,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "update": {
+          "sampleCount": 300,
+          "minMs": 0.19999992847442627,
+          "medianMs": 0.30000007152557373,
+          "p95Ms": 0.5,
+          "p99Ms": 0.6999999284744263,
+          "maxMs": 3.200000047683716,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "planner": {
+          "sampleCount": 300,
+          "minMs": 0.09999990463256836,
+          "medianMs": 0.20000004768371582,
+          "p95Ms": 0.3999999761581421,
+          "p99Ms": 0.5,
+          "maxMs": 0.5,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "render": {
+          "sampleCount": 300,
+          "minMs": 1.399999976158142,
+          "medianMs": 2.100000023841858,
+          "p95Ms": 3.3000000715255737,
+          "p99Ms": 3.6999999284744263,
+          "maxMs": 5.700000047683716,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderBackground": {
+          "sampleCount": 300,
+          "minMs": 0.09999990463256836,
+          "medianMs": 0.2999999523162842,
+          "p95Ms": 0.40000009536743164,
+          "p99Ms": 0.7000000476837158,
+          "maxMs": 1.100000023841858,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderTerrainDetail": {
+          "sampleCount": 300,
+          "minMs": 0.19999992847442627,
+          "medianMs": 0.3999999761581421,
+          "p95Ms": 0.7000000476837158,
+          "p99Ms": 1,
+          "maxMs": 1.100000023841858,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderWorldGeometry": {
+          "sampleCount": 300,
+          "minMs": 0.5,
           "medianMs": 0.8999999761581421,
-          "p95Ms": 1.800000011920929,
-          "p99Ms": 2.300000011920929,
+          "p95Ms": 1.600000023841858,
+          "p99Ms": 1.899999976158142,
+          "maxMs": 2.399999976158142,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderEntities": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.19999992847442627,
+          "p95Ms": 0.30000007152557373,
+          "p99Ms": 0.3999999761581421,
+          "maxMs": 0.8999999761581421,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderDepthAbsorption": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0,
+          "p95Ms": 0,
+          "p99Ms": 0.10000002384185791,
+          "maxMs": 0.10000002384185791,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderPostEffects": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0,
+          "p95Ms": 0.10000002384185791,
+          "p99Ms": 0.20000004768371582,
+          "maxMs": 0.2999999523162842,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderForeground": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.20000004768371582,
+          "p99Ms": 0.2999999523162842,
+          "maxMs": 2.3000000715255737,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "diving-simulator-performance",
+      "capturedAt": "2026-08-02T16:24:21.144Z",
+      "buildVersion": "dev",
+      "frameBudgetMs": 16.67,
+      "context": {
+        "runId": "reef-plateau-3",
+        "sceneId": "reef-plateau",
+        "sourceCommit": "3159eee808c0fe39f5ad193ae2d6ad95fe0bbb88",
+        "acceptanceClass": "relative-hotspot-ranking"
+      },
+      "environment": {
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
+        "viewportCssPx": {
+          "width": 759,
+          "height": 839
+        },
+        "devicePixelRatio": 1
+      },
+      "metrics": {
+        "frame": {
+          "sampleCount": 300,
+          "minMs": 1.5999999046325684,
+          "medianMs": 2,
+          "p95Ms": 3.600000023841858,
+          "p99Ms": 4,
+          "maxMs": 8.399999976158142,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "update": {
+          "sampleCount": 300,
+          "minMs": 0.19999992847442627,
+          "medianMs": 0.2999999523162842,
+          "p95Ms": 0.5,
+          "p99Ms": 0.7999999523162842,
+          "maxMs": 1.8000000715255737,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "planner": {
+          "sampleCount": 300,
+          "minMs": 0.09999990463256836,
+          "medianMs": 0.20000004768371582,
+          "p95Ms": 0.30000007152557373,
+          "p99Ms": 0.3999999761581421,
+          "maxMs": 0.6000000238418579,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "render": {
+          "sampleCount": 300,
+          "minMs": 1.2999999523162842,
+          "medianMs": 1.7000000476837158,
+          "p95Ms": 3.100000023841858,
+          "p99Ms": 3.8000000715255737,
+          "maxMs": 8.100000023841858,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderBackground": {
+          "sampleCount": 300,
+          "minMs": 0.09999990463256836,
+          "medianMs": 0.20000004768371582,
+          "p95Ms": 0.3999999761581421,
+          "p99Ms": 0.6000000238418579,
+          "maxMs": 5,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderTerrainDetail": {
+          "sampleCount": 300,
+          "minMs": 0.19999992847442627,
+          "medianMs": 0.30000007152557373,
+          "p95Ms": 0.6999999284744263,
+          "p99Ms": 0.7999999523162842,
+          "maxMs": 1.100000023841858,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderWorldGeometry": {
+          "sampleCount": 300,
+          "minMs": 0.5,
+          "medianMs": 0.7000000476837158,
+          "p95Ms": 1.5,
+          "p99Ms": 2,
           "maxMs": 3,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
@@ -568,10 +838,10 @@
         "renderEntities": {
           "sampleCount": 300,
           "minMs": 0,
-          "medianMs": 0.19999998807907104,
-          "p95Ms": 0.30000001192092896,
-          "p99Ms": 0.40000003576278687,
-          "maxMs": 0.5999999642372131,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.30000007152557373,
+          "p99Ms": 0.3999999761581421,
+          "maxMs": 0.7000000476837158,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
@@ -590,7 +860,7 @@
           "minMs": 0,
           "medianMs": 0,
           "p95Ms": 0.10000002384185791,
-          "p99Ms": 0.19999998807907104,
+          "p99Ms": 0.19999992847442627,
           "maxMs": 0.20000004768371582,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
@@ -600,141 +870,8 @@
           "minMs": 0,
           "medianMs": 0.10000002384185791,
           "p95Ms": 0.20000004768371582,
-          "p99Ms": 0.5,
-          "maxMs": 1.5,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        }
-      }
-    },
-    {
-      "schemaVersion": 1,
-      "kind": "diving-simulator-performance",
-      "capturedAt": "2026-08-01T07:55:25.252Z",
-      "buildVersion": "dev",
-      "frameBudgetMs": 16.67,
-      "context": {
-        "runId": "reef-plateau-2",
-        "sceneId": "reef-plateau",
-        "sourceCommit": "ee5f5ba7ae789b7163bdb3585e69cc4d62c7b48f",
-        "acceptanceClass": "desktop-synthetic-reference"
-      },
-      "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
-        "viewportCssPx": {
-          "width": 759,
-          "height": 839
-        },
-        "devicePixelRatio": 1
-      },
-      "metrics": {
-        "frame": {
-          "sampleCount": 300,
-          "minMs": 1.699999988079071,
-          "medianMs": 2.300000011920929,
-          "p95Ms": 3.800000011920929,
-          "p99Ms": 4.400000035762787,
-          "maxMs": 6.300000011920929,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "update": {
-          "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.20000004768371582,
-          "p95Ms": 0.40000003576278687,
-          "p99Ms": 0.5,
-          "maxMs": 0.5999999642372131,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "planner": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.10000002384185791,
-          "p95Ms": 0.30000001192092896,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 0.30000001192092896,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "render": {
-          "sampleCount": 300,
-          "minMs": 1.5,
-          "medianMs": 2.100000023841858,
-          "p95Ms": 3.600000023841858,
-          "p99Ms": 4.100000023841858,
-          "maxMs": 6,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderBackground": {
-          "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.19999998807907104,
-          "p95Ms": 0.40000003576278687,
-          "p99Ms": 0.6000000238418579,
-          "maxMs": 0.800000011920929,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderTerrainDetail": {
-          "sampleCount": 300,
-          "minMs": 0.19999998807907104,
-          "medianMs": 0.3999999761581421,
-          "p95Ms": 0.7000000476837158,
-          "p99Ms": 1.0999999642372131,
-          "maxMs": 1.699999988079071,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderWorldGeometry": {
-          "sampleCount": 300,
-          "minMs": 0.5999999642372131,
-          "medianMs": 0.9000000357627869,
-          "p95Ms": 1.800000011920929,
-          "p99Ms": 2.100000023841858,
-          "maxMs": 2.300000011920929,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderEntities": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.19999998807907104,
-          "p95Ms": 0.3999999761581421,
-          "p99Ms": 0.5,
-          "maxMs": 0.6000000238418579,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderDepthAbsorption": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0,
-          "p95Ms": 0.09999996423721313,
-          "p99Ms": 0.10000002384185791,
-          "maxMs": 0.10000002384185791,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderPostEffects": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0,
-          "p95Ms": 0.10000002384185791,
           "p99Ms": 0.20000004768371582,
-          "maxMs": 0.3999999761581421,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderForeground": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.10000002384185791,
-          "p95Ms": 0.20000004768371582,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 2.099999964237213,
+          "maxMs": 0.30000007152557373,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         }
@@ -743,150 +880,17 @@
     {
       "schemaVersion": 1,
       "kind": "diving-simulator-performance",
-      "capturedAt": "2026-08-01T07:55:31.386Z",
-      "buildVersion": "dev",
-      "frameBudgetMs": 16.67,
-      "context": {
-        "runId": "reef-plateau-3",
-        "sceneId": "reef-plateau",
-        "sourceCommit": "ee5f5ba7ae789b7163bdb3585e69cc4d62c7b48f",
-        "acceptanceClass": "desktop-synthetic-reference"
-      },
-      "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
-        "viewportCssPx": {
-          "width": 759,
-          "height": 839
-        },
-        "devicePixelRatio": 1
-      },
-      "metrics": {
-        "frame": {
-          "sampleCount": 300,
-          "minMs": 1.5999999642372131,
-          "medianMs": 2.100000023841858,
-          "p95Ms": 3.800000011920929,
-          "p99Ms": 4.599999964237213,
-          "maxMs": 6.199999988079071,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "update": {
-          "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.20000004768371582,
-          "p95Ms": 0.40000003576278687,
-          "p99Ms": 0.5,
-          "maxMs": 0.5,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "planner": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.10000002384185791,
-          "p95Ms": 0.2999999523162842,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 0.30000001192092896,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "render": {
-          "sampleCount": 300,
-          "minMs": 1.4000000357627869,
-          "medianMs": 1.9000000357627869,
-          "p95Ms": 3.600000023841858,
-          "p99Ms": 4.100000023841858,
-          "maxMs": 5.899999976158142,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderBackground": {
-          "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.19999998807907104,
-          "p95Ms": 0.40000003576278687,
-          "p99Ms": 0.6000000238418579,
-          "maxMs": 0.7000000476837158,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderTerrainDetail": {
-          "sampleCount": 300,
-          "minMs": 0.19999998807907104,
-          "medianMs": 0.30000001192092896,
-          "p95Ms": 0.699999988079071,
-          "p99Ms": 1,
-          "maxMs": 2.100000023841858,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderWorldGeometry": {
-          "sampleCount": 300,
-          "minMs": 0.5,
-          "medianMs": 0.800000011920929,
-          "p95Ms": 1.899999976158142,
-          "p99Ms": 2.199999988079071,
-          "maxMs": 2.899999976158142,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderEntities": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.19999998807907104,
-          "p95Ms": 0.30000001192092896,
-          "p99Ms": 0.5,
-          "maxMs": 0.699999988079071,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderDepthAbsorption": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0,
-          "p95Ms": 0,
-          "p99Ms": 0.10000002384185791,
-          "maxMs": 0.10000002384185791,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderPostEffects": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0,
-          "p95Ms": 0.10000002384185791,
-          "p99Ms": 0.19999998807907104,
-          "maxMs": 0.5999999642372131,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderForeground": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.10000002384185791,
-          "p95Ms": 0.20000004768371582,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 2.300000011920929,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        }
-      }
-    },
-    {
-      "schemaVersion": 1,
-      "kind": "diving-simulator-performance",
-      "capturedAt": "2026-08-01T07:55:45.260Z",
+      "capturedAt": "2026-08-02T16:24:33.515Z",
       "buildVersion": "dev",
       "frameBudgetMs": 16.67,
       "context": {
         "runId": "wreck-engine-room-1",
         "sceneId": "wreck-engine-room",
-        "sourceCommit": "ee5f5ba7ae789b7163bdb3585e69cc4d62c7b48f",
-        "acceptanceClass": "desktop-synthetic-reference"
+        "sourceCommit": "3159eee808c0fe39f5ad193ae2d6ad95fe0bbb88",
+        "acceptanceClass": "relative-hotspot-ranking"
       },
       "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
         "viewportCssPx": {
           "width": 759,
           "height": 839
@@ -896,11 +900,11 @@
       "metrics": {
         "frame": {
           "sampleCount": 300,
-          "minMs": 4.699999988079071,
-          "medianMs": 6.199999988079071,
-          "p95Ms": 9.900000035762787,
-          "p99Ms": 11.5,
-          "maxMs": 12.800000011920929,
+          "minMs": 4.200000047683716,
+          "medianMs": 5.699999928474426,
+          "p95Ms": 8.800000071525574,
+          "p99Ms": 10.699999928474426,
+          "maxMs": 11.299999952316284,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
@@ -908,9 +912,9 @@
           "sampleCount": 300,
           "minMs": 0,
           "medianMs": 0.10000002384185791,
-          "p95Ms": 0.19999998807907104,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 0.30000001192092896,
+          "p95Ms": 0.19999992847442627,
+          "p99Ms": 0.20000004768371582,
+          "maxMs": 0.2999999523162842,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
@@ -926,11 +930,11 @@
         },
         "render": {
           "sampleCount": 300,
-          "minMs": 4.599999964237213,
-          "medianMs": 6.100000023841858,
-          "p95Ms": 9.800000011920929,
-          "p99Ms": 11.400000035762787,
-          "maxMs": 12.699999988079071,
+          "minMs": 4.200000047683716,
+          "medianMs": 5.600000023841858,
+          "p95Ms": 8.800000071525574,
+          "p99Ms": 10.600000023841858,
+          "maxMs": 11.199999928474426,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
@@ -939,48 +943,48 @@
           "minMs": 0,
           "medianMs": 0.10000002384185791,
           "p95Ms": 0.20000004768371582,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 0.699999988079071,
+          "p99Ms": 0.30000007152557373,
+          "maxMs": 0.6000000238418579,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderTerrainDetail": {
           "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.19999998807907104,
-          "p95Ms": 0.40000003576278687,
-          "p99Ms": 0.6000000238418579,
-          "maxMs": 0.8999999761581421,
+          "minMs": 0,
+          "medianMs": 0.20000004768371582,
+          "p95Ms": 0.3999999761581421,
+          "p99Ms": 0.5,
+          "maxMs": 2,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderWreckOverlayBuild": {
           "sampleCount": 300,
           "minMs": 0,
-          "medianMs": 0.09999996423721313,
-          "p95Ms": 0.19999998807907104,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.20000004768371582,
           "p99Ms": 0.20000004768371582,
-          "maxMs": 3.100000023841858,
+          "maxMs": 0.30000007152557373,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderWreckOverlayBlit": {
           "sampleCount": 300,
-          "minMs": 2,
-          "medianMs": 2.5,
-          "p95Ms": 4.799999952316284,
-          "p99Ms": 5.5,
-          "maxMs": 6,
+          "minMs": 1.7999999523162842,
+          "medianMs": 2.3000000715255737,
+          "p95Ms": 4.100000023841858,
+          "p99Ms": 5.100000023841858,
+          "maxMs": 5.299999952316284,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderWorldGeometry": {
           "sampleCount": 300,
-          "minMs": 2.900000035762787,
-          "medianMs": 3.900000035762787,
-          "p95Ms": 6.899999976158142,
-          "p99Ms": 8,
-          "maxMs": 8.5,
+          "minMs": 2.600000023841858,
+          "medianMs": 3.600000023841858,
+          "p95Ms": 6.199999928474426,
+          "p99Ms": 7.299999952316284,
+          "maxMs": 7.399999976158142,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
@@ -988,9 +992,9 @@
           "sampleCount": 300,
           "minMs": 0,
           "medianMs": 0.10000002384185791,
-          "p95Ms": 0.30000001192092896,
-          "p99Ms": 0.5,
-          "maxMs": 0.8999999761581421,
+          "p95Ms": 0.20000004768371582,
+          "p99Ms": 0.2999999523162842,
+          "maxMs": 0.40000009536743164,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
@@ -999,7 +1003,7 @@
           "minMs": 0,
           "medianMs": 0,
           "p95Ms": 0.10000002384185791,
-          "p99Ms": 0.19999998807907104,
+          "p99Ms": 0.10000002384185791,
           "maxMs": 0.20000004768371582,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
@@ -1007,233 +1011,50 @@
         "renderDepthEffectBuild": {
           "sampleCount": 300,
           "minMs": 0.5,
-          "medianMs": 0.699999988079071,
-          "p95Ms": 1.5,
-          "p99Ms": 1.800000011920929,
-          "maxMs": 2.599999964237213,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderDepthTint": {
-          "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.30000001192092896,
-          "p95Ms": 0.5,
-          "p99Ms": 0.699999988079071,
-          "maxMs": 0.800000011920929,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderDepthAbsorption": {
-          "sampleCount": 300,
-          "minMs": 0.7999999523162842,
-          "medianMs": 1,
-          "p95Ms": 2.100000023841858,
-          "p99Ms": 2.400000035762787,
-          "maxMs": 3.199999988079071,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderPostEffects": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.09999996423721313,
-          "p95Ms": 0.20000004768371582,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 0.5,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderForeground": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.10000002384185791,
-          "p95Ms": 0.20000004768371582,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 0.3999999761581421,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        }
-      }
-    },
-    {
-      "schemaVersion": 1,
-      "kind": "diving-simulator-performance",
-      "capturedAt": "2026-08-01T07:55:58.957Z",
-      "buildVersion": "dev",
-      "frameBudgetMs": 16.67,
-      "context": {
-        "runId": "wreck-engine-room-2",
-        "sceneId": "wreck-engine-room",
-        "sourceCommit": "ee5f5ba7ae789b7163bdb3585e69cc4d62c7b48f",
-        "acceptanceClass": "desktop-synthetic-reference"
-      },
-      "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
-        "viewportCssPx": {
-          "width": 759,
-          "height": 839
-        },
-        "devicePixelRatio": 1
-      },
-      "metrics": {
-        "frame": {
-          "sampleCount": 300,
-          "minMs": 4.5,
-          "medianMs": 6,
-          "p95Ms": 9.5,
-          "p99Ms": 11.199999988079071,
-          "maxMs": 15.099999964237213,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "update": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.09999996423721313,
-          "p95Ms": 0.19999998807907104,
-          "p99Ms": 0.20000004768371582,
-          "maxMs": 2.699999988079071,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "planner": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0,
-          "p95Ms": 0.10000002384185791,
-          "p99Ms": 0.10000002384185791,
-          "maxMs": 2.5,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "render": {
-          "sampleCount": 300,
-          "minMs": 4.5,
-          "medianMs": 5.900000035762787,
-          "p95Ms": 9.199999988079071,
-          "p99Ms": 11.100000023841858,
-          "maxMs": 14.899999976158142,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderBackground": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.10000002384185791,
-          "p95Ms": 0.20000004768371582,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 0.5,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderTerrainDetail": {
-          "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.19999998807907104,
-          "p95Ms": 0.40000003576278687,
-          "p99Ms": 0.5999999642372131,
-          "maxMs": 1.100000023841858,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderWreckOverlayBuild": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.09999996423721313,
-          "p95Ms": 0.19999998807907104,
-          "p99Ms": 0.20000004768371582,
-          "maxMs": 0.30000001192092896,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderWreckOverlayBlit": {
-          "sampleCount": 300,
-          "minMs": 2,
-          "medianMs": 2.400000035762787,
-          "p95Ms": 4.600000023841858,
-          "p99Ms": 5.399999976158142,
-          "maxMs": 7.899999976158142,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderWorldGeometry": {
-          "sampleCount": 300,
-          "minMs": 3,
-          "medianMs": 3.800000011920929,
-          "p95Ms": 6.300000011920929,
-          "p99Ms": 7.600000023841858,
-          "maxMs": 10.300000011920929,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderEntities": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.10000002384185791,
-          "p95Ms": 0.20000004768371582,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 0.3999999761581421,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderDepthMask": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0,
-          "p95Ms": 0.10000002384185791,
-          "p99Ms": 0.10000002384185791,
-          "maxMs": 0.19999998807907104,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderDepthEffectBuild": {
-          "sampleCount": 300,
-          "minMs": 0.5,
-          "medianMs": 0.699999988079071,
-          "p95Ms": 1.5999999642372131,
-          "p99Ms": 1.800000011920929,
-          "maxMs": 1.899999976158142,
+          "medianMs": 0.7000000476837158,
+          "p95Ms": 1.3000000715255737,
+          "p99Ms": 1.5,
+          "maxMs": 1.600000023841858,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderDepthTint": {
           "sampleCount": 300,
           "minMs": 0.10000002384185791,
-          "medianMs": 0.30000001192092896,
+          "medianMs": 0.2999999523162842,
           "p95Ms": 0.5,
-          "p99Ms": 0.6000000238418579,
-          "maxMs": 0.800000011920929,
+          "p99Ms": 0.5999999046325684,
+          "maxMs": 0.6000000238418579,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderDepthAbsorption": {
           "sampleCount": 300,
-          "minMs": 0.7999999523162842,
+          "minMs": 0.6999999284744263,
           "medianMs": 1,
-          "p95Ms": 2.100000023841858,
-          "p99Ms": 2.300000011920929,
-          "maxMs": 2.599999964237213,
+          "p95Ms": 1.7999999523162842,
+          "p99Ms": 2,
+          "maxMs": 2.200000047683716,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderPostEffects": {
           "sampleCount": 300,
           "minMs": 0,
-          "medianMs": 0.09999996423721313,
-          "p95Ms": 0.19999998807907104,
-          "p99Ms": 0.2999999523162842,
-          "maxMs": 0.30000001192092896,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.20000004768371582,
+          "p99Ms": 0.30000007152557373,
+          "maxMs": 0.30000007152557373,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderForeground": {
           "sampleCount": 300,
           "minMs": 0,
-          "medianMs": 0.09999996423721313,
-          "p95Ms": 0.19999998807907104,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 1.5999999642372131,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.20000004768371582,
+          "p99Ms": 0.30000007152557373,
+          "maxMs": 0.7999999523162842,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         }
@@ -1242,17 +1063,17 @@
     {
       "schemaVersion": 1,
       "kind": "diving-simulator-performance",
-      "capturedAt": "2026-08-01T07:56:11.837Z",
+      "capturedAt": "2026-08-02T16:24:45.772Z",
       "buildVersion": "dev",
       "frameBudgetMs": 16.67,
       "context": {
-        "runId": "wreck-engine-room-3",
+        "runId": "wreck-engine-room-2",
         "sceneId": "wreck-engine-room",
-        "sourceCommit": "ee5f5ba7ae789b7163bdb3585e69cc4d62c7b48f",
-        "acceptanceClass": "desktop-synthetic-reference"
+        "sourceCommit": "3159eee808c0fe39f5ad193ae2d6ad95fe0bbb88",
+        "acceptanceClass": "relative-hotspot-ranking"
       },
       "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
         "viewportCssPx": {
           "width": 759,
           "height": 839
@@ -1262,11 +1083,11 @@
       "metrics": {
         "frame": {
           "sampleCount": 300,
-          "minMs": 4.599999964237213,
-          "medianMs": 5.899999976158142,
-          "p95Ms": 8,
-          "p99Ms": 11.099999964237213,
-          "maxMs": 11.800000011920929,
+          "minMs": 4.399999976158142,
+          "medianMs": 5.400000095367432,
+          "p95Ms": 8.400000095367432,
+          "p99Ms": 9.399999976158142,
+          "maxMs": 11.5,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
@@ -1274,9 +1095,9 @@
           "sampleCount": 300,
           "minMs": 0,
           "medianMs": 0.10000002384185791,
-          "p95Ms": 0.19999998807907104,
+          "p95Ms": 0.20000004768371582,
           "p99Ms": 0.20000004768371582,
-          "maxMs": 0.30000001192092896,
+          "maxMs": 0.2999999523162842,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
@@ -1286,17 +1107,17 @@
           "medianMs": 0,
           "p95Ms": 0.10000002384185791,
           "p99Ms": 0.10000002384185791,
-          "maxMs": 0.10000002384185791,
+          "maxMs": 0.20000004768371582,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "render": {
           "sampleCount": 300,
-          "minMs": 4.5,
-          "medianMs": 5.800000011920929,
-          "p95Ms": 7.800000011920929,
-          "p99Ms": 11,
-          "maxMs": 11.699999988079071,
+          "minMs": 4.399999976158142,
+          "medianMs": 5.300000071525574,
+          "p95Ms": 8.300000071525574,
+          "p99Ms": 9.399999976158142,
+          "maxMs": 11.399999976158142,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
@@ -1305,48 +1126,48 @@
           "minMs": 0,
           "medianMs": 0.10000002384185791,
           "p95Ms": 0.20000004768371582,
-          "p99Ms": 0.30000001192092896,
+          "p99Ms": 0.30000007152557373,
           "maxMs": 0.5,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderTerrainDetail": {
           "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.19999998807907104,
-          "p95Ms": 0.40000003576278687,
-          "p99Ms": 0.800000011920929,
-          "maxMs": 1.5999999642372131,
+          "minMs": 0.09999990463256836,
+          "medianMs": 0.20000004768371582,
+          "p95Ms": 0.3999999761581421,
+          "p99Ms": 0.5,
+          "maxMs": 1.899999976158142,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderWreckOverlayBuild": {
           "sampleCount": 300,
           "minMs": 0,
-          "medianMs": 0.09999996423721313,
-          "p95Ms": 0.19999998807907104,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 1,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.20000004768371582,
+          "p99Ms": 0.20000004768371582,
+          "maxMs": 0.5,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderWreckOverlayBlit": {
           "sampleCount": 300,
-          "minMs": 2,
-          "medianMs": 2.300000011920929,
-          "p95Ms": 4,
-          "p99Ms": 4.900000035762787,
-          "maxMs": 6,
+          "minMs": 1.899999976158142,
+          "medianMs": 2.299999952316284,
+          "p95Ms": 4.200000047683716,
+          "p99Ms": 4.599999904632568,
+          "maxMs": 5.299999952316284,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderWorldGeometry": {
           "sampleCount": 300,
-          "minMs": 2.899999976158142,
-          "medianMs": 3.699999988079071,
-          "p95Ms": 5.599999964237213,
-          "p99Ms": 7.399999976158142,
-          "maxMs": 8,
+          "minMs": 2.799999952316284,
+          "medianMs": 3.5,
+          "p95Ms": 5.899999976158142,
+          "p99Ms": 6.5,
+          "maxMs": 7.600000023841858,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
@@ -1355,8 +1176,8 @@
           "minMs": 0,
           "medianMs": 0.10000002384185791,
           "p95Ms": 0.20000004768371582,
-          "p99Ms": 0.3999999761581421,
-          "maxMs": 0.3999999761581421,
+          "p99Ms": 0.2999999523162842,
+          "maxMs": 0.30000007152557373,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
@@ -1365,201 +1186,38 @@
           "minMs": 0,
           "medianMs": 0,
           "p95Ms": 0.10000002384185791,
-          "p99Ms": 0.19999998807907104,
-          "maxMs": 0.20000004768371582,
+          "p99Ms": 0.10000002384185791,
+          "maxMs": 2.5,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderDepthEffectBuild": {
           "sampleCount": 300,
           "minMs": 0.5,
-          "medianMs": 0.699999988079071,
-          "p95Ms": 1.4000000357627869,
-          "p99Ms": 1.600000023841858,
-          "maxMs": 1.800000011920929,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderDepthTint": {
-          "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.30000001192092896,
-          "p95Ms": 0.5,
-          "p99Ms": 0.6000000238418579,
-          "maxMs": 0.8999999761581421,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderDepthAbsorption": {
-          "sampleCount": 300,
-          "minMs": 0.7999999523162842,
-          "medianMs": 1,
-          "p95Ms": 2,
-          "p99Ms": 2.199999988079071,
-          "maxMs": 2.300000011920929,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderPostEffects": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.09999996423721313,
-          "p95Ms": 0.20000004768371582,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 0.30000001192092896,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderForeground": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.09999996423721313,
-          "p95Ms": 0.19999998807907104,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 0.5,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        }
-      }
-    },
-    {
-      "schemaVersion": 1,
-      "kind": "diving-simulator-performance",
-      "capturedAt": "2026-08-01T07:56:20.457Z",
-      "buildVersion": "dev",
-      "frameBudgetMs": 16.67,
-      "context": {
-        "runId": "cave-upper-tunnel-1",
-        "sceneId": "cave-upper-tunnel",
-        "sourceCommit": "ee5f5ba7ae789b7163bdb3585e69cc4d62c7b48f",
-        "acceptanceClass": "desktop-synthetic-reference"
-      },
-      "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
-        "viewportCssPx": {
-          "width": 759,
-          "height": 839
-        },
-        "devicePixelRatio": 1
-      },
-      "metrics": {
-        "frame": {
-          "sampleCount": 300,
-          "minMs": 2.5,
-          "medianMs": 3.200000047683716,
-          "p95Ms": 4.699999988079071,
-          "p99Ms": 5.5,
-          "maxMs": 5.699999988079071,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "update": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.10000002384185791,
-          "p95Ms": 0.20000004768371582,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 0.30000001192092896,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "planner": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0,
-          "p95Ms": 0.10000002384185791,
-          "p99Ms": 0.10000002384185791,
-          "maxMs": 0.20000004768371582,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "render": {
-          "sampleCount": 300,
-          "minMs": 2.399999976158142,
-          "medianMs": 3.100000023841858,
-          "p95Ms": 4.599999964237213,
-          "p99Ms": 5.300000011920929,
-          "maxMs": 5.599999964237213,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderBackground": {
-          "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.2999999523162842,
-          "p95Ms": 0.5,
-          "p99Ms": 0.699999988079071,
-          "maxMs": 1,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderTerrainDetail": {
-          "sampleCount": 300,
-          "minMs": 0.3999999761581421,
-          "medianMs": 0.6000000238418579,
-          "p95Ms": 1.399999976158142,
+          "medianMs": 0.6999999284744263,
+          "p95Ms": 1.2999999523162842,
           "p99Ms": 1.5,
-          "maxMs": 1.7999999523162842,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderWorldGeometry": {
-          "sampleCount": 300,
-          "minMs": 0.2999999523162842,
-          "medianMs": 0.5,
-          "p95Ms": 1,
-          "p99Ms": 1.399999976158142,
-          "maxMs": 1.9000000357627869,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderEntities": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.10000002384185791,
-          "p95Ms": 0.19999998807907104,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 0.30000001192092896,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderDepthMask": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0,
-          "p95Ms": 0.10000002384185791,
-          "p99Ms": 0.10000002384185791,
-          "maxMs": 0.19999998807907104,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderDepthEffectBuild": {
-          "sampleCount": 300,
-          "minMs": 0.5999999642372131,
-          "medianMs": 0.699999988079071,
-          "p95Ms": 1.399999976158142,
-          "p99Ms": 1.7000000476837158,
-          "maxMs": 2,
+          "maxMs": 1.600000023841858,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderDepthTint": {
           "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.30000001192092896,
-          "p95Ms": 0.5,
-          "p99Ms": 0.699999988079071,
-          "maxMs": 1,
+          "minMs": 0.10000002384185791,
+          "medianMs": 0.2999999523162842,
+          "p95Ms": 0.40000009536743164,
+          "p99Ms": 0.5,
+          "maxMs": 0.5999999046325684,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderDepthAbsorption": {
           "sampleCount": 300,
-          "minMs": 0.7999999523162842,
+          "minMs": 0.7000000476837158,
           "medianMs": 1,
-          "p95Ms": 1.899999976158142,
-          "p99Ms": 2.399999976158142,
-          "maxMs": 2.600000023841858,
+          "p95Ms": 1.7000000476837158,
+          "p99Ms": 2,
+          "maxMs": 3.600000023841858,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
@@ -1567,18 +1225,18 @@
           "sampleCount": 300,
           "minMs": 0,
           "medianMs": 0.10000002384185791,
-          "p95Ms": 0.30000001192092896,
-          "p99Ms": 0.3999999761581421,
-          "maxMs": 0.7000000476837158,
+          "p95Ms": 0.20000004768371582,
+          "p99Ms": 0.20000004768371582,
+          "maxMs": 0.8000000715255737,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderForeground": {
           "sampleCount": 300,
           "minMs": 0,
-          "medianMs": 0.09999996423721313,
-          "p95Ms": 0.19999998807907104,
-          "p99Ms": 0.30000001192092896,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.20000004768371582,
+          "p99Ms": 0.30000007152557373,
           "maxMs": 0.3999999761581421,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
@@ -1588,17 +1246,17 @@
     {
       "schemaVersion": 1,
       "kind": "diving-simulator-performance",
-      "capturedAt": "2026-08-01T07:56:29.168Z",
+      "capturedAt": "2026-08-02T16:24:58.048Z",
       "buildVersion": "dev",
       "frameBudgetMs": 16.67,
       "context": {
-        "runId": "cave-upper-tunnel-2",
-        "sceneId": "cave-upper-tunnel",
-        "sourceCommit": "ee5f5ba7ae789b7163bdb3585e69cc4d62c7b48f",
-        "acceptanceClass": "desktop-synthetic-reference"
+        "runId": "wreck-engine-room-3",
+        "sceneId": "wreck-engine-room",
+        "sourceCommit": "3159eee808c0fe39f5ad193ae2d6ad95fe0bbb88",
+        "acceptanceClass": "relative-hotspot-ranking"
       },
       "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
         "viewportCssPx": {
           "width": 759,
           "height": 839
@@ -1608,11 +1266,11 @@
       "metrics": {
         "frame": {
           "sampleCount": 300,
-          "minMs": 2.5,
-          "medianMs": 3.400000035762787,
-          "p95Ms": 4.900000035762787,
-          "p99Ms": 5.600000023841858,
-          "maxMs": 6.100000023841858,
+          "minMs": 4.100000023841858,
+          "medianMs": 5.600000023841858,
+          "p95Ms": 8.700000047683716,
+          "p99Ms": 10.399999976158142,
+          "maxMs": 11.300000071525574,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
@@ -1622,7 +1280,7 @@
           "medianMs": 0.10000002384185791,
           "p95Ms": 0.20000004768371582,
           "p99Ms": 0.20000004768371582,
-          "maxMs": 0.3999999761581421,
+          "maxMs": 0.30000007152557373,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
@@ -1631,260 +1289,117 @@
           "minMs": 0,
           "medianMs": 0,
           "p95Ms": 0.10000002384185791,
-          "p99Ms": 0.19999998807907104,
-          "maxMs": 0.20000004768371582,
+          "p99Ms": 0.10000002384185791,
+          "maxMs": 0.19999992847442627,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "render": {
           "sampleCount": 300,
-          "minMs": 2.5,
-          "medianMs": 3.299999952316284,
-          "p95Ms": 4.800000011920929,
-          "p99Ms": 5.5,
-          "maxMs": 5.900000035762787,
+          "minMs": 4.100000023841858,
+          "medianMs": 5.5,
+          "p95Ms": 8.700000047683716,
+          "p99Ms": 10.199999928474426,
+          "maxMs": 11.200000047683716,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderBackground": {
           "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.2999999523162842,
-          "p95Ms": 0.5,
-          "p99Ms": 0.6000000238418579,
-          "maxMs": 0.800000011920929,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderTerrainDetail": {
-          "sampleCount": 300,
-          "minMs": 0.3999999761581421,
-          "medianMs": 0.6000000238418579,
-          "p95Ms": 1.300000011920929,
-          "p99Ms": 1.7999999523162842,
-          "maxMs": 2.400000035762787,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderWorldGeometry": {
-          "sampleCount": 300,
-          "minMs": 0.2999999523162842,
-          "medianMs": 0.5,
-          "p95Ms": 1.0999999642372131,
-          "p99Ms": 1.2000000476837158,
-          "maxMs": 1.9000000357627869,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderEntities": {
-          "sampleCount": 300,
           "minMs": 0,
           "medianMs": 0.10000002384185791,
           "p95Ms": 0.20000004768371582,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 0.5,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderDepthMask": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0,
-          "p95Ms": 0.10000002384185791,
-          "p99Ms": 0.10000002384185791,
-          "maxMs": 0.20000004768371582,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderDepthEffectBuild": {
-          "sampleCount": 300,
-          "minMs": 0.5999999642372131,
-          "medianMs": 0.7000000476837158,
-          "p95Ms": 1.5999999642372131,
-          "p99Ms": 1.9000000357627869,
-          "maxMs": 2.300000011920929,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderDepthTint": {
-          "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.30000001192092896,
-          "p95Ms": 0.5,
-          "p99Ms": 0.699999988079071,
+          "p99Ms": 0.2999999523162842,
           "maxMs": 0.8999999761581421,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
-        "renderDepthAbsorption": {
-          "sampleCount": 300,
-          "minMs": 0.8999999761581421,
-          "medianMs": 1.0999999642372131,
-          "p95Ms": 2.100000023841858,
-          "p99Ms": 2.400000035762787,
-          "maxMs": 2.900000035762787,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderPostEffects": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.10000002384185791,
-          "p95Ms": 0.30000001192092896,
-          "p99Ms": 0.5,
-          "maxMs": 0.5,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderForeground": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.09999996423721313,
-          "p95Ms": 0.19999998807907104,
-          "p99Ms": 0.20000004768371582,
-          "maxMs": 0.3999999761581421,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        }
-      }
-    },
-    {
-      "schemaVersion": 1,
-      "kind": "diving-simulator-performance",
-      "capturedAt": "2026-08-01T07:56:36.967Z",
-      "buildVersion": "dev",
-      "frameBudgetMs": 16.67,
-      "context": {
-        "runId": "cave-upper-tunnel-3",
-        "sceneId": "cave-upper-tunnel",
-        "sourceCommit": "ee5f5ba7ae789b7163bdb3585e69cc4d62c7b48f",
-        "acceptanceClass": "desktop-synthetic-reference"
-      },
-      "environment": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
-        "viewportCssPx": {
-          "width": 759,
-          "height": 839
-        },
-        "devicePixelRatio": 1
-      },
-      "metrics": {
-        "frame": {
-          "sampleCount": 300,
-          "minMs": 2.199999988079071,
-          "medianMs": 2.900000035762787,
-          "p95Ms": 4.5,
-          "p99Ms": 5.100000023841858,
-          "maxMs": 6.5,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "update": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.10000002384185791,
-          "p95Ms": 0.19999998807907104,
-          "p99Ms": 0.2999999523162842,
-          "maxMs": 2,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "planner": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0,
-          "p95Ms": 0.10000002384185791,
-          "p99Ms": 0.19999998807907104,
-          "maxMs": 0.20000004768371582,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "render": {
-          "sampleCount": 300,
-          "minMs": 2.099999964237213,
-          "medianMs": 2.800000011920929,
-          "p95Ms": 4.399999976158142,
-          "p99Ms": 5,
-          "maxMs": 5.600000023841858,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderBackground": {
-          "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.2999999523162842,
-          "p95Ms": 0.5,
-          "p99Ms": 0.699999988079071,
-          "maxMs": 0.7000000476837158,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
         "renderTerrainDetail": {
           "sampleCount": 300,
-          "minMs": 0.2999999523162842,
-          "medianMs": 0.5999999642372131,
-          "p95Ms": 1.300000011920929,
-          "p99Ms": 1.699999988079071,
-          "maxMs": 2,
+          "minMs": 0,
+          "medianMs": 0.20000004768371582,
+          "p95Ms": 0.5,
+          "p99Ms": 0.6000000238418579,
+          "maxMs": 1.5999999046325684,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderWreckOverlayBuild": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.20000004768371582,
+          "p99Ms": 0.20000004768371582,
+          "maxMs": 0.30000007152557373,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderWreckOverlayBlit": {
+          "sampleCount": 300,
+          "minMs": 1.6999999284744263,
+          "medianMs": 2.299999952316284,
+          "p95Ms": 4.200000047683716,
+          "p99Ms": 5,
+          "maxMs": 5.200000047683716,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderWorldGeometry": {
           "sampleCount": 300,
-          "minMs": 0.2999999523162842,
-          "medianMs": 0.5,
-          "p95Ms": 0.9000000357627869,
-          "p99Ms": 1.300000011920929,
+          "minMs": 2.5999999046325684,
+          "medianMs": 3.5,
+          "p95Ms": 6.099999904632568,
+          "p99Ms": 7,
+          "maxMs": 8.399999976158142,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderEntities": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.20000004768371582,
+          "p99Ms": 0.30000007152557373,
+          "maxMs": 0.30000007152557373,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderDepthMask": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0,
+          "p95Ms": 0.10000002384185791,
+          "p99Ms": 0.10000002384185791,
+          "maxMs": 0.2999999523162842,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderDepthEffectBuild": {
+          "sampleCount": 300,
+          "minMs": 0.5,
+          "medianMs": 0.6999999284744263,
+          "p95Ms": 1.399999976158142,
+          "p99Ms": 1.600000023841858,
           "maxMs": 1.899999976158142,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
-        "renderEntities": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0.10000002384185791,
-          "p95Ms": 0.19999998807907104,
-          "p99Ms": 0.30000001192092896,
-          "maxMs": 0.3999999761581421,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderDepthMask": {
-          "sampleCount": 300,
-          "minMs": 0,
-          "medianMs": 0,
-          "p95Ms": 0.10000002384185791,
-          "p99Ms": 0.10000002384185791,
-          "maxMs": 0.20000004768371582,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
-        "renderDepthEffectBuild": {
-          "sampleCount": 300,
-          "minMs": 0.5,
-          "medianMs": 0.699999988079071,
-          "p95Ms": 1.300000011920929,
-          "p99Ms": 1.699999988079071,
-          "maxMs": 2,
-          "longFrameCount": 0,
-          "totalTimeAboveBudgetMsPer1000": 0
-        },
         "renderDepthTint": {
           "sampleCount": 300,
-          "minMs": 0.09999996423721313,
-          "medianMs": 0.30000001192092896,
+          "minMs": 0.09999990463256836,
+          "medianMs": 0.2999999523162842,
           "p95Ms": 0.5,
-          "p99Ms": 0.5,
-          "maxMs": 0.7000000476837158,
+          "p99Ms": 0.6000000238418579,
+          "maxMs": 0.6000000238418579,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         },
         "renderDepthAbsorption": {
           "sampleCount": 300,
-          "minMs": 0.699999988079071,
+          "minMs": 0.6999999284744263,
           "medianMs": 1,
-          "p95Ms": 1.800000011920929,
-          "p99Ms": 2.199999988079071,
+          "p95Ms": 1.8000000715255737,
+          "p99Ms": 2.100000023841858,
           "maxMs": 2.5,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
@@ -1894,7 +1409,333 @@
           "minMs": 0,
           "medianMs": 0.10000002384185791,
           "p95Ms": 0.20000004768371582,
-          "p99Ms": 0.30000001192092896,
+          "p99Ms": 0.20000004768371582,
+          "maxMs": 0.30000007152557373,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderForeground": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.20000004768371582,
+          "p99Ms": 0.2999999523162842,
+          "maxMs": 0.5,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "diving-simulator-performance",
+      "capturedAt": "2026-08-02T16:25:07.242Z",
+      "buildVersion": "dev",
+      "frameBudgetMs": 16.67,
+      "context": {
+        "runId": "cave-upper-tunnel-1",
+        "sceneId": "cave-upper-tunnel",
+        "sourceCommit": "3159eee808c0fe39f5ad193ae2d6ad95fe0bbb88",
+        "acceptanceClass": "relative-hotspot-ranking"
+      },
+      "environment": {
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
+        "viewportCssPx": {
+          "width": 759,
+          "height": 839
+        },
+        "devicePixelRatio": 1
+      },
+      "metrics": {
+        "frame": {
+          "sampleCount": 300,
+          "minMs": 2.799999952316284,
+          "medianMs": 3.600000023841858,
+          "p95Ms": 5.700000047683716,
+          "p99Ms": 7.799999952316284,
+          "maxMs": 9.299999952316284,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "update": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.20000004768371582,
+          "p99Ms": 0.30000007152557373,
+          "maxMs": 0.3999999761581421,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "planner": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.09999990463256836,
+          "p95Ms": 0.10000002384185791,
+          "p99Ms": 0.20000004768371582,
+          "maxMs": 0.20000004768371582,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "render": {
+          "sampleCount": 300,
+          "minMs": 2.600000023841858,
+          "medianMs": 3.5,
+          "p95Ms": 5.600000023841858,
+          "p99Ms": 7.699999928474426,
+          "maxMs": 9.099999904632568,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderBackground": {
+          "sampleCount": 300,
+          "minMs": 0.10000002384185791,
+          "medianMs": 0.2999999523162842,
+          "p95Ms": 0.6000000238418579,
+          "p99Ms": 0.8000000715255737,
+          "maxMs": 1,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderTerrainDetail": {
+          "sampleCount": 300,
+          "minMs": 0.5,
+          "medianMs": 0.7000000476837158,
+          "p95Ms": 1.5,
+          "p99Ms": 1.7000000476837158,
+          "maxMs": 2.5999999046325684,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderWorldGeometry": {
+          "sampleCount": 300,
+          "minMs": 0.3999999761581421,
+          "medianMs": 0.6000000238418579,
+          "p95Ms": 1.3000000715255737,
+          "p99Ms": 1.5,
+          "maxMs": 2.399999976158142,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderEntities": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.2999999523162842,
+          "p99Ms": 0.3999999761581421,
+          "maxMs": 0.5,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderDepthMask": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0,
+          "p95Ms": 0.10000002384185791,
+          "p99Ms": 0.19999992847442627,
+          "maxMs": 0.20000004768371582,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderDepthEffectBuild": {
+          "sampleCount": 300,
+          "minMs": 0.5,
+          "medianMs": 0.7999999523162842,
+          "p95Ms": 1.5,
+          "p99Ms": 2,
+          "maxMs": 2.399999976158142,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderDepthTint": {
+          "sampleCount": 300,
+          "minMs": 0.19999992847442627,
+          "medianMs": 0.30000007152557373,
+          "p95Ms": 0.5999999046325684,
+          "p99Ms": 0.7000000476837158,
+          "maxMs": 1.2999999523162842,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderDepthAbsorption": {
+          "sampleCount": 300,
+          "minMs": 0.7999999523162842,
+          "medianMs": 1.100000023841858,
+          "p95Ms": 2.0999999046325684,
+          "p99Ms": 2.600000023841858,
+          "maxMs": 3.399999976158142,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderPostEffects": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.30000007152557373,
+          "p99Ms": 0.3999999761581421,
+          "maxMs": 0.6000000238418579,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderForeground": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.20000004768371582,
+          "p99Ms": 0.30000007152557373,
+          "maxMs": 1.8000000715255737,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "diving-simulator-performance",
+      "capturedAt": "2026-08-02T16:25:17.253Z",
+      "buildVersion": "dev",
+      "frameBudgetMs": 16.67,
+      "context": {
+        "runId": "cave-upper-tunnel-2",
+        "sceneId": "cave-upper-tunnel",
+        "sourceCommit": "3159eee808c0fe39f5ad193ae2d6ad95fe0bbb88",
+        "acceptanceClass": "relative-hotspot-ranking"
+      },
+      "environment": {
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
+        "viewportCssPx": {
+          "width": 759,
+          "height": 839
+        },
+        "devicePixelRatio": 1
+      },
+      "metrics": {
+        "frame": {
+          "sampleCount": 300,
+          "minMs": 2.899999976158142,
+          "medianMs": 3.799999952316284,
+          "p95Ms": 6,
+          "p99Ms": 7.100000023841858,
+          "maxMs": 7.300000071525574,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "update": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.20000004768371582,
+          "p99Ms": 0.30000007152557373,
+          "maxMs": 0.30000007152557373,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "planner": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.19999992847442627,
+          "p99Ms": 0.20000004768371582,
+          "maxMs": 0.20000004768371582,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "render": {
+          "sampleCount": 300,
+          "minMs": 2.799999952316284,
+          "medianMs": 3.600000023841858,
+          "p95Ms": 5.900000095367432,
+          "p99Ms": 6.899999976158142,
+          "maxMs": 7.100000023841858,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderBackground": {
+          "sampleCount": 300,
+          "minMs": 0.09999990463256836,
+          "medianMs": 0.30000007152557373,
+          "p95Ms": 0.6000000238418579,
+          "p99Ms": 0.8000000715255737,
+          "maxMs": 1.100000023841858,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderTerrainDetail": {
+          "sampleCount": 300,
+          "minMs": 0.5,
+          "medianMs": 0.7999999523162842,
+          "p95Ms": 1.600000023841858,
+          "p99Ms": 1.7999999523162842,
+          "maxMs": 2,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderWorldGeometry": {
+          "sampleCount": 300,
+          "minMs": 0.5,
+          "medianMs": 0.6000000238418579,
+          "p95Ms": 1.2999999523162842,
+          "p99Ms": 1.5,
+          "maxMs": 2.399999976158142,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderEntities": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.20000004768371582,
+          "p99Ms": 0.3999999761581421,
+          "maxMs": 0.40000009536743164,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderDepthMask": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0,
+          "p95Ms": 0.10000002384185791,
+          "p99Ms": 0.19999992847442627,
+          "maxMs": 0.20000004768371582,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderDepthEffectBuild": {
+          "sampleCount": 300,
+          "minMs": 0.6000000238418579,
+          "medianMs": 0.8000000715255737,
+          "p95Ms": 1.7000000476837158,
+          "p99Ms": 1.9000000953674316,
+          "maxMs": 2.0999999046325684,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderDepthTint": {
+          "sampleCount": 300,
+          "minMs": 0.09999990463256836,
+          "medianMs": 0.30000007152557373,
+          "p95Ms": 0.6000000238418579,
+          "p99Ms": 0.7000000476837158,
+          "maxMs": 1,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderDepthAbsorption": {
+          "sampleCount": 300,
+          "minMs": 0.8999999761581421,
+          "medianMs": 1.2000000476837158,
+          "p95Ms": 2.299999952316284,
+          "p99Ms": 2.600000023841858,
+          "maxMs": 2.899999976158142,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderPostEffects": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.2999999523162842,
+          "p99Ms": 0.3999999761581421,
           "maxMs": 0.5,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
@@ -1902,10 +1743,173 @@
         "renderForeground": {
           "sampleCount": 300,
           "minMs": 0,
-          "medianMs": 0.09999996423721313,
-          "p95Ms": 0.19999998807907104,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.20000004768371582,
+          "p99Ms": 0.2999999523162842,
+          "maxMs": 0.5,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        }
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "diving-simulator-performance",
+      "capturedAt": "2026-08-02T16:25:27.610Z",
+      "buildVersion": "dev",
+      "frameBudgetMs": 16.67,
+      "context": {
+        "runId": "cave-upper-tunnel-3",
+        "sceneId": "cave-upper-tunnel",
+        "sourceCommit": "3159eee808c0fe39f5ad193ae2d6ad95fe0bbb88",
+        "acceptanceClass": "relative-hotspot-ranking"
+      },
+      "environment": {
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
+        "viewportCssPx": {
+          "width": 759,
+          "height": 839
+        },
+        "devicePixelRatio": 1
+      },
+      "metrics": {
+        "frame": {
+          "sampleCount": 300,
+          "minMs": 2.899999976158142,
+          "medianMs": 3.899999976158142,
+          "p95Ms": 6.200000047683716,
+          "p99Ms": 8,
+          "maxMs": 10,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "update": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.20000004768371582,
+          "p99Ms": 0.30000007152557373,
+          "maxMs": 0.3999999761581421,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "planner": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.19999992847442627,
           "p99Ms": 0.20000004768371582,
-          "maxMs": 0.40000003576278687,
+          "maxMs": 0.20000004768371582,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "render": {
+          "sampleCount": 300,
+          "minMs": 2.6999999284744263,
+          "medianMs": 3.799999952316284,
+          "p95Ms": 6.100000023841858,
+          "p99Ms": 7.799999952316284,
+          "maxMs": 9.899999976158142,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderBackground": {
+          "sampleCount": 300,
+          "minMs": 0.19999992847442627,
+          "medianMs": 0.30000007152557373,
+          "p95Ms": 0.6000000238418579,
+          "p99Ms": 0.7999999523162842,
+          "maxMs": 2.1999999284744263,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderTerrainDetail": {
+          "sampleCount": 300,
+          "minMs": 0.5,
+          "medianMs": 0.8000000715255737,
+          "p95Ms": 1.600000023841858,
+          "p99Ms": 2.3000000715255737,
+          "maxMs": 3.200000047683716,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderWorldGeometry": {
+          "sampleCount": 300,
+          "minMs": 0.5,
+          "medianMs": 0.6999999284744263,
+          "p95Ms": 1.3000000715255737,
+          "p99Ms": 1.600000023841858,
+          "maxMs": 2.399999976158142,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderEntities": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.20000004768371582,
+          "p99Ms": 0.30000007152557373,
+          "maxMs": 0.30000007152557373,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderDepthMask": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0,
+          "p95Ms": 0.10000002384185791,
+          "p99Ms": 0.10000002384185791,
+          "maxMs": 0.10000002384185791,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderDepthEffectBuild": {
+          "sampleCount": 300,
+          "minMs": 0.5999999046325684,
+          "medianMs": 0.8999999761581421,
+          "p95Ms": 1.600000023841858,
+          "p99Ms": 2.100000023841858,
+          "maxMs": 3.9000000953674316,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderDepthTint": {
+          "sampleCount": 300,
+          "minMs": 0.19999992847442627,
+          "medianMs": 0.30000007152557373,
+          "p95Ms": 0.6000000238418579,
+          "p99Ms": 0.7000000476837158,
+          "maxMs": 0.7999999523162842,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderDepthAbsorption": {
+          "sampleCount": 300,
+          "minMs": 0.8999999761581421,
+          "medianMs": 1.2000000476837158,
+          "p95Ms": 2.200000047683716,
+          "p99Ms": 2.8000000715255737,
+          "maxMs": 4.799999952316284,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderPostEffects": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.2999999523162842,
+          "p99Ms": 0.3999999761581421,
+          "maxMs": 0.6000000238418579,
+          "longFrameCount": 0,
+          "totalTimeAboveBudgetMsPer1000": 0
+        },
+        "renderForeground": {
+          "sampleCount": 300,
+          "minMs": 0,
+          "medianMs": 0.10000002384185791,
+          "p95Ms": 0.20000004768371582,
+          "p99Ms": 0.2999999523162842,
+          "maxMs": 2.6999999284744263,
           "longFrameCount": 0,
           "totalTimeAboveBudgetMsPer1000": 0
         }

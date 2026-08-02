@@ -24,6 +24,8 @@ const outputPath = path.resolve(
   argumentValue('--output', 'artifacts/wp-01/desktop-reference/performance.json')
 );
 const suspendedFrameThresholdMs = Number(argumentValue('--suspended-frame-threshold-ms', '1000'));
+const comparisonSessionId = argumentValue('--comparison-session-id', null);
+const captureStartedAt = new Date().toISOString();
 const sourceCommit = argumentValue('--source-commit', null) || execFileSync('git', ['rev-parse', 'HEAD'], {
   cwd: root,
   encoding: 'utf8'
@@ -162,6 +164,8 @@ try {
       sourceCommit,
       generatedBy: `npm run baseline:perf -- ${cliArguments.join(' ')}`.trim(),
       acceptanceClass: 'relative-hotspot-ranking',
+      captureStartedAt,
+      ...(comparisonSessionId ? { comparisonSessionId } : {}),
       acceptanceLimitations: [
         'Headless desktop Chromium is diagnostic evidence only.',
         'This artifact does not satisfy any physical Android or iOS gate.',

@@ -1,9 +1,14 @@
 {
   "schemaVersion": 1,
   "kind": "diving-simulator-performance-comparison",
-  "beforeSourceCommit": "bcee12e",
-  "afterSourceCommit": "ee5f5ba7ae789b7163bdb3585e69cc4d62c7b48f",
-  "acceptanceClass": "desktop-synthetic-reference",
+  "beforeSourceCommit": "8382e6135604d86b4f78ecf44f7bcab384ee004c",
+  "afterSourceCommit": "3159eee808c0fe39f5ad193ae2d6ad95fe0bbb88",
+  "acceptanceClass": "relative-hotspot-ranking",
+  "comparisonSessionId": "wp01b-20260802-guarded-tip",
+  "captureWindow": {
+    "beforeStartedAt": "2026-08-02T16:21:57.327Z",
+    "afterStartedAt": "2026-08-02T16:23:46.320Z"
+  },
   "targetScenes": [
     "wreck-engine-room",
     "cave-upper-tunnel"
@@ -17,7 +22,7 @@
     "runs": [
       {
         "runId": "wreck-engine-room-1",
-        "p95ImprovementPercent": 76.03911976128693,
+        "p95ImprovementPercent": 81.96721295056501,
         "longFrameImprovementPercent": 100,
         "primaryPassed": true,
         "regressions": [],
@@ -25,7 +30,7 @@
       },
       {
         "runId": "wreck-engine-room-2",
-        "p95ImprovementPercent": 76.04166668283546,
+        "p95ImprovementPercent": 84.31001876131124,
         "longFrameImprovementPercent": 100,
         "primaryPassed": true,
         "regressions": [],
@@ -33,7 +38,7 @@
       },
       {
         "runId": "wreck-engine-room-3",
-        "p95ImprovementPercent": 80.35264480034489,
+        "p95ImprovementPercent": 82.8063240245367,
         "longFrameImprovementPercent": 100,
         "primaryPassed": true,
         "regressions": [],
@@ -41,7 +46,7 @@
       },
       {
         "runId": "cave-upper-tunnel-1",
-        "p95ImprovementPercent": 81.88976390332665,
+        "p95ImprovementPercent": 77.41935469915666,
         "longFrameImprovementPercent": 100,
         "primaryPassed": true,
         "regressions": [],
@@ -49,7 +54,7 @@
       },
       {
         "runId": "cave-upper-tunnel-2",
-        "p95ImprovementPercent": 80.40816321664927,
+        "p95ImprovementPercent": 80.20134193017394,
         "longFrameImprovementPercent": 100,
         "primaryPassed": true,
         "regressions": [],
@@ -57,7 +62,7 @@
       },
       {
         "runId": "cave-upper-tunnel-3",
-        "p95ImprovementPercent": 77.43589755816338,
+        "p95ImprovementPercent": 75.40322578125453,
         "longFrameImprovementPercent": 100,
         "primaryPassed": true,
         "regressions": [],
@@ -72,29 +77,29 @@
       "metrics": {
         "frame": {
           "minMs": {
-            "before": 1,
-            "after": 1,
-            "changePercent": 0
+            "before": 0.8999999761581421,
+            "after": 0.8000000715255737,
+            "changePercent": -11.11110080907347
           },
           "medianMs": {
-            "before": 1.7999999523162842,
-            "after": 1.600000023841858,
-            "changePercent": -11.111107431811954
+            "before": 1.5,
+            "after": 1.2000000476837158,
+            "changePercent": -19.999996821085613
           },
           "p95Ms": {
-            "before": 3.200000047683716,
-            "after": 2.600000023841858,
-            "changePercent": -18.75000046566128
+            "before": 2.3000000715255737,
+            "after": 2.200000047683716,
+            "changePercent": -4.347826988349987
           },
           "p99Ms": {
-            "before": 5.199999988079071,
-            "after": 3.100000023841858,
-            "changePercent": -40.38461478945066
+            "before": 4.200000047683716,
+            "after": 2.799999952316284,
+            "changePercent": -33.33333522554426
           },
           "maxMs": {
-            "before": 7,
-            "after": 7,
-            "changePercent": 0
+            "before": 5.899999976158142,
+            "after": 4.600000023841858,
+            "changePercent": -22.033897585924997
           },
           "longFrameCount": {
             "before": 0,
@@ -109,29 +114,29 @@
         },
         "update": {
           "minMs": {
-            "before": 0.09999996423721313,
-            "after": 0.09999996423721313,
+            "before": 0.09999990463256836,
+            "after": 0.09999990463256836,
             "changePercent": 0
           },
           "medianMs": {
-            "before": 0.30000001192092896,
-            "after": 0.20000004768371582,
-            "changePercent": -33.333320087857246
+            "before": 0.2999999523162842,
+            "after": 0.2999999523162842,
+            "changePercent": 0
           },
           "p95Ms": {
             "before": 0.5,
-            "after": 0.5,
-            "changePercent": 0
+            "after": 0.40000009536743164,
+            "changePercent": -19.999980926513672
           },
           "p99Ms": {
-            "before": 0.800000011920929,
+            "before": 0.5,
             "after": 0.6000000238418579,
-            "changePercent": -24.99999813735488
+            "changePercent": 20.000004768371582
           },
           "maxMs": {
-            "before": 3.299999952316284,
-            "after": 1.9000000357627869,
-            "changePercent": -42.42424050857429
+            "before": 2.3000000715255737,
+            "after": 2.399999976158142,
+            "changePercent": 4.34782180533756
           },
           "longFrameCount": {
             "before": 0,
@@ -151,24 +156,24 @@
             "changePercent": 0
           },
           "medianMs": {
-            "before": 0.19999998807907104,
-            "after": 0.10000002384185791,
-            "changePercent": -49.99998509883792
+            "before": 0.20000004768371582,
+            "after": 0.19999992847442627,
+            "changePercent": -0.0000596046305645393
           },
           "p95Ms": {
-            "before": 0.30000001192092896,
-            "after": 0.30000001192092896,
+            "before": 0.30000007152557373,
+            "after": 0.30000007152557373,
             "changePercent": 0
           },
           "p99Ms": {
-            "before": 0.5,
-            "after": 0.30000001192092896,
-            "changePercent": -39.99999761581421
+            "before": 0.40000009536743164,
+            "after": 0.5,
+            "changePercent": 24.999970197684718
           },
           "maxMs": {
-            "before": 3,
-            "after": 0.6000000238418579,
-            "changePercent": -79.99999920527141
+            "before": 0.5,
+            "after": 2.299999952316284,
+            "changePercent": 359.99999046325684
           },
           "longFrameCount": {
             "before": 0,
@@ -183,29 +188,29 @@
         },
         "render": {
           "minMs": {
-            "before": 0.800000011920929,
-            "after": 0.8999999761581421,
-            "changePercent": 12.499995343387196
+            "before": 0.5999999046325684,
+            "after": 0.6000000238418579,
+            "changePercent": 0.000019868218083098425
           },
           "medianMs": {
-            "before": 1.5,
-            "after": 1.399999976158142,
-            "changePercent": -6.66666825612386
+            "before": 1.1999999284744263,
+            "after": 0.9000000953674316,
+            "changePercent": -24.99998758236493
           },
           "p95Ms": {
-            "before": 2.600000023841858,
-            "after": 2.199999988079071,
-            "changePercent": -15.384616619031094
+            "before": 1.899999976158142,
+            "after": 1.7999999523162842,
+            "changePercent": -5.2631592156154134
           },
           "p99Ms": {
-            "before": 3.699999988079071,
-            "after": 2.600000023841858,
-            "changePercent": -29.729728858953322
+            "before": 3.899999976158142,
+            "after": 2.3000000715255737,
+            "changePercent": -41.025638831124176
           },
           "maxMs": {
-            "before": 6.599999964237213,
-            "after": 6.699999988079071,
-            "changePercent": 1.5151518846017946
+            "before": 5.399999976158142,
+            "after": 4.200000047683716,
+            "changePercent": -22.222220995789197
           },
           "longFrameCount": {
             "before": 0,
@@ -227,28 +232,28 @@
         "frame": {
           "minMs": {
             "before": 1,
-            "after": 1,
-            "changePercent": 0
+            "after": 0.8999999761581421,
+            "changePercent": -10.000002384185791
           },
           "medianMs": {
-            "before": 1.5,
-            "after": 1.4000000357627869,
-            "changePercent": -6.666664282480876
+            "before": 1.2999999523162842,
+            "after": 1.2000000476837158,
+            "changePercent": -7.692300638503318
           },
           "p95Ms": {
-            "before": 2.600000023841858,
-            "after": 2.399999976158142,
-            "changePercent": -7.692309455758705
+            "before": 2.200000047683716,
+            "after": 2,
+            "changePercent": -9.090911061310528
           },
           "p99Ms": {
-            "before": 3.199999988079071,
-            "after": 2.799999952316284,
-            "changePercent": -12.500001164153222
+            "before": 3,
+            "after": 2.5,
+            "changePercent": -16.666666666666668
           },
           "maxMs": {
-            "before": 4.600000023841858,
+            "before": 6.399999976158142,
             "after": 4.799999952316284,
-            "changePercent": 4.347824509517916
+            "changePercent": -25.000000465661287
           },
           "longFrameCount": {
             "before": 0,
@@ -263,29 +268,29 @@
         },
         "update": {
           "minMs": {
-            "before": 0.09999996423721313,
-            "after": 0.09999996423721313,
+            "before": 0.09999990463256836,
+            "after": 0.09999990463256836,
             "changePercent": 0
           },
           "medianMs": {
-            "before": 0.20000004768371582,
-            "after": 0.20000004768371582,
+            "before": 0.2999999523162842,
+            "after": 0.2999999523162842,
             "changePercent": 0
           },
           "p95Ms": {
             "before": 0.5,
-            "after": 0.40000003576278687,
-            "changePercent": -19.999992847442627
+            "after": 0.40000009536743164,
+            "changePercent": -19.999980926513672
           },
           "p99Ms": {
-            "before": 0.5,
-            "after": 0.5,
-            "changePercent": 0
+            "before": 0.6000000238418579,
+            "after": 0.5999999046325684,
+            "changePercent": -0.000019868214135638312
           },
           "maxMs": {
-            "before": 0.7000000476837158,
-            "after": 0.5999999642372131,
-            "changePercent": -14.285725233505438
+            "before": 0.8000000715255737,
+            "after": 1.5,
+            "changePercent": 87.49998323619515
           },
           "longFrameCount": {
             "before": 0,
@@ -305,24 +310,24 @@
             "changePercent": 0
           },
           "medianMs": {
-            "before": 0.10000002384185791,
-            "after": 0.10000002384185791,
+            "before": 0.19999992847442627,
+            "after": 0.19999992847442627,
             "changePercent": 0
           },
           "p95Ms": {
-            "before": 0.30000001192092896,
-            "after": 0.30000001192092896,
+            "before": 0.30000007152557373,
+            "after": 0.30000007152557373,
             "changePercent": 0
           },
           "p99Ms": {
-            "before": 0.30000001192092896,
-            "after": 0.30000001192092896,
+            "before": 0.40000009536743164,
+            "after": 0.40000009536743164,
             "changePercent": 0
           },
           "maxMs": {
-            "before": 0.5,
-            "after": 0.5,
-            "changePercent": 0
+            "before": 0.7000000476837158,
+            "after": 0.6000000238418579,
+            "changePercent": -14.285716718556763
           },
           "longFrameCount": {
             "before": 0,
@@ -337,29 +342,29 @@
         },
         "render": {
           "minMs": {
-            "before": 0.7999999523162842,
-            "after": 0.7999999523162842,
-            "changePercent": 0
+            "before": 0.7000000476837158,
+            "after": 0.6999999284744263,
+            "changePercent": -0.00001702989734718477
           },
           "medianMs": {
-            "before": 1.2000000476837158,
-            "after": 1.199999988079071,
-            "changePercent": -0.000004967053533909578
+            "before": 1,
+            "after": 0.9000000953674316,
+            "changePercent": -9.999990463256836
           },
           "p95Ms": {
-            "before": 2.200000047683716,
-            "after": 2,
-            "changePercent": -9.090911061310528
+            "before": 1.7999999523162842,
+            "after": 1.600000023841858,
+            "changePercent": -11.111107431811954
           },
           "p99Ms": {
-            "before": 2.800000011920929,
-            "after": 2.5,
-            "changePercent": -10.714286094417377
+            "before": 2.700000047683716,
+            "after": 2,
+            "changePercent": -25.925927234121126
           },
           "maxMs": {
-            "before": 4.5,
-            "after": 4.399999976158142,
-            "changePercent": -2.222222752041287
+            "before": 6.100000023841858,
+            "after": 4.199999928474426,
+            "changePercent": -31.147542425266867
           },
           "longFrameCount": {
             "before": 0,
@@ -381,28 +386,28 @@
         "frame": {
           "minMs": {
             "before": 1,
-            "after": 1,
-            "changePercent": 0
+            "after": 0.7999999523162842,
+            "changePercent": -20.000004768371582
           },
           "medianMs": {
-            "before": 1.699999988079071,
-            "after": 1.4000000357627869,
-            "changePercent": -17.6470561423516
+            "before": 1.3000000715255737,
+            "after": 1.6999999284744263,
+            "changePercent": 30.76921807238406
           },
           "p95Ms": {
-            "before": 2.600000023841858,
-            "after": 2.5,
-            "changePercent": -3.8461547278793526
+            "before": 2.5,
+            "after": 2.600000023841858,
+            "changePercent": 4.000000953674316
           },
           "p99Ms": {
-            "before": 3.200000047683716,
-            "after": 2.800000011920929,
-            "changePercent": -12.50000093132256
+            "before": 2.899999976158142,
+            "after": 3,
+            "changePercent": 3.4482767125514187
           },
           "maxMs": {
-            "before": 5.5,
-            "after": 5.600000023841858,
-            "changePercent": 1.8181822516701438
+            "before": 4.200000047683716,
+            "after": 8.299999952316284,
+            "changePercent": 97.61904424009954
           },
           "longFrameCount": {
             "before": 0,
@@ -417,29 +422,29 @@
         },
         "update": {
           "minMs": {
-            "before": 0.09999996423721313,
-            "after": 0.09999996423721313,
-            "changePercent": 0
+            "before": 0.19999992847442627,
+            "after": 0.10000002384185791,
+            "changePercent": -49.999970197666954
           },
           "medianMs": {
             "before": 0.2999999523162842,
-            "after": 0.19999998807907104,
-            "changePercent": -33.33332671059397
+            "after": 0.3999999761581421,
+            "changePercent": 33.333346578812055
           },
           "p95Ms": {
             "before": 0.5,
-            "after": 0.40000003576278687,
-            "changePercent": -19.999992847442627
+            "after": 0.6000000238418579,
+            "changePercent": 20.000004768371582
           },
           "p99Ms": {
             "before": 0.6000000238418579,
-            "after": 0.5,
-            "changePercent": -16.66666997803569
+            "after": 0.6999999284744263,
+            "changePercent": 16.666650109821553
           },
           "maxMs": {
-            "before": 0.699999988079071,
-            "after": 0.6000000238418579,
-            "changePercent": -14.285709420028915
+            "before": 2.100000023841858,
+            "after": 0.7000000476837158,
+            "changePercent": -66.66666477445574
           },
           "longFrameCount": {
             "before": 0,
@@ -454,29 +459,29 @@
         },
         "planner": {
           "minMs": {
-            "before": 0,
-            "after": 0,
+            "before": 0.09999990463256836,
+            "after": 0.09999990463256836,
             "changePercent": 0
           },
           "medianMs": {
-            "before": 0.10000002384185791,
-            "after": 0.10000002384185791,
+            "before": 0.20000004768371582,
+            "after": 0.20000004768371582,
             "changePercent": 0
           },
           "p95Ms": {
-            "before": 0.30000001192092896,
-            "after": 0.2999999523162842,
-            "changePercent": -0.000019868214135638312
+            "before": 0.3999999761581421,
+            "after": 0.3999999761581421,
+            "changePercent": 0
           },
           "p99Ms": {
-            "before": 0.3999999761581421,
-            "after": 0.30000001192092896,
-            "changePercent": -24.99999254941896
+            "before": 0.5,
+            "after": 0.5,
+            "changePercent": 0
           },
           "maxMs": {
             "before": 0.5,
-            "after": 0.30000001192092896,
-            "changePercent": -39.99999761581421
+            "after": 0.5,
+            "changePercent": 0
           },
           "longFrameCount": {
             "before": 0,
@@ -491,29 +496,29 @@
         },
         "render": {
           "minMs": {
-            "before": 0.800000011920929,
-            "after": 0.7999999523162842,
-            "changePercent": -0.000007450580485901527
+            "before": 0.7000000476837158,
+            "after": 0.6999999284744263,
+            "changePercent": -0.00001702989734718477
           },
           "medianMs": {
-            "before": 1.4000000357627869,
-            "after": 1.2000000476837158,
-            "changePercent": -14.285713069292996
+            "before": 1,
+            "after": 1.2999999523162842,
+            "changePercent": 29.999995231628418
           },
           "p95Ms": {
-            "before": 2.200000047683716,
-            "after": 2.199999988079071,
-            "changePercent": -0.0000027093019765224897
+            "before": 2,
+            "after": 2.1999999284744263,
+            "changePercent": 9.999996423721313
           },
           "p99Ms": {
-            "before": 2.800000011920929,
-            "after": 2.400000035762787,
-            "changePercent": -14.285713373398298
+            "before": 2.399999976158142,
+            "after": 2.5,
+            "changePercent": 4.166667701469538
           },
           "maxMs": {
-            "before": 5.100000023841858,
-            "after": 5.5,
-            "changePercent": 7.843136750748874
+            "before": 4,
+            "after": 7.699999928474426,
+            "changePercent": 92.49999821186066
           },
           "longFrameCount": {
             "before": 0,
@@ -534,29 +539,29 @@
       "metrics": {
         "frame": {
           "minMs": {
-            "before": 1.800000011920929,
-            "after": 1.5999999642372131,
-            "changePercent": -11.111113686620437
+            "before": 1.600000023841858,
+            "after": 1.6999999284744263,
+            "changePercent": 6.249993946403356
           },
           "medianMs": {
-            "before": 3.800000011920929,
-            "after": 2.199999988079071,
-            "changePercent": -42.10526365322419
+            "before": 1.899999976158142,
+            "after": 2.200000047683716,
+            "changePercent": 15.78947764684624
           },
           "p95Ms": {
-            "before": 7.400000035762787,
-            "after": 3.800000011920929,
-            "changePercent": -48.64864873572629
+            "before": 3.399999976158142,
+            "after": 3.899999976158142,
+            "changePercent": 14.7058824560634
           },
           "p99Ms": {
-            "before": 10.199999988079071,
-            "after": 4.5,
-            "changePercent": -55.88235288961536
+            "before": 4.100000023841858,
+            "after": 5.299999952316284,
+            "changePercent": 29.268290768202974
           },
           "maxMs": {
-            "before": 16.100000023841858,
-            "after": 5.699999988079071,
-            "changePercent": -64.59627341839649
+            "before": 8.199999928474426,
+            "after": 7.099999904632568,
+            "changePercent": -13.414634554106735
           },
           "longFrameCount": {
             "before": 0,
@@ -572,28 +577,28 @@
         "update": {
           "minMs": {
             "before": 0.10000002384185791,
-            "after": 0.09999996423721313,
-            "changePercent": -0.0000596046305645393
+            "after": 0.19999992847442627,
+            "changePercent": 99.99988079073887
           },
           "medianMs": {
-            "before": 0.3999999761581421,
-            "after": 0.20000004768371582,
-            "changePercent": -49.99998509883792
+            "before": 0.2999999523162842,
+            "after": 0.30000007152557373,
+            "changePercent": 0.00003973643616619685
           },
           "p95Ms": {
-            "before": 0.6000000238418579,
-            "after": 0.40000003576278687,
-            "changePercent": -33.33333002196431
+            "before": 0.5,
+            "after": 0.5999999046325684,
+            "changePercent": 19.999980926513672
           },
           "p99Ms": {
-            "before": 0.9000000357627869,
-            "after": 0.5,
-            "changePercent": -44.44444665202379
+            "before": 0.6000000238418579,
+            "after": 0.6000000238418579,
+            "changePercent": 0
           },
           "maxMs": {
-            "before": 2.800000011920929,
-            "after": 0.800000011920929,
-            "changePercent": -71.4285711244661
+            "before": 0.8999999761581421,
+            "after": 0.6000000238418579,
+            "changePercent": -33.333328918174345
           },
           "longFrameCount": {
             "before": 0,
@@ -608,29 +613,29 @@
         },
         "planner": {
           "minMs": {
-            "before": 0,
-            "after": 0,
+            "before": 0.09999990463256836,
+            "after": 0.09999990463256836,
             "changePercent": 0
           },
           "medianMs": {
             "before": 0.20000004768371582,
-            "after": 0.10000002384185791,
-            "changePercent": -50
+            "after": 0.20000004768371582,
+            "changePercent": 0
           },
           "p95Ms": {
-            "before": 0.40000003576278687,
-            "after": 0.30000001192092896,
-            "changePercent": -25.000003725289965
+            "before": 0.3999999761581421,
+            "after": 0.3999999761581421,
+            "changePercent": 0
           },
           "p99Ms": {
-            "before": 0.6000000238418579,
-            "after": 0.30000001192092896,
-            "changePercent": -50
+            "before": 0.5,
+            "after": 0.5,
+            "changePercent": 0
           },
           "maxMs": {
-            "before": 0.699999988079071,
+            "before": 0.7999999523162842,
             "after": 0.5,
-            "changePercent": -28.571427355007227
+            "changePercent": -37.49999627470948
           },
           "longFrameCount": {
             "before": 0,
@@ -645,29 +650,29 @@
         },
         "render": {
           "minMs": {
-            "before": 1.699999988079071,
-            "after": 1.4000000357627869,
-            "changePercent": -17.6470561423516
+            "before": 1.2999999523162842,
+            "after": 1.399999976158142,
+            "changePercent": 7.6923098084490045
           },
           "medianMs": {
-            "before": 3.400000035762787,
-            "after": 1.9000000357627869,
-            "changePercent": -44.11764659477353
+            "before": 1.600000023841858,
+            "after": 1.899999976158142,
+            "changePercent": 18.74999674037104
           },
           "p95Ms": {
-            "before": 7,
-            "after": 3.5,
-            "changePercent": -50
+            "before": 3,
+            "after": 3.399999976158142,
+            "changePercent": 13.333332538604736
           },
           "p99Ms": {
-            "before": 9.5,
-            "after": 4.199999988079071,
-            "changePercent": -55.78947380969399
+            "before": 3.6999999284744263,
+            "after": 4.899999976158142,
+            "changePercent": 32.43243434814055
           },
           "maxMs": {
-            "before": 15.600000023841858,
-            "after": 5.399999976158142,
-            "changePercent": -65.38461559035133
+            "before": 7.799999952316284,
+            "after": 6.399999976158142,
+            "changePercent": -17.948717752778943
           },
           "longFrameCount": {
             "before": 0,
@@ -688,29 +693,29 @@
       "metrics": {
         "frame": {
           "minMs": {
-            "before": 1.5,
-            "after": 1.699999988079071,
-            "changePercent": 13.333332538604736
+            "before": 1.5999999046325684,
+            "after": 1.7999999523162842,
+            "changePercent": 12.50000372529052
           },
           "medianMs": {
-            "before": 2.200000047683716,
-            "after": 2.300000011920929,
-            "changePercent": 4.545452821353288
+            "before": 1.899999976158142,
+            "after": 2.5,
+            "changePercent": 31.578949019519268
           },
           "p95Ms": {
-            "before": 4.199999988079071,
-            "after": 3.800000011920929,
-            "changePercent": -9.523808983177824
+            "before": 3.399999976158142,
+            "after": 3.899999976158142,
+            "changePercent": 14.7058824560634
           },
           "p99Ms": {
-            "before": 4.900000035762787,
-            "after": 4.400000035762787,
-            "changePercent": -10.204081558178286
+            "before": 3.799999952316284,
+            "after": 5,
+            "changePercent": 31.578949019519268
           },
           "maxMs": {
-            "before": 6.899999976158142,
-            "after": 6.300000011920929,
-            "changePercent": -8.695651685658232
+            "before": 5.600000023841858,
+            "after": 6.200000047683716,
+            "changePercent": 10.714286094417377
           },
           "longFrameCount": {
             "before": 0,
@@ -725,29 +730,29 @@
         },
         "update": {
           "minMs": {
-            "before": 0.09999996423721313,
-            "after": 0.09999996423721313,
+            "before": 0.19999992847442627,
+            "after": 0.19999992847442627,
             "changePercent": 0
           },
           "medianMs": {
-            "before": 0.20000004768371582,
-            "after": 0.20000004768371582,
-            "changePercent": 0
+            "before": 0.2999999523162842,
+            "after": 0.30000007152557373,
+            "changePercent": 0.00003973643616619685
           },
           "p95Ms": {
-            "before": 0.5,
-            "after": 0.40000003576278687,
-            "changePercent": -19.999992847442627
-          },
-          "p99Ms": {
             "before": 0.5,
             "after": 0.5,
             "changePercent": 0
           },
+          "p99Ms": {
+            "before": 0.6000000238418579,
+            "after": 0.6999999284744263,
+            "changePercent": 16.666650109821553
+          },
           "maxMs": {
-            "before": 1,
-            "after": 0.5999999642372131,
-            "changePercent": -40.00000357627869
+            "before": 1.7000000476837158,
+            "after": 3.200000047683716,
+            "changePercent": 88.23529164271378
           },
           "longFrameCount": {
             "before": 0,
@@ -762,29 +767,29 @@
         },
         "planner": {
           "minMs": {
-            "before": 0,
-            "after": 0,
+            "before": 0.09999990463256836,
+            "after": 0.09999990463256836,
             "changePercent": 0
           },
           "medianMs": {
-            "before": 0.10000002384185791,
-            "after": 0.10000002384185791,
+            "before": 0.20000004768371582,
+            "after": 0.20000004768371582,
             "changePercent": 0
           },
           "p95Ms": {
-            "before": 0.30000001192092896,
-            "after": 0.30000001192092896,
-            "changePercent": 0
+            "before": 0.30000007152557373,
+            "after": 0.3999999761581421,
+            "changePercent": 33.33329359691296
           },
           "p99Ms": {
-            "before": 0.40000003576278687,
-            "after": 0.30000001192092896,
-            "changePercent": -25.000003725289965
+            "before": 0.40000009536743164,
+            "after": 0.5,
+            "changePercent": 24.999970197684718
           },
           "maxMs": {
-            "before": 0.699999988079071,
-            "after": 0.30000001192092896,
-            "changePercent": -57.142854710014454
+            "before": 0.5,
+            "after": 0.5,
+            "changePercent": 0
           },
           "longFrameCount": {
             "before": 0,
@@ -799,29 +804,29 @@
         },
         "render": {
           "minMs": {
-            "before": 1.300000011920929,
-            "after": 1.5,
-            "changePercent": 15.384614326544776
+            "before": 1.2999999523162842,
+            "after": 1.399999976158142,
+            "changePercent": 7.6923098084490045
           },
           "medianMs": {
-            "before": 2,
+            "before": 1.600000023841858,
             "after": 2.100000023841858,
-            "changePercent": 5.0000011920928955
+            "changePercent": 31.24999953433872
           },
           "p95Ms": {
-            "before": 3.800000011920929,
-            "after": 3.600000023841858,
-            "changePercent": -5.263157564517204
+            "before": 3.0999999046325684,
+            "after": 3.3000000715255737,
+            "changePercent": 6.4516184853467164
           },
           "p99Ms": {
-            "before": 4.699999988079071,
-            "after": 4.100000023841858,
-            "changePercent": -12.765956718277314
+            "before": 3.5,
+            "after": 3.6999999284744263,
+            "changePercent": 5.714283670697894
           },
           "maxMs": {
-            "before": 6.800000011920929,
-            "after": 6,
-            "changePercent": -11.764706037036275
+            "before": 5.300000071525574,
+            "after": 5.700000047683716,
+            "changePercent": 7.547169259622377
           },
           "longFrameCount": {
             "before": 0,
@@ -842,29 +847,29 @@
       "metrics": {
         "frame": {
           "minMs": {
-            "before": 1.399999976158142,
-            "after": 1.5999999642372131,
-            "changePercent": 14.285713677503614
+            "before": 1.5999999046325684,
+            "after": 1.5999999046325684,
+            "changePercent": 0
           },
           "medianMs": {
-            "before": 1.699999988079071,
-            "after": 2.100000023841858,
-            "changePercent": 23.5294140333948
+            "before": 1.899999976158142,
+            "after": 2,
+            "changePercent": 5.2631592156154134
           },
           "p95Ms": {
-            "before": 2.900000035762787,
-            "after": 3.800000011920929,
-            "changePercent": 31.034481553770572
+            "before": 3.399999976158142,
+            "after": 3.600000023841858,
+            "changePercent": 5.882354384887599
           },
           "p99Ms": {
-            "before": 3.699999988079071,
-            "after": 4.599999964237213,
-            "changePercent": 24.32432375831966
+            "before": 3.899999976158142,
+            "after": 4,
+            "changePercent": 2.564103191107378
           },
           "maxMs": {
-            "before": 5.399999976158142,
-            "after": 6.199999988079071,
-            "changePercent": 14.814815100982521
+            "before": 5.900000095367432,
+            "after": 8.399999976158142,
+            "changePercent": 42.37287865052177
           },
           "longFrameCount": {
             "before": 0,
@@ -879,29 +884,29 @@
         },
         "update": {
           "minMs": {
-            "before": 0,
-            "after": 0.09999996423721313,
-            "changePercent": null
+            "before": 0.09999990463256836,
+            "after": 0.19999992847442627,
+            "changePercent": 100.00011920940324
           },
           "medianMs": {
-            "before": 0.19999998807907104,
-            "after": 0.20000004768371582,
-            "changePercent": 0.000029802324164052257
+            "before": 0.2999999523162842,
+            "after": 0.2999999523162842,
+            "changePercent": 0
           },
           "p95Ms": {
-            "before": 0.30000001192092896,
-            "after": 0.40000003576278687,
-            "changePercent": 33.33333995607138
+            "before": 0.5,
+            "after": 0.5,
+            "changePercent": 0
           },
           "p99Ms": {
-            "before": 0.40000003576278687,
-            "after": 0.5,
-            "changePercent": 24.999988824130103
+            "before": 0.6000000238418579,
+            "after": 0.7999999523162842,
+            "changePercent": 33.333320087857246
           },
           "maxMs": {
-            "before": 1.699999988079071,
-            "after": 0.5,
-            "changePercent": -70.5882350878732
+            "before": 0.8000000715255737,
+            "after": 1.8000000715255737,
+            "changePercent": 124.9999888241301
           },
           "longFrameCount": {
             "before": 0,
@@ -916,29 +921,29 @@
         },
         "planner": {
           "minMs": {
-            "before": 0,
-            "after": 0,
+            "before": 0.09999990463256836,
+            "after": 0.09999990463256836,
             "changePercent": 0
           },
           "medianMs": {
-            "before": 0.10000002384185791,
-            "after": 0.10000002384185791,
+            "before": 0.20000004768371582,
+            "after": 0.20000004768371582,
             "changePercent": 0
           },
           "p95Ms": {
-            "before": 0.20000004768371582,
-            "after": 0.2999999523162842,
-            "changePercent": 49.999940395369435
-          },
-          "p99Ms": {
-            "before": 0.30000001192092896,
-            "after": 0.30000001192092896,
+            "before": 0.30000007152557373,
+            "after": 0.30000007152557373,
             "changePercent": 0
           },
+          "p99Ms": {
+            "before": 0.40000009536743164,
+            "after": 0.3999999761581421,
+            "changePercent": -0.00002980231528226965
+          },
           "maxMs": {
-            "before": 0.40000003576278687,
-            "after": 0.30000001192092896,
-            "changePercent": -25.000003725289965
+            "before": 0.7000000476837158,
+            "after": 0.6000000238418579,
+            "changePercent": -14.285716718556763
           },
           "longFrameCount": {
             "before": 0,
@@ -953,29 +958,29 @@
         },
         "render": {
           "minMs": {
-            "before": 1.199999988079071,
-            "after": 1.4000000357627869,
-            "changePercent": 16.66667080587815
+            "before": 1.2999999523162842,
+            "after": 1.2999999523162842,
+            "changePercent": 0
           },
           "medianMs": {
-            "before": 1.5,
-            "after": 1.9000000357627869,
-            "changePercent": 26.66666905085246
+            "before": 1.600000023841858,
+            "after": 1.7000000476837158,
+            "changePercent": 6.2500013969838415
           },
           "p95Ms": {
-            "before": 2.699999988079071,
-            "after": 3.600000023841858,
-            "changePercent": 33.333334805052964
+            "before": 2.9000000953674316,
+            "after": 3.100000023841858,
+            "changePercent": 6.896549030943606
           },
           "p99Ms": {
-            "before": 3.399999976158142,
-            "after": 4.100000023841858,
-            "changePercent": 20.588236840951
+            "before": 3.5,
+            "after": 3.8000000715255737,
+            "changePercent": 8.571430615016393
           },
           "maxMs": {
-            "before": 5.300000011920929,
-            "after": 5.899999976158142,
-            "changePercent": 11.320754016748568
+            "before": 5.600000023841858,
+            "after": 8.100000023841858,
+            "changePercent": 44.64285695279131
           },
           "longFrameCount": {
             "before": 0,
@@ -996,29 +1001,29 @@
       "metrics": {
         "frame": {
           "minMs": {
-            "before": 29.19999998807907,
-            "after": 4.699999988079071,
-            "changePercent": -83.90410962329503
+            "before": 32.700000047683716,
+            "after": 4.200000047683716,
+            "changePercent": -87.15596317565993
           },
           "medianMs": {
-            "before": 34.59999996423721,
-            "after": 6.199999988079071,
-            "changePercent": -82.0809248714236
+            "before": 38,
+            "after": 5.699999928474426,
+            "changePercent": -85.0000001882252
           },
           "p95Ms": {
-            "before": 41,
-            "after": 9.900000035762787,
-            "changePercent": -75.85365844935906
+            "before": 48.89999997615814,
+            "after": 8.800000071525574,
+            "changePercent": -82.00408982450689
           },
           "p99Ms": {
-            "before": 48.10000002384186,
-            "after": 11.5,
-            "changePercent": -76.0914761033269
+            "before": 57.60000002384186,
+            "after": 10.699999928474426,
+            "changePercent": -81.42361124297662
           },
           "maxMs": {
-            "before": 49.69999998807907,
-            "after": 12.800000011920929,
-            "changePercent": -74.24547280685894
+            "before": 62.299999952316284,
+            "after": 11.299999952316284,
+            "changePercent": -81.86195832910887
           },
           "longFrameCount": {
             "before": 300,
@@ -1026,7 +1031,7 @@
             "changePercent": -100
           },
           "totalTimeAboveBudgetMsPer1000": {
-            "before": 34951.66666507721,
+            "before": 23041.666669448157,
             "after": 0,
             "changePercent": -100
           }
@@ -1038,24 +1043,24 @@
             "changePercent": 0
           },
           "medianMs": {
-            "before": 0.09999996423721313,
+            "before": 0.10000002384185791,
             "after": 0.10000002384185791,
-            "changePercent": 0.00005960466609168032
-          },
-          "p95Ms": {
-            "before": 0.19999998807907104,
-            "after": 0.19999998807907104,
             "changePercent": 0
           },
+          "p95Ms": {
+            "before": 0.20000004768371582,
+            "after": 0.19999992847442627,
+            "changePercent": -0.0000596046305645393
+          },
           "p99Ms": {
-            "before": 0.3999999761581421,
-            "after": 0.30000001192092896,
-            "changePercent": -24.99999254941896
+            "before": 0.20000004768371582,
+            "after": 0.20000004768371582,
+            "changePercent": 0
           },
           "maxMs": {
-            "before": 1.399999976158142,
-            "after": 0.30000001192092896,
-            "changePercent": -78.57142735500723
+            "before": 0.2999999523162842,
+            "after": 0.2999999523162842,
+            "changePercent": 0
           },
           "longFrameCount": {
             "before": 0,
@@ -1080,19 +1085,19 @@
             "changePercent": 0
           },
           "p95Ms": {
-            "before": 0.09999996423721313,
+            "before": 0.10000002384185791,
             "after": 0.10000002384185791,
-            "changePercent": 0.00005960466609168032
+            "changePercent": 0
           },
           "p99Ms": {
-            "before": 0.30000001192092896,
+            "before": 0.10000002384185791,
             "after": 0.10000002384185791,
-            "changePercent": -66.66666004392862
+            "changePercent": 0
           },
           "maxMs": {
-            "before": 1.300000011920929,
+            "before": 0.19999992847442627,
             "after": 0.10000002384185791,
-            "changePercent": -92.3076905442413
+            "changePercent": -49.999970197666954
           },
           "longFrameCount": {
             "before": 0,
@@ -1107,29 +1112,29 @@
         },
         "render": {
           "minMs": {
-            "before": 29.099999964237213,
-            "after": 4.599999964237213,
-            "changePercent": -84.19243996601224
+            "before": 32.700000047683716,
+            "after": 4.200000047683716,
+            "changePercent": -87.15596317565993
           },
           "medianMs": {
-            "before": 34.40000003576279,
-            "after": 6.100000023841858,
-            "changePercent": -82.26744180959244
+            "before": 38,
+            "after": 5.600000023841858,
+            "changePercent": -85.26315783199512
           },
           "p95Ms": {
-            "before": 40.89999997615814,
-            "after": 9.800000011920929,
-            "changePercent": -76.03911976128693
+            "before": 48.799999952316284,
+            "after": 8.800000071525574,
+            "changePercent": -81.96721295056501
           },
           "p99Ms": {
-            "before": 48,
-            "after": 11.400000035762787,
-            "changePercent": -76.2499999254942
+            "before": 57.60000002384186,
+            "after": 10.600000023841858,
+            "changePercent": -81.5972221884474
           },
           "maxMs": {
-            "before": 49.60000002384186,
-            "after": 12.699999988079071,
-            "changePercent": -74.3951613266645
+            "before": 62.200000047683716,
+            "after": 11.199999928474426,
+            "changePercent": -81.99356926062976
           },
           "longFrameCount": {
             "before": 300,
@@ -1137,9 +1142,9 @@
             "changePercent": -100
           },
           "totalTimeAboveBudgetMsPer1000": {
-            "before": 34866.666665275894,
+            "before": 22958.999999761523,
             "after": 0,
-            "changePercent": -100
+            "changePercent": -100.00000000000001
           }
         }
       }
@@ -1150,29 +1155,29 @@
       "metrics": {
         "frame": {
           "minMs": {
-            "before": 31.399999976158142,
-            "after": 4.5,
-            "changePercent": -85.66878979803559
+            "before": 31.699999928474426,
+            "after": 4.399999976158142,
+            "changePercent": -86.1198738609275
           },
           "medianMs": {
-            "before": 34.59999996423721,
-            "after": 6,
-            "changePercent": -82.65895951964845
+            "before": 38.5,
+            "after": 5.400000095367432,
+            "changePercent": -85.97402572631836
           },
           "p95Ms": {
-            "before": 38.39999997615814,
-            "after": 9.5,
-            "changePercent": -75.26041665130631
+            "before": 52.89999997615814,
+            "after": 8.400000095367432,
+            "changePercent": -84.12098279933217
           },
           "p99Ms": {
-            "before": 41.60000002384186,
-            "after": 11.199999988079071,
-            "changePercent": -73.07692312100936
+            "before": 64.90000009536743,
+            "after": 9.399999976158142,
+            "changePercent": -85.5161787945373
           },
           "maxMs": {
-            "before": 44.39999997615814,
-            "after": 15.099999964237213,
-            "changePercent": -65.99099105327569
+            "before": 71.60000002384186,
+            "after": 11.5,
+            "changePercent": -83.93854749138177
           },
           "longFrameCount": {
             "before": 300,
@@ -1180,7 +1185,7 @@
             "changePercent": -100
           },
           "totalTimeAboveBudgetMsPer1000": {
-            "before": 34802.000001867615,
+            "before": 23470.999999840995,
             "after": 0,
             "changePercent": -100
           }
@@ -1192,13 +1197,13 @@
             "changePercent": 0
           },
           "medianMs": {
-            "before": 0.09999996423721313,
-            "after": 0.09999996423721313,
+            "before": 0.10000002384185791,
+            "after": 0.10000002384185791,
             "changePercent": 0
           },
           "p95Ms": {
-            "before": 0.19999998807907104,
-            "after": 0.19999998807907104,
+            "before": 0.20000004768371582,
+            "after": 0.20000004768371582,
             "changePercent": 0
           },
           "p99Ms": {
@@ -1207,9 +1212,9 @@
             "changePercent": 0
           },
           "maxMs": {
-            "before": 0.2999999523162842,
-            "after": 2.699999988079071,
-            "changePercent": 800.0001390775266
+            "before": 0.3999999761581421,
+            "after": 0.2999999523162842,
+            "changePercent": -25.00000745058104
           },
           "longFrameCount": {
             "before": 0,
@@ -1245,8 +1250,8 @@
           },
           "maxMs": {
             "before": 0.10000002384185791,
-            "after": 2.5,
-            "changePercent": 2399.999403953694
+            "after": 0.20000004768371582,
+            "changePercent": 100
           },
           "longFrameCount": {
             "before": 0,
@@ -1261,29 +1266,29 @@
         },
         "render": {
           "minMs": {
-            "before": 31.30000001192093,
-            "after": 4.5,
-            "changePercent": -85.62300320036381
+            "before": 31.59999990463257,
+            "after": 4.399999976158142,
+            "changePercent": -86.07594940051534
           },
           "medianMs": {
-            "before": 34.5,
-            "after": 5.900000035762787,
-            "changePercent": -82.89855062097743
+            "before": 38.39999997615814,
+            "after": 5.300000071525574,
+            "changePercent": -86.19791647183268
           },
           "p95Ms": {
-            "before": 38.39999997615814,
-            "after": 9.199999988079071,
-            "changePercent": -76.04166668283546
+            "before": 52.89999997615814,
+            "after": 8.300000071525574,
+            "changePercent": -84.31001876131124
           },
           "p99Ms": {
-            "before": 41.5,
-            "after": 11.100000023841858,
-            "changePercent": -73.25301199074251
+            "before": 64.80000007152557,
+            "after": 9.399999976158142,
+            "changePercent": -85.49382721329859
           },
           "maxMs": {
-            "before": 44.30000001192093,
-            "after": 14.899999976158142,
-            "changePercent": -66.36568855045458
+            "before": 71.5,
+            "after": 11.399999976158142,
+            "changePercent": -84.05594408928931
           },
           "longFrameCount": {
             "before": 300,
@@ -1291,7 +1296,7 @@
             "changePercent": -100
           },
           "totalTimeAboveBudgetMsPer1000": {
-            "before": 34721.333333055176,
+            "before": 23388.999998172065,
             "after": 0,
             "changePercent": -100
           }
@@ -1304,29 +1309,29 @@
       "metrics": {
         "frame": {
           "minMs": {
-            "before": 30.69999998807907,
-            "after": 4.599999964237213,
-            "changePercent": -85.01628675562407
+            "before": 31.199999928474426,
+            "after": 4.100000023841858,
+            "changePercent": -86.85897425243253
           },
           "medianMs": {
-            "before": 35.19999998807907,
-            "after": 5.899999976158142,
-            "changePercent": -83.23863642569246
+            "before": 37.10000002384186,
+            "after": 5.600000023841858,
+            "changePercent": -84.90566032279492
           },
           "p95Ms": {
-            "before": 39.80000001192093,
-            "after": 8,
-            "changePercent": -79.8994974934577
+            "before": 50.60000002384186,
+            "after": 8.700000047683716,
+            "changePercent": -82.8063240245367
           },
           "p99Ms": {
-            "before": 42.80000001192093,
-            "after": 11.099999964237213,
-            "changePercent": -74.06542065152904
+            "before": 58.199999928474426,
+            "after": 10.399999976158142,
+            "changePercent": -82.13058421144443
           },
           "maxMs": {
-            "before": 63.30000001192093,
-            "after": 11.800000011920929,
-            "changePercent": -81.35860977930695
+            "before": 66.40000009536743,
+            "after": 11.300000071525574,
+            "changePercent": -82.98192762756645
           },
           "longFrameCount": {
             "before": 300,
@@ -1334,7 +1339,7 @@
             "changePercent": -100
           },
           "totalTimeAboveBudgetMsPer1000": {
-            "before": 35529.00000075499,
+            "before": 22326.666669050792,
             "after": 0,
             "changePercent": -100
           }
@@ -1346,13 +1351,13 @@
             "changePercent": 0
           },
           "medianMs": {
-            "before": 0.09999996423721313,
+            "before": 0.10000002384185791,
             "after": 0.10000002384185791,
-            "changePercent": 0.00005960466609168032
+            "changePercent": 0
           },
           "p95Ms": {
-            "before": 0.19999998807907104,
-            "after": 0.19999998807907104,
+            "before": 0.20000004768371582,
+            "after": 0.20000004768371582,
             "changePercent": 0
           },
           "p99Ms": {
@@ -1361,9 +1366,9 @@
             "changePercent": 0
           },
           "maxMs": {
-            "before": 0.5,
-            "after": 0.30000001192092896,
-            "changePercent": -39.99999761581421
+            "before": 0.20000004768371582,
+            "after": 0.30000007152557373,
+            "changePercent": 50
           },
           "longFrameCount": {
             "before": 0,
@@ -1398,9 +1403,9 @@
             "changePercent": 0
           },
           "maxMs": {
-            "before": 0.5,
-            "after": 0.10000002384185791,
-            "changePercent": -79.99999523162842
+            "before": 0.10000002384185791,
+            "after": 0.19999992847442627,
+            "changePercent": 99.99988079073887
           },
           "longFrameCount": {
             "before": 0,
@@ -1415,29 +1420,29 @@
         },
         "render": {
           "minMs": {
-            "before": 30.599999964237213,
-            "after": 4.5,
-            "changePercent": -85.29411762987179
+            "before": 31,
+            "after": 4.100000023841858,
+            "changePercent": -86.77419347147787
           },
           "medianMs": {
-            "before": 35.10000002384186,
-            "after": 5.800000011920929,
-            "changePercent": -83.47578345304487
+            "before": 37.10000002384186,
+            "after": 5.5,
+            "changePercent": -85.17520216586121
           },
           "p95Ms": {
-            "before": 39.69999998807907,
-            "after": 7.800000011920929,
-            "changePercent": -80.35264480034489
+            "before": 50.60000002384186,
+            "after": 8.700000047683716,
+            "changePercent": -82.8063240245367
           },
           "p99Ms": {
-            "before": 42.59999996423721,
-            "after": 11,
-            "changePercent": -74.17840373419126
+            "before": 58.09999990463257,
+            "after": 10.199999928474426,
+            "changePercent": -82.444062056425
           },
           "maxMs": {
-            "before": 63.19999998807907,
-            "after": 11.699999988079071,
-            "changePercent": -81.48734178752223
+            "before": 66.30000007152557,
+            "after": 11.200000047683716,
+            "changePercent": -83.10708893574515
           },
           "longFrameCount": {
             "before": 300,
@@ -1445,7 +1450,7 @@
             "changePercent": -100
           },
           "totalTimeAboveBudgetMsPer1000": {
-            "before": 35445.66666841507,
+            "before": 22247.66666571293,
             "after": 0,
             "changePercent": -100
           }
@@ -1458,37 +1463,37 @@
       "metrics": {
         "frame": {
           "minMs": {
-            "before": 16.899999976158142,
-            "after": 2.5,
-            "changePercent": -85.20710057084673
+            "before": 14.699999928474426,
+            "after": 2.799999952316284,
+            "changePercent": -80.95238118408025
           },
           "medianMs": {
-            "before": 19.30000001192093,
-            "after": 3.200000047683716,
-            "changePercent": -83.41968888234618
+            "before": 16.800000071525574,
+            "after": 3.600000023841858,
+            "changePercent": -78.57142852074435
           },
           "p95Ms": {
-            "before": 25.600000023841858,
-            "after": 4.699999988079071,
-            "changePercent": -81.64062506366463
+            "before": 25,
+            "after": 5.700000047683716,
+            "changePercent": -77.19999980926514
           },
           "p99Ms": {
-            "before": 32,
-            "after": 5.5,
-            "changePercent": -82.8125
+            "before": 33.700000047683716,
+            "after": 7.799999952316284,
+            "changePercent": -76.85459958077242
           },
           "maxMs": {
-            "before": 40.59999996423721,
-            "after": 5.699999988079071,
-            "changePercent": -85.96059115000011
+            "before": 37.89999997615814,
+            "after": 9.299999952316284,
+            "changePercent": -75.46174153518031
           },
           "longFrameCount": {
-            "before": 300,
+            "before": 158,
             "after": 0,
             "changePercent": -100
           },
           "totalTimeAboveBudgetMsPer1000": {
-            "before": 20171.66666785876,
+            "before": 1748.1333347638397,
             "after": 0,
             "changePercent": -100
           }
@@ -1510,14 +1515,14 @@
             "changePercent": 0
           },
           "p99Ms": {
-            "before": 0.20000004768371582,
-            "after": 0.30000001192092896,
-            "changePercent": 49.99997019768472
+            "before": 0.30000007152557373,
+            "after": 0.30000007152557373,
+            "changePercent": 0
           },
           "maxMs": {
-            "before": 0.30000001192092896,
-            "after": 0.30000001192092896,
-            "changePercent": 0
+            "before": 0.30000007152557373,
+            "after": 0.3999999761581421,
+            "changePercent": 33.33329359691296
           },
           "longFrameCount": {
             "before": 0,
@@ -1537,8 +1542,8 @@
             "changePercent": 0
           },
           "medianMs": {
-            "before": 0,
-            "after": 0,
+            "before": 0.09999990463256836,
+            "after": 0.09999990463256836,
             "changePercent": 0
           },
           "p95Ms": {
@@ -1547,9 +1552,9 @@
             "changePercent": 0
           },
           "p99Ms": {
-            "before": 0.19999998807907104,
-            "after": 0.10000002384185791,
-            "changePercent": -49.99998509883792
+            "before": 0.20000004768371582,
+            "after": 0.20000004768371582,
+            "changePercent": 0
           },
           "maxMs": {
             "before": 0.20000004768371582,
@@ -1569,37 +1574,37 @@
         },
         "render": {
           "minMs": {
-            "before": 16.799999952316284,
-            "after": 2.399999976158142,
-            "changePercent": -85.71428581565416
+            "before": 14.5,
+            "after": 2.600000023841858,
+            "changePercent": -82.06896535281477
           },
           "medianMs": {
-            "before": 19.19999998807907,
-            "after": 3.100000023841858,
-            "changePercent": -83.85416653246567
+            "before": 16.700000047683716,
+            "after": 3.5,
+            "changePercent": -79.04191622750655
           },
           "p95Ms": {
-            "before": 25.399999976158142,
-            "after": 4.599999964237213,
-            "changePercent": -81.88976390332665
+            "before": 24.799999952316284,
+            "after": 5.600000023841858,
+            "changePercent": -77.41935469915666
           },
           "p99Ms": {
-            "before": 31.80000001192093,
-            "after": 5.300000011920929,
-            "changePercent": -83.333333302094
+            "before": 33.5,
+            "after": 7.699999928474426,
+            "changePercent": -77.0149255866435
           },
           "maxMs": {
-            "before": 40.299999952316284,
-            "after": 5.599999964237213,
-            "changePercent": -86.10421843458253
+            "before": 37.60000002384186,
+            "after": 9.099999904632568,
+            "changePercent": -75.7978726094087
           },
           "longFrameCount": {
-            "before": 300,
+            "before": 151,
             "after": 0,
             "changePercent": -100
           },
           "totalTimeAboveBudgetMsPer1000": {
-            "before": 20063.999999364216,
+            "before": 1675.433333969111,
             "after": 0,
             "changePercent": -100
           }
@@ -1612,37 +1617,37 @@
       "metrics": {
         "frame": {
           "minMs": {
-            "before": 16.69999998807907,
-            "after": 2.5,
-            "changePercent": -85.02994010907443
+            "before": 14.299999952316284,
+            "after": 2.899999976158142,
+            "changePercent": -79.72027981938275
           },
           "medianMs": {
-            "before": 19.5,
-            "after": 3.400000035762787,
-            "changePercent": -82.56410238070366
+            "before": 17.699999928474426,
+            "after": 3.799999952316284,
+            "changePercent": -78.53107362897143
           },
           "p95Ms": {
-            "before": 24.599999964237213,
-            "after": 4.900000035762787,
-            "changePercent": -80.08130063867371
+            "before": 29.899999976158142,
+            "after": 6,
+            "changePercent": -79.93311035189191
           },
           "p99Ms": {
-            "before": 28.400000035762787,
-            "after": 5.600000023841858,
-            "changePercent": -80.2816900817252
+            "before": 35.10000002384186,
+            "after": 7.100000023841858,
+            "changePercent": -79.77207971789417
           },
           "maxMs": {
-            "before": 35.69999998807907,
-            "after": 6.100000023841858,
-            "changePercent": -82.9131651936169
+            "before": 39.200000047683716,
+            "after": 7.300000071525574,
+            "changePercent": -81.37755086059771
           },
           "longFrameCount": {
-            "before": 300,
+            "before": 181,
             "after": 0,
             "changePercent": -100
           },
           "totalTimeAboveBudgetMsPer1000": {
-            "before": 20129.000000158947,
+            "before": 3116.1000016689427,
             "after": 0,
             "changePercent": -100
           }
@@ -1664,14 +1669,14 @@
             "changePercent": 0
           },
           "p99Ms": {
-            "before": 0.20000004768371582,
-            "after": 0.20000004768371582,
+            "before": 0.30000007152557373,
+            "after": 0.30000007152557373,
             "changePercent": 0
           },
           "maxMs": {
-            "before": 0.5,
-            "after": 0.3999999761581421,
-            "changePercent": -20.000004768371582
+            "before": 0.3999999761581421,
+            "after": 0.30000007152557373,
+            "changePercent": -24.999977648256877
           },
           "longFrameCount": {
             "before": 0,
@@ -1691,18 +1696,18 @@
             "changePercent": 0
           },
           "medianMs": {
-            "before": 0,
-            "after": 0,
-            "changePercent": 0
+            "before": 0.09999990463256836,
+            "after": 0.10000002384185791,
+            "changePercent": 0.00011920940323772739
           },
           "p95Ms": {
             "before": 0.10000002384185791,
-            "after": 0.10000002384185791,
-            "changePercent": 0
+            "after": 0.19999992847442627,
+            "changePercent": 99.99988079073887
           },
           "p99Ms": {
-            "before": 0.19999998807907104,
-            "after": 0.19999998807907104,
+            "before": 0.20000004768371582,
+            "after": 0.20000004768371582,
             "changePercent": 0
           },
           "maxMs": {
@@ -1723,37 +1728,37 @@
         },
         "render": {
           "minMs": {
-            "before": 16.599999964237213,
-            "after": 2.5,
-            "changePercent": -84.93975900369902
+            "before": 14.299999952316284,
+            "after": 2.799999952316284,
+            "changePercent": -80.41958068774157
           },
           "medianMs": {
-            "before": 19.30000001192093,
-            "after": 3.299999952316284,
-            "changePercent": -82.90155466177207
+            "before": 17.5,
+            "after": 3.600000023841858,
+            "changePercent": -79.42857129233224
           },
           "p95Ms": {
-            "before": 24.5,
-            "after": 4.800000011920929,
-            "changePercent": -80.40816321664927
+            "before": 29.799999952316284,
+            "after": 5.900000095367432,
+            "changePercent": -80.20134193017394
           },
           "p99Ms": {
-            "before": 28.30000001192093,
-            "after": 5.5,
-            "changePercent": -80.56537103292152
+            "before": 34.90000009536743,
+            "after": 6.899999976158142,
+            "changePercent": -80.22922648337173
           },
           "maxMs": {
-            "before": 35.59999996423721,
-            "after": 5.900000035762787,
-            "changePercent": -83.42696617502875
+            "before": 39,
+            "after": 7.100000023841858,
+            "changePercent": -81.79487173373883
           },
           "longFrameCount": {
-            "before": 299,
+            "before": 174,
             "after": 0,
             "changePercent": -100
           },
           "totalTimeAboveBudgetMsPer1000": {
-            "before": 19964.66666618983,
+            "before": 3030.7333351612206,
             "after": 0,
             "changePercent": -100
           }
@@ -1766,37 +1771,37 @@
       "metrics": {
         "frame": {
           "minMs": {
-            "before": 13.200000047683716,
-            "after": 2.199999988079071,
-            "changePercent": -83.33333348385011
+            "before": 14.200000047683716,
+            "after": 2.899999976158142,
+            "changePercent": -79.57746502521184
           },
           "medianMs": {
-            "before": 16.600000023841858,
-            "after": 2.900000035762787,
-            "changePercent": -82.53012029158046
+            "before": 16.399999976158142,
+            "after": 3.899999976158142,
+            "changePercent": -76.21951230592774
           },
           "p95Ms": {
-            "before": 19.600000023841858,
-            "after": 4.5,
-            "changePercent": -77.04081635445866
+            "before": 24.90000009536743,
+            "after": 6.200000047683716,
+            "changePercent": -75.10040151029072
           },
           "p99Ms": {
-            "before": 23.69999998807907,
-            "after": 5.100000023841858,
-            "changePercent": -78.4810125468054
+            "before": 29.700000047683716,
+            "after": 8,
+            "changePercent": -73.06397310721918
           },
           "maxMs": {
-            "before": 27.700000047683716,
-            "after": 6.5,
-            "changePercent": -76.53429606927553
+            "before": 32.299999952316284,
+            "after": 10,
+            "changePercent": -69.04024763231344
           },
           "longFrameCount": {
-            "before": 148,
+            "before": 141,
             "after": 0,
             "changePercent": -100
           },
           "totalTimeAboveBudgetMsPer1000": {
-            "before": 8970.000001589457,
+            "before": 1432.7666692892665,
             "after": 0,
             "changePercent": -100
           }
@@ -1813,19 +1818,19 @@
             "changePercent": 0
           },
           "p95Ms": {
-            "before": 0.19999998807907104,
-            "after": 0.19999998807907104,
+            "before": 0.20000004768371582,
+            "after": 0.20000004768371582,
             "changePercent": 0
           },
           "p99Ms": {
-            "before": 0.30000001192092896,
-            "after": 0.2999999523162842,
-            "changePercent": -0.000019868214135638312
+            "before": 0.30000007152557373,
+            "after": 0.30000007152557373,
+            "changePercent": 0
           },
           "maxMs": {
-            "before": 0.5,
-            "after": 2,
-            "changePercent": 300
+            "before": 0.3999999761581421,
+            "after": 0.3999999761581421,
+            "changePercent": 0
           },
           "longFrameCount": {
             "before": 0,
@@ -1846,23 +1851,23 @@
           },
           "medianMs": {
             "before": 0,
-            "after": 0,
-            "changePercent": 0
+            "after": 0.10000002384185791,
+            "changePercent": null
           },
           "p95Ms": {
-            "before": 0.10000002384185791,
-            "after": 0.10000002384185791,
+            "before": 0.19999992847442627,
+            "after": 0.19999992847442627,
             "changePercent": 0
           },
           "p99Ms": {
-            "before": 0.19999998807907104,
-            "after": 0.19999998807907104,
-            "changePercent": 0
-          },
-          "maxMs": {
             "before": 0.20000004768371582,
             "after": 0.20000004768371582,
             "changePercent": 0
+          },
+          "maxMs": {
+            "before": 0.30000007152557373,
+            "after": 0.20000004768371582,
+            "changePercent": -33.333333333333336
           },
           "longFrameCount": {
             "before": 0,
@@ -1877,37 +1882,37 @@
         },
         "render": {
           "minMs": {
-            "before": 13.100000023841858,
-            "after": 2.099999964237213,
-            "changePercent": -83.96946595102874
+            "before": 14.100000023841858,
+            "after": 2.6999999284744263,
+            "changePercent": -80.85106436943997
           },
           "medianMs": {
-            "before": 16.5,
-            "after": 2.800000011920929,
-            "changePercent": -83.03030295805497
+            "before": 16.299999952316284,
+            "after": 3.799999952316284,
+            "changePercent": -76.68711678875624
           },
           "p95Ms": {
-            "before": 19.5,
-            "after": 4.399999976158142,
-            "changePercent": -77.43589755816338
+            "before": 24.800000071525574,
+            "after": 6.100000023841858,
+            "changePercent": -75.40322578125453
           },
           "p99Ms": {
-            "before": 23.19999998807907,
-            "after": 5,
-            "changePercent": -78.44827585099497
+            "before": 29.5,
+            "after": 7.799999952316284,
+            "changePercent": -73.55932219553802
           },
           "maxMs": {
-            "before": 27.600000023841858,
-            "after": 5.600000023841858,
-            "changePercent": -79.71014485867978
+            "before": 32.199999928474426,
+            "after": 9.899999976158142,
+            "changePercent": -69.25465839084185
           },
           "longFrameCount": {
-            "before": 137,
+            "before": 134,
             "after": 0,
             "changePercent": -100
           },
           "totalTimeAboveBudgetMsPer1000": {
-            "before": 8309.00000055631,
+            "before": 1369.066666269298,
             "after": 0,
             "changePercent": -100
           }

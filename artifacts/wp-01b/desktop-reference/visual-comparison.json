@@ -1,8 +1,10 @@
 {
   "schemaVersion": 1,
   "kind": "diving-simulator-pixel-comparison",
-  "beforeSourceCommit": "bcee12e",
-  "afterSourceCommit": "ee5f5ba7ae789b7163bdb3585e69cc4d62c7b48f",
+  "beforeSourceCommit": "8382e6135604d86b4f78ecf44f7bcab384ee004c",
+  "afterSourceCommit": "3159eee808c0fe39f5ad193ae2d6ad95fe0bbb88",
+  "comparisonSessionId": "wp01b-20260802-guarded-tip",
+  "generatedBy": "node scripts/compare-rendering.mjs --before-root .tmp/wp01b-current-baseline --before-source-commit 8382e6135604d86b4f78ecf44f7bcab384ee004c --after-source-commit 3159eee808c0fe39f5ad193ae2d6ad95fe0bbb88 --comparison-session-id wp01b-20260802-guarded-tip --output artifacts/wp-01b/desktop-reference/visual-comparison.json",
   "method": "Seeded DPR-1 canvas pixel comparison after one dt=0 direct diagnostic frame",
   "results": [
     {
@@ -14,7 +16,13 @@
       "changedPixelPercent": 7.711357237190268,
       "changedChannels": 99426,
       "meanAbsoluteDeltaPerChannel": 0.07640338190423696,
-      "maxChannelDelta": 18
+      "maxChannelDelta": 18,
+      "pixelsAboveChannelDelta": {
+        "8": 3014,
+        "32": 0,
+        "64": 0,
+        "128": 0
+      }
     },
     {
       "sceneId": "cave-upper-tunnel",
@@ -25,7 +33,13 @@
       "changedPixelPercent": 1.8706000775752551,
       "changedChannels": 15314,
       "meanAbsoluteDeltaPerChannel": 0.00868481676379277,
-      "maxChannelDelta": 7
+      "maxChannelDelta": 7,
+      "pixelsAboveChannelDelta": {
+        "8": 0,
+        "32": 0,
+        "64": 0,
+        "128": 0
+      }
     }
   ]
 }
