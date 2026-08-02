@@ -1,13 +1,14 @@
 {
   "schemaVersion": 1,
   "kind": "diving-simulator-golden-traces",
-  "referenceCommit": "2ef23125e7ebb52746c5c32b76db5636ead7fb7f",
+  "referenceCommit": "dc6faad6f8cdf37cb5ef0ee54aeb1a8b0602382c",
   "generator": "npm run baseline:generate",
   "tolerances": {
     "exact": [
       "schemaVersion",
       "scenarioId",
       "checkpointId",
+      "simulatedGeometry",
       "state.gameState",
       "state.diveMode",
       "state.diveSite",
@@ -46,6 +47,7 @@
           "schemaVersion": 1,
           "scenarioId": "air-18m-30min",
           "checkpointId": "surface",
+          "simulatedGeometry": "open",
           "state": {
             "gameState": "diving",
             "diveMode": "rec",
@@ -147,6 +149,7 @@
           "schemaVersion": 1,
           "scenarioId": "air-18m-30min",
           "checkpointId": "bottom-30min",
+          "simulatedGeometry": "open",
           "state": {
             "gameState": "diving",
             "diveMode": "rec",
@@ -248,6 +251,7 @@
           "schemaVersion": 1,
           "scenarioId": "air-18m-30min",
           "checkpointId": "surfaced",
+          "simulatedGeometry": "open",
           "state": {
             "gameState": "post-dive",
             "diveMode": "rec",
@@ -361,6 +365,7 @@
           "schemaVersion": 1,
           "scenarioId": "trimix-45m-20min",
           "checkpointId": "surface",
+          "simulatedGeometry": "open",
           "state": {
             "gameState": "diving",
             "diveMode": "tec",
@@ -471,6 +476,7 @@
           "schemaVersion": 1,
           "scenarioId": "trimix-45m-20min",
           "checkpointId": "bottom-20min",
+          "simulatedGeometry": "open",
           "state": {
             "gameState": "diving",
             "diveMode": "tec",
@@ -601,6 +607,7 @@
           "schemaVersion": 1,
           "scenarioId": "trimix-45m-20min",
           "checkpointId": "ascent-21m",
+          "simulatedGeometry": "open",
           "state": {
             "gameState": "diving",
             "diveMode": "tec",
@@ -731,6 +738,7 @@
           "schemaVersion": 1,
           "scenarioId": "trimix-45m-20min",
           "checkpointId": "deco-gas-21m",
+          "simulatedGeometry": "open",
           "state": {
             "gameState": "diving",
             "diveMode": "tec",
@@ -867,6 +875,7 @@
           "schemaVersion": 1,
           "scenarioId": "ccr-30m-30min",
           "checkpointId": "surface",
+          "simulatedGeometry": "open",
           "state": {
             "gameState": "diving",
             "diveMode": "ccr",
@@ -968,6 +977,7 @@
           "schemaVersion": 1,
           "scenarioId": "ccr-30m-30min",
           "checkpointId": "bottom-30min",
+          "simulatedGeometry": "open",
           "state": {
             "gameState": "diving",
             "diveMode": "ccr",
@@ -1081,6 +1091,7 @@
           "schemaVersion": 1,
           "scenarioId": "ccr-30m-30min",
           "checkpointId": "ascent-12m",
+          "simulatedGeometry": "open",
           "state": {
             "gameState": "diving",
             "diveMode": "ccr",
@@ -1194,12 +1205,13 @@
     },
     {
       "scenarioId": "ccr-bailout-30m",
-      "description": "CCR at 30 m followed by irreversible open-circuit bailout and ascent to 18 m",
+      "description": "CCR at 30 m followed by irreversible open-circuit bailout and ascent to 18 m; bailout drains the diluent cylinder by design, and changing that billing requires a reviewed fixture update",
       "checkpoints": [
         {
           "schemaVersion": 1,
           "scenarioId": "ccr-bailout-30m",
           "checkpointId": "surface",
+          "simulatedGeometry": "open",
           "state": {
             "gameState": "diving",
             "diveMode": "ccr",
@@ -1301,6 +1313,7 @@
           "schemaVersion": 1,
           "scenarioId": "ccr-bailout-30m",
           "checkpointId": "pre-bailout",
+          "simulatedGeometry": "open",
           "state": {
             "gameState": "diving",
             "diveMode": "ccr",
@@ -1402,6 +1415,7 @@
           "schemaVersion": 1,
           "scenarioId": "ccr-bailout-30m",
           "checkpointId": "bailed-out",
+          "simulatedGeometry": "open",
           "state": {
             "gameState": "diving",
             "diveMode": "ccr",
@@ -1503,6 +1517,7 @@
           "schemaVersion": 1,
           "scenarioId": "ccr-bailout-30m",
           "checkpointId": "bailout-ascent-18m",
+          "simulatedGeometry": "open",
           "state": {
             "gameState": "diving",
             "diveMode": "ccr",
