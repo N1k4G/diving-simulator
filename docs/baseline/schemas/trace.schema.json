@@ -88,6 +88,7 @@
         "schemaVersion",
         "scenarioId",
         "checkpointId",
+        "simulatedGeometry",
         "state",
         "configuration",
         "planner",
@@ -100,6 +101,10 @@
         "schemaVersion": { "const": 1 },
         "scenarioId": { "type": "string" },
         "checkpointId": { "type": "string" },
+        "simulatedGeometry": {
+          "type": "string",
+          "enum": ["open", "shore", "reef", "wreck", "cave"]
+        },
         "state": { "type": "object" },
         "configuration": { "type": "object" },
         "planner": { "type": "object" },

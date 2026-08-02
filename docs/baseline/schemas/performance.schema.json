@@ -20,7 +20,13 @@
     "capturedAt": { "type": "string", "format": "date-time" },
     "buildVersion": { "type": "string" },
     "frameBudgetMs": { "type": "number", "exclusiveMinimum": 0 },
-    "context": { "type": "object" },
+    "context": {
+      "type": "object",
+      "required": ["acceptanceClass"],
+      "properties": {
+        "acceptanceClass": { "const": "relative-hotspot-ranking" }
+      }
+    },
     "environment": {
       "type": "object",
       "additionalProperties": false,

@@ -115,7 +115,7 @@ try {
             runId: `${sceneConfig.id}-${runNumber}`,
             sceneId: sceneConfig.id,
             sourceCommit: commit,
-            acceptanceClass: 'desktop-synthetic-reference'
+            acceptanceClass: 'relative-hotspot-ranking'
           };
           window.__baselineCapturePaused = true;
           try {
@@ -163,11 +163,12 @@ try {
       kind: 'diving-simulator-performance-baseline',
       sourceCommit,
       generatedBy: `npm run baseline:perf -- ${cliArguments.join(' ')}`.trim(),
-      acceptanceClass: 'desktop-synthetic-reference',
+      acceptanceClass: 'relative-hotspot-ranking',
       acceptanceLimitations: [
         'Headless desktop Chromium is diagnostic evidence only.',
         'This artifact does not satisfy any physical Android or iOS gate.',
-        'Compare changes only on the same machine, browser build, viewport and DPR.',
+        'Same-harness developer-machine sessions varied roughly 3x for unchanged wreck renderer code (49.3-53.4 ms versus 146.7-153.4 ms medians); broader recorded evidence ranges from 14.2 ms to 153.4 ms. This artifact ranks scene cost and does not establish an absolute frame time.',
+        'Before/after timing comparisons are valid only when captured back to back in the same session; comparing a fresh capture with a committed artifact from an earlier session is invalid.',
         'The update metric uses dtReal=0 to isolate CPU cost; it is not representative of a live simulation tick.'
       ],
       sampling: {

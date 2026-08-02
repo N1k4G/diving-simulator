@@ -20,7 +20,8 @@ every checkpoint with the exact/epsilon/glob policy stored in the fixture; JSON
 Schema validation is enforced with Ajv Draft 2020-12. Model updates use the
 legacy open-water geometry so site collision and overhead effects cannot turn
 pinned depth profiles into artificial ascent events; each checkpoint still
-records its declared shore, wreck, or cave site.
+records its declared shore, wreck, or cave site and independently records
+`simulatedGeometry: "open"`.
 
 ## Collect performance evidence
 
@@ -66,15 +67,26 @@ chipset and RAM where available, viewport, DPR, quality tier, source commit,
 build identifier, and capture command. Desktop results do not satisfy a
 physical-device acceptance gate.
 
-The reproducible headless desktop reference can be captured after committing
-the code under measurement:
+The headless desktop hotspot ranking can be captured after committing the code
+under measurement:
 
 ```bash
 npm run baseline:perf
 ```
 
 It writes `artifacts/wp-01/desktop-reference/performance.json`. The artifact is
-diagnostic evidence only and labels itself accordingly.
+diagnostic evidence only and labels itself `relative-hotspot-ranking`.
+Absolute Canvas timings from headless Chromium on a developer machine are not
+reproducible across sessions: unchanged wreck code has produced medians from
+49.3-53.4 ms in a fresh committed-harness run and 146.7-153.4 ms in an earlier
+committed artifact, roughly a 3x shift; the broader evidence table ranges from
+14.2 ms to 153.4 ms. The durable output is the scene order `shore < reef <<
+cave < wreck`, not any absolute frame time.
+
+Performance changes may be compared only when before and after captures run
+back to back in the same session, on the same machine/browser/viewport/DPR.
+Comparing a fresh capture with a committed file from an earlier session is
+invalid.
 
 ## Coverage boundaries
 

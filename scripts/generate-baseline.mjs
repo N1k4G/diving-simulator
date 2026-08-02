@@ -61,6 +61,7 @@ try {
           'schemaVersion',
           'scenarioId',
           'checkpointId',
+          'simulatedGeometry',
           'state.gameState',
           'state.diveMode',
           'state.diveSite',

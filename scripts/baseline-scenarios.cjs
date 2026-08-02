@@ -19,6 +19,9 @@ function runBaselineScenarios() {
     api.current.active = false;
     api.current.rolledThisDive = true;
     api.clearKeys();
+    // Prime captureBaselineCheckpoint's observed simulation geometry without
+    // advancing any authoritative clock or model value.
+    updateAtDepth(0, 0, 0);
   }
 
   function neutralizeAt(depth) {
@@ -131,7 +134,7 @@ function runBaselineScenarios() {
     api.ccrState.dilFN2 = 0.79;
     const bailout = {
       scenarioId: 'ccr-bailout-30m',
-      description: 'CCR at 30 m followed by irreversible open-circuit bailout and ascent to 18 m',
+      description: 'CCR at 30 m followed by irreversible open-circuit bailout and ascent to 18 m; bailout drains the diluent cylinder by design, and changing that billing requires a reviewed fixture update',
       checkpoints: [api.captureBaselineCheckpoint('ccr-bailout-30m', 'surface')]
     };
     holdDepth(30, 10);

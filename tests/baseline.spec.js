@@ -123,6 +123,7 @@ test('baseline: generated contracts are complete and internally consistent', asy
     expect(scenario.checkpoints.length).toBeGreaterThan(0);
     for (const checkpoint of scenario.checkpoints) {
       expect(checkpoint.scenarioId).toBe(scenario.scenarioId);
+      expect(checkpoint.simulatedGeometry).toBe('open');
       expect(checkpoint.tissues.n2_bar).toHaveLength(16);
       expect(checkpoint.tissues.he_bar).toHaveLength(16);
     }
@@ -158,10 +159,17 @@ test('baseline: generated contracts are complete and internally consistent', asy
     'info.decoStopChanged'
   ]);
   expect(performance.sourceCommit).toMatch(/^[0-9a-f]{40}$/);
-  expect(performance.acceptanceClass).toBe('desktop-synthetic-reference');
+  expect(performance.acceptanceClass).toBe('relative-hotspot-ranking');
+  expect(performance.acceptanceLimitations.some(limitation =>
+    limitation.includes('roughly 3x') && limitation.includes('does not establish an absolute frame time')
+  )).toBe(true);
+  expect(performance.acceptanceLimitations.some(limitation =>
+    limitation.includes('back to back in the same session')
+  )).toBe(true);
   expect(performance.runs).toHaveLength(12);
   for (const run of performance.runs) {
     expect(run.context.sourceCommit).toBe(performance.sourceCommit);
+    expect(run.context.acceptanceClass).toBe('relative-hotspot-ranking');
     expect(run.metrics.frame.sampleCount).toBe(300);
     expect(run.metrics.update.sampleCount).toBe(300);
     expect(run.metrics.planner.sampleCount).toBe(300);

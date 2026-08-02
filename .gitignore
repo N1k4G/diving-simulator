@@ -11,6 +11,7 @@ terraform/.terraform.lock.hcl
 
 # Node
 node_modules/
+dist/
 
 # Playwright
 test-results/

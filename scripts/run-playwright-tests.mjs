@@ -5,12 +5,16 @@ import path from 'node:path';
 const require = createRequire(import.meta.url);
 const root = path.resolve(import.meta.dirname, '..');
 const baseUrl = 'http://127.0.0.1:8080';
+const testPageUrl = `${baseUrl}/src/diving-simulator.html`;
+const testPageMarkers = ['<canvas id="c"></canvas>', '<script src="game-loop.js"></script>'];
 let server = null;
 
 async function serverIsReady() {
   try {
-    const response = await fetch(baseUrl);
-    return response.ok;
+    const response = await fetch(testPageUrl);
+    if (!response.ok) return false;
+    const body = await response.text();
+    return testPageMarkers.every(marker => body.includes(marker));
   } catch {
     return false;
   }
