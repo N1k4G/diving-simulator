@@ -25,6 +25,19 @@
 // SEARCH TERMS: formatDepth, formatTime, lerpColor, roundRect, wrapText
 
 // ============================================================
+// Diagnostics are an optional observer, exactly as in game-loop.js. This file
+// is parsed before diagnostics.js, so the collector must be resolved lazily at
+// draw time rather than captured at load time — an eager capture would bind the
+// no-op permanently and silently drop every render sub-pass metric.
+var _RENDER_DIAG_NOOP = {
+    enabled: false,
+    start: function() { return 0; },
+    record: function() {}
+};
+function _renderDiag() {
+    return window.baselineDiagnostics || _RENDER_DIAG_NOOP;
+}
+
 // ============================================================
 //  RENDERING HELPERS
 // ============================================================
@@ -308,7 +321,7 @@ function drawDepthColorAbsorption() {
     var tintColor = 'rgb(' + Math.round(255 * f.r) + ',' + Math.round(255 * f.g) + ',' + Math.round(255 * f.b) + ')';
     var beamAngle, halfA, exceptionR;
     if (restoring) {
-        var _depthStageStarted = window.baselineDiagnostics.start();
+        var _depthStageStarted = _renderDiag().start();
         beamAngle = torchBeamAngle(_diverFacing);
         halfA = TORCH_BEAM_HALF_ANGLE_RAD;
         var torchPx = TORCH_RADIUS_M / mpp;
@@ -352,8 +365,8 @@ function drawDepthColorAbsorption() {
         _depthColorMaskCtx.fillStyle = wedgeGrad;
         _depthColorMaskCtx.fillRect(0, 0, regionW, regionH);
         _depthColorMaskCtx.restore();
-        window.baselineDiagnostics.record('renderDepthMask', _depthStageStarted);
-        _depthStageStarted = window.baselineDiagnostics.start();
+        _renderDiag().record('renderDepthMask', _depthStageStarted);
+        _depthStageStarted = _renderDiag().start();
         // Cut the torch-shaped opening out of a regional tint layer.
         _depthColorEffectCtx.clearRect(0, 0, regionW, regionH);
         _depthColorEffectCtx.fillStyle = tintColor;
@@ -361,12 +374,12 @@ function drawDepthColorAbsorption() {
         _depthColorEffectCtx.globalCompositeOperation = 'destination-out';
         _depthColorEffectCtx.drawImage(_depthColorMaskCanvas, 0, 0);
         _depthColorEffectCtx.globalCompositeOperation = 'source-over';
-        window.baselineDiagnostics.record('renderDepthEffectBuild', _depthStageStarted);
+        _renderDiag().record('renderDepthEffectBuild', _depthStageStarted);
     }
 
     // Apply the tint over the clipped underwater area. Four non-overlapping
     // rectangles cover the area outside the regional effect layer.
-    var _depthTintStarted = window.baselineDiagnostics.start();
+    var _depthTintStarted = _renderDiag().start();
     cx.globalCompositeOperation = 'multiply';
     cx.fillStyle = tintColor;
 
@@ -383,7 +396,7 @@ function drawDepthColorAbsorption() {
         cx.fillRect(0, top, W, H - top);
     }
     cx.globalCompositeOperation = 'source-over';
-    window.baselineDiagnostics.record('renderDepthTint', _depthTintStarted);
+    _renderDiag().record('renderDepthTint', _depthTintStarted);
 
 }
 
@@ -753,7 +766,7 @@ function drawScene() {
     var W = cssWidth;
     var H = cssHeight;
     var cx = ctx;
-    var _renderPassStarted = window.baselineDiagnostics.start();
+    var _renderPassStarted = _renderDiag().start();
 
     // Issue #41: lazily build material texture tiles on first render.
     if (!_matTiles) buildMaterialTiles();
@@ -942,8 +955,8 @@ function drawScene() {
     // and boat shadow. Runs at the same slot as drawSiteAtmosphere
     // (behind terrain) so it's part of the water/background layer.
     drawNearSurfaceAtmosphere(_localAtmo);
-    window.baselineDiagnostics.record('renderBackground', _renderPassStarted);
-    _renderPassStarted = window.baselineDiagnostics.start();
+    _renderDiag().record('renderBackground', _renderPassStarted);
+    _renderPassStarted = _renderDiag().start();
 
     // Phase C: Site terrain (floor + ceiling) drawn before entities
     drawTerrain();
@@ -961,8 +974,8 @@ function drawScene() {
     drawSetDressing(activeSite(), _visLeftM, _visRightM, metersPerPixel);
     // Cenote-only: refractive halocline band at ~7 m
     if (_isCave) drawHalocline(cx, W, H, diverScreenY, metersPerPixel);
-    window.baselineDiagnostics.record('renderTerrainDetail', _renderPassStarted);
-    _renderPassStarted = window.baselineDiagnostics.start();
+    _renderDiag().record('renderTerrainDetail', _renderPassStarted);
+    _renderPassStarted = _renderDiag().start();
     // Wreck: steel hull skin BEHIND the interior objects (so behind cars/decks
     // you see metal, not ocean). Clipped to the ship silhouette only.
     drawWreckSteelBack();
@@ -979,8 +992,8 @@ function drawScene() {
     // Wreck: highlight the three penetration points so they're findable from
     // outside (drawn over the hull skin; fades as the diver enters).
     drawWreckEntryMarkers();
-    window.baselineDiagnostics.record('renderWorldGeometry', _renderPassStarted);
-    _renderPassStarted = window.baselineDiagnostics.start();
+    _renderDiag().record('renderWorldGeometry', _renderPassStarted);
+    _renderPassStarted = _renderDiag().start();
 
     // ── Depth scale (DiveSim Redesign spec) ─────────────────────
     cx.save();
@@ -1132,8 +1145,8 @@ function drawScene() {
 
     // Phase C: Guideline rope (drawn before diver so diver sits on top)
     drawGuideline();
-    window.baselineDiagnostics.record('renderEntities', _renderPassStarted);
-    _renderPassStarted = window.baselineDiagnostics.start();
+    _renderDiag().record('renderEntities', _renderPassStarted);
+    _renderPassStarted = _renderDiag().start();
 
     // Issue #36: depth-dependent color absorption — tints every world
     // object drawn so far (terrain, structures, features, particles, fish,
@@ -1142,8 +1155,8 @@ function drawScene() {
     // passes and #54's local-atmosphere pass so those layer on top of an
     // already-tinted scene, matching the ordering the issue calls for.
     drawDepthColorAbsorption();
-    window.baselineDiagnostics.record('renderDepthAbsorption', _renderPassStarted);
-    _renderPassStarted = window.baselineDiagnostics.start();
+    _renderDiag().record('renderDepthAbsorption', _renderPassStarted);
+    _renderPassStarted = _renderDiag().start();
 
     // Issue #32: cave-only turbidity cloud from stirred silt. Reads
     // ONLY the existing `visibility` state (no second reservoir), no-op
@@ -1180,8 +1193,8 @@ function drawScene() {
     // the diver stays crisp. HUD is on a separate DOM layer, so it's
     // physically unable to be touched by this pass.
     drawLocalAtmospherePass(_localAtmo, W, H, W * DIVER_SCREEN_X_FRACTION, diverScreenY, metersPerPixel);
-    window.baselineDiagnostics.record('renderPostEffects', _renderPassStarted);
-    _renderPassStarted = window.baselineDiagnostics.start();
+    _renderDiag().record('renderPostEffects', _renderPassStarted);
+    _renderPassStarted = _renderDiag().start();
 
     // Diver (Phase B: tilt toward current direction proportional to current.level)
     var diverTilt = 0;
@@ -1279,7 +1292,7 @@ function drawScene() {
         && !showHelp && !showGasInfo && infoPageMode === 0) {
         drawInstructorOverlay();
     }
-    window.baselineDiagnostics.record('renderForeground', _renderPassStarted);
+    _renderDiag().record('renderForeground', _renderPassStarted);
 }
 
 // Issue #54: local atmosphere composite pass. One pass, one canvas
@@ -4810,7 +4823,7 @@ function drawWreckHullSkin() {
     }
 
     var skinCx = canRestoreHole ? _wreckHoleOverlayCtx : cx;
-    var _wreckOverlayStarted = window.baselineDiagnostics.start();
+    var _wreckOverlayStarted = _renderDiag().start();
     skinCx.save();
     if (canRestoreHole) skinCx.translate(-holeLeft, -holeTop);
     _buildWreckSilhouette(skinCx, dsx, dsy, mpp);
@@ -4849,17 +4862,17 @@ function drawWreckHullSkin() {
         skinCx.globalCompositeOperation = 'source-over';
     }
     skinCx.restore();
-    window.baselineDiagnostics.record('renderWreckOverlayBuild', _wreckOverlayStarted);
+    _renderDiag().record('renderWreckOverlayBuild', _wreckOverlayStarted);
 
     // Composite the transparent steel overlay over the preserved interior.
     if (canRestoreHole) {
-        _wreckOverlayStarted = window.baselineDiagnostics.start();
+        _wreckOverlayStarted = _renderDiag().start();
         cx.drawImage(
             _wreckHoleOverlayCanvas,
             0, 0, holeW, holeH,
             holeLeft, holeTop, holeW, holeH
         );
-        window.baselineDiagnostics.record('renderWreckOverlayBlit', _wreckOverlayStarted);
+        _renderDiag().record('renderWreckOverlayBlit', _wreckOverlayStarted);
     }
 
     // Feather the rim of the near-field circle so the always-visible spill

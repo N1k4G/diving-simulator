@@ -67,6 +67,14 @@ test('baseline: diagnostics are opt-in and export named metrics', async ({ page 
 });
 
 test('baseline: reference client boots when diagnostics.js is absent', async ({ page }) => {
+  // Reaching `diving` is not sufficient evidence: gameState flips in
+  // updateSurface(), before drawScene() runs. An unguarded diagnostics probe in
+  // a render pass throws there, kills the requestAnimationFrame chain, and
+  // leaves a frozen client that still reports gameState === 'diving'. Assert
+  // that no script error occurred and that the loop is still advancing.
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(String(error)));
+
   await page.route('**/src/diving-simulator.html', async route => {
     const response = await route.fetch();
     const body = (await response.text()).replace(
@@ -86,6 +94,14 @@ test('baseline: reference client boots when diagnostics.js is absent', async ({ 
     window.gameAPI.setKeys({ s: true });
   });
   await page.waitForFunction(() => window.gameAPI.gameState === 'diving');
+
+  const startedAt = await page.evaluate(() => window.gameAPI.diveTime);
+  await page.waitForFunction(
+    start => window.gameAPI.diveTime > start,
+    startedAt,
+    { timeout: 5000 }
+  );
+  expect(pageErrors, pageErrors.join('\n')).toEqual([]);
 });
 
 test('baseline: generated contracts are complete and internally consistent', async () => {
