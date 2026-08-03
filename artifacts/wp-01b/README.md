@@ -74,6 +74,16 @@ CI gate. The complete Playwright suite, 347 browser assertions, lint, license
 check, and generated golden traces pass. Regenerating the baseline changed only
 its reference commit; the numerical scenario payload remained unchanged.
 
+## Open follow-ups
+
+- Reef render medians rose in all three guard runs (+6.3% to +31.2%) while the
+  absolute delta stayed at or below 0.5 ms, on a path that strictly removed a
+  `save`/`clip`/`restore`. Treated as harness noise; recheck if reef ever
+  becomes a gated scene rather than a guard scene.
+- The pixel comparison has no threshold and no failing exit code. It must gain
+  a per-scene delta budget before the renderer slice can cite an automated
+  Canvas-versus-PixiJS visual gate.
+
 ## Scope and rollback
 
 This is diagnostic desktop evidence only. It does not establish Android or
