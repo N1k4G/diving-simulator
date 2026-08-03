@@ -1,7 +1,7 @@
 # WP-01B measured Canvas stabilization
 
-This evidence compares the rebased WP-01 Canvas renderer at `8382e61` with the
-bounded-overlay renderer at `3159eee`.
+This evidence compares the rebased WP-01 Canvas renderer at `ca1dba8` with the
+bounded-overlay renderer at `ae4d327`.
 
 ## Result
 
@@ -84,17 +84,37 @@ its reference commit; the numerical scenario payload remained unchanged.
   a per-scene delta budget before the renderer slice can cite an automated
   Canvas-versus-PixiJS visual gate.
 
+## Commit provenance after the WP-01 squash merge
+
+WP-01 was squash-merged as `ca1dba8` and this branch was rebased onto it, so the
+commit hashes recorded inside `desktop-reference/*.json` no longer resolve. The
+generated files are left exactly as measured; use this map to locate the code
+they describe. Each pair was verified to have an identical tree, so the
+measurement still describes the code now in history:
+
+| Recorded in evidence | Current commit | Role |
+| --- | --- | --- |
+| `8382e61` | `ca1dba8` | Measured "before" — the WP-01 baseline renderer |
+| `3df8550` | `0702af6` | The bounded-overlay optimization |
+| `3159eee` | `ae4d327` | Measured "after" — optimization plus the diagnostics guard |
+
+Re-running `npm run baseline:perf` would produce fresh hashes but also fresh
+timings, and this harness is not reproducible across sessions, so recapturing to
+fix a hash would discard a valid back-to-back pair to fix a bookkeeping problem.
+If the evidence is ever regenerated for a substantive reason, do it after the
+final rebase so the recorded commits survive.
+
 ## Scope and rollback
 
 This is diagnostic desktop evidence only. It does not establish Android or
 iOS device acceptance, FPS, thermals, or a shipping device budget.
 
-The optimization is isolated in `3df8550002670e0f0e31b52e8a790c3a6ea3c7dc` and
-its rollback is a normal revert of that commit; no numerical model, save schema,
-or golden trace changes are coupled to it.
+The optimization is isolated in `0702af6` and its rollback is a normal revert of
+that commit; no numerical model, save schema, or golden trace changes are
+coupled to it.
 
-`3159eee808c0fe39f5ad193ae2d6ad95fe0bbb88` is a separate correctness fix, not
-part of the optimization. It routes the render sub-pass probes through the same
+`ae4d327` is a separate correctness fix, not part of the optimization. It routes
+the render sub-pass probes through the same
 optional-observer guard `game-loop.js` uses, because calling
 `window.baselineDiagnostics` directly from `renderer.js` froze the client
 whenever `diagnostics.js` was omitted. Do not revert it together with the
