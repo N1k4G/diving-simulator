@@ -66,6 +66,7 @@ try {
           'state.diveMode',
           'state.diveSite',
           'state.activeTankIndex',
+          'state.ndlDroppedBelow5',
           'state.safetyStop.needed',
           'state.safetyStop.countdownStarted',
           'state.safetyStop.paused',

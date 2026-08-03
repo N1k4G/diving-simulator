@@ -15,6 +15,7 @@ interface GoldenCheckpoint {
     diveTime_min: number;
     diveMode: string;
     activeTankIndex: number;
+    ndlDroppedBelow5: boolean;
     safetyStop: { needed: boolean };
   };
   configuration: {
@@ -71,7 +72,11 @@ describe("DivePlanner canonical parity", () => {
           gfHighPercent: checkpoint.configuration.gfHigh_percent,
           ascentRateMpm: 9,
           safetyStopNeeded: checkpoint.state.safetyStop.needed,
-          ndlDroppedBelowFiveMinutes: false,
+          // Latched legacy state, not derivable from a checkpoint's NDL: it is
+          // set after calculateTTS() has already run for the tick, so
+          // `bailed-out` records ndl 3 with the latch still false while
+          // `bailout-ascent-18m` records ndl 15 with it already true.
+          ndlDroppedBelowFiveMinutes: checkpoint.state.ndlDroppedBelow5,
         };
 
         const forecast = new DivePlanner().forecast(state, settings);

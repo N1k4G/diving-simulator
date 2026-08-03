@@ -153,6 +153,15 @@ presentation snapshots.
   trajectory would let the pure suite cover ascents too; that is a WP-01
   fixture change and is not in scope for the core extraction.
 - Do not close this gap by widening a tolerance or regenerating expected values.
+- The same class of gap applies to latched planner state. `ndlDroppedBelow5` is
+  set in `updateDiving()` *after* `calculateTTS()` has already run for that
+  tick, so a checkpoint can record NDL 3 with the latch still false, or NDL 15
+  with it already true. It widens the safety stop from 3 to 5 minutes, so it
+  changes TTS. It is now recorded in the checkpoint rather than reconstructed;
+  reconstructing it from recorded NDL is provably wrong in both directions.
+- When a pure module needs a legacy input the trace does not record, add the
+  field to `captureBaselineCheckpoint()` and regenerate. Verify the regeneration
+  is additive by confirming the numerical payload is unchanged.
 
 ### Visual comparison
 

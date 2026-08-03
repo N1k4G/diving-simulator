@@ -1775,6 +1775,11 @@ function captureBaselineCheckpoint(scenarioId, checkpointId) {
             activeTankIndex: activeTank,
             cns_percent: _baselineFinite(cnsPercent),
             narcosisIndex: _baselineFinite(narcosisIndex),
+            // Latched in updateDiving() after calculateTTS() has already run for
+            // the tick, so it cannot be derived from a checkpoint's recomputed
+            // NDL. It widens the safety stop from 3 to 5 minutes, so a planner
+            // replaying this checkpoint needs it recorded explicitly.
+            ndlDroppedBelow5: ndlDroppedBelow5,
             safetyStop: {
                 needed: safetyStopNeeded,
                 remaining_min: _baselineFinite(safetyStopRemaining),

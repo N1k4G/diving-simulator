@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "diving-simulator-golden-traces",
-  "referenceCommit": "6a3207d6f3ae68be3b2c3e5b2f3d0073779db11d",
+  "referenceCommit": "fb60e38acdd0c2e39e9db82652886ba671b2a661",
   "generator": "npm run baseline:generate",
   "tolerances": {
     "exact": [
@@ -13,6 +13,7 @@
       "state.diveMode",
       "state.diveSite",
       "state.activeTankIndex",
+      "state.ndlDroppedBelow5",
       "state.safetyStop.needed",
       "state.safetyStop.countdownStarted",
       "state.safetyStop.paused",
@@ -61,6 +62,7 @@
             "activeTankIndex": 0,
             "cns_percent": 0,
             "narcosisIndex": 0,
+            "ndlDroppedBelow5": false,
             "safetyStop": {
               "needed": false,
               "remaining_min": 0,
@@ -163,6 +165,7 @@
             "activeTankIndex": 0,
             "cns_percent": 4.199999999999975,
             "narcosisIndex": 0.1039999999808827,
+            "ndlDroppedBelow5": true,
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -265,6 +268,7 @@
             "activeTankIndex": 0,
             "cns_percent": 4.245499999999973,
             "narcosisIndex": 0.020063618224854536,
+            "ndlDroppedBelow5": true,
             "safetyStop": {
               "needed": true,
               "remaining_min": 282,
@@ -379,6 +383,7 @@
             "activeTankIndex": 0,
             "cns_percent": 0,
             "narcosisIndex": 0,
+            "ndlDroppedBelow5": false,
             "safetyStop": {
               "needed": false,
               "remaining_min": 0,
@@ -490,6 +495,7 @@
             "activeTankIndex": 0,
             "cns_percent": 11.199999999999958,
             "narcosisIndex": 0.24066025446766776,
+            "ndlDroppedBelow5": true,
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -621,6 +627,7 @@
             "activeTankIndex": 0,
             "cns_percent": 12.165732087227369,
             "narcosisIndex": 0.05543753938826498,
+            "ndlDroppedBelow5": true,
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -752,6 +759,7 @@
             "activeTankIndex": 1,
             "cns_percent": 12.170482087227368,
             "narcosisIndex": 0.054027549150963805,
+            "ndlDroppedBelow5": true,
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -889,6 +897,7 @@
             "activeTankIndex": 0,
             "cns_percent": 0,
             "narcosisIndex": 0,
+            "ndlDroppedBelow5": false,
             "safetyStop": {
               "needed": false,
               "remaining_min": 0,
@@ -991,6 +1000,7 @@
             "activeTankIndex": 0,
             "cns_percent": 16.7999999999999,
             "narcosisIndex": 0.07244779156005937,
+            "ndlDroppedBelow5": true,
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -1105,6 +1115,7 @@
             "activeTankIndex": 0,
             "cns_percent": 17.91999999999985,
             "narcosisIndex": 0.01849344600320777,
+            "ndlDroppedBelow5": true,
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -1225,6 +1236,7 @@
             "activeTankIndex": 0,
             "cns_percent": 0,
             "narcosisIndex": 0,
+            "ndlDroppedBelow5": false,
             "safetyStop": {
               "needed": false,
               "remaining_min": 0,
@@ -1327,6 +1339,7 @@
             "activeTankIndex": 0,
             "cns_percent": 5.600000000000004,
             "narcosisIndex": 0.32980781691596356,
+            "ndlDroppedBelow5": false,
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -1429,6 +1442,7 @@
             "activeTankIndex": 0,
             "cns_percent": 5.614000000000004,
             "narcosisIndex": 0.3298111942815718,
+            "ndlDroppedBelow5": false,
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -1531,6 +1545,7 @@
             "activeTankIndex": 0,
             "cns_percent": 5.935481481481481,
             "narcosisIndex": 0.1902942286447493,
+            "ndlDroppedBelow5": true,
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
