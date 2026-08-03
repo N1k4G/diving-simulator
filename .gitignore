@@ -11,11 +11,14 @@ terraform/.terraform.lock.hcl
 
 # Node
 node_modules/
+dist/
 
 # Playwright
 test-results/
 playwright-report/
 .playwright/
+debug.log
+.tmp/
 
 # Generated review screenshots
 screenshots/

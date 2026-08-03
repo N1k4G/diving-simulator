@@ -6,13 +6,17 @@
   "license": "MIT",
   "scripts": {
     "lint": "eslint src/*.js --max-warnings=0",
-    "test": "playwright test",
+    "test": "node scripts/run-playwright-tests.mjs",
     "screenshots": "node scripts/screenshots.mjs",
+    "baseline:generate": "node scripts/generate-baseline.mjs",
+    "baseline:perf": "node scripts/capture-baseline-performance.mjs",
     "license-check": "license-checker --excludePrivatePackages --onlyAllow \"MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;CC0-1.0;CC-BY-3.0;Python-2.0;WTFPL;Unlicense;BlueOak-1.0.0\"",
     "prepare": "husky"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "eslint": "^10.8.0",
     "globals": "^17.8.0",
     "http-server": "^14.1.0",

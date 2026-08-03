@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://diving-simulator.example/schemas/trace-v1.json",
+  "title": "Diving Simulator golden trace fixture",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "referenceCommit",
+    "generator",
+    "tolerances",
+    "scenarios"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "kind": {
+      "const": "diving-simulator-golden-traces"
+    },
+    "referenceCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,40}$"
+    },
+    "generator": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tolerances": {
+      "type": "object",
+      "required": ["exact", "absoluteEpsilon"],
+      "properties": {
+        "exact": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "absoluteEpsilon": {
+          "type": "object",
+          "required": ["default"],
+          "properties": {
+            "default": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["scenarioId", "description", "checkpoints"],
+        "properties": {
+          "scenarioId": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "checkpoints": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#/$defs/checkpoint" }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "finiteOrNull": {
+      "type": ["number", "null"]
+    },
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "scenarioId",
+        "checkpointId",
+        "simulatedGeometry",
+        "state",
+        "configuration",
+        "planner",
+        "tissues",
+        "tanks",
+        "ccr",
+        "events"
+      ],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "scenarioId": { "type": "string" },
+        "checkpointId": { "type": "string" },
+        "simulatedGeometry": {
+          "type": "string",
+          "enum": ["open", "shore", "reef", "wreck", "cave"]
+        },
+        "state": { "type": "object" },
+        "configuration": { "type": "object" },
+        "planner": { "type": "object" },
+        "tissues": {
+          "type": "object",
+          "required": ["n2_bar", "he_bar"],
+          "properties": {
+            "n2_bar": {
+              "type": "array",
+              "minItems": 16,
+              "maxItems": 16,
+              "items": { "$ref": "#/$defs/finiteOrNull" }
+            },
+            "he_bar": {
+              "type": "array",
+              "minItems": 16,
+              "maxItems": 16,
+              "items": { "$ref": "#/$defs/finiteOrNull" }
+            }
+          }
+        },
+        "tanks": { "type": "array" },
+        "ccr": { "type": "object" },
+        "events": { "type": "array" }
+      }
+    }
+  }
+}

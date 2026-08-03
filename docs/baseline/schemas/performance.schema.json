@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://diving-simulator.example/schemas/performance-v1.json",
+  "title": "Diving Simulator performance evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "capturedAt",
+    "buildVersion",
+    "frameBudgetMs",
+    "context",
+    "environment",
+    "metrics"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "diving-simulator-performance" },
+    "capturedAt": { "type": "string", "format": "date-time" },
+    "buildVersion": { "type": "string" },
+    "frameBudgetMs": { "type": "number", "exclusiveMinimum": 0 },
+    "context": {
+      "type": "object",
+      "required": ["acceptanceClass"],
+      "properties": {
+        "acceptanceClass": { "const": "relative-hotspot-ranking" }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["userAgent", "viewportCssPx", "devicePixelRatio"],
+      "properties": {
+        "userAgent": { "type": "string", "minLength": 1 },
+        "viewportCssPx": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["width", "height"],
+          "properties": {
+            "width": { "type": "number", "exclusiveMinimum": 0 },
+            "height": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        },
+        "devicePixelRatio": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "required": ["frame", "update", "planner", "render"],
+      "properties": {
+        "frame": { "$ref": "#/$defs/metric" },
+        "update": { "$ref": "#/$defs/metric" },
+        "planner": { "$ref": "#/$defs/metric" },
+        "render": { "$ref": "#/$defs/metric" }
+      },
+      "additionalProperties": { "$ref": "#/$defs/metric" }
+    }
+  },
+  "$defs": {
+    "nullableNumber": { "type": ["number", "null"] },
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sampleCount",
+        "minMs",
+        "medianMs",
+        "p95Ms",
+        "p99Ms",
+        "maxMs",
+        "longFrameCount",
+        "totalTimeAboveBudgetMsPer1000"
+      ],
+      "properties": {
+        "sampleCount": { "type": "integer", "minimum": 0 },
+        "minMs": { "$ref": "#/$defs/nullableNumber" },
+        "medianMs": { "$ref": "#/$defs/nullableNumber" },
+        "p95Ms": { "$ref": "#/$defs/nullableNumber" },
+        "p99Ms": { "$ref": "#/$defs/nullableNumber" },
+        "maxMs": { "$ref": "#/$defs/nullableNumber" },
+        "longFrameCount": { "type": "integer", "minimum": 0 },
+        "totalTimeAboveBudgetMsPer1000": { "type": "number", "minimum": 0 }
+      }
+    }
+  }
+}

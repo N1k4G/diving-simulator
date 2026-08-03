@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "referenceCommit": "30c151f",
+  "sites": [
+    {
+      "id": "shore",
+      "environment": "open-water shore and meadow",
+      "mechanics": ["boat/entry orientation", "terrain collision", "currents", "fauna"]
+    },
+    {
+      "id": "reef",
+      "environment": "deep open-water reef",
+      "mechanics": ["boat orientation", "terrain collision", "currents", "dense fauna", "depth progression"]
+    },
+    {
+      "id": "wreck",
+      "environment": "overhead wreck exterior and penetration",
+      "mechanics": ["solid structures", "overhead zones", "guideline", "torch", "silt", "rule of thirds"]
+    },
+    {
+      "id": "cave",
+      "environment": "overhead cave system",
+      "mechanics": ["floor/ceiling collision", "overhead zones", "guideline", "torch", "silt", "bad-air pockets", "rule of thirds"]
+    }
+  ],
+  "modes": [
+    {
+      "id": "rec",
+      "features": ["single open-circuit tank", "gas presets", "safety stop", "NDL"]
+    },
+    {
+      "id": "tec",
+      "features": ["up to six tanks", "trimix/heliox", "gas switching", "gradient factors", "decompression schedule", "TTS"]
+    },
+    {
+      "id": "ccr",
+      "features": ["electronic setpoint", "oxygen and diluent cylinders", "scrubber", "loop PO2", "bailout", "CCR failures"]
+    }
+  ],
+  "locales": [
+    { "id": "en", "releaseBlocking": true },
+    { "id": "de", "releaseBlocking": true }
+  ],
+  "controls": {
+    "keyboard": [
+      "W/S BCD inflate/vent",
+      "A/D fin left/right",
+      "T torch",
+      "F stop fast-forward",
+      "1-6 tank switch",
+      "I gas information",
+      "H/? help",
+      "L instructor mode",
+      "B CCR bailout",
+      "[/] CCR setpoint",
+      "setup mode/site/gas/GF/AMV/tank controls"
+    ],
+    "touch": [
+      "setup mode/site/gas controls",
+      "start and descend",
+      "BCD ascend/descend",
+      "horizontal D-pad",
+      "torch",
+      "tank switch",
+      "CCR setpoint and bailout",
+      "help and information overlays"
+    ]
+  },
+  "drills": [
+    { "id": "lightFailure", "classification": "authoritative scripted scenario" },
+    { "id": "freeflow", "classification": "authoritative scripted scenario" },
+    { "id": "co2", "classification": "authoritative scripted scenario" }
+  ],
+  "warnings": [
+    "low gas",
+    "overhead gas turn/reserve",
+    "low NDL",
+    "oxygen toxicity",
+    "fast ascent",
+    "decompression ceiling violation",
+    "narcosis",
+    "CCR low/high PO2",
+    "CCR scrubber low/failure",
+    "bad-air pocket",
+    "safety stop skipped"
+  ],
+  "authoritativeMechanics": [
+    "ZHL-16C N2/He tissue loading",
+    "gradient-factor ceiling",
+    "NDL",
+    "decompression schedule and TTS",
+    "open-circuit gas consumption and GTR",
+    "multi-gas selection and MOD",
+    "CCR loop and gas supplies",
+    "CNS oxygen exposure",
+    "hypoxia/hyperoxia timers",
+    "DCS and barotrauma failure thresholds",
+    "BCD buoyancy and vertical movement",
+    "finning, currents, collision and overhead state",
+    "adaptive safety stop",
+    "narcosis and control impairment",
+    "scripted drill state and consequences",
+    "post-dive grading",
+    "local save/restore"
+  ],
+  "decorativeMechanics": [
+    "fish and wildlife",
+    "bubbles",
+    "shark easter egg",
+    "particles and silt rendering",
+    "procedural terrain detail",
+    "set dressing",
+    "parallax",
+    "caustics and color absorption",
+    "torch and atmosphere effects"
+  ],
+  "save": {
+    "storageKey": "diveSim_savedState",
+    "schemaVersion": 2,
+    "expiryMs": 3600000,
+    "policy": "Reject incompatible or implausible payloads; no v1 migration",
+    "fieldGroups": {
+      "identity": ["saveVersion", "gameState", "savedAt"],
+      "profile": ["depth", "maxDepth", "avgDepthAccum", "avgDepthSamples", "diveTime", "diveProfile"],
+      "movement": ["ascentRate", "verticalVelocity", "bcdGasSurfaceLiters", "currentVerticalRate", "diverX", "horizontalVelocity", "current"],
+      "exposure": ["tissues", "tissuesHe", "cnsPercent", "narcosisIndex", "narcosisKOTime", "narcDrift"],
+      "failureTimers": ["barotraumaTime", "hypoxiaTime", "po2ViolationTime", "dcsViolationTime", "ccrHypoxiaTime", "ccrHyperoxiaTime"],
+      "safetyStop": ["safetyStopRemaining", "safetyStopNeeded", "safetyStopComplete", "safetyStopCountdownStarted", "safetyStopPaused", "ndlDroppedBelow5"],
+      "gas": ["tanks", "activeTank", "tankCount", "diveMode", "amvRate", "gfLow", "gfHigh", "ccrState"],
+      "breathing": ["breathPhase", "breathTimer", "exhaleEmitted"],
+      "debrief": ["diveEvents", "minNdlSeen", "thirdsReserveHitThisDive"],
+      "drill": ["drillHasRunThisDive", "drillState"],
+      "site": ["diveSite", "guidelineNodes", "visibility", "torchOn"],
+      "miscellaneous": ["sharkTimer"]
+    }
+  },
+  "testScenarios": {
+    "generatedInventory": "docs/baseline/test-inventory.json",
+    "goldenTraces": "tests/fixtures/traces/baseline-v1.json"
+  }
+}

@@ -200,6 +200,9 @@ function buildHtmlGasSetup() {
         _gsNodes.kicker = mkEl('div', 'gs-kicker');
         _gsNodes.kicker.textContent = 'PRE-DIVE';
         _gsNodes.title = mkEl('div', 'gs-title');
+        _gsNodes.simulationBoundary = mkEl('p', 'gs-simulation-boundary');
+        _gsNodes.simulationBoundary.setAttribute('role', 'note');
+        _gsNodes.simulationBoundary.textContent = S('simulationBoundary');
 
         // WP-029: Mode selector row
         var modeRow = mkEl('div', 'gs-row gs-modes');
@@ -516,6 +519,7 @@ function buildHtmlGasSetup() {
     // Update text values each frame
     var t = tanks[selectedTankTab];
     _gsNodes.title.textContent = S('gasSetupTitle');
+    _gsNodes.simulationBoundary.textContent = S('simulationBoundary');
 
     // WP-029: Mode button highlighting
     var _mc = function(btn, on) {

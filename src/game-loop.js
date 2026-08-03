@@ -25,6 +25,20 @@
 // SECTION: Surface and diving update functions
 // SEARCH TERMS: updateSurface, updateDiving, fastForwardActive, gameOverReason
 
+// Diagnostics are an optional observer. Keep the reference client runnable
+// when diagnostics.js is omitted from a production or legacy script list.
+var _baselineDiag = window.baselineDiagnostics || {
+    enabled: false,
+    start: function() { return 0; },
+    record: function() {},
+    reset: function() {},
+    exportSnapshot: function() { return null; }
+};
+// Geometry used by the most recent model tick. Baseline scenarios may isolate
+// numerical profiles from declared site collision/overhead behavior, so this
+// must be captured independently from diveSite.
+var _baselineLastSimulatedGeometry = null;
+
 // Phase A: Exertion multiplier for gas consumption while kicking.
 function effectiveAMV(kicking) {
     return amvRate * (kicking ? FINKICK_PARAMS.exertionFactor : 1);
@@ -232,6 +246,7 @@ function updateSurface(dtReal) {
 }
 
 function updateDiving(dtReal) {
+    _baselineLastSimulatedGeometry = diveSite;
     // Issue #14: this first read of frameCalc is intentionally the value
     // left over from the END of the PREVIOUS tick (tissues haven't been
     // updated yet this frame, so it's numerically identical to a fresh
@@ -470,6 +485,7 @@ function updateDiving(dtReal) {
     // renderer's reads later this same frame, use these values instead of
     // recomputing (calculateDecoSchedule() alone was up to ~3000 iterations,
     // previously invoked up to 3x per frame across game-loop.js + renderer.js).
+    var _plannerDiagnosticStart = _baselineDiag.start();
     frameCalc.ceiling = calculateCeiling();
     frameCalc.ndl = calculateNDL();
     // Issue #14: pass the ceiling just computed above straight through so
@@ -479,6 +495,7 @@ function updateDiving(dtReal) {
     // time this same tick — it previously did both unconditionally.
     frameCalc.schedule = decoStop(frameCalc.ceiling) > 0 ? calculateDecoSchedule(frameCalc.ceiling) : null;
     frameCalc.tts = calculateTTS(frameCalc.ceiling, frameCalc.schedule);
+    _baselineDiag.record('planner', _plannerDiagnosticStart);
 
     // WP-038: Update CNS tracking
     updateCNS(dtDiveMinutes);
@@ -1110,6 +1127,11 @@ function computeBackwayState() {
 // ============================================================
 
 function gameLoop(timestamp) {
+    if (window.__baselineCapturePaused) {
+        requestAnimationFrame(gameLoop);
+        return;
+    }
+    var _frameDiagnosticStart = _baselineDiag.start();
     if (!lastFrameTime) lastFrameTime = timestamp;
     var dtReal = (timestamp - lastFrameTime) / 1000;
     lastFrameTime = timestamp;
@@ -1134,13 +1156,17 @@ function gameLoop(timestamp) {
         case 'diving':
             document.getElementById('html-gas-setup').style.display = 'none';
             if (!showHelp && !showGasInfo) {
+                var _updateDiagnosticStart = _baselineDiag.start();
                 updateDiving(dtReal);
+                _baselineDiag.record('update', _updateDiagnosticStart);
             }
+            var _renderDiagnosticStart = _baselineDiag.start();
             drawScene();
             drawDiveComputer();
             // Issue #45: torch-flicker pre-roll for the lightFailure drill.
             // Only fires when drillState.phase === 'flicker' && id === 'lightFailure'.
             drawDrillFlicker();
+            _baselineDiag.record('render', _renderDiagnosticStart);
             if (showHelp && !_helpShown) { showHtmlHelp(); _helpShown = true; }
             if (!showHelp && _helpShown) { hideHtmlHelp(); _helpShown = false; }
             break;
@@ -1153,6 +1179,7 @@ function gameLoop(timestamp) {
             // gas / tissue / clock updates run.
             document.getElementById('html-gas-setup').style.display = 'none';
             _updateDrillTiming(dtReal);
+            _renderDiagnosticStart = _baselineDiag.start();
             drawScene();
             drawDiveComputer();
             if (drillState.phase === 'debrief') {
@@ -1173,13 +1200,16 @@ function gameLoop(timestamp) {
                     }
                 }
             }
+            _baselineDiag.record('render', _renderDiagnosticStart);
             break;
         case 'gameover':
             document.getElementById('html-gas-setup').style.display = 'none';
             // TASK-031D: Close gas info on gameover
             if (_gasInfoShown) { hideHtmlGasInfo(); _gasInfoShown = false; }
+            _renderDiagnosticStart = _baselineDiag.start();
             drawScene();
             drawGameOver();
+            _baselineDiag.record('render', _renderDiagnosticStart);
             if (keys['enter']) {
                 keys['enter'] = false;
                 gameState = 'gas-setup';
@@ -1202,6 +1232,7 @@ function gameLoop(timestamp) {
     // Periodic dive state save + beforeunload guard
     maybeSaveDiveState(timestamp);
 
+    _baselineDiag.record('frame', _frameDiagnosticStart);
     requestAnimationFrame(gameLoop);
 }
 
@@ -1712,6 +1743,115 @@ function discardSavedDive() {
     return true;
 }
 
+function _baselineFinite(value) {
+    return Number.isFinite(value) ? value : null;
+}
+
+function captureBaselineCheckpoint(scenarioId, checkpointId) {
+    if (!scenarioId || !checkpointId) {
+        throw new Error('scenarioId and checkpointId are required');
+    }
+
+    var ceiling = calculateCeiling();
+    var ndl = calculateNDL();
+    var schedule = decoStop(ceiling) > 0 ? calculateDecoSchedule(ceiling) : null;
+    var tts = calculateTTS(ceiling, schedule);
+
+    return {
+        schemaVersion: 1,
+        scenarioId: String(scenarioId),
+        checkpointId: String(checkpointId),
+        simulatedGeometry: _baselineLastSimulatedGeometry || diveSite,
+        state: {
+            gameState: gameState,
+            diveMode: diveMode,
+            diveSite: diveSite,
+            depth_m: _baselineFinite(depth),
+            maxDepth_m: _baselineFinite(maxDepth),
+            diveTime_min: _baselineFinite(diveTime),
+            diverX_m: _baselineFinite(diverX),
+            verticalVelocity_mpm: _baselineFinite(verticalVelocity),
+            horizontalVelocity_mps: _baselineFinite(horizontalVelocity),
+            activeTankIndex: activeTank,
+            cns_percent: _baselineFinite(cnsPercent),
+            narcosisIndex: _baselineFinite(narcosisIndex),
+            safetyStop: {
+                needed: safetyStopNeeded,
+                remaining_min: _baselineFinite(safetyStopRemaining),
+                countdownStarted: safetyStopCountdownStarted,
+                paused: safetyStopPaused,
+                complete: safetyStopComplete
+            }
+        },
+        configuration: {
+            gfLow_percent: gfLow,
+            gfHigh_percent: gfHigh,
+            amv_lpm: amvRate,
+            tankVolume_l: tankVolume
+        },
+        planner: {
+            ceiling_m: _baselineFinite(ceiling),
+            ndl_min: _baselineFinite(ndl),
+            tts_min: _baselineFinite(tts),
+            schedule: schedule ? JSON.parse(JSON.stringify(schedule)) : null
+        },
+        tissues: {
+            n2_bar: tissues.map(_baselineFinite),
+            he_bar: tissuesHe.map(_baselineFinite)
+        },
+        tanks: tanks.map(function(tank) {
+            return {
+                fO2: _baselineFinite(tank.fO2),
+                fHe: _baselineFinite(tank.fHe),
+                fN2: _baselineFinite(tank.fN2),
+                volume_l: _baselineFinite(tank.volume),
+                pressure_bar: _baselineFinite(tank.pressure),
+                gasRemaining_l: _baselineFinite(tank.gasRemaining),
+                switchDepth_m: _baselineFinite(tank.switchDepth)
+            };
+        }),
+        ccr: {
+            targetPO2_bar: _baselineFinite(ccrState.targetSP),
+            actualPO2_bar: _baselineFinite(ccrState.actualPO2),
+            diluent: {
+                fO2: _baselineFinite(ccrState.dilFO2),
+                fHe: _baselineFinite(ccrState.dilFHe),
+                fN2: _baselineFinite(ccrState.dilFN2)
+            },
+            o2Pressure_bar: _baselineFinite(ccrState.o2CylPressure),
+            diluentPressure_bar: _baselineFinite(ccrState.dilCylPressure),
+            scrubberRemaining_min: _baselineFinite(ccrState.scrubberRemaining),
+            onBailout: !!ccrState.onBailout
+        },
+        events: diveEvents.map(function(event) {
+            return JSON.parse(JSON.stringify(event));
+        })
+    };
+}
+
+function runBaselineDiagnosticFrames(count, dtReal) {
+    if (!_baselineDiag.enabled) {
+        throw new Error('diagnostics must be enabled with ?diagnostics=1');
+    }
+    count = Math.max(1, Math.min(1000, Math.floor(count)));
+    dtReal = Number.isFinite(dtReal) ? Math.max(0, Math.min(0.1, dtReal)) : 0;
+
+    for (var i = 0; i < count; i++) {
+        var frameStarted = _baselineDiag.start();
+        var updateStarted = _baselineDiag.start();
+        updateDiving(dtReal);
+        _baselineDiag.record('update', updateStarted);
+
+        var renderStarted = _baselineDiag.start();
+        drawScene();
+        drawDiveComputer();
+        drawDrillFlicker();
+        _baselineDiag.record('render', renderStarted);
+        _baselineDiag.record('frame', frameStarted);
+    }
+    return _baselineDiag.exportSnapshot();
+}
+
 (function _wireResumeBanner() {
     const yes = document.getElementById('resume-dive-banner-yes');
     const no = document.getElementById('resume-dive-banner-discard');
@@ -1729,6 +1869,11 @@ window.gameAPI = {
     // `function` declarations do). Expose the live object directly — tests
     // need to observe real keydown/keyup mutations, not a snapshot.
     get keys() { return keys; },
+    get diagnosticsEnabled() { return _baselineDiag.enabled; },
+    resetDiagnostics: function(context) { _baselineDiag.reset(context); },
+    exportDiagnostics: function() { return _baselineDiag.exportSnapshot(); },
+    captureBaselineCheckpoint: captureBaselineCheckpoint,
+    runBaselineDiagnosticFrames: runBaselineDiagnosticFrames,
     get depth() { return depth; },
     get maxDepth() { return maxDepth; },
     set maxDepth(v) { maxDepth = v; },
