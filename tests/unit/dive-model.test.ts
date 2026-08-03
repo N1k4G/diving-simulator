@@ -198,3 +198,61 @@ describe("DiveModel life-support transitions", () => {
     ).toThrow(RangeError);
   });
 });
+
+describe("DiveModel across a changing depth profile", () => {
+  // Every other test in this suite advances at a constant depth, and the
+  // golden-trace parity suite cannot cover an ascent because the fixture
+  // records depth only at checkpoints (see docs/decisions.md). These two
+  // invariants are fixture-independent and catch a model that mishandles the
+  // depth/dt relationship during a profile.
+  const openCircuitAir = () =>
+    new DiveModel(
+      createInitialDiveState(7, {
+        tanks: [createTankState(createGasMix(0.21, 0))],
+      }),
+    );
+
+  function ascendFrom(depthM: number, totalMinutes: number, steps: number) {
+    const model = openCircuitAir();
+    model.advance({ depthM: metres(depthM) }, seconds(30 * 60));
+    const bottom = [...model.snapshot.tissues.nitrogenBar];
+
+    for (let step = 1; step <= steps; step += 1) {
+      model.advance(
+        { depthM: metres(Math.max(0, depthM - (depthM * step) / steps)) },
+        seconds((totalMinutes * 60) / steps),
+      );
+    }
+
+    return { bottom, surfaced: [...model.snapshot.tissues.nitrogenBar] };
+  }
+
+  it("keeps every compartment bounded by the profile it was exposed to", () => {
+    const { bottom, surfaced } = ascendFrom(18, 1.5, 60);
+    // Inspired N2 at 18 m, the ceiling any compartment can approach here.
+    const inspiredAt18M = 2.8 * 0.79;
+
+    for (let index = 0; index < 16; index += 1) {
+      expect(surfaced[index]).toBeGreaterThan(0.7);
+      expect(surfaced[index]).toBeLessThan(inspiredAt18M);
+    }
+
+    // Only the fast compartments track a 90-second ascent. Slow ones keep
+    // on-gassing throughout it, because ambient inert pressure stays above
+    // their loading for most of the way up — so asserting that every
+    // compartment unloads would be asserting wrong physics.
+    expect(surfaced[0]).toBeLessThan(bottom[0] as number);
+  });
+
+  it("converges as the ascent step size shrinks", () => {
+    // A model that applied dt or depth in the wrong order would diverge here
+    // rather than converge on the same continuous profile.
+    const coarse = ascendFrom(18, 1.5, 60).surfaced;
+    const fine = ascendFrom(18, 1.5, 600).surfaced;
+
+    for (let index = 0; index < 16; index += 1) {
+      expect(Math.abs((coarse[index] as number) - (fine[index] as number)))
+        .toBeLessThan(5e-3);
+    }
+  });
+});
