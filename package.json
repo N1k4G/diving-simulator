@@ -4,15 +4,27 @@
   "private": true,
   "description": "A 2D HTML5 Canvas diving simulator implementing the Buhlmann ZHL-16C decompression algorithm with multi-gas, CCR, and a technical wrist dive computer-style HUD.",
   "license": "MIT",
+  "engines": {
+    "node": "^20.19.0 || >=22.13.0"
+  },
   "scripts": {
-    "lint": "eslint src/*.js --max-warnings=0",
-    "test": "node scripts/run-playwright-tests.mjs",
+    "dev": "vite",
+    "dev:legacy": "http-server . -p 8080",
+    "build": "npm run typecheck && vite build",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src tests scripts *.config.js *.config.mjs *.config.mts --max-warnings=0",
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:unit": "vitest run",
+    "test:legacy": "node scripts/run-playwright-tests.mjs tests/smoke.spec.js",
+    "test:parity": "node scripts/run-playwright-tests.mjs tests/baseline.spec.js",
+    "test:e2e": "node scripts/run-playwright-tests.mjs",
+    "test:perf": "node scripts/capture-baseline-performance.mjs",
     "screenshots": "node scripts/screenshots.mjs",
     "baseline:generate": "node scripts/generate-baseline.mjs",
     "baseline:perf": "node scripts/capture-baseline-performance.mjs",
-    "baseline:visual-compare": "node scripts/compare-rendering.mjs",
-    "license-check": "license-checker --excludePrivatePackages --onlyAllow \"MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;CC0-1.0;CC-BY-3.0;Python-2.0;WTFPL;Unlicense;BlueOak-1.0.0\"",
-    "prepare": "husky"
+    "license-check": "license-checker --excludePrivatePackages --onlyAllow \"MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;MPL-2.0;0BSD;CC0-1.0;CC-BY-3.0;Python-2.0;WTFPL;Unlicense;BlueOak-1.0.0\"",
+    "prepare": "husky",
+    "baseline:visual-compare": "node scripts/compare-rendering.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.0",
@@ -23,9 +35,16 @@
     "http-server": "^14.1.0",
     "husky": "^9.0.0",
     "license-checker": "^25.0.1",
-    "lint-staged": "^17.2.0"
+    "lint-staged": "^17.2.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.65.0",
+    "vite": "^8.2.0",
+    "vitest": "^4.1.10"
   },
   "lint-staged": {
-    "src/*.js": "eslint --max-warnings=0"
+    "src/**/*.{js,ts}": "eslint --max-warnings=0"
+  },
+  "dependencies": {
+    "pixi.js": "^8.19.0"
   }
 }

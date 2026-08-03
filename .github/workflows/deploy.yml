@@ -24,6 +24,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build and type-check migration client
+        run: npm run build
+
       - name: Lint
         run: npm run lint
 
@@ -33,8 +36,11 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Run game tests
-        run: npm test
+      - name: Run migration client unit tests
+        run: npm run test:unit
+
+      - name: Run legacy client tests
+        run: npm run test:e2e
 
       - name: Upload test report
         if: always()
