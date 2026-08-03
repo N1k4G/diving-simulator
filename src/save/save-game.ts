@@ -9,6 +9,10 @@ import {
 } from "../core/dive-state";
 
 export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
+// These two counters are unrelated despite the misleading ordering. The new
+// format starts its own sequence at 1; LEGACY_SAVE_STATE_VERSION is the last
+// version the pre-migration client wrote under its own scheme, so a 2 here is
+// older than a 1 above, not newer.
 export const CURRENT_SAVE_GAME_VERSION = 1;
 export const LEGACY_SAVE_STATE_VERSION = 2;
 

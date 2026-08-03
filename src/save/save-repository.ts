@@ -16,6 +16,19 @@ export interface KeyValueStore {
   removeItem(key: string): void;
 }
 
+// localStorage.setItem throws on quota exhaustion, and throws on every write
+// in Safari private browsing. A save is best-effort persistence: losing it must
+// never take down the caller, and on the load path a failed migration write must
+// still return the successfully decoded save rather than aborting startup.
+function tryWrite(store: KeyValueStore, key: string, value: string): boolean {
+  try {
+    store.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export type SaveRepositoryLoadResult =
   | {
       readonly status: "loaded";
@@ -38,10 +51,22 @@ export class LocalSaveRepository {
     this.#store = store;
   }
 
-  save(state: DiveState, savedAtEpochMs = Date.now()): SaveGame {
+  /**
+   * Returns the save that was built. `persisted` is false when the store
+   * refused the write, so a caller can surface degraded persistence instead of
+   * assuming the dive is recoverable.
+   */
+  save(
+    state: DiveState,
+    savedAtEpochMs = Date.now(),
+  ): { readonly saveGame: SaveGame; readonly persisted: boolean } {
     const saveGame = createSaveGame(state, savedAtEpochMs);
-    this.#store.setItem(SAVE_GAME_STORAGE_KEY, encodeSaveGame(saveGame));
-    return saveGame;
+    const persisted = tryWrite(
+      this.#store,
+      SAVE_GAME_STORAGE_KEY,
+      encodeSaveGame(saveGame),
+    );
+    return { saveGame, persisted };
   }
 
   load(): SaveRepositoryLoadResult {
@@ -79,11 +104,14 @@ export class LocalSaveRepository {
 
     const migrated = result.migratedFrom !== null;
     if (migrated) {
-      this.#store.setItem(
+      const rewritten = tryWrite(
+        this.#store,
         SAVE_GAME_STORAGE_KEY,
         encodeSaveGame(result.saveGame),
       );
-      if (legacySource) {
+      // Only retire the legacy key once its replacement is durably stored,
+      // otherwise a refused write would discard the only copy of the save.
+      if (legacySource && rewritten) {
         this.#store.removeItem(sourceKey);
       }
     }

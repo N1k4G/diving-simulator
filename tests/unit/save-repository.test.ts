@@ -122,3 +122,55 @@ function minimalLegacyV2Save(): Record<string, unknown> {
     ],
   };
 }
+
+describe("LocalSaveRepository under a refusing store", () => {
+  // Safari private browsing throws on every write, and any browser throws once
+  // the origin quota is exhausted. Persistence is best-effort: it must never
+  // take down the caller, and it must never discard the only copy of a save.
+  class RefusingStore implements KeyValueStore {
+    readonly #items = new Map<string, string>();
+    removals: string[] = [];
+
+    constructor(seed: Record<string, string> = {}) {
+      for (const [key, value] of Object.entries(seed)) {
+        this.#items.set(key, value);
+      }
+    }
+
+    getItem(key: string): string | null {
+      return this.#items.get(key) ?? null;
+    }
+
+    setItem(): never {
+      throw new DOMException("quota exceeded", "QuotaExceededError");
+    }
+
+    removeItem(key: string): void {
+      this.removals.push(key);
+      this.#items.delete(key);
+    }
+  }
+
+  it("reports a refused save instead of throwing", () => {
+    const repository = new LocalSaveRepository(new RefusingStore());
+
+    const result = repository.save(createInitialDiveState(1));
+
+    expect(result.persisted).toBe(false);
+    expect(result.saveGame.version).toBe(CURRENT_SAVE_GAME_VERSION);
+  });
+
+  it("still returns a migrated legacy save when the rewrite is refused", () => {
+    const legacy = JSON.stringify(minimalLegacyV2Save());
+    const store = new RefusingStore({ [LEGACY_SAVE_STORAGE_KEY]: legacy });
+    const repository = new LocalSaveRepository(store);
+
+    const result = repository.load();
+
+    expect(result.status).toBe("loaded");
+    // The legacy key is the only surviving copy, so it must not be retired
+    // until its replacement is durably stored.
+    expect(store.removals).not.toContain(LEGACY_SAVE_STORAGE_KEY);
+    expect(store.getItem(LEGACY_SAVE_STORAGE_KEY)).toBe(legacy);
+  });
+});
