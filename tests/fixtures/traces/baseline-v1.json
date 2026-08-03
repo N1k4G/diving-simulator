@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "diving-simulator-golden-traces",
-  "referenceCommit": "dc6faad6f8cdf37cb5ef0ee54aeb1a8b0602382c",
+  "referenceCommit": "6a3207d6f3ae68be3b2c3e5b2f3d0073779db11d",
   "generator": "npm run baseline:generate",
   "tolerances": {
     "exact": [

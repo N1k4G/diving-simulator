@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "referenceCommit": "dc6faad6f8cdf37cb5ef0ee54aeb1a8b0602382c",
+  "referenceCommit": "6a3207d6f3ae68be3b2c3e5b2f3d0073779db11d",
   "legacyHarness": {
     "path": "src/diving-simulator-tests.html",
     "disposition": "Parity oracle until WP-12; port assertions incrementally",
@@ -658,6 +658,10 @@
         "name": "Issue #31 — drawSiltAndTorch + drawWreckHullSkin emit zero ops outside diving"
       },
       {
+        "id": "TC-31-WRECK-HOLE-OVERLAY-NO-SOURCE-COPY",
+        "name": "Issue #31 — wreck visibility hole uses an overlay without copying the main canvas"
+      },
+      {
         "id": "TC-31-TORCH-OFF-NO-CONE",
         "name": "Issue #31 — cave torch-OFF path draws darkness only, never a cone-wedge arc"
       },
@@ -688,6 +692,10 @@
       {
         "id": "TC-36-TORCH-OFF-NO-RESTORE-BLIT",
         "name": "Issue #36 — with torch OFF, drawDepthColorAbsorption never touches the restore offscreen buffers"
+      },
+      {
+        "id": "TC-36-TORCH-RESTORE-REGIONAL-EFFECT",
+        "name": "Issue #36 — torch color restore uses a bounded effect layer without a source-canvas copy"
       },
       {
         "id": "TC-42-DATA-ALL-TYPES-HAVE-SITES",

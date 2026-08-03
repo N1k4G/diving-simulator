@@ -40,6 +40,9 @@
         var series = samples[name];
         series.push(duration);
         if (series.length > MAX_SAMPLES) series.shift();
+        // Sub-pass probes must never refresh DOM from inside the measured
+        // render pass. Preserve the original top-level refresh behavior so
+        // before/after captures stay comparable without observer stalls.
         if (name === 'frame' || name === 'update' || name === 'planner' || name === 'render') {
             renderOverlay(false);
         }
