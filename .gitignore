@@ -20,7 +20,10 @@ playwright-report/
 debug.log
 .tmp/
 
-# Local review documents kept out of history by choice
+# Local assistant configuration and review documents. These stay on disk and
+# keep working locally; they are simply not part of what the project publishes.
+.claude/
+CLAUDE.md
 Codex_Review.md
 
 # Generated review screenshots
