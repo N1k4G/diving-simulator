@@ -186,7 +186,7 @@ Open `src/diving-simulator-tests.html` in a browser to run the legacy client's a
 
 The same suite runs headless under Playwright via `npm run test:e2e` (it loads the test harness and asserts `window.testResults`). The migration client has an independent Vitest unit suite.
 
-The first extracted model slice lives in `src/core/`. It owns typed, immutable tissue state and deterministic fixed-step updates, but it is not yet authoritative in the shipped game. `tests/parity/` drives that pure model from the frozen WP-01 traces while the legacy client remains the behavioral oracle.
+The extracted model lives in `src/core/`. It owns typed, immutable tissue and life-support state plus deterministic fixed-step updates, but it is not yet authoritative in the shipped game. The pure `DivePlanner` in `src/planner/` runs forecasts from copied state at a separately scheduled cadence and has a typed same-origin Worker boundary. `tests/parity/` drives both paths from the frozen WP-01 traces while the legacy client remains the behavioral oracle.
 
 ## Development & CI
 
@@ -205,7 +205,7 @@ New TypeScript UI copy is keyed in `src/app/i18n/catalog.ts`; direct user-facing
 | `npm run test:unit` | Runs the TypeScript unit suites outside parity |
 | `npm run test:legacy` | Runs the focused legacy Playwright smoke test |
 | `npm run test:parity` | Compares the extracted pure core with deterministic legacy fixtures |
-| `npm run test:e2e` | Runs the full legacy Playwright suite |
+| `npm run test:e2e` | Builds and tests the migration Worker plus the full legacy Playwright suite |
 | `npm run test:perf` | Captures the opt-in performance baseline |
 | `npm run screenshots` | Captures review screenshots (phone + desktop, setup + in-dive) to `screenshots/` via `scripts/screenshots.mjs` |
 

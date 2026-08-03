@@ -4,14 +4,10 @@ module.exports = defineConfig({
   testDir: './tests',
   testMatch: '**/*.spec.js',
   timeout: 60000,
+  globalSetup: require.resolve('./tests/global-setup.js'),
   use: {
-    baseURL: 'http://localhost:8080',
+    baseURL: 'http://127.0.0.1:8080',
     headless: true,
-  },
-  webServer: {
-    command: 'node node_modules/http-server/bin/http-server . -p 8080 --silent',
-    port: 8080,
-    reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === '1' || !process.env.CI,
   },
   reporter: [['list'], ['html', { open: 'never' }]],
 });
