@@ -467,7 +467,7 @@ export default [
   },
   ...tseslint.configs.recommended.map((config) => ({
     ...config,
-    files: ["src/**/*.ts", "*.config.mts"],
+    files: ["src/**/*.ts", "tests/**/*.ts", "*.config.mts"],
   })),
   {
     files: ["src/**/*.ts"],
@@ -486,6 +486,36 @@ export default [
         {
           selector: "CallExpression[callee.type='MemberExpression'][callee.property.name='setAttribute'][arguments.0.value=/^(aria-label|title|placeholder)$/][arguments.1.type='Literal'][arguments.1.value!='']",
           message: "Translate user-facing attributes through src/app/i18n/catalog.ts.",
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/core/**/*.ts"],
+    rules: {
+      "no-restricted-globals": [
+        "error",
+        "document",
+        "window",
+        "navigator",
+        "localStorage",
+        "sessionStorage",
+      ],
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "pixi.js",
+              message: "The authoritative core must not depend on rendering.",
+            },
+          ],
+          patterns: [
+            {
+              group: ["../app/**", "../render/**", "../platform/**"],
+              message: "Dependencies must point from adapters toward the core.",
+            },
+          ],
         },
       ],
     },
