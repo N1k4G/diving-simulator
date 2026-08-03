@@ -33,6 +33,13 @@ class FakePlannerWorker {
     });
   }
 
+  emit(data: PlannerForecastResponse): void {
+    const event = { data } as MessageEvent<PlannerForecastResponse>;
+    for (const listener of this.#listeners) {
+      listener(event);
+    }
+  }
+
   addEventListener(
     _type: "message",
     listener: (event: MessageEvent<PlannerForecastResponse>) => void,
@@ -106,5 +113,71 @@ describe("planner Worker boundary", () => {
   it("allows only same-origin workers in the deployed CSP", () => {
     expect(deployedHeaders).toContain("worker-src 'self'");
     expect(deployedHeaders).not.toContain("worker-src blob:");
+  });
+});
+
+describe("PlannerWorkerClient liveness", () => {
+  // A worker that dies or hangs emits no message event. Without a deadline the
+  // promise never settles, and a caller that guards against overlapping
+  // requests stops forecasting for good while still presenting its last
+  // ceiling, NDL and TTS as current.
+  class SilentWorker {
+    terminated = false;
+    postMessage(): void {}
+    addEventListener(): void {}
+    removeEventListener(): void {}
+    terminate(): void {
+      this.terminated = true;
+    }
+  }
+
+  it("rejects a forecast the worker never answers", async () => {
+    const client = new PlannerWorkerClient(new SilentWorker(), 20);
+
+    await expect(
+      client.forecast(createInitialDiveState(0), DEFAULT_PLANNER_SETTINGS),
+    ).rejects.toThrow(/timed out after 20 ms/);
+
+    client.dispose();
+  });
+
+  it("accepts a later forecast after one times out", async () => {
+    const worker = new SilentWorker();
+    const client = new PlannerWorkerClient(worker, 20);
+
+    await expect(
+      client.forecast(createInitialDiveState(0), DEFAULT_PLANNER_SETTINGS),
+    ).rejects.toThrow(/timed out/);
+
+    // The client must not latch into a failed state: the caller retries on its
+    // next tick and needs the request to be accepted and to settle again.
+    await expect(
+      client.forecast(createInitialDiveState(0), DEFAULT_PLANNER_SETTINGS),
+    ).rejects.toThrow(/timed out/);
+
+    client.dispose();
+  });
+
+  it("rejects an invalid timeout rather than disabling the deadline", () => {
+    expect(() => new PlannerWorkerClient(new SilentWorker(), 0)).toThrow(
+      RangeError,
+    );
+    expect(() => new PlannerWorkerClient(new SilentWorker(), Number.NaN)).toThrow(
+      RangeError,
+    );
+  });
+
+  it("ignores a malformed message instead of throwing in the listener", async () => {
+    const worker = new FakePlannerWorker();
+    const client = new PlannerWorkerClient(worker, 500);
+    const forecast = client.forecast(
+      createInitialDiveState(0),
+      DEFAULT_PLANNER_SETTINGS,
+    );
+
+    worker.emit(undefined as unknown as PlannerForecastResponse);
+
+    await expect(forecast).resolves.toBeDefined();
+    client.dispose();
   });
 });
