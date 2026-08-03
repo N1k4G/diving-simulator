@@ -137,6 +137,23 @@ presentation snapshots.
   `diving`: `updateSurface()` sets that before `drawScene()` ever runs, so a
   client frozen by a render-pass throw otherwise passes.
 
+### Trace contract limits
+
+- The golden trace records depth only at checkpoints, not the per-step depth
+  trajectory. In the legacy client `updateBuoyancyPhysics()` moves `depth`
+  before `updateTissues()` runs, so tissues load at depths the fixture never
+  captures.
+- A pure model can therefore reproduce every static-depth checkpoint exactly,
+  but no depth schedule derivable from the fixture reproduces a checkpoint
+  reached through an ascent. Replaying the nominal 12 m/min ramp lands about
+  1.2e-3 bar out and a midpoint-depth replay about 1.0e-3, against a declared
+  tolerance of 1e-9.
+- Assert dynamic-depth parity end to end against the legacy client, not in the
+  pure-model unit suite. Extending the trace schema to record the depth
+  trajectory would let the pure suite cover ascents too; that is a WP-01
+  fixture change and is not in scope for the core extraction.
+- Do not close this gap by widening a tolerance or regenerating expected values.
+
 ### Visual comparison
 
 - `scripts/compare-rendering.mjs` records a seeded, fixed-state DPR-1 pixel
