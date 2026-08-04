@@ -247,6 +247,11 @@ describe("DiveModel across a changing depth profile", () => {
   it("converges as the ascent step size shrinks", () => {
     // A model that applied dt or depth in the wrong order would diverge here
     // rather than converge on the same continuous profile.
+    //
+    // The measured delta between these two step sizes is 2.0e-3, so the bound
+    // below carries about 2.5x headroom. It is deterministic -- nothing here is
+    // random -- so it cannot flake; it moves only if the integration changes,
+    // which is what it exists to catch. Re-measure before adjusting it.
     const coarse = ascendFrom(18, 1.5, 60).surfaced;
     const fine = ascendFrom(18, 1.5, 600).surfaced;
 

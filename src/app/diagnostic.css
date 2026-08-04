@@ -91,3 +91,363 @@ h1 {
 .legacy-link:focus-visible {
   background: #b7f4ff;
 }
+
+button,
+a {
+  font: inherit;
+}
+
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+  outline: 3px solid #f6db72;
+  outline-offset: 3px;
+}
+
+.safety-gate,
+.start-error {
+  width: min(100%, 44rem);
+  padding: clamp(1.5rem, 5vw, 3rem);
+  border: 1px solid rgb(129 226 241 / 35%);
+  border-radius: 1.25rem;
+  background: rgb(3 24 32 / 92%);
+  box-shadow: 0 1.5rem 5rem rgb(0 0 0 / 45%);
+}
+
+.safety-eyebrow,
+.wreck-eyebrow {
+  margin: 0 0 0.5rem;
+  color: #83d9e7;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.safety-heading {
+  max-width: 16ch;
+  font-size: clamp(2rem, 6vw, 3.4rem);
+  line-height: 1.02;
+}
+
+.safety-summary {
+  max-width: 57ch;
+  margin: 1rem 0 1.5rem;
+  color: #d3edf1;
+  font-size: 1.08rem;
+  line-height: 1.55;
+}
+
+.safety-notices {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0 0 1.5rem;
+  padding-left: 1.4rem;
+  color: #aecfd5;
+  line-height: 1.45;
+}
+
+.methodology {
+  padding: 0.9rem 1rem;
+  border: 1px solid rgb(129 226 241 / 18%);
+  border-radius: 0.75rem;
+  background: rgb(129 226 241 / 5%);
+  color: #b9dbe0;
+}
+
+.methodology summary {
+  cursor: pointer;
+  color: #e9fbff;
+  font-weight: 750;
+}
+
+.methodology p {
+  margin: 0.8rem 0 0;
+  line-height: 1.5;
+}
+
+.safety-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin-top: 1.5rem;
+}
+
+.primary-action,
+.secondary-action,
+.start-error button {
+  display: inline-flex;
+  min-height: 2.9rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1rem;
+  border: 1px solid #83d9e7;
+  border-radius: 0.7rem;
+  cursor: pointer;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.primary-action,
+.start-error button {
+  color: #031117;
+  background: #83d9e7;
+}
+
+.primary-action:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.secondary-action {
+  color: #bcecf4;
+  background: transparent;
+}
+
+.wreck-shell {
+  position: relative;
+  display: grid;
+  width: min(100%, 96rem);
+  height: calc(100vh - 4rem);
+  min-height: 34rem;
+  overflow: hidden;
+  border: 1px solid rgb(129 226 241 / 28%);
+  border-radius: 1rem;
+  background: #061923;
+  box-shadow: 0 1.5rem 5rem rgb(0 0 0 / 42%);
+}
+
+.wreck-topbar {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgb(2 13 18 / 88%), transparent);
+}
+
+.wreck-title {
+  margin: 0;
+  font-size: clamp(1.35rem, 3vw, 2rem);
+}
+
+.status-chip {
+  margin: 0;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid rgb(116 239 188 / 40%);
+  border-radius: 999px;
+  color: #74efbc;
+  background: rgb(3 24 32 / 80%);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  pointer-events: auto;
+}
+
+.audio-control {
+  width: 2.3rem;
+  height: 2.3rem;
+  border: 1px solid rgb(131 217 231 / 48%);
+  border-radius: 50%;
+  color: #bcecf4;
+  background: rgb(3 24 32 / 80%);
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.audio-control[aria-pressed="true"] {
+  color: #031117;
+  background: #f6db72;
+  text-decoration: line-through;
+}
+
+.wreck-viewport {
+  position: absolute;
+  inset: 0;
+}
+
+.wreck-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.wreck-hud {
+  position: absolute;
+  z-index: 4;
+  top: 5.8rem;
+  left: 1.25rem;
+  display: grid;
+  width: min(15rem, calc(100% - 2.5rem));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.8rem;
+  border: 1px solid rgb(129 226 241 / 25%);
+  border-radius: 0.75rem;
+  background: rgb(2 17 23 / 82%);
+  backdrop-filter: blur(8px);
+}
+
+.wreck-hud div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.wreck-hud dt {
+  color: #a5cbd2;
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.wreck-hud dd {
+  margin: 0;
+  color: #e9fbff;
+  font-family: ui-monospace, monospace;
+  font-weight: 750;
+  text-align: right;
+}
+
+.wreck-warning {
+  position: absolute;
+  z-index: 5;
+  top: 1rem;
+  left: 50%;
+  max-width: min(34rem, calc(100% - 2rem));
+  margin: 0;
+  padding: 0.8rem 1rem;
+  border: 2px solid #fff;
+  border-radius: 0.65rem;
+  color: #fff;
+  background: #a92828;
+  box-shadow: 0 0 0 4px #180000;
+  font-weight: 900;
+  text-align: center;
+  transform: translateX(-50%);
+}
+
+.wreck-warning[hidden] {
+  display: none;
+}
+
+.has-warning .status-chip {
+  border-color: #fff;
+  color: #fff;
+  background: #a92828;
+}
+
+.wreck-controls {
+  position: absolute;
+  z-index: 4;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  display: grid;
+  grid-template-columns: repeat(3, 3.2rem);
+  grid-template-rows: repeat(2, 3.2rem);
+  gap: 0.4rem;
+}
+
+.wreck-controls button {
+  border: 1px solid rgb(168 232 242 / 55%);
+  border-radius: 50%;
+  color: #e9fbff;
+  background: rgb(3 24 32 / 82%);
+  cursor: pointer;
+  font-size: 1.25rem;
+  touch-action: none;
+}
+
+.wreck-controls button:active,
+.wreck-controls button[aria-pressed="true"] {
+  color: #061923;
+  background: #83d9e7;
+}
+
+.wreck-controls [data-control="left"] {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.wreck-controls [data-control="ascend"] {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.wreck-controls [data-control="descend"] {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.wreck-controls [data-control="right"] {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.wreck-controls .torch-control {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.controls-hint {
+  position: absolute;
+  z-index: 4;
+  bottom: 1.25rem;
+  left: 1.25rem;
+  max-width: 26rem;
+  margin: 0;
+  color: #9dc8cf;
+  font-size: 0.76rem;
+}
+
+@media (width <= 720px) {
+  #app {
+    padding: 0;
+  }
+
+  .safety-gate,
+  .start-error {
+    min-height: 100vh;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .wreck-shell {
+    width: 100%;
+    height: 100vh;
+    min-height: 30rem;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .wreck-hud {
+    top: 5rem;
+    width: 12.5rem;
+  }
+
+  .wreck-hud div:nth-child(4) {
+    display: none;
+  }
+
+  .controls-hint {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+  }
+}

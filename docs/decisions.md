@@ -165,12 +165,22 @@ presentation snapshots.
 
 ### Visual comparison
 
-- `scripts/compare-rendering.mjs` records a seeded, fixed-state DPR-1 pixel
-  comparison between two source trees. It is deterministic across sessions but
-  asserts no threshold, so it is review evidence rather than a CI gate.
-- Before the renderer slice compares Canvas against PixiJS automatically, this
-  needs an agreed per-scene pixel-delta budget and a failing exit code. Until
-  then, no work package may cite it as an automated visual gate.
+- `scripts/compare-rendering.mjs` compares two source trees with a seeded,
+  clock-pinned, fixed-state DPR-1 pixel capture. It enforces a per-scene budget
+  of 32 maximum channel delta and 0.5/255 mean, and exits non-zero on a breach,
+  so it can gate a build rather than only inform a reader.
+- Those thresholds sit at roughly twice the drift measured when snapshot/restore
+  compositing was replaced with transparent overlays (wreck 18 max / 0.076 mean,
+  cave 7 / 0.009). Raise one only with a recorded reason: widening a threshold
+  to make a run pass is how a visual regression ships.
+- Seeding `Math.random` alone was not enough to make this deterministic. Parts of
+  the wreck scene animate on the wall clock, so `Date.now` is pinned too.
+  Without that, comparing a tree against *itself* returned a 180 channel delta
+  across 1.9% of pixels on roughly one run in three — noise far above the
+  budget, which would have made the gate meaningless.
+- The comparison covers two scenes at fixed camera positions. A change outside
+  those views is invisible to it, so it bounds visual regression rather than
+  proving its absence.
 - Guard-scene drift is expected at this scale and is not a regression signal on
   its own. The WP-01B bounded-overlay change moved reef render medians by up to
   +31% while the absolute delta stayed at or below 0.5 ms, on a code path that

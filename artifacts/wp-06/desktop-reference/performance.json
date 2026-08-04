@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "kind": "diving-simulator-wp06-performance",
+  "sourceCommit": "3224923695f394cb131b567f948679feb27bdd56",
+  "capturedAt": "2026-08-04T07:06:54.655Z",
+  "generatedBy": "npm run wp06:perf --",
+  "acceptanceClass": "packaged-desktop-diagnostic",
+  "acceptanceLimitations": [
+    "Headless desktop Chromium is diagnostic evidence only.",
+    "requestAnimationFrame cadence includes scheduler time and is not a GPU trace.",
+    "Chromium JS heap excludes GPU allocations and native process memory.",
+    "This artifact does not satisfy any physical Android or iOS gate.",
+    "Absolute desktop timings are not reproducible across sessions on this project; compare figures only within one capture, never against a committed artifact from an earlier session.",
+    "The budgets block records the thresholds the physical-device gate must meet. This run does not evaluate them and must not be read as passing or failing them."
+  ],
+  "environment": {
+    "platform": "win32 10.0.26200",
+    "cpu": "Intel(R) Core(TM) Ultra 7 155U",
+    "logicalCpuCount": 14,
+    "totalSystemMemoryBytes": 33782067200,
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
+    "viewportCssPx": {
+      "width": 1280,
+      "height": 800
+    },
+    "devicePixelRatio": 1
+  },
+  "scenario": {
+    "id": "wreck-engine-room",
+    "renderer": "pixi",
+    "warmedRouteSeconds": 12.25,
+    "measuredFrames": 600
+  },
+  "budgets": {
+    "renderP95Ms": 16.67,
+    "longFrameThresholdMs": 33,
+    "longFrameMaximumPercent": 1,
+    "coldStartMaximumMs": 3000,
+    "installedSizeMaximumBytes": 157286400
+  },
+  "startup": {
+    "navigation": {
+      "responseEndMs": 7,
+      "domInteractiveMs": 14.399999998509884,
+      "loadEventEndMs": 230
+    },
+    "rendererReadyAfterAcceptanceMs": 675.8999999985099
+  },
+  "frames": {
+    "sampleCount": 600,
+    "minMs": 49.89999999999418,
+    "medianMs": 66.69999999999709,
+    "p95Ms": 83.40000000000146,
+    "p99Ms": 133.3000000000029,
+    "maxMs": 150,
+    "longFrameCount": 600,
+    "longFramePercent": 100
+  },
+  "memory": {
+    "before": {
+      "usedJsHeapBytes": 5030771,
+      "totalJsHeapBytes": 8704127
+    },
+    "after": {
+      "usedJsHeapBytes": 5109435,
+      "totalJsHeapBytes": 7382991
+    }
+  },
+  "package": {
+    "distBytes": 2786028
+  }
+}

@@ -12,6 +12,7 @@ import {
   type SupportedLocale,
 } from "./i18n/catalog";
 import { PlannerWorkerClient } from "./planner-worker-client";
+import { renderWreckApplication } from "./wreck-app";
 
 declare global {
   interface Window {
@@ -123,7 +124,7 @@ if (typeof document !== "undefined") {
     throw new Error("Bootstrap root #app was not found");
   }
 
-  renderBootstrapDiagnostic(root);
+  renderWreckApplication(root);
   window.plannerWorkerDiagnostic = verifyPlannerWorker();
   void window.plannerWorkerDiagnostic.catch((error: unknown) => {
     console.error(error);
