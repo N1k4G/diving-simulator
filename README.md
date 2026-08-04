@@ -186,7 +186,9 @@ Open `src/diving-simulator-tests.html` in a browser to run the legacy client's a
 
 The same suite runs headless under Playwright via `npm run test:e2e` (it loads the test harness and asserts `window.testResults`). The migration client has an independent Vitest unit suite.
 
-The extracted model lives in `src/core/`. It owns typed, immutable tissue and life-support state plus deterministic fixed-step updates, but it is not yet authoritative in the shipped game. The pure `DivePlanner` in `src/planner/` runs forecasts from copied state at a separately scheduled cadence and has a typed same-origin Worker boundary. `tests/parity/` drives both paths from the frozen WP-01 traces while the legacy client remains the behavioral oracle.
+The extracted model lives in `src/core/`. It owns typed, immutable tissue and life-support state plus deterministic fixed-step updates, but it is not yet authoritative in the shipped game. The pure `DivePlanner` in `src/planner/` runs forecasts from copied state at a separately scheduled cadence and has a typed same-origin Worker boundary. Versioned serialization and legacy-v2 migration live in `src/save/`; storage is injected through a small local key/value port. Renderer and HUD work consumes the immutable, derived snapshots in `src/presentation/`. `tests/parity/` drives both paths from the frozen WP-01 traces while the legacy client remains the behavioral oracle.
+
+The migration save contract is intentionally local-only. It supports browser reload, process recreation, corruption rejection, and future schema detection on one device. Accounts, cloud backup, conflict resolution, and cross-device synchronization are out of scope and no related client or dependency is included.
 
 ## Development & CI
 
