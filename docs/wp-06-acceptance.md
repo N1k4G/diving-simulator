@@ -42,6 +42,22 @@ renderer start after acceptance, a 2,770,390-byte production directory, and
 interval above 33 ms (p95 100 ms), so this run explicitly does **not** pass or
 fail the device frame budget; a foreground hardware trace is still required.
 
+## Commit provenance after the squash merge
+
+`artifacts/wp-06/desktop-reference/performance.json` records
+`sourceCommit: 3224923`, the branch commit whose tree it measured. WP-06 was
+squash-merged as `4951bab`, so that hash no longer resolves. The repository
+allows squash merges only, so this is structural rather than a mistake: any
+evidence artifact will outlive the commit it names.
+
+| Recorded in evidence | Current commit | Note |
+| --- | --- | --- |
+| `3224923` | `4951bab` | Same packaged application. The two later branch commits changed only `scripts/compare-rendering.mjs`, docs and a test comment, none of which enter the build. |
+
+Regenerating the artifact to refresh a hash would replace a valid measurement
+with a fresh one taken under different conditions, on a harness whose absolute
+timings are not reproducible across sessions. Record the mapping instead.
+
 ## Remaining WP-06 gates
 
 - Validate Web Audio interruption/output behavior and memory on physical devices.
