@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://diving-simulator.local/schemas/site-gameplay.json",
+  "title": "Dive site gameplay resource",
+  "description": "Renderer-neutral collision, air and spawn data. Nothing here describes how a site looks; art lives in the presentation resource and cannot reach these fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "sourceCommit", "generator", "sites"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "diving-simulator-site-gameplay" },
+    "sourceCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "generator": { "type": "string", "minLength": 1 },
+    "sites": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/site" }
+    }
+  },
+  "$defs": {
+    "profilePoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "d"],
+      "properties": {
+        "x": { "type": "number" },
+        "d": { "type": "number", "minimum": 0 }
+      }
+    },
+    "profile": {
+      "type": "array",
+      "minItems": 2,
+      "items": { "$ref": "#/$defs/profilePoint" }
+    },
+    "structure": {
+      "type": "object",
+      "required": ["x1", "x2", "dTop", "dBottom"],
+      "properties": {
+        "x1": { "type": "number" },
+        "x2": { "type": "number" },
+        "dTop": { "type": "number", "minimum": 0 },
+        "dBottom": { "type": "number", "minimum": 0 },
+        "kind": { "type": "string" }
+      }
+    },
+    "badAirDome": {
+      "type": "object",
+      "required": ["x1", "x2"],
+      "properties": {
+        "x1": { "type": "number" },
+        "x2": { "type": "number" },
+        "d": { "type": "number", "minimum": 0 }
+      }
+    },
+    "site": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "maxDepth", "hasOverhead", "floor", "structures", "badAir"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "maxDepth": { "type": "number", "exclusiveMinimum": 0 },
+        "hasOverhead": { "type": "boolean" },
+        "entry": { "type": "object" },
+        "boatX": { "type": "number" },
+        "floor": { "$ref": "#/$defs/profile" },
+        "ceiling": {
+          "oneOf": [{ "$ref": "#/$defs/profile" }, { "type": "null" }]
+        },
+        "structures": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/structure" }
+        },
+        "badAir": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/badAirDome" }
+        },
+        "currentBias": { "type": "number", "minimum": 0 },
+        "noShark": { "type": "boolean" }
+      }
+    }
+  }
+}
