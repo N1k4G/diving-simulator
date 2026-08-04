@@ -1,11 +1,21 @@
 import { Application, Container, Graphics } from "pixi.js";
 
 import type { PresentationState } from "../presentation/presentation-state";
+import { LAYERS, type LayerId, type QualityTier } from "../sites/asset-manifest";
+import { buildSceneLayers } from "../sites/layer-factory";
 import { createCameraTransform } from "./camera";
 import type { SceneRenderer, WreckSceneState } from "./renderer";
 
 const MAX_RESOLUTION = 2;
 const BUBBLE_COUNT = 14;
+const SITE_ID = "wreck";
+
+// Half-width and half-height of the visible world window, in metres. Culling
+// uses this rather than the exact viewport so the set only changes when the
+// camera has actually travelled, not on every sub-metre movement.
+const CULL_HALF_WIDTH_M = 34;
+const CULL_HALF_HEIGHT_M = 20;
+const RESYNC_DISTANCE_M = 4;
 
 export class PixiWreckRenderer implements SceneRenderer {
   readonly kind = "pixi" as const;
@@ -18,6 +28,14 @@ export class PixiWreckRenderer implements SceneRenderer {
   #diver = new Container();
   #bubbles: Graphics[] = [];
   #viewport = { width: 1, height: 1 };
+  #layers = new Map<LayerId, Container>();
+  // Placement markers are pooled. Camera movement changes which features are
+  // visible many times a dive; allocating a Graphics per feature per resync
+  // would churn the heap for a scene whose contents barely change.
+  #markerPool: Graphics[] = [];
+  #activeMarkers: Graphics[] = [];
+  #lastSyncFocus: { x: number; y: number } | null = null;
+  #qualityTier: QualityTier = "high";
 
   async mount(host: HTMLElement): Promise<void> {
     if (this.#app) {
@@ -42,6 +60,7 @@ export class PixiWreckRenderer implements SceneRenderer {
     host.replaceChildren(app.canvas);
     app.stage.addChild(this.#background, this.#world);
     this.#buildRetainedScene();
+    this.#syncSceneLayers({ x: 0, y: 0 }, true);
 
     const bounds = host.getBoundingClientRect();
     this.resize(
@@ -79,6 +98,7 @@ export class PixiWreckRenderer implements SceneRenderer {
     );
     this.#world.pivot.set(camera.focus.x, camera.focus.y);
     this.#world.scale.set(camera.scale);
+    this.#syncSceneLayers({ x: camera.focus.x, y: camera.focus.y }, false);
     this.#diver.position.set(scene.routePositionM, scene.diverDepthM);
     this.#diver.scale.x = scene.facing;
     this.#torch.visible = scene.torchOn;
@@ -110,6 +130,83 @@ export class PixiWreckRenderer implements SceneRenderer {
     this.#app = null;
     this.#host = null;
     this.#bubbles = [];
+    this.#layers.clear();
+    this.#markerPool = [];
+    this.#activeMarkers = [];
+    this.#lastSyncFocus = null;
+  }
+
+  /** Quality tier drops decoration before anything a diver navigates by. */
+  setQualityTier(tier: QualityTier): void {
+    if (tier === this.#qualityTier) {
+      return;
+    }
+    this.#qualityTier = tier;
+    this.#lastSyncFocus = null;
+  }
+
+  /** Visible placement count, for tests and the diagnostics overlay. */
+  get placementCount(): number {
+    return this.#activeMarkers.length;
+  }
+
+  #syncSceneLayers(focus: { x: number; y: number }, force: boolean): void {
+    if (
+      !force &&
+      this.#lastSyncFocus &&
+      Math.abs(focus.x - this.#lastSyncFocus.x) < RESYNC_DISTANCE_M &&
+      Math.abs(focus.y - this.#lastSyncFocus.y) < RESYNC_DISTANCE_M
+    ) {
+      return;
+    }
+    this.#lastSyncFocus = { x: focus.x, y: focus.y };
+
+    const layers = buildSceneLayers(SITE_ID, {
+      qualityTier: this.#qualityTier,
+      camera: {
+        leftM: focus.x - CULL_HALF_WIDTH_M,
+        rightM: focus.x + CULL_HALF_WIDTH_M,
+        topM: focus.y - CULL_HALF_HEIGHT_M,
+        bottomM: focus.y + CULL_HALF_HEIGHT_M,
+      },
+    });
+
+    for (const marker of this.#activeMarkers) {
+      marker.visible = false;
+      this.#markerPool.push(marker);
+    }
+    this.#activeMarkers = [];
+
+    for (const layer of layers) {
+      const container = this.#layers.get(layer.id);
+      if (!container) {
+        continue;
+      }
+      for (const placement of layer.placements) {
+        const marker = this.#takeMarker();
+        marker.visible = true;
+        marker.position.set(placement.x, placement.d);
+        if (marker.parent !== container) {
+          container.addChild(marker);
+        }
+        this.#activeMarkers.push(marker);
+      }
+    }
+  }
+
+  #takeMarker(): Graphics {
+    const pooled = this.#markerPool.pop();
+    if (pooled) {
+      return pooled;
+    }
+    // Provisional marker geometry. Production atlases are BLOCKED_EXTERNAL, so
+    // placements are drawn as a deliberately plain shape rather than as art
+    // guessed at here; the manifest already fixes the atlas/frame contract they
+    // will be loaded through.
+    return new Graphics()
+      .circle(0, 0, 0.32)
+      .fill({ color: 0x4f7f7a, alpha: 0.34 })
+      .stroke({ color: 0x8fd4c8, width: 0.06, alpha: 0.5 });
   }
 
   #buildRetainedScene(): void {
@@ -184,23 +281,34 @@ export class PixiWreckRenderer implements SceneRenderer {
       .stroke({ color: 0x17252a, width: 0.25 });
 
     this.#diver.addChild(this.#torch, diverBody);
-    this.#world.addChild(
-      distantHull,
-      seabed,
-      hull,
-      rooms,
-      engine,
-      route,
-      silt,
-      this.#diver,
-    );
+
+    // Explicit, named layers replace a flat addChild list. Draw order is now a
+    // declared property of the scene rather than an accident of call order, and
+    // data-driven placements have somewhere to go.
+    for (const id of LAYERS) {
+      const container = new Container();
+      container.label = id;
+      this.#layers.set(id, container);
+    }
+
+    this.#layers.get("backdrop")?.addChild(distantHull);
+    this.#layers.get("terrain")?.addChild(seabed, silt);
+    this.#layers.get("structure")?.addChild(hull, rooms, engine);
+    this.#layers.get("foreground")?.addChild(route, this.#diver);
+
+    for (const id of LAYERS) {
+      const container = this.#layers.get(id);
+      if (container) {
+        this.#world.addChild(container);
+      }
+    }
 
     for (let index = 0; index < BUBBLE_COUNT; index += 1) {
       const bubble = new Graphics()
         .circle(0, 0, 0.08 + (index % 4) * 0.025)
         .stroke({ color: 0xbdefff, width: 0.045, alpha: 0.88 });
       this.#bubbles.push(bubble);
-      this.#world.addChild(bubble);
+      this.#layers.get("foreground")?.addChild(bubble);
     }
   }
 
