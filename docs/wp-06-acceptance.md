@@ -28,6 +28,7 @@ Last updated: 2026-08-01
 | Use boundary | Browser test asserts no canvas exists before acceptance | Pass |
 | Production renderer lock | Browser test loads `?renderer=canvas` and asserts `data-renderer="pixi"` | Pass |
 | CSP compatibility | Production Worker uses a same-origin module URL permitted by `src/_headers` `worker-src 'self'` | Pass in browser automation; deployed-header verification remains a release check |
+| Visual regression budget | `npm run baseline:visual-compare` enforces 32 max / 0.5 mean channel delta per scene and exits non-zero on a breach | Pass; verified to fail on an injected full-canvas change and to report zero when a tree is compared with itself |
 | Audio policy | Unit tests assert legacy tone definitions, warning throttle, and voice cap; browser test exercises mute | Pass locally |
 | Save restore | Browser test changes authoritative depth, reloads, re-accepts the boundary, and observes the restored depth | Pass locally |
 | Warning accessibility | Packaged browser tests restore valid low-gas, high-oxygen, and failure states and assert the visible `role=alert` copy | Pass locally |

@@ -29,6 +29,44 @@ const beforeSourceCommit = requiredArgument('--before-source-commit');
 const afterSourceCommit = requiredArgument('--after-source-commit');
 const comparisonSessionId = requiredArgument('--comparison-session-id');
 const outputPath = path.resolve(root, requiredArgument('--output'));
+
+// Budget for acceptable visual drift between two renderers, applied per scene.
+//
+// Observed drift from replacing snapshot/restore compositing with transparent
+// overlays was a maximum channel delta of 18 and a mean of 0.076/255 on the
+// wreck, and 7 / 0.009 on the cave. These thresholds sit at roughly twice that,
+// which tolerates compositing-rounding differences while still failing on a
+// change that visibly alters the scene.
+//
+// Raise a threshold only with a recorded reason. Widening it to make a run pass
+// is how a visual regression ships.
+const MAX_CHANNEL_DELTA = Number(argumentValue('--max-channel-delta', '32'));
+const MAX_MEAN_CHANNEL_DELTA = Number(
+  argumentValue('--max-mean-channel-delta', '0.5'),
+);
+
+if (!Number.isFinite(MAX_CHANNEL_DELTA) || MAX_CHANNEL_DELTA <= 0) {
+  throw new Error('--max-channel-delta must be a positive number');
+}
+if (!Number.isFinite(MAX_MEAN_CHANNEL_DELTA) || MAX_MEAN_CHANNEL_DELTA <= 0) {
+  throw new Error('--max-mean-channel-delta must be a positive number');
+}
+
+function evaluateBudget(result) {
+  const breaches = [];
+  if (result.maxChannelDelta > MAX_CHANNEL_DELTA) {
+    breaches.push(
+      `max channel delta ${result.maxChannelDelta} exceeds ${MAX_CHANNEL_DELTA}`,
+    );
+  }
+  if (result.meanAbsoluteDeltaPerChannel > MAX_MEAN_CHANNEL_DELTA) {
+    breaches.push(
+      `mean channel delta ${result.meanAbsoluteDeltaPerChannel.toFixed(4)} ` +
+      `exceeds ${MAX_MEAN_CHANNEL_DELTA}`,
+    );
+  }
+  return breaches;
+}
 const serverEntry = require.resolve('http-server/bin/http-server');
 
 async function availablePort() {
@@ -72,6 +110,13 @@ async function pixels(browser, baseUrl, scene) {
       seed = (seed * 1664525 + 1013904223) >>> 0;
       return seed / 0x100000000;
     };
+    // Seeding Math.random is not sufficient. Parts of the wreck scene animate
+    // on the wall clock -- the treasure-chest glow drives shadowBlur from
+    // Date.now() -- so two captures taken moments apart differ by up to 180 on
+    // a channel across ~1.9% of pixels, comparing a tree against itself. Pin
+    // the clock so the comparison measures the renderer and not the moment.
+    const FIXED_NOW = 1_735_689_600_000;
+    Date.now = () => FIXED_NOW;
     window.__baselineCapturePaused = true;
   });
   await page.goto(`${baseUrl}/src/diving-simulator.html?diagnostics=1&diagnosticsOverlay=0`);
@@ -181,6 +226,7 @@ try {
       const after = await pixels(browser, `http://127.0.0.1:${endpoints[1].port}`, scene);
       results.push(compare(scene.id, before, after));
     }
+    const passed = results.every(result => evaluateBudget(result).length === 0);
     await mkdir(path.dirname(outputPath), { recursive: true });
     await writeFile(outputPath, `${JSON.stringify({
       schemaVersion: 1,
@@ -189,9 +235,27 @@ try {
       afterSourceCommit,
       comparisonSessionId,
       generatedBy: `node scripts/compare-rendering.mjs ${cliArguments.join(' ')}`,
-      method: 'Seeded DPR-1 canvas pixel comparison after one dt=0 direct diagnostic frame',
+      method: 'Seeded, clock-pinned DPR-1 canvas pixel comparison after one dt=0 direct diagnostic frame',
+      budget: {
+        maxChannelDelta: MAX_CHANNEL_DELTA,
+        maxMeanChannelDelta: MAX_MEAN_CHANNEL_DELTA
+      },
+      passed,
       results
     }, null, 2)}\n`, 'utf8');
+
+    for (const result of results) {
+      const breaches = evaluateBudget(result);
+      console.log(
+        `${result.sceneId}: ${breaches.length ? `FAIL — ${breaches.join('; ')}` : 'pass'} ` +
+        `(max ${result.maxChannelDelta}, mean ` +
+        `${result.meanAbsoluteDeltaPerChannel.toFixed(4)})`
+      );
+    }
+    if (!passed) {
+      // Exit non-zero so this gates a build rather than only informing a reader.
+      process.exitCode = 1;
+    }
   } finally {
     await browser.close();
   }

@@ -177,12 +177,17 @@ try {
       sourceCommit,
       capturedAt: new Date().toISOString(),
       generatedBy: `npm run wp06:perf -- ${cliArguments.join(' ')}`.trim(),
-      acceptanceClass: 'desktop-synthetic-reference',
+      // Not 'desktop-synthetic-reference': WP-01 retired that class after
+      // unchanged renderer code measured roughly 3x apart between sessions on
+      // one machine. See docs/decisions.md.
+      acceptanceClass: 'packaged-desktop-diagnostic',
       acceptanceLimitations: [
         'Headless desktop Chromium is diagnostic evidence only.',
         'requestAnimationFrame cadence includes scheduler time and is not a GPU trace.',
         'Chromium JS heap excludes GPU allocations and native process memory.',
         'This artifact does not satisfy any physical Android or iOS gate.',
+        'Absolute desktop timings are not reproducible across sessions on this project; compare figures only within one capture, never against a committed artifact from an earlier session.',
+        'The budgets block records the thresholds the physical-device gate must meet. This run does not evaluate them and must not be read as passing or failing them.',
       ],
       environment: {
         platform: `${os.platform()} ${os.release()}`,
