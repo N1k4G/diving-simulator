@@ -4,6 +4,11 @@ import type { PresentationState } from "../presentation/presentation-state";
 import { LAYERS, type LayerId, type QualityTier } from "../sites/asset-manifest";
 import { buildSceneLayers } from "../sites/layer-factory";
 import { createCameraTransform } from "./camera";
+import {
+  BUBBLE_LAYER,
+  RETAINED_LAYER_ASSIGNMENT,
+  type RetainedElement,
+} from "./layer-assignment";
 import type { SceneRenderer, WreckSceneState } from "./renderer";
 
 const MAX_RESOLUTION = 2;
@@ -186,9 +191,16 @@ export class PixiWreckRenderer implements SceneRenderer {
         const marker = this.#takeMarker();
         marker.visible = true;
         marker.position.set(placement.x, placement.d);
-        if (marker.parent !== container) {
-          container.addChild(marker);
-        }
+        // Unconditional, not `if (marker.parent !== container)`. buildSceneLayers
+        // sorts placements within a layer (shallowest first, then x) so the same
+        // data always yields the same scene — but a pooled marker reused in the
+        // container it already sits in keeps its stale child index, so that sort
+        // stopped being reflected in the display list after the first resync.
+        // Pixi's addChild splices an existing child out and pushes it to the
+        // end, so calling it every time is what applies the ordering. Invisible
+        // today because every marker is the same provisional circle; it would
+        // surface as soon as real atlas frames overlap.
+        container.addChild(marker);
         this.#activeMarkers.push(marker);
       }
     }
@@ -291,16 +303,25 @@ export class PixiWreckRenderer implements SceneRenderer {
       this.#layers.set(id, container);
     }
 
-    this.#layers.get("backdrop")?.addChild(distantHull);
-    this.#layers.get("terrain")?.addChild(seabed);
-    this.#layers.get("structure")?.addChild(hull, rooms, engine);
-    // Silt is suspended particulate hanging between the camera and the wreck,
-    // not ground cover. It sits in the y=34.2..35.4 band, which the hull's
-    // opaque fill covers down to y=35 across x=14..103 — putting it in
-    // `terrain` hid 31 of its 48 particles behind the hull. Keep it above the
-    // structure and after the route, exactly where the pre-layer draw order
-    // had it.
-    this.#layers.get("foreground")?.addChild(route, silt, this.#diver);
+    // Draw order is only "declared" if something can read the declaration.
+    // Expressed as addChild calls it was still an accident of call order, and
+    // nothing could assert it — which is how silt ended up in `terrain`, below
+    // the hull, hiding 31 of its 48 particles. RETAINED_LAYER_ASSIGNMENT is the
+    // declaration; see render/layer-assignment.ts for why each element sits
+    // where it does, and site-layers.test.ts for the invariants it must hold.
+    const retained: Readonly<Record<RetainedElement, Graphics | Container>> = {
+      distantHull,
+      seabed,
+      hull,
+      rooms,
+      engine,
+      route,
+      silt,
+      diver: this.#diver,
+    };
+    for (const [element, layerId] of Object.entries(RETAINED_LAYER_ASSIGNMENT)) {
+      this.#layers.get(layerId)?.addChild(retained[element as RetainedElement]);
+    }
 
     for (const id of LAYERS) {
       const container = this.#layers.get(id);
@@ -314,7 +335,7 @@ export class PixiWreckRenderer implements SceneRenderer {
         .circle(0, 0, 0.08 + (index % 4) * 0.025)
         .stroke({ color: 0xbdefff, width: 0.045, alpha: 0.88 });
       this.#bubbles.push(bubble);
-      this.#layers.get("foreground")?.addChild(bubble);
+      this.#layers.get(BUBBLE_LAYER)?.addChild(bubble);
     }
   }
 
