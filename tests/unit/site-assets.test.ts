@@ -99,25 +99,18 @@ describe("layer factory", () => {
 describe("replacing an asset cannot change simulation or collision data", () => {
   // This is WP-07's acceptance criterion. The split makes it true by
   // construction; the test makes it stay true through later refactoring.
-  it("leaves every gameplay value untouched when the art changes", () => {
+  // The replacement half of this criterion needs the swap to actually reach the
+  // layer factory, which needs the manifest module mocked — see
+  // tests/unit/asset-replacement.test.ts. What stays here is the weaker but
+  // still useful property: simply building a scene touches no gameplay data.
+  it("leaves every gameplay value untouched when a scene is built", () => {
     const before = JSON.stringify(SITE_GAMEPLAY);
-
-    // Re-point an asset at a different atlas and frame, exactly as swapping in
-    // new art would, and rebuild the scene from it.
-    const original = ASSET_MANIFEST.tableCoral;
-    expect(original).toBeDefined();
-    const swapped = {
-      ...original,
-      atlas: "reef-v2",
-      frame: "tableCoralRedesigned",
-    };
 
     const rebuilt = buildSceneLayers("reef", {
       camera: WHOLE_MAP,
       qualityTier: "high",
     });
     expect(rebuilt.some((layer) => layer.placements.length > 0)).toBe(true);
-    expect(swapped.atlas).not.toBe(original?.atlas);
 
     expect(JSON.stringify(SITE_GAMEPLAY)).toBe(before);
     for (const site of Object.values(SITE_GAMEPLAY)) {

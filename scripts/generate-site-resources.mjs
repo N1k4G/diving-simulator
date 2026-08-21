@@ -11,7 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
-import { execFileSync } from 'node:child_process';
+import crypto from 'node:crypto';
 
 const root = path.resolve(import.meta.dirname, '..');
 const outputDirectory = path.join(root, 'src', 'sites', 'resources');
@@ -52,8 +52,7 @@ const PRESENTATION_FIELDS = [
 //
 // It cannot simply be evaluated into the sandbox: constants.js declares it with
 // `const`, which never becomes a property of the context object.
-function readMaxDepth() {
-  const source = fs.readFileSync(path.join(root, 'src', 'constants.js'), 'utf8');
+function readMaxDepth(source) {
   const match = /^\s*(?:const|let|var)\s+MAX_DEPTH\s*=\s*(-?\d+(?:\.\d+)?)\s*;/m.exec(source);
   if (!match) {
     throw new Error(
@@ -64,10 +63,10 @@ function readMaxDepth() {
   return Number(match[1]);
 }
 
-function loadLegacySites(maxDepth) {
+function loadLegacySites(sitesSource, maxDepth) {
   const sandbox = { MAX_DEPTH: maxDepth };
   vm.createContext(sandbox);
-  vm.runInContext(fs.readFileSync(path.join(root, 'src', 'sites.js'), 'utf8'), sandbox);
+  vm.runInContext(sitesSource, sandbox);
   if (!sandbox.DIVE_SITES) {
     throw new Error('DIVE_SITES was not defined by src/sites.js');
   }
@@ -97,7 +96,22 @@ function assertPartitioned(site) {
   }
 }
 
-const sites = loadLegacySites(readMaxDepth());
+// Provenance is a digest of the exact inputs this output was derived from, not
+// a commit id. `git rev-parse HEAD` at generation time always names the commit
+// *before* the one that carries the generated file, so a commit id here is
+// wrong by construction: the resources would claim to come from a tree whose
+// sites.js produced different data. A digest is checkable, and `--check`
+// verifies it, so stale provenance fails CI like stale data does.
+const sitesSource = fs.readFileSync(path.join(root, 'src', 'sites.js'), 'utf8');
+const constantsSource = fs.readFileSync(path.join(root, 'src', 'constants.js'), 'utf8');
+const maxDepth = readMaxDepth(constantsSource);
+const sourceDigest = `sha256:${crypto
+  .createHash('sha256')
+  .update(sitesSource)
+  .update(`|MAX_DEPTH=${maxDepth}`)
+  .digest('hex')}`;
+
+const sites = loadLegacySites(sitesSource, maxDepth);
 
 const gameplay = {};
 const presentation = {};
@@ -112,13 +126,16 @@ const DOCUMENTS = [
   { file: 'presentation.json', kind: 'diving-simulator-site-presentation', sites: presentation },
 ];
 
+const header = { schemaVersion: 1, sourceDigest, generator: 'npm run sites:generate' };
+
 // `--check` verifies the committed resources still match what the legacy
 // descriptors would generate, without rewriting them. CI runs this so an edit
 // to sites.js that skips regeneration fails the build instead of leaving the
 // resources quietly stale.
 //
-// Only the `sites` payload is compared. `sourceCommit` is provenance and moves
-// with every commit, so including it would make the check fail on every run.
+// `sourceDigest` is checked alongside the payload. It is derived from the input
+// bytes rather than from git, so unlike a commit id it is a claim that can be
+// true, and a stale one is caught here rather than shipping as false provenance.
 if (process.argv.includes('--check')) {
   const stale = [];
   for (const { file, sites: expected } of DOCUMENTS) {
@@ -127,9 +144,15 @@ if (process.argv.includes('--check')) {
       stale.push(`${file} is missing`);
       continue;
     }
-    const actual = JSON.parse(fs.readFileSync(target, 'utf8')).sites;
-    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    const committed = JSON.parse(fs.readFileSync(target, 'utf8'));
+    if (JSON.stringify(committed.sites) !== JSON.stringify(expected)) {
       stale.push(`${file} does not match src/sites.js`);
+    }
+    if (committed.sourceDigest !== sourceDigest) {
+      stale.push(
+        `${file} claims sourceDigest ${committed.sourceDigest ?? '(absent)'}, ` +
+        `inputs hash to ${sourceDigest}`,
+      );
     }
   }
   if (stale.length) {
@@ -141,13 +164,7 @@ if (process.argv.includes('--check')) {
   }
   console.log(`site resources match src/sites.js (${Object.keys(gameplay).length} sites)`);
 } else {
-  const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
-    cwd: root,
-    encoding: 'utf8',
-  }).trim();
-
   fs.mkdirSync(outputDirectory, { recursive: true });
-  const header = { schemaVersion: 1, sourceCommit, generator: 'npm run sites:generate' };
   for (const { file, kind, sites: payload } of DOCUMENTS) {
     fs.writeFileSync(
       path.join(outputDirectory, file),

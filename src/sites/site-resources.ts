@@ -112,6 +112,13 @@ export function siteGameplay(id: string): SiteGameplay | null {
   return SITE_GAMEPLAY[id] ?? null;
 }
 
-export const SITE_GAMEPLAY_SOURCE_COMMIT = (
-  gameplayDocument as { sourceCommit: string }
-).sourceCommit;
+/**
+ * Digest of the inputs these resources were generated from (`src/sites.js`
+ * plus the MAX_DEPTH it reads). Not a commit id: generation runs before the
+ * commit that carries its own output, so a commit id here would always name a
+ * tree whose descriptors produced different data. `npm run sites:check`
+ * verifies this value, so it is a claim that can be — and is — checked.
+ */
+export const SITE_GAMEPLAY_SOURCE_DIGEST = (
+  gameplayDocument as { sourceDigest: string }
+).sourceDigest;

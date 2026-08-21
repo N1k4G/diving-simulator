@@ -292,9 +292,15 @@ export class PixiWreckRenderer implements SceneRenderer {
     }
 
     this.#layers.get("backdrop")?.addChild(distantHull);
-    this.#layers.get("terrain")?.addChild(seabed, silt);
+    this.#layers.get("terrain")?.addChild(seabed);
     this.#layers.get("structure")?.addChild(hull, rooms, engine);
-    this.#layers.get("foreground")?.addChild(route, this.#diver);
+    // Silt is suspended particulate hanging between the camera and the wreck,
+    // not ground cover. It sits in the y=34.2..35.4 band, which the hull's
+    // opaque fill covers down to y=35 across x=14..103 — putting it in
+    // `terrain` hid 31 of its 48 particles behind the hull. Keep it above the
+    // structure and after the route, exactly where the pre-layer draw order
+    // had it.
+    this.#layers.get("foreground")?.addChild(route, silt, this.#diver);
 
     for (const id of LAYERS) {
       const container = this.#layers.get(id);

@@ -5,11 +5,11 @@
   "description": "Renderer-neutral collision, air and spawn data. Nothing here describes how a site looks; art lives in the presentation resource and cannot reach these fields.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "kind", "sourceCommit", "generator", "sites"],
+  "required": ["schemaVersion", "kind", "sourceDigest", "generator", "sites"],
   "properties": {
     "schemaVersion": { "const": 1 },
     "kind": { "const": "diving-simulator-site-gameplay" },
-    "sourceCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "sourceDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
     "generator": { "type": "string", "minLength": 1 },
     "sites": {
       "type": "object",

@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://diving-simulator.local/schemas/site-presentation.json",
+  "title": "Dive site presentation resource",
+  "description": "Art-only site data: features, visual zones, atmosphere and decoration rules. Nothing here may reach collision, air, spawning or currents — those live in the gameplay resource. Feature kinds carry their own extra fields, so feature objects stay open; every field this schema does name is typed, so a string where a number belongs fails validation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "sourceDigest", "generator", "sites"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "diving-simulator-site-presentation" },
+    "sourceDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "generator": { "type": "string", "minLength": 1 },
+    "sites": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/site" }
+    }
+  },
+  "$defs": {
+    "feature": {
+      "type": "object",
+      "required": ["kind", "x"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "x": { "type": "number" },
+        "d": { "type": "number", "minimum": 0 },
+        "dTop": { "type": "number", "minimum": 0 },
+        "dBottom": { "type": "number", "minimum": 0 }
+      }
+    },
+    "visualZone": {
+      "type": "object",
+      "required": ["id", "x1", "x2", "d1", "d2"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "x1": { "type": "number" },
+        "x2": { "type": "number" },
+        "d1": { "type": "number", "minimum": 0 },
+        "d2": { "type": "number", "minimum": 0 },
+        "priority": { "type": "number" },
+        "blend": { "type": "number", "minimum": 0 },
+        "tags": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "atmosphereProfile": {
+      "type": "object",
+      "properties": {
+        "visibility": { "type": "number", "minimum": 0 },
+        "tint": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "type": "number" }
+        },
+        "particleDensity": { "type": "number", "minimum": 0 },
+        "particleBrightness": { "type": "number", "minimum": 0 },
+        "ambient": { "type": "number", "minimum": 0 }
+      }
+    },
+    "decorationRule": {
+      "type": "object",
+      "required": ["id", "zone"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "zone": { "type": "string", "minLength": 1 },
+        "spacing": { "type": "number", "exclusiveMinimum": 0 },
+        "density": { "type": "number", "minimum": 0 },
+        "seed": { "type": "number" },
+        "surface": { "type": "string", "enum": ["floor", "ceiling"] },
+        "props": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["kind"],
+            "properties": {
+              "kind": { "type": "string", "minLength": 1 },
+              "weight": { "type": "number", "exclusiveMinimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "site": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "surfaceMarker": { "type": "string" },
+        "features": { "type": "array", "items": { "$ref": "#/$defs/feature" } },
+        "visualZones": { "type": "array", "items": { "$ref": "#/$defs/visualZone" } },
+        "atmosphereProfiles": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/atmosphereProfile" }
+        },
+        "decorationRules": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/decorationRule" }
+        }
+      }
+    }
+  }
+}

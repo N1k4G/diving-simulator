@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "4046bdac4a2b4546b714c2faf4363a5668709ab4",
+  "sourceDigest": "sha256:9c6a4125d63037fb6e86ebe0520b74f22bccfb56b2b61f0e3578ee91a998bf11",
   "generator": "npm run sites:generate",
   "kind": "diving-simulator-site-gameplay",
   "sites": {
