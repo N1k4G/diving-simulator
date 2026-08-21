@@ -5,6 +5,7 @@
 // separation is what lets an asset be replaced without a collision review.
 
 import gameplayDocument from "./resources/gameplay.json";
+import { deepFreeze } from "./deep-freeze";
 
 export interface ProfilePoint {
   readonly x: number;
@@ -105,7 +106,7 @@ if (startupProblems.length) {
   throw new Error(`invalid site gameplay data:\n${startupProblems.join("\n")}`);
 }
 
-export const SITE_GAMEPLAY: Readonly<Record<string, SiteGameplay>> = Object.freeze(sites);
+export const SITE_GAMEPLAY: Readonly<Record<string, SiteGameplay>> = deepFreeze(sites);
 
 export function siteGameplay(id: string): SiteGameplay | null {
   return SITE_GAMEPLAY[id] ?? null;

@@ -6,6 +6,7 @@
 // rather than a hand-written pile of Graphics calls.
 
 import presentationDocument from "./resources/presentation.json";
+import { deepFreeze } from "./deep-freeze";
 import {
   assetFor,
   atlasesFor,
@@ -30,9 +31,25 @@ export interface SiteFeature {
   readonly [extra: string]: unknown;
 }
 
-/** Depth a feature is placed and culled at: its point, or the top of its span. */
+/** Depth a feature is anchored at: its point, or the top of its span. */
 export function featureDepth(feature: SiteFeature): number {
   return feature.d ?? feature.dTop ?? 0;
+}
+
+/**
+ * Vertical extent a feature actually occupies. Culling has to use this rather
+ * than the anchor: a cave column spans 42 m from `dTop` to `dBottom`, so a diver
+ * swimming near its base is well outside the anchor's cull window while the
+ * column still fills the screen. Anchoring and culling are different questions.
+ */
+export function featureDepthRange(feature: SiteFeature): {
+  readonly top: number;
+  readonly bottom: number;
+} {
+  const anchor = featureDepth(feature);
+  const top = feature.dTop ?? anchor;
+  const bottom = feature.dBottom ?? anchor;
+  return top <= bottom ? { top, bottom } : { top: bottom, bottom: top };
 }
 
 export interface SitePresentation {
@@ -66,7 +83,7 @@ const presentation = (
 ).sites;
 
 export const SITE_PRESENTATION: Readonly<Record<string, SitePresentation>> =
-  Object.freeze(presentation);
+  deepFreeze(presentation);
 
 export function sitePresentation(id: string): SitePresentation | null {
   return SITE_PRESENTATION[id] ?? null;
@@ -125,11 +142,14 @@ export function buildSceneLayers(
       continue;
     }
     const depth = featureDepth(feature);
+    // Overlap test against the feature's whole extent, so a tall feature stays
+    // in the scene for as long as any part of it is on screen.
+    const span = featureDepthRange(feature);
     if (
       feature.x < camera.leftM - margin ||
       feature.x > camera.rightM + margin ||
-      depth < camera.topM - margin ||
-      depth > camera.bottomM + margin
+      span.bottom < camera.topM - margin ||
+      span.top > camera.bottomM + margin
     ) {
       continue;
     }

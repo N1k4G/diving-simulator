@@ -11,6 +11,7 @@ import {
 import {
   authoredFeatureKinds,
   buildSceneLayers,
+  featureDepthRange,
   requiredAtlases,
   SITE_PRESENTATION,
 } from "../../src/sites/layer-factory";
@@ -135,5 +136,69 @@ describe("replacing an asset cannot change simulation or collision data", () => 
         );
       }
     }
+  });
+});
+
+describe("culling accounts for a feature's full vertical extent", () => {
+  // The cave columns span dTop=56..dBottom=98 and dTop=60..dBottom=95. Culling
+  // on the anchor alone dropped them once the diver swam past their top, so
+  // both 40 m columns vanished while the diver was still beside them.
+  const columnsVisibleAt = (depth: number): number =>
+    buildSceneLayers("cave", {
+      qualityTier: "high",
+      camera: { leftM: 88 - 34, rightM: 88 + 34, topM: depth - 20, bottomM: depth + 20 },
+    })
+      .flatMap((layer) => layer.placements)
+      .filter((placement) => placement.assetId === "cave/caveColumn").length;
+
+  it("keeps a tall feature while any part of it is on screen", () => {
+    // Anchors are at 56 and 60; without span-aware culling these read 1 and 0.
+    expect(columnsVisibleAt(90)).toBe(2);
+    expect(columnsVisibleAt(95)).toBe(2);
+  });
+
+  it("still culls once the feature is genuinely out of range", () => {
+    expect(columnsVisibleAt(10)).toBe(0);
+    expect(columnsVisibleAt(160)).toBe(0);
+  });
+
+  it("reports the extent of point features and spans alike", () => {
+    expect(featureDepthRange({ kind: "car", x: 34, d: 39 })).toEqual({ top: 39, bottom: 39 });
+    expect(featureDepthRange({ kind: "caveColumn", x: 88, dTop: 56, dBottom: 98 })).toEqual({
+      top: 56,
+      bottom: 98,
+    });
+    // Inverted authoring should not silently disable the feature.
+    expect(featureDepthRange({ kind: "x", x: 0, dTop: 98, dBottom: 56 })).toEqual({
+      top: 56,
+      bottom: 98,
+    });
+  });
+});
+
+describe("resource documents are deeply immutable", () => {
+  // Object.freeze is shallow, so the nested arrays stayed writable and the
+  // immutability these modules advertise was nominal. Collision geometry that
+  // any consumer can mutate in place is the failure this guards.
+  it("refuses in-place mutation of nested gameplay geometry", () => {
+    const wreck = SITE_GAMEPLAY.wreck;
+    expect(wreck).toBeDefined();
+    if (!wreck) return;
+    expect(Object.isFrozen(wreck.structures)).toBe(true);
+    expect(Object.isFrozen(wreck.structures[0])).toBe(true);
+    expect(() => {
+      (wreck.structures as unknown as { x1: number }[])[0]!.x1 = -999;
+    }).toThrow();
+    expect(wreck.structures[0]?.x1).not.toBe(-999);
+  });
+
+  it("refuses in-place mutation of nested presentation features", () => {
+    const cave = SITE_PRESENTATION.cave;
+    expect(cave).toBeDefined();
+    if (!cave?.features) return;
+    expect(Object.isFrozen(cave.features)).toBe(true);
+    expect(() => {
+      (cave.features as unknown as { x: number }[])[0]!.x = -999;
+    }).toThrow();
   });
 });
