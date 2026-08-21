@@ -92,3 +92,115 @@ describe("the schemas reject the type errors relationship checks cannot see", ()
     expect(validateGameplay(document)).toBe(false);
   });
 });
+
+describe("the entry point is typed gameplay data, not an open object", () => {
+  // `entry` is spawn data in the gameplay document, but it was declared as a
+  // bare `{ "type": "object" }` and left out of SiteGameplay entirely, so a
+  // string coordinate passed Ajv, typecheck and CI. The parity suite compares
+  // floor, ceiling, solid, overhead and bad air — never entry — so nothing else
+  // would have caught it either.
+  const withEntry = (entry: unknown) => {
+    const document = clone(gameplayDocument);
+    (document as never as { sites: Record<string, { entry: unknown }> }).sites.reef!.entry =
+      entry;
+    return document;
+  };
+
+  it("rejects a stringly-typed entry x", () => {
+    expect(validateGameplay(withEntry({ x: "not-a-number" }))).toBe(false);
+  });
+
+  it("rejects an entry with no x at all", () => {
+    expect(validateGameplay(withEntry({ totallyBogus: true }))).toBe(false);
+  });
+
+  it("requires every site to declare one", () => {
+    const document = clone(gameplayDocument);
+    delete (document as never as { sites: Record<string, { entry?: unknown }> }).sites.reef!
+      .entry;
+    expect(validateGameplay(document)).toBe(false);
+  });
+
+  it("accepts a well-formed entry", () => {
+    expect(validateGameplay(withEntry({ x: -12.5 }))).toBe(true);
+  });
+});
+
+describe("decoration rules are closed over what the renderer actually reads", () => {
+  // renderer.js guards decoration placement with `rule.f != null && x < rule.f`.
+  // A string makes that comparison NaN-false, so the guard stops guarding and
+  // props render at every depth. Undeclared numeric fields are therefore worse
+  // than absent ones, and every field the renderer reads has to be pinned —
+  // not only the ones the shipped data happens to author today.
+  const rule = (patch: Record<string, unknown>) => {
+    const document = clone(presentationDocument);
+    const rules = (
+      document as never as {
+        sites: Record<string, { decorationRules: Record<string, unknown>[] }>;
+      }
+    ).sites.wreck!.decorationRules;
+    Object.assign(rules[0]!, patch);
+    return document;
+  };
+
+  it.each([
+    ["minDepth", "not-a-number"],
+    ["maxDepth", "60"],
+    ["minScale", "0.5"],
+    ["maxScale", "2"],
+    ["rotationJitter", "1"],
+    ["alpha", "0.5"],
+    ["maxPerScreen", "12"],
+  ])("rejects a stringly-typed %s", (field, value) => {
+    expect(validatePresentation(rule({ [field]: value }))).toBe(false);
+  });
+
+  it("rejects a non-integer maxPerScreen", () => {
+    expect(validatePresentation(rule({ maxPerScreen: 12.5 }))).toBe(false);
+  });
+
+  it("rejects an alpha outside 0..1", () => {
+    expect(validatePresentation(rule({ alpha: 4 }))).toBe(false);
+  });
+
+  it("rejects an unknown field, which the renderer would read as undefined", () => {
+    // A typo like `minDepht` would otherwise validate and then be defaulted
+    // away silently, which is how a guard goes missing without anyone noticing.
+    expect(validatePresentation(rule({ minDepht: 20 }))).toBe(false);
+  });
+
+  it("still accepts every field the renderer legitimately reads", () => {
+    expect(
+      validatePresentation(
+        rule({
+          minDepth: 20,
+          maxDepth: 60,
+          minScale: 0.5,
+          maxScale: 2,
+          rotationJitter: 1,
+          alpha: 0.5,
+          maxPerScreen: 12,
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("closes visual zones and atmosphere profiles too", () => {
+    const zones = clone(presentationDocument);
+    (
+      zones as never as {
+        sites: Record<string, { visualZones: Record<string, unknown>[] }>;
+      }
+    ).sites.cave!.visualZones[0]!.bogus = 1;
+    expect(validatePresentation(zones)).toBe(false);
+
+    const atmos = clone(presentationDocument);
+    const profiles = (
+      atmos as never as {
+        sites: Record<string, { atmosphereProfiles: Record<string, Record<string, unknown>> }>;
+      }
+    ).sites.cave!.atmosphereProfiles;
+    Object.values(profiles)[0]!.bogus = 1;
+    expect(validatePresentation(atmos)).toBe(false);
+  });
+});

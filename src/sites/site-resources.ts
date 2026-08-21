@@ -26,10 +26,16 @@ export interface BadAirDome {
   readonly d?: number;
 }
 
+/** Where the diver enters the water. Gameplay data, not a rendering hint. */
+export interface SiteEntryPoint {
+  readonly x: number;
+}
+
 export interface SiteGameplay {
   readonly id: string;
   readonly maxDepth: number;
   readonly hasOverhead: boolean;
+  readonly entry: SiteEntryPoint;
   readonly boatX?: number;
   readonly floor: readonly ProfilePoint[];
   readonly ceiling: readonly ProfilePoint[] | null;

@@ -18,6 +18,15 @@
     }
   },
   "$defs": {
+    "entryPoint": {
+      "description": "Where the diver enters the water. Gameplay data, so its type has to be pinned: `{ x: \"0\" }` would place a spawn at a string coordinate, and the parity suite does not compare entry points.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x"],
+      "properties": {
+        "x": { "type": "number" }
+      }
+    },
     "profilePoint": {
       "type": "object",
       "additionalProperties": false,
@@ -55,12 +64,12 @@
     "site": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "maxDepth", "hasOverhead", "floor", "structures", "badAir"],
+      "required": ["id", "maxDepth", "hasOverhead", "entry", "floor", "structures", "badAir"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
         "maxDepth": { "type": "number", "exclusiveMinimum": 0 },
         "hasOverhead": { "type": "boolean" },
-        "entry": { "type": "object" },
+        "entry": { "$ref": "#/$defs/entryPoint" },
         "boatX": { "type": "number" },
         "floor": { "$ref": "#/$defs/profile" },
         "ceiling": {

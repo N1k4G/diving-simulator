@@ -31,6 +31,7 @@
     },
     "visualZone": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["id", "x1", "x2", "d1", "d2"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
@@ -45,6 +46,7 @@
     },
     "atmosphereProfile": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "visibility": { "type": "number", "minimum": 0 },
         "tint": {
@@ -59,7 +61,9 @@
       }
     },
     "decorationRule": {
+      "description": "Every field renderer.js reads off a rule, whether or not the shipped data authors it yet. An undeclared numeric field is worse than an absent one: the renderer's guards are all `rule.f != null && x < rule.f`, so a string makes the comparison NaN-false and the guard silently stops guarding. Closed against unknown fields so a typo'd name fails here rather than being read as `undefined` and defaulted away.",
       "type": "object",
+      "additionalProperties": false,
       "required": ["id", "zone"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
@@ -68,10 +72,18 @@
         "density": { "type": "number", "minimum": 0 },
         "seed": { "type": "number" },
         "surface": { "type": "string", "enum": ["floor", "ceiling"] },
+        "minDepth": { "type": "number", "minimum": 0 },
+        "maxDepth": { "type": "number", "minimum": 0 },
+        "minScale": { "type": "number", "exclusiveMinimum": 0 },
+        "maxScale": { "type": "number", "exclusiveMinimum": 0 },
+        "maxPerScreen": { "type": "integer", "minimum": 0 },
+        "rotationJitter": { "type": "number", "minimum": 0 },
+        "alpha": { "type": "number", "minimum": 0, "maximum": 1 },
         "props": {
           "type": "array",
           "items": {
             "type": "object",
+            "additionalProperties": false,
             "required": ["kind"],
             "properties": {
               "kind": { "type": "string", "minLength": 1 },
