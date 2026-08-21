@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 // load the real source rather than a snapshot of it. `?raw` keeps this a
 // browser-shaped project: no node APIs, no @types/node.
 import legacySource from "../../src/sites.js?raw";
+import constantsSource from "../../src/constants.js?raw";
 
 import {
   SITE_GAMEPLAY,
@@ -21,7 +22,19 @@ interface LegacyApi {
   badAirAt(x: number): unknown;
 }
 
-const MAX_DEPTH = 100;
+// Read the real constant rather than restating it. A literal here is injected
+// into the legacy source *and* used by the reimplementation below, so a wrong
+// value agrees with itself and every parity assertion passes against data that
+// does not match the running game. The reef descriptor is what depends on it.
+const MAX_DEPTH = (() => {
+  const match = /^\s*(?:const|let|var)\s+MAX_DEPTH\s*=\s*(-?\d+(?:\.\d+)?)\s*;/m.exec(
+    constantsSource,
+  );
+  if (!match) {
+    throw new Error("could not read MAX_DEPTH from src/constants.js");
+  }
+  return Number(match[1]);
+})();
 
 // `diveSite` lives in state.js, which sites.js reads but does not declare.
 const legacy = new Function(

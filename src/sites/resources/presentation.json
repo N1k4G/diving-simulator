@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "bb189490dca6cba7594383196409fe87aa15f1c2",
+  "sourceCommit": "4046bdac4a2b4546b714c2faf4363a5668709ab4",
   "generator": "npm run sites:generate",
   "kind": "diving-simulator-site-presentation",
   "sites": {
@@ -576,7 +576,7 @@
           "x1": -100,
           "x2": 100,
           "d1": 0,
-          "d2": 100,
+          "d2": 300,
           "priority": 0,
           "blend": 0,
           "tags": [

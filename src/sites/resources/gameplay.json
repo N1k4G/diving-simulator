@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "bb189490dca6cba7594383196409fe87aa15f1c2",
+  "sourceCommit": "4046bdac4a2b4546b714c2faf4363a5668709ab4",
   "generator": "npm run sites:generate",
   "kind": "diving-simulator-site-gameplay",
   "sites": {
@@ -90,7 +90,7 @@
     },
     "reef": {
       "id": "reef",
-      "maxDepth": 100,
+      "maxDepth": 300,
       "hasOverhead": false,
       "entry": {
         "x": 0
@@ -99,11 +99,11 @@
       "floor": [
         {
           "x": -200,
-          "d": 100
+          "d": 300
         },
         {
           "x": -26,
-          "d": 100
+          "d": 300
         },
         {
           "x": -20,
@@ -139,11 +139,11 @@
         },
         {
           "x": 26,
-          "d": 100
+          "d": 300
         },
         {
           "x": 200,
-          "d": 100
+          "d": 300
         }
       ],
       "ceiling": null,
