@@ -102,8 +102,17 @@ function assertPartitioned(site) {
 // wrong by construction: the resources would claim to come from a tree whose
 // sites.js produced different data. A digest is checkable, and `--check`
 // verifies it, so stale provenance fails CI like stale data does.
-const sitesSource = fs.readFileSync(path.join(root, 'src', 'sites.js'), 'utf8');
-const constantsSource = fs.readFileSync(path.join(root, 'src', 'constants.js'), 'utf8');
+//
+// Hash normalised line endings, not raw bytes. With core.autocrlf a Windows
+// working tree holds CRLF where Linux CI holds LF — identical content, different
+// bytes — so a byte digest disagrees across platforms and fails CI for a machine
+// difference rather than a data one. The generated resources are unaffected by
+// line endings, so the digest must be too.
+const readNormalised = (file) =>
+  fs.readFileSync(path.join(root, 'src', file), 'utf8').replace(/\r\n?/g, '\n');
+
+const sitesSource = readNormalised('sites.js');
+const constantsSource = readNormalised('constants.js');
 const maxDepth = readMaxDepth(constantsSource);
 const sourceDigest = `sha256:${crypto
   .createHash('sha256')
