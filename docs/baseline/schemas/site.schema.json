@@ -64,7 +64,16 @@
     "site": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "maxDepth", "hasOverhead", "entry", "floor", "structures", "badAir"],
+      "required": [
+        "id",
+        "maxDepth",
+        "hasOverhead",
+        "entry",
+        "floor",
+        "ceiling",
+        "structures",
+        "badAir"
+      ],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
         "maxDepth": { "type": "number", "exclusiveMinimum": 0 },
@@ -73,6 +82,7 @@
         "boatX": { "type": "number" },
         "floor": { "$ref": "#/$defs/profile" },
         "ceiling": {
+          "description": "Overhead profile, or explicit null for open water. Required, and null must be spelled out: an absent field makes ceilingAt() fall through to 0, which turns the cave roof into open water (14 m becomes 0 m at x=50) and lets the diver swim up through it. Parity would not catch that, because legacy and generated data lose the field together and agree on 0.",
           "oneOf": [{ "$ref": "#/$defs/profile" }, { "type": "null" }]
         },
         "structures": {

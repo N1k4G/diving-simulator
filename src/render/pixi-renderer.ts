@@ -3,10 +3,11 @@ import { Application, Container, Graphics } from "pixi.js";
 import type { PresentationState } from "../presentation/presentation-state";
 import { LAYERS, type LayerId, type QualityTier } from "../sites/asset-manifest";
 import { buildSceneLayers } from "../sites/layer-factory";
-import { createCameraTransform } from "./camera";
+import { createCameraTransform, type CameraTransform } from "./camera";
 import {
   BUBBLE_LAYER,
   RETAINED_LAYER_ASSIGNMENT,
+  visibleHalfExtentM,
   type RetainedElement,
 } from "./layer-assignment";
 import type { SceneRenderer, WreckSceneState } from "./renderer";
@@ -15,11 +16,11 @@ const MAX_RESOLUTION = 2;
 const BUBBLE_COUNT = 14;
 const SITE_ID = "wreck";
 
-// Half-width and half-height of the visible world window, in metres. Culling
-// uses this rather than the exact viewport so the set only changes when the
-// camera has actually travelled, not on every sub-metre movement.
-const CULL_HALF_WIDTH_M = 34;
-const CULL_HALF_HEIGHT_M = 20;
+// Extra world-space margin beyond the visible window, so content is resident
+// before it scrolls in. Resyncs happen only once the camera has travelled
+// RESYNC_DISTANCE_M, so the margin has to exceed that or content can enter the
+// frame during the gap between syncs.
+const CULL_MARGIN_M = 10;
 const RESYNC_DISTANCE_M = 4;
 
 export class PixiWreckRenderer implements SceneRenderer {
@@ -65,12 +66,18 @@ export class PixiWreckRenderer implements SceneRenderer {
     host.replaceChildren(app.canvas);
     app.stage.addChild(this.#background, this.#world);
     this.#buildRetainedScene();
-    this.#syncSceneLayers({ x: 0, y: 0 }, true);
 
+    // Size first, then sync: the cull window is derived from the camera, so
+    // syncing against the placeholder 1x1 viewport would populate the scene for
+    // a window that does not exist.
     const bounds = host.getBoundingClientRect();
     this.resize(
       Math.max(1, bounds.width || 960),
       Math.max(1, bounds.height || 540),
+    );
+    this.#syncSceneLayers(
+      createCameraTransform(this.#viewport, { x: 0, y: 0 }),
+      true,
     );
   }
 
@@ -85,6 +92,11 @@ export class PixiWreckRenderer implements SceneRenderer {
     }
     app.renderer.resize(this.#viewport.width, this.#viewport.height);
     this.#drawBackground();
+    // The cull window is a function of the viewport, so a resize or an
+    // orientation change invalidates it even when the camera has not moved.
+    // Without this, rotating to portrait keeps the landscape window and the
+    // newly visible depth band stays empty until the diver travels 4 m.
+    this.#lastSyncFocus = null;
   }
 
   render(
@@ -103,7 +115,7 @@ export class PixiWreckRenderer implements SceneRenderer {
     );
     this.#world.pivot.set(camera.focus.x, camera.focus.y);
     this.#world.scale.set(camera.scale);
-    this.#syncSceneLayers({ x: camera.focus.x, y: camera.focus.y }, false);
+    this.#syncSceneLayers(camera, false);
     this.#diver.position.set(scene.routePositionM, scene.diverDepthM);
     this.#diver.scale.x = scene.facing;
     this.#torch.visible = scene.torchOn;
@@ -155,7 +167,8 @@ export class PixiWreckRenderer implements SceneRenderer {
     return this.#activeMarkers.length;
   }
 
-  #syncSceneLayers(focus: { x: number; y: number }, force: boolean): void {
+  #syncSceneLayers(camera: CameraTransform, force: boolean): void {
+    const focus = camera.focus;
     if (
       !force &&
       this.#lastSyncFocus &&
@@ -166,13 +179,24 @@ export class PixiWreckRenderer implements SceneRenderer {
     }
     this.#lastSyncFocus = { x: focus.x, y: focus.y };
 
+    // Derive the window from the camera rather than from constants. A fixed
+    // half-height cannot describe the visible world: the camera fits a constant
+    // 58 m of WIDTH, so visible height is viewport.height / scale and grows with
+    // aspect ratio. At 390x844 that is ~125 m of depth on screen against a
+    // 20 m half-height, which culled four on-screen placements — the engine row
+    // at d=61 and the anchor at d=66 — while the diver was looking straight at
+    // them. Desktop and landscape hid this because their windows are shorter
+    // than the constant.
+    const { halfWidthM, halfHeightM } = visibleHalfExtentM(camera);
+
     const layers = buildSceneLayers(SITE_ID, {
       qualityTier: this.#qualityTier,
+      cullMarginM: CULL_MARGIN_M,
       camera: {
-        leftM: focus.x - CULL_HALF_WIDTH_M,
-        rightM: focus.x + CULL_HALF_WIDTH_M,
-        topM: focus.y - CULL_HALF_HEIGHT_M,
-        bottomM: focus.y + CULL_HALF_HEIGHT_M,
+        leftM: focus.x - halfWidthM,
+        rightM: focus.x + halfWidthM,
+        topM: focus.y - halfHeightM,
+        bottomM: focus.y + halfHeightM,
       },
     });
 

@@ -55,6 +55,25 @@ export function layerDepth(id: LayerId): number {
   return LAYERS.indexOf(id);
 }
 
+/**
+ * World-space half-extents of what the camera can actually show.
+ *
+ * Shared with the renderer rather than restated there, so a test can compare it
+ * against the viewport arithmetic independently. The camera fits a constant
+ * width in metres, so visible HEIGHT is a function of aspect ratio: at 390x844
+ * it is ~125 m against the 20 m constant this replaced, which culled four
+ * on-screen placements — the engine row at d=61 and the anchor at d=66.
+ */
+export function visibleHalfExtentM(camera: {
+  readonly scale: number;
+  readonly viewport: { readonly width: number; readonly height: number };
+}): { readonly halfWidthM: number; readonly halfHeightM: number } {
+  return {
+    halfWidthM: camera.viewport.width / camera.scale / 2,
+    halfHeightM: camera.viewport.height / camera.scale / 2,
+  };
+}
+
 /** True if `a` is painted after `b`, and so can occlude it. */
 export function drawsAfter(a: LayerId, b: LayerId): boolean {
   return layerDepth(a) > layerDepth(b);

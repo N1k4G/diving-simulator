@@ -52,10 +52,27 @@ export function featureDepthRange(feature: SiteFeature): {
   return top <= bottom ? { top, bottom } : { top: bottom, bottom: top };
 }
 
+export interface VisualZone {
+  readonly id: string;
+  readonly x1: number;
+  readonly x2: number;
+  readonly d1: number;
+  readonly d2: number;
+  readonly priority?: number;
+}
+
+export interface DecorationRule {
+  readonly id: string;
+  readonly zone: string;
+}
+
 export interface SitePresentation {
   readonly id: string;
   readonly name?: string;
   readonly features?: readonly SiteFeature[];
+  readonly visualZones?: readonly VisualZone[];
+  readonly decorationRules?: readonly DecorationRule[];
+  readonly atmosphereProfiles?: Readonly<Record<string, unknown>>;
 }
 
 export interface CameraBounds {
@@ -81,6 +98,75 @@ export interface SceneLayer {
 const presentation = (
   presentationDocument as { sites: Record<string, SitePresentation> }
 ).sites;
+
+/**
+ * Cross-references and uniqueness the JSON Schema cannot express. A schema can
+ * say `zone` is a string; it cannot say the string names a zone that exists.
+ *
+ * Each of these fails silently rather than loudly:
+ * - A decoration rule pointing at a zone that is not declared matches no
+ *   candidate, so every prop it would have placed just never appears. A typo in
+ *   `zone` empties a whole scatter with nothing logged.
+ * - `atmosphereProfiles` is keyed by zone id, so an unresolved key is an
+ *   atmosphere that never applies.
+ * - Duplicate zone or rule ids make `visualZoneAt` resolution order depend on
+ *   declaration order rather than on the documented priority rules.
+ * - An inverted zone extent can never contain a point, so the zone stops
+ *   existing exactly like an inverted structure box does in gameplay data.
+ */
+export function validateSitePresentation(site: SitePresentation): string[] {
+  const problems: string[] = [];
+  const zoneIds = new Set((site.visualZones ?? []).map((zone) => zone.id));
+
+  const checkUnique = (label: string, ids: readonly string[]): void => {
+    const seen = new Set<string>();
+    for (const id of ids) {
+      if (seen.has(id)) {
+        problems.push(`${site.id}: duplicate ${label} id "${id}"`);
+      }
+      seen.add(id);
+    }
+  };
+
+  checkUnique("visualZone", (site.visualZones ?? []).map((zone) => zone.id));
+  checkUnique("decorationRule", (site.decorationRules ?? []).map((rule) => rule.id));
+
+  for (const zone of site.visualZones ?? []) {
+    if (zone.x2 < zone.x1) {
+      problems.push(`${site.id}: zone "${zone.id}" has x2 ${zone.x2} before x1 ${zone.x1}`);
+    }
+    if (zone.d2 < zone.d1) {
+      problems.push(`${site.id}: zone "${zone.id}" has d2 ${zone.d2} above d1 ${zone.d1}`);
+    }
+  }
+
+  for (const rule of site.decorationRules ?? []) {
+    if (!zoneIds.has(rule.zone)) {
+      problems.push(
+        `${site.id}: decoration rule "${rule.id}" references unknown zone "${rule.zone}"`,
+      );
+    }
+  }
+
+  for (const key of Object.keys(site.atmosphereProfiles ?? {})) {
+    if (!zoneIds.has(key)) {
+      problems.push(`${site.id}: atmosphere profile "${key}" matches no visual zone`);
+    }
+  }
+
+  return problems;
+}
+
+const presentationProblems = Object.values(presentation).flatMap(
+  validateSitePresentation,
+);
+if (presentationProblems.length) {
+  // Fail at import time, matching the gameplay resource. A scatter that renders
+  // nothing is far harder to notice than a build that refuses to start.
+  throw new Error(
+    `invalid site presentation data:\n${presentationProblems.join("\n")}`,
+  );
+}
 
 export const SITE_PRESENTATION: Readonly<Record<string, SitePresentation>> =
   deepFreeze(presentation);

@@ -204,3 +204,31 @@ describe("decoration rules are closed over what the renderer actually reads", ()
     expect(validatePresentation(atmos)).toBe(false);
   });
 });
+
+describe("ceiling must be present, with null spelled out", () => {
+  // An absent `ceiling` makes ceilingAt() fall through to 0, turning the cave
+  // roof into open water — 14 m becomes 0 m at x=50 — so the diver can swim up
+  // through it. Parity cannot catch it: legacy and generated data lose the
+  // field together and agree on 0.
+  it("rejects a site with no ceiling field", () => {
+    const document = clone(gameplayDocument);
+    delete (document as never as { sites: Record<string, { ceiling?: unknown }> }).sites
+      .cave!.ceiling;
+    expect(validateGameplay(document)).toBe(false);
+  });
+
+  it("accepts explicit null for an open-water site", () => {
+    const document = clone(gameplayDocument);
+    (document as never as { sites: Record<string, { ceiling: unknown }> }).sites.reef!
+      .ceiling = null;
+    expect(validateGameplay(document)).toBe(true);
+  });
+
+  it("still ships a ceiling on every site", () => {
+    for (const [id, site] of Object.entries(
+      (gameplayDocument as { sites: Record<string, object> }).sites,
+    )) {
+      expect(Object.hasOwn(site, "ceiling"), `${id} must declare ceiling`).toBe(true);
+    }
+  });
+});
