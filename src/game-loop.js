@@ -2159,6 +2159,12 @@ window.gameAPI = {
     floorAt: floorAt,
     ceilingAt: ceilingAt,
     solidAt: solidAt,
+    // Issue #122 test hooks: the diver's body test and the raw box predicate,
+    // so a spec can assert extent and passability without restating the maths.
+    solidBoxAt: solidBoxAt,
+    diverSolidAt: diverSolidAt,
+    get DIVER_HALF_WIDTH_M() { return DIVER_HALF_WIDTH_M; },
+    get DIVER_HALF_HEIGHT_M() { return DIVER_HALF_HEIGHT_M; },
     overheadAt: overheadAt,
     activeSite: activeSite,
     // TASK-032 / BUG-CCR-* test hooks

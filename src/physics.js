@@ -129,7 +129,11 @@ function updateBuoyancyPhysics(dtSec) {
         var vstep = _dz / vsteps;
         for (var vk = 0; vk < vsteps; vk++) {
             var ndp = depth + vstep;
-            if (solidAt(diverX, ndp) && !solidAt(diverX, depth)) {
+            // Issue #122: the diver's body, not its centre. The
+            // "only block when crossing from open water INTO solid" rule is
+            // what lets a diver who somehow starts overlapping swim free, and
+            // it matters more with an extent than it did with a point.
+            if (diverSolidAt(diverX, ndp) && !diverSolidAt(diverX, depth)) {
                 verticalVelocity = 0;
                 break;
             }
@@ -178,8 +182,15 @@ function updateHorizontalPhysics(dtSec, kickDir) {
     var sx = dispX / steps;
     for (var k = 0; k < steps; k++) {
         var nx = diverX + sx;
-        // Blocked by solid structure, or by terrain pinch at the new x position
-        if (solidAt(nx, depth) || depth > floorAt(nx) || depth < ceilingAt(nx)) {
+        // Issue #122: same body test as the vertical pass, and the same escape
+        // clause — which this path never had. With a point test, a diver could
+        // not be inside a wall without its centre being there, so there was
+        // nothing to escape from. With an extent, an overlap is reachable (a
+        // structure appearing, a site switch, a restored save), and without the
+        // `!diverSolidAt(diverX, depth)` guard the diver would be walled in
+        // with no way out in either direction.
+        var pinched = depth > floorAt(nx) || depth < ceilingAt(nx);
+        if (pinched || (diverSolidAt(nx, depth) && !diverSolidAt(diverX, depth))) {
             horizontalVelocity = 0;
             break;
         }

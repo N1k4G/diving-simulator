@@ -804,6 +804,33 @@ function solidAt(x, d) {
   return false;
 }
 
+// True if an axis-aligned box centred on (x, d) overlaps any solid structure.
+//
+// Issue #122: solidAt() is a point test, so the diver only stopped once its
+// CENTRE reached a wall and the sprite had already penetrated about a metre.
+// This is the same AABB comparison widened by the diver's extent — still exact,
+// not sampled, so a box can never slip between two probe points.
+//
+// solidAt() is kept as-is rather than reimplemented in terms of this: it is the
+// site-geometry predicate the parity suite replays and other callers (fauna
+// steering, visual zones) genuinely want a point test.
+function solidBoxAt(x, d, halfWidth, halfHeight) {
+  var s = activeSite();
+  if (!s) return false;
+  for (var i = 0; i < s.structures.length; i++) {
+    var w = s.structures[i];
+    if (x + halfWidth >= w.x1 && x - halfWidth <= w.x2 &&
+        d + halfHeight >= w.dTop && d - halfHeight <= w.dBottom) return true;
+  }
+  return false;
+}
+
+// The diver's own body, for the movement code. Everything that asks "can the
+// diver be here" goes through this rather than solidAt().
+function diverSolidAt(x, d) {
+  return solidBoxAt(x, d, DIVER_HALF_WIDTH_M, DIVER_HALF_HEIGHT_M);
+}
+
 // True if the straight-up path from (x, d) to the surface is blocked.
 // Drives torch / silt / guideline / rule-of-thirds for overhead environments.
 function overheadAt(x, d) {

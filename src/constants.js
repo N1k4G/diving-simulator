@@ -141,6 +141,23 @@ const GRADE_TRIM_HOLD_WINDOW_SEC  = 60;   // rolling-window seconds for "holding
 const GRADE_TRIM_HOLD_DELTA_M     = 1.0;  // rolling window range < this m = holding phase
 const GRADE_TRIM_STDDEV_FULL_M    = 0.5;  // stddev at/below this m => score 100
 const GRADE_TRIM_STDDEV_ZERO_M    = 3.0;  // stddev at/above this m => score 0
+// ── Diver collision extent (issue #122) ──────────────────────────
+// solidAt() tests a single point, so movement only stopped once the diver's
+// CENTRE reached a wall — the sprite penetrated roughly a metre into hulls and
+// bulkheads first. These give the diver a body.
+//
+// The hull is deliberately tighter than the sprite. The Pixi diver is drawn
+// 2.1 m x 0.76 m (fin-tip to fingertip, arms out), but the wreck's authored
+// passages are tighter than that: bulkhead doorways are 1.5 m in depth and the
+// mess/cabin door at d=23 is 2.0 m wide. A sprite-sized hull could not fit
+// through either, so collision uses the torso rather than the full reach.
+//
+// Clearances at these values: 0.9 m spare in a 1.5 m doorway, 1.1 m spare in
+// the 2.0 m door gap. Widen only with tests/collision.spec.js re-run — it
+// asserts every authored passage stays navigable.
+const DIVER_HALF_WIDTH_M  = 0.45;   // along x
+const DIVER_HALF_HEIGHT_M = 0.30;   // along depth
+
 const MAX_DEPTH         = 300;
 const P_H2O             = 0.0627;
 const LN2               = Math.log(2);

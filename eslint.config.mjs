@@ -18,6 +18,8 @@ const gameGlobals = {
   DIVER_SCREEN_X_FRACTION: "readonly",
   DECO_PLANNING_ASCENT_RATE_MPM: "readonly",
   MAX_DEPTH: "readonly",
+  // Issue #122: diver collision extent.
+  DIVER_HALF_WIDTH_M: "readonly", DIVER_HALF_HEIGHT_M: "readonly",
   MAX_DEVICE_PIXEL_RATIO: "readonly",
 
   // Diver physics
@@ -206,6 +208,7 @@ const gameGlobals = {
   activeSite: "readonly", lerpProfile: "readonly",
   floorAt: "readonly", ceilingAt: "readonly",
   solidAt: "readonly", overheadAt: "readonly", badAirAt: "readonly",
+  solidBoxAt: "readonly", diverSolidAt: "readonly",
   // Issue #53: Visual zones (sites.js + state.js + renderer.js)
   visualZoneAt: "readonly", zoneBlendWeight: "readonly",
   VISUAL_ZONE_DEFAULT_PRIORITY: "readonly", VISUAL_ZONE_DEFAULT_BLEND: "readonly",
