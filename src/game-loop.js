@@ -1139,6 +1139,28 @@ function gameLoop(timestamp) {
 
     ctx.clearRect(0, 0, cssWidth, cssHeight);
 
+    // Issue #120: reset the result-screen scroll on entry, so a second dive
+    // never opens mid-page. Detected as a transition rather than reset at each
+    // `gameState = 'post-dive'` / `'gameover'` assignment — there are 13 of
+    // those and a 14th would silently miss it.
+    if (gameState !== _lastGameState) {
+        if (gameState === 'post-dive' || gameState === 'gameover') resetResultScroll();
+        // Issue #120: the four in-dive HUD chips are shown/hidden inside
+        // updateDiving(), which stops being called the moment the dive ends —
+        // so whatever was on screen at that instant stayed on screen. Ending a
+        // wreck or cave dive left the rule-of-thirds chip latched on, sitting
+        // over the post-dive header. Clear them on any exit from 'diving'
+        // rather than at each of the 13 places that end a dive.
+        if (_lastGameState === 'diving' && gameState !== 'diving') {
+            var _chipIds = ['hud-horizontal-speed', 'hud-current', 'hud-thirds', 'hud-backway'];
+            for (var _ci = 0; _ci < _chipIds.length; _ci++) {
+                var _chip = document.getElementById(_chipIds[_ci]);
+                if (_chip) _chip.style.display = 'none';
+            }
+        }
+        _lastGameState = gameState;
+    }
+
     switch (gameState) {
         case 'gas-setup':
             updateGasSetup();
@@ -1926,6 +1948,9 @@ window.gameAPI = {
     get cssHeight() { return cssHeight; },
     set cssHeight(v) { cssHeight = v; },
     get gameOverReason() { return gameOverReason; },
+    // Issue #120 test hook: result-screen layout is asserted per reason, and
+    // each reason produces a different amount of text.
+    set gameOverReason(v) { gameOverReason = v; },
     get tissues() { return tissues; },
     set tissues(v) { tissues = v; },
     get tissuesHe() { return tissuesHe; },
@@ -1971,6 +1996,9 @@ window.gameAPI = {
     get ndlDroppedBelow5() { return ndlDroppedBelow5; },
     calculateSafetyStopDuration: calculateSafetyStopDuration,
     get showHelp() { return showHelp; },
+    // Issue #120 test hook: the help overlay layers over a result screen, and
+    // the two must not fight over the same wheel/touch events.
+    set showHelp(v) { showHelp = !!v; },
     get showAdvanced() { return isAdvanced(); },
     set showAdvanced(v) { switchMode(v ? 'tec' : 'rec'); },
     get diveMode() { return diveMode; },
@@ -2015,6 +2043,14 @@ window.gameAPI = {
     calculatePO2: calculatePO2,
     calculateMOD: calculateMOD,
     calculateTTS: calculateTTS,
+    // Issue #120: result-screen scroll offset and its measured bound, so a test
+    // can assert that content drawn below the fold is actually reachable.
+    get resultScrollY() { return resultScrollY; },
+    set resultScrollY(v) { resultScrollY = v; },
+    get resultScrollMaxY() { return resultScrollMaxY; },
+    // Translation lookup, so layout assertions can enumerate the strings that
+    // are actually drawn rather than restating them.
+    S: S,
     bestGasForDepth: bestGasForDepth,
     get DIVER_SCREEN_X_FRACTION() { return DIVER_SCREEN_X_FRACTION; },
     get SAFETY_STOP_ACTIVE_MIN_D() { return SAFETY_STOP_ACTIVE_MIN_D; },

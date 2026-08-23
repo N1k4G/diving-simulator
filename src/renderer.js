@@ -9265,13 +9265,102 @@ function drawInstructorOverlay() {
     cx.textAlign = 'left';
 }
 
+// ============================================================
+//  ISSUE #120 — RESULT-SCREEN SCROLL FRAME
+//
+//  drawPostDive() and drawGameOver() lay out in absolute pixels, so on a small
+//  viewport they draw well past the bottom edge — and the page cannot scroll,
+//  because style.css sets `html, body { overflow: hidden }`. Content below the
+//  fold was simply unreachable.
+//
+//  These two helpers wrap a draw pass: the backdrop is painted unscrolled, the
+//  body is drawn inside a translate, and the final `y` reported back becomes
+//  the scroll bound for the next frame. Measuring the frame we just drew (as
+//  opposed to a separate measure pass) keeps one source of layout truth; the
+//  bound is right from the second frame on, and the first frame is drawn at
+//  offset 0 anyway.
+//
+//  Content reserves BOTTOM_GUTTER at the end so the fixed touch CTA
+//  (#touch-postdive-btn / #touch-gameover-btn, anchored bottom: 6%/12% in
+//  style.css) never sits on top of the last line of text.
+// ============================================================
+var RESULT_BOTTOM_GUTTER = 96;
+
+function beginResultScroll(cx) {
+    cx.save();
+    cx.translate(0, -resultScrollY);
+}
+
+// `contentBottomY` is the layout cursor after the last element was drawn.
+function endResultScroll(cx, contentBottomY, W, H) {
+    cx.restore();
+    var overflow = Math.max(0, (contentBottomY + RESULT_BOTTOM_GUTTER) - H);
+    resultScrollMaxY = overflow;
+    if (resultScrollY > overflow) resultScrollY = overflow;
+    // The CTA is a fixed DOM button (style.css anchors it bottom: 6%/12%), so
+    // scrolling body text passes underneath it. Reserving space at the end of
+    // the content is not enough on its own — text still crosses the button on
+    // the way past. A scrim gives it a surface to disappear behind instead of
+    // colliding with the label.
+    if (isTouchDevice) drawResultFooterScrim(cx, W, H);
+    if (overflow > 0) drawResultScrollIndicator(cx, W, H, overflow);
+}
+
+function drawResultFooterScrim(cx, W, H) {
+    var band = Math.min(RESULT_BOTTOM_GUTTER, H * 0.28);
+    var g = cx.createLinearGradient(0, H - band, 0, H);
+    g.addColorStop(0, 'rgba(6,20,26,0)');
+    g.addColorStop(0.45, 'rgba(6,20,26,0.88)');
+    g.addColorStop(1, 'rgba(6,20,26,0.97)');
+    cx.save();
+    cx.fillStyle = g;
+    cx.fillRect(0, H - band, W, band);
+    cx.restore();
+}
+
+// A slim track on the right plus a "more below" cue, so the affordance is
+// visible without a scrollbar the platform would otherwise draw for us.
+function drawResultScrollIndicator(cx, W, H, overflow) {
+    var trackX = W - 7;
+    var trackTop = 12;
+    var trackH = H - 24;
+    var frac = H / (H + overflow);
+    var thumbH = Math.max(28, trackH * frac);
+    var thumbY = trackTop + (trackH - thumbH) * (resultScrollY / overflow);
+
+    cx.save();
+    cx.fillStyle = 'rgba(150,180,200,0.13)';
+    cx.beginPath();
+    cx.roundRect(trackX, trackTop, 4, trackH, 2);
+    cx.fill();
+    cx.fillStyle = 'rgba(120,220,255,0.5)';
+    cx.beginPath();
+    cx.roundRect(trackX, thumbY, 4, thumbH, 2);
+    cx.fill();
+
+    // Chevron only while there is still something below. The fade behind it is
+    // drawn by drawResultFooterScrim() so the two do not stack.
+    if (resultScrollY < overflow - 1) {
+        cx.strokeStyle = 'rgba(160,220,240,0.75)';
+        cx.lineWidth = 2;
+        cx.beginPath();
+        cx.moveTo(W / 2 - 8, H - 20);
+        cx.lineTo(W / 2, H - 13);
+        cx.lineTo(W / 2 + 8, H - 20);
+        cx.stroke();
+    }
+    cx.restore();
+}
+
 function drawPostDive() {
     var cx = ctx;
     var W = cssWidth;
     var H = cssHeight;
     var DCF = "'Barlow Semi Condensed', monospace";
 
+    // Backdrop is painted before the scroll translate so it stays put.
     gsBackdrop(cx, W, H);
+    beginResultScroll(cx);
 
     var centerX = W / 2;
     var y = H * 0.07;
@@ -9280,10 +9369,12 @@ function drawPostDive() {
     cx.font = 'bold 12px monospace';
     cx.fillStyle = '#34e6ff';
     cx.fillText('DIVE LOG', centerX, y);
-    y += 30;
+    // 38px type with an alphabetic baseline reaches ~30px above it, so a 30px
+    // step put "DIVE COMPLETE" back through the kicker. Clear the ascender.
+    y += 38;
     cx.font = 'bold 38px ' + DCF;
     cx.fillStyle = hudColor('ok');
-    cx.fillText(S('diveComplete'), centerX, y);
+    drawFittedText(cx, S('diveComplete'), centerX, y, W - 24);
     y += 30;
 
     // Stats card: Dive Time / Max / Avg
@@ -9307,13 +9398,18 @@ function drawPostDive() {
             cx.lineTo(cardX + cardW * sc / 3, y + cardH - 16);
             cx.stroke();
         }
+        // Fit to the cell. cardW is min(560, W-80), so at 320 px wide each of
+        // the three cells is only 80 px — "1840:00" at 30px Barlow is wider
+        // than that, and the three values ran into each other. The maxWidth
+        // argument condenses instead of overlapping.
+        var cellInnerW = cardW / 3 - 10;
         cx.textAlign = 'center';
         cx.font = '11px monospace';
         cx.fillStyle = '#8694a1';
-        cx.fillText(String(statCells[sc][0]).toUpperCase(), sccx, y + 31);
+        cx.fillText(String(statCells[sc][0]).toUpperCase(), sccx, y + 31, cellInnerW);
         cx.font = 'bold 30px ' + DCF;
         cx.fillStyle = '#eaf2ff';
-        cx.fillText(statCells[sc][1], sccx, y + 63);
+        cx.fillText(statCells[sc][1], sccx, y + 63, cellInnerW);
     }
     y += cardH + 20;
 
@@ -9397,15 +9493,15 @@ function drawPostDive() {
         var o2Used = (ccrState.o2CylPressureStart - ccrState.o2CylPressure) * ccrState.o2CylVolume;
         var dilUsed = (ccrState.dilCylPressureStart - ccrState.dilCylPressure) * ccrState.dilCylVolume;
         var scrubUsed = ccrState.scrubberTotal - ccrState.scrubberRemaining;
-        cx.fillText(S('ccrO2Cyl') + ': ' + o2Used.toFixed(0) + 'L ' + S('gasUsed') + ' / ' + ccrState.o2CylPressure.toFixed(0) + ' bar left', centerX, y);
+        drawFittedText(cx, S('ccrO2Cyl') + ': ' + o2Used.toFixed(0) + 'L ' + S('gasUsed') + ' / ' + ccrState.o2CylPressure.toFixed(0) + ' ' + S('barLeft'), centerX, y, W - 32);
         y += 24;
-        cx.fillText(S('ccrDilCyl') + ': ' + dilUsed.toFixed(0) + 'L ' + S('gasUsed') + ' / ' + ccrState.dilCylPressure.toFixed(0) + ' bar left', centerX, y);
+        drawFittedText(cx, S('ccrDilCyl') + ': ' + dilUsed.toFixed(0) + 'L ' + S('gasUsed') + ' / ' + ccrState.dilCylPressure.toFixed(0) + ' ' + S('barLeft'), centerX, y, W - 32);
         y += 24;
-        cx.fillText(S('ccrScrubber') + ': ' + scrubUsed.toFixed(0) + ' min ' + S('gasUsed'), centerX, y);
+        drawFittedText(cx, S('ccrScrubber') + ': ' + scrubUsed.toFixed(0) + ' min ' + S('gasUsed'), centerX, y, W - 32);
         y += 24;
         if (ccrState.onBailout) {
             cx.fillStyle = hudColor('caution');
-            cx.fillText(S('ccrBailout'), centerX, y);
+            drawFittedText(cx, S('ccrBailout'), centerX, y, W - 32);
             cx.fillStyle = '#a8b6cc';
             y += 24;
         }
@@ -9413,7 +9509,7 @@ function drawPostDive() {
         for (var ti = 0; ti < tankCount; ti++) {
             var tk = tanks[ti];
             var used = tk.totalGas - tk.gasRemaining;
-            cx.fillText('Tank ' + (ti + 1) + ' (' + tk.label + '): ' + used.toFixed(0) + 'L ' + S('gasUsed') + ' / ' + tk.totalGas + 'L', centerX, y);
+            drawFittedText(cx, 'Tank ' + (ti + 1) + ' (' + tk.label + '): ' + used.toFixed(0) + 'L ' + S('gasUsed') + ' / ' + tk.totalGas + 'L', centerX, y, W - 32);
             y += 24;
         }
     }
@@ -9423,14 +9519,15 @@ function drawPostDive() {
     if (safetyStopNeeded && !safetyStopComplete) {
         cx.font = 'bold 16px monospace';
         cx.fillStyle = hudColor('caution');
-        cx.fillText(S('safetySkipped'), centerX, y);
+        drawFittedText(cx, S('safetySkipped'), centerX, y, W - 24);
         y += 22;
         cx.font = '12px monospace';
         cx.fillStyle = '#8694a1';
-        var safetyLines = S('safetyExpl');
-        for (var si = 0; si < safetyLines.length; si++) {
-            cx.fillText(safetyLines[si], centerX, y); y += 16;
-        }
+        // S('safetyExpl') is authored as fixed-length lines wrapped for a
+        // desktop width — they measure 383-416 px and bled off both edges of a
+        // 320 px screen. Re-wrap to the card instead of trusting the authored
+        // line breaks.
+        y = drawWrappedText(cx, S('safetyExpl').join(' '), centerX, y, cardW, 16);
         y += 24;
     }
 
@@ -9445,7 +9542,7 @@ function drawPostDive() {
     // Tissue loading bar graph — N2 + He
     cx.font = 'bold 14px monospace';
     cx.fillStyle = '#8694a1';
-    cx.fillText(S('tissueLoading'), centerX, y);
+    drawFittedText(cx, S('tissueLoading'), centerX, y, W - 24);
     y += 20;
 
     var startX = centerX - totalBarW / 2;
@@ -9521,9 +9618,11 @@ function drawPostDive() {
         cx.lineWidth = 1;
         cx.stroke();
         cx.fillStyle = '#7df0b0';
-        cx.fillText(pTxt, centerX, y + 4);
+        drawFittedText(cx, pTxt, centerX, y + 4, W - 32);
+        y += 14;
     }
 
+    endResultScroll(cx, y, W, H);
     cx.textAlign = 'left';
 }
 
@@ -9533,6 +9632,35 @@ function drawPostDive() {
 // ============================================================
 //  GAME OVER SCREEN
 // ============================================================
+
+// Issue #120: the result screens lay out in absolute pixels, so any string
+// wider than the canvas ran off both edges with no way to reach it — scrolling
+// recovers height, not width. Single-line headings and stat lines cannot be
+// wrapped without breaking the layout around them, so shrink to fit instead.
+//
+// Shrinks the current font down to 60% (never below 9px), then hands whatever
+// is still too wide to the canvas `maxWidth` squeeze, so the string can never
+// overhang however long a translation turns out to be. The caller's font is
+// restored, so this is a drop-in for `cx.fillText(t, x, y)`.
+//
+// Worst case measured at 320px: "PULMONARY BAROTRAUMA — PNEUMOTHORAX" spanned
+// x=-61.7…381.7 against a 320px canvas.
+function drawFittedText(cx, text, x, y, maxWidth) {
+    var str = String(text);
+    var originalFont = cx.font;
+    var parts = /^(.*?)(\d+(?:\.\d+)?)px(.*)$/.exec(originalFont);
+    if (parts && cx.measureText(str).width > maxWidth) {
+        var px = parseFloat(parts[2]);
+        var floor = Math.max(9, px * 0.6);
+        while (px > floor) {
+            px -= 1;
+            cx.font = parts[1] + px + 'px' + parts[3];
+            if (cx.measureText(str).width <= maxWidth) break;
+        }
+    }
+    cx.fillText(str, x, y, maxWidth);
+    cx.font = originalFont;
+}
 
 function drawWrappedText(cx, text, x, y, maxWidth, lineHeight, measureOnly) {
     var words = text.split(' ');
@@ -9571,6 +9699,9 @@ function drawGameOver() {
     rg.addColorStop(1, 'rgba(200,50,50,0)');
     cx.fillStyle = rg;
     cx.fillRect(0, 0, W, H);
+    // Backdrop first, then scroll the body (issue #120). Every gameOverReason
+    // overflows 320x568 — narcosis by 438 px — and none of it was reachable.
+    beginResultScroll(cx);
 
     var margin = 40;
     var maxTextW = Math.min(700, W - margin * 2);
@@ -9583,16 +9714,18 @@ function drawGameOver() {
     cx.font = 'bold 12px monospace';
     cx.fillStyle = '#8694a1';
     cx.fillText('— DIVE TERMINATED —', centerX, y);
-    y += 30;
+    // 46px type reaches ~37px above its baseline, so a 30px step drew "GAME
+    // OVER" straight through the kicker above it (125x9 px of overlap).
+    y += 46;
     cx.font = 'bold 46px ' + DCF;
     cx.fillStyle = hudColor('danger');
-    cx.fillText(S('gameOver'), centerX, y);
+    drawFittedText(cx, S('gameOver'), centerX, y, W - 24);
     y += 40;
 
     // Failure reason
     cx.font = 'bold 24px ' + DCF;
     cx.fillStyle = '#ffb060';
-    cx.fillText(S('gameOverReasons')[gameOverReason] || gameOverReason, centerX, y);
+    drawFittedText(cx, S('gameOverReasons')[gameOverReason] || gameOverReason, centerX, y, W - 24);
     y += 35;
 
     cx.textAlign = 'left';
@@ -9666,7 +9799,7 @@ function drawGameOver() {
     cx.font = '14px monospace';
     cx.fillStyle = '#8694a1';
     cx.textAlign = 'center';
-    cx.fillText(S('diveTimeLbl') + ': ' + formatTime(diveTime) + '    ' + S('maxDepthLbl') + ': ' + maxDepth.toFixed(1) + 'm', centerX, y);
+    drawFittedText(cx, S('diveTimeLbl') + ': ' + formatTime(diveTime) + '    ' + S('maxDepthLbl') + ': ' + maxDepth.toFixed(1) + 'm', centerX, y, W - 32);
     y += 35;
 
     if (!isTouchDevice) {
@@ -9682,9 +9815,11 @@ function drawGameOver() {
         cx.lineWidth = 1;
         cx.stroke();
         cx.fillStyle = '#ff9a9a';
-        cx.fillText(gTxt, centerX, y + 4);
+        drawFittedText(cx, gTxt, centerX, y + 4, W - 32);
+        y += 14;
     }
 
+    endResultScroll(cx, y, W, H);
     cx.textAlign = 'left';
 }
 

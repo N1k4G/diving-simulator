@@ -102,6 +102,13 @@ const gameGlobals = {
   // Input
   keys: "writable",
 
+  // Result-screen scrolling (issue #120) — declared in state.js, driven from
+  // renderer.js (which sets the bound it measured) and game-loop.js (reset).
+  resultScrollY: "writable", resultScrollMaxY: "writable",
+  RESULT_SCROLL_KEY_STEP: "readonly",
+  resultScreenScrollable: "readonly", scrollResultScreen: "readonly",
+  resetResultScroll: "readonly", _lastGameState: "writable",
+
   // Mutable game state (state.js)
   gameState: "writable", diveMode: "writable",
   depth: "writable", maxDepth: "writable",
