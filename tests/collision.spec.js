@@ -181,6 +181,60 @@ test('an overlapping diver can escape but cannot travel through', async ({ page 
   expect(errors).toEqual([]);
 });
 
+test('a fully engulfed diver is not pinned by floating-point noise', async ({ page }) => {
+  // The flat-gradient allowance only works if "no change" is recognised as no
+  // change. A fully engulfed diver has a mathematically CONSTANT buried area
+  // whichever way it moves, but constant does not mean bitwise equal: at wreck
+  // (15.5, 63.7) adjacent depths sample as 0.539999999999994 and
+  // 0.5400000000000005, so an exact `>` reads flat as "deeper" and pins the
+  // diver at d=63.706328 with zero velocity, still inside the hull.
+  //
+  // Coordinate-dependent, so it cannot be caught by testing one spot with a
+  // strict comparison and calling it fine.
+  const errors = await bootGame(page);
+
+  const result = await page.evaluate(() => {
+    const A = window.gameAPI;
+    A.diveSite = 'wreck';
+    const X = 15.5, D = 63.7;   // deep inside the bow stem, x=14..16, d=28..66
+
+    const areas = [D - 0.001, D, D + 0.001].map(d => A.diverOverlapArea(X, d));
+
+    const run = fn => {
+      diverX = X; depth = D; verticalVelocity = 0; horizontalVelocity = 0;
+      for (let i = 0; i < 900; i += 1) fn();
+      return { x: diverX, d: depth };
+    };
+    const vertical = run(() => updateBuoyancyPhysics(1 / 60));
+    const right = run(() => updateHorizontalPhysics(1 / 60, 1));
+    const left = run(() => updateHorizontalPhysics(1 / 60, -1));
+
+    return {
+      X, D, areas, engulfed: A.diverSolidAt(X, D),
+      verticalTravel: Math.abs(vertical.d - D),
+      rightTravel: Math.abs(right.x - X),
+      leftTravel: Math.abs(left.x - X),
+    };
+  });
+
+  expect(result.engulfed, 'probe must start fully engulfed').toBe(true);
+
+  // The premise: mathematically equal, not bitwise equal. If these ever become
+  // bitwise identical the test still passes, but it stops proving anything —
+  // so assert the premise rather than assume it.
+  const spread = Math.max(...result.areas) - Math.min(...result.areas);
+  expect(spread, 'adjacent samples should differ only by float noise').toBeLessThan(1e-9);
+
+  // Movement, not paralysis. Without the tolerance the vertical case travels
+  // 0.006 m in 900 ticks; with it, about a metre.
+  expect(
+    result.verticalTravel,
+    `pinned vertically: moved ${result.verticalTravel} m in 900 ticks`
+  ).toBeGreaterThan(0.1);
+  expect(Math.max(result.rightTravel, result.leftTravel)).toBeGreaterThan(0.5);
+  expect(errors).toEqual([]);
+});
+
 test('every authored passage stays navigable with the diver extent applied', async ({ page }) => {
   // The guard against over-correcting. Measured openings before this change:
   // wreck bulkhead doorways 1.5m in depth, mess/cabin door 2.0m in x; cave

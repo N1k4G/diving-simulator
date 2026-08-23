@@ -144,9 +144,7 @@ function updateBuoyancyPhysics(dtSec) {
             // to prevent. Equal is allowed so it can drift to where the
             // gradient tips; increasing never is, so it cannot bury itself
             // further or reach the far side.
-            var vHere = diverOverlapArea(diverX, depth);
-            var vThere = diverOverlapArea(diverX, ndp);
-            if (vThere > vHere) {
+            if (diverOverlapGrew(diverX, depth, diverX, ndp)) {
                 verticalVelocity = 0;
                 break;
             }
@@ -201,9 +199,7 @@ function updateHorizontalPhysics(dtSec, kickDir) {
         // Allowing any movement while overlapping let it cross the whole bow
         // stem from x=16.2 to x=11 and exit the far side.
         var pinched = depth > floorAt(nx) || depth < ceilingAt(nx);
-        var hHere = diverOverlapArea(diverX, depth);
-        var hThere = diverOverlapArea(nx, depth);
-        if (pinched || hThere > hHere) {
+        if (pinched || diverOverlapGrew(diverX, depth, nx, depth)) {
             horizontalVelocity = 0;
             break;
         }

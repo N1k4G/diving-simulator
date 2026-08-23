@@ -859,6 +859,26 @@ function diverOverlapArea(x, d) {
   return solidOverlapArea(x, d, DIVER_HALF_WIDTH_M, DIVER_HALF_HEIGHT_M);
 }
 
+// True if moving from (fromX, fromD) to (toX, toD) would bury the diver deeper.
+//
+// The comparison needs a tolerance, and the tolerance is the whole point. A
+// fully engulfed diver sits on a mathematically FLAT gradient — the buried area
+// is a constant 0.54 m² whichever way it moves — and that allowance is what
+// lets it work its way out instead of being pinned. But a flat gradient does
+// not produce bitwise-equal doubles: at wreck (15.5, 63.7) adjacent depths
+// sample as 0.539999999999994 and 0.5400000000000005, so an exact `>` reads
+// "no change" as "deeper" and re-traps the diver — at d=63.706328 with zero
+// velocity, still inside the hull. Whether it happened depended on the
+// coordinate, which is the worst kind of intermittent.
+//
+// Scaled to the diver's own box so it stays correct if the extents change, and
+// ~1e-9 of it: far above double noise (~1e-16 at this magnitude), far below any
+// overlap change a movement step could actually produce.
+function diverOverlapGrew(fromX, fromD, toX, toD) {
+  var tolerance = (2 * DIVER_HALF_WIDTH_M) * (2 * DIVER_HALF_HEIGHT_M) * 1e-9;
+  return diverOverlapArea(toX, toD) > diverOverlapArea(fromX, fromD) + tolerance;
+}
+
 // True if the straight-up path from (x, d) to the surface is blocked.
 // Drives torch / silt / guideline / rule-of-thirds for overhead environments.
 function overheadAt(x, d) {

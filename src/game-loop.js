@@ -2165,6 +2165,7 @@ window.gameAPI = {
     diverSolidAt: diverSolidAt,
     solidOverlapArea: solidOverlapArea,
     diverOverlapArea: diverOverlapArea,
+    diverOverlapGrew: diverOverlapGrew,
     get DIVER_HALF_WIDTH_M() { return DIVER_HALF_WIDTH_M; },
     get DIVER_HALF_HEIGHT_M() { return DIVER_HALF_HEIGHT_M; },
     overheadAt: overheadAt,
