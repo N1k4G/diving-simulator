@@ -91,7 +91,22 @@ var resultScrollMaxY = 0;
 var RESULT_SCROLL_KEY_STEP = 60;
 
 function resultScreenScrollable() {
+    // `showHelp` matters because the help overlay is a real scrollable DOM
+    // element layered over the canvas, and these handlers sit on `window`.
+    // Without this guard a wheel over the open overlay was preventDefault()ed
+    // for the canvas underneath it: the overlay (scrollHeight 2268 in a 568px
+    // viewport) stayed pinned at scrollTop 0 while the hidden result screen
+    // scrolled instead. Same for the gas-info overlay.
+    if (showHelp || showGasInfo) return false;
     return (gameState === 'post-dive' || gameState === 'gameover') && resultScrollMaxY > 0;
+}
+
+// Events that originate inside an HTML overlay belong to that overlay's own
+// scrolling, never to the canvas behind it. The state guard above covers the
+// overlays that exist today; this covers any that get added later.
+function _eventInsideHtmlOverlay(e) {
+    var t = e.target;
+    return !!(t && t.closest && t.closest('#html-help-overlay, #html-gas-setup'));
 }
 
 function scrollResultScreen(deltaPx) {
@@ -109,7 +124,7 @@ function resetResultScroll() {
 }
 
 window.addEventListener('wheel', e => {
-    if (!resultScreenScrollable()) return;
+    if (!resultScreenScrollable() || _eventInsideHtmlOverlay(e)) return;
     e.preventDefault();
     scrollResultScreen(e.deltaY);
 }, { passive: false });
@@ -118,12 +133,13 @@ window.addEventListener('wheel', e => {
 // #touch-ui elements, this is a drag anywhere over the canvas.
 var _resultTouchY = null;
 window.addEventListener('touchstart', e => {
-    if (!resultScreenScrollable()) return;
+    if (!resultScreenScrollable() || _eventInsideHtmlOverlay(e)) return;
     if (e.target && e.target.closest && e.target.closest('.t-btn')) return;
     _resultTouchY = e.touches[0] ? e.touches[0].clientY : null;
 }, { passive: true });
 window.addEventListener('touchmove', e => {
     if (_resultTouchY === null || !resultScreenScrollable()) return;
+    if (_eventInsideHtmlOverlay(e)) { _resultTouchY = null; return; }
     var y = e.touches[0] ? e.touches[0].clientY : null;
     if (y === null) return;
     e.preventDefault();

@@ -525,8 +525,9 @@ canvas { display: block; }
   border-radius: 14px;
   padding: 4px;
   /* Issue #121: 3px between two 41px targets left almost no dead space, so a
-     slightly-off tap landed on the neighbouring mode. */
-  gap: 6px;
+     slightly-off tap landed on the neighbouring mode. 6px still measured under
+     the 8px target once flex rounding took a pixel off one gap. */
+  gap: 10px;
   margin: 0 0 14px !important;
 }
 #html-gas-setup .gs-modes:has([data-mode]) .gs-btn {

@@ -584,6 +584,7 @@ const STRINGS = {
     diveComplete: 'DIVE COMPLETE',
     avgDepthLbl: 'Avg Depth',
     gasUsed: 'used',
+    barLeft: 'bar left',
     safetySkipped: '\u26A0 SAFETY STOP SKIPPED',
     safetyExpl: [
       'A safety stop helps off-gas dissolved nitrogen and reduces',
@@ -819,6 +820,7 @@ const STRINGS = {
     diveComplete: 'TAUCHGANG BEENDET',
     avgDepthLbl: 'Durchschn. Tiefe',
     gasUsed: 'verbraucht',
+    barLeft: 'bar übrig',
     safetySkipped: '\u26A0 SICHERHEITSSTOPP AUSGELASSEN',
     safetyExpl: [
       'Ein Sicherheitsstopp hilft, gel\u00F6sten Stickstoff abzuatmen und',

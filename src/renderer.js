@@ -9374,7 +9374,7 @@ function drawPostDive() {
     y += 38;
     cx.font = 'bold 38px ' + DCF;
     cx.fillStyle = hudColor('ok');
-    cx.fillText(S('diveComplete'), centerX, y);
+    drawFittedText(cx, S('diveComplete'), centerX, y, W - 24);
     y += 30;
 
     // Stats card: Dive Time / Max / Avg
@@ -9493,15 +9493,15 @@ function drawPostDive() {
         var o2Used = (ccrState.o2CylPressureStart - ccrState.o2CylPressure) * ccrState.o2CylVolume;
         var dilUsed = (ccrState.dilCylPressureStart - ccrState.dilCylPressure) * ccrState.dilCylVolume;
         var scrubUsed = ccrState.scrubberTotal - ccrState.scrubberRemaining;
-        cx.fillText(S('ccrO2Cyl') + ': ' + o2Used.toFixed(0) + 'L ' + S('gasUsed') + ' / ' + ccrState.o2CylPressure.toFixed(0) + ' bar left', centerX, y);
+        drawFittedText(cx, S('ccrO2Cyl') + ': ' + o2Used.toFixed(0) + 'L ' + S('gasUsed') + ' / ' + ccrState.o2CylPressure.toFixed(0) + ' ' + S('barLeft'), centerX, y, W - 32);
         y += 24;
-        cx.fillText(S('ccrDilCyl') + ': ' + dilUsed.toFixed(0) + 'L ' + S('gasUsed') + ' / ' + ccrState.dilCylPressure.toFixed(0) + ' bar left', centerX, y);
+        drawFittedText(cx, S('ccrDilCyl') + ': ' + dilUsed.toFixed(0) + 'L ' + S('gasUsed') + ' / ' + ccrState.dilCylPressure.toFixed(0) + ' ' + S('barLeft'), centerX, y, W - 32);
         y += 24;
-        cx.fillText(S('ccrScrubber') + ': ' + scrubUsed.toFixed(0) + ' min ' + S('gasUsed'), centerX, y);
+        drawFittedText(cx, S('ccrScrubber') + ': ' + scrubUsed.toFixed(0) + ' min ' + S('gasUsed'), centerX, y, W - 32);
         y += 24;
         if (ccrState.onBailout) {
             cx.fillStyle = hudColor('caution');
-            cx.fillText(S('ccrBailout'), centerX, y);
+            drawFittedText(cx, S('ccrBailout'), centerX, y, W - 32);
             cx.fillStyle = '#a8b6cc';
             y += 24;
         }
@@ -9509,7 +9509,7 @@ function drawPostDive() {
         for (var ti = 0; ti < tankCount; ti++) {
             var tk = tanks[ti];
             var used = tk.totalGas - tk.gasRemaining;
-            cx.fillText('Tank ' + (ti + 1) + ' (' + tk.label + '): ' + used.toFixed(0) + 'L ' + S('gasUsed') + ' / ' + tk.totalGas + 'L', centerX, y);
+            drawFittedText(cx, 'Tank ' + (ti + 1) + ' (' + tk.label + '): ' + used.toFixed(0) + 'L ' + S('gasUsed') + ' / ' + tk.totalGas + 'L', centerX, y, W - 32);
             y += 24;
         }
     }
@@ -9519,7 +9519,7 @@ function drawPostDive() {
     if (safetyStopNeeded && !safetyStopComplete) {
         cx.font = 'bold 16px monospace';
         cx.fillStyle = hudColor('caution');
-        cx.fillText(S('safetySkipped'), centerX, y);
+        drawFittedText(cx, S('safetySkipped'), centerX, y, W - 24);
         y += 22;
         cx.font = '12px monospace';
         cx.fillStyle = '#8694a1';
@@ -9542,7 +9542,7 @@ function drawPostDive() {
     // Tissue loading bar graph — N2 + He
     cx.font = 'bold 14px monospace';
     cx.fillStyle = '#8694a1';
-    cx.fillText(S('tissueLoading'), centerX, y);
+    drawFittedText(cx, S('tissueLoading'), centerX, y, W - 24);
     y += 20;
 
     var startX = centerX - totalBarW / 2;
@@ -9618,7 +9618,7 @@ function drawPostDive() {
         cx.lineWidth = 1;
         cx.stroke();
         cx.fillStyle = '#7df0b0';
-        cx.fillText(pTxt, centerX, y + 4);
+        drawFittedText(cx, pTxt, centerX, y + 4, W - 32);
         y += 14;
     }
 
@@ -9632,6 +9632,35 @@ function drawPostDive() {
 // ============================================================
 //  GAME OVER SCREEN
 // ============================================================
+
+// Issue #120: the result screens lay out in absolute pixels, so any string
+// wider than the canvas ran off both edges with no way to reach it — scrolling
+// recovers height, not width. Single-line headings and stat lines cannot be
+// wrapped without breaking the layout around them, so shrink to fit instead.
+//
+// Shrinks the current font down to 60% (never below 9px), then hands whatever
+// is still too wide to the canvas `maxWidth` squeeze, so the string can never
+// overhang however long a translation turns out to be. The caller's font is
+// restored, so this is a drop-in for `cx.fillText(t, x, y)`.
+//
+// Worst case measured at 320px: "PULMONARY BAROTRAUMA — PNEUMOTHORAX" spanned
+// x=-61.7…381.7 against a 320px canvas.
+function drawFittedText(cx, text, x, y, maxWidth) {
+    var str = String(text);
+    var originalFont = cx.font;
+    var parts = /^(.*?)(\d+(?:\.\d+)?)px(.*)$/.exec(originalFont);
+    if (parts && cx.measureText(str).width > maxWidth) {
+        var px = parseFloat(parts[2]);
+        var floor = Math.max(9, px * 0.6);
+        while (px > floor) {
+            px -= 1;
+            cx.font = parts[1] + px + 'px' + parts[3];
+            if (cx.measureText(str).width <= maxWidth) break;
+        }
+    }
+    cx.fillText(str, x, y, maxWidth);
+    cx.font = originalFont;
+}
 
 function drawWrappedText(cx, text, x, y, maxWidth, lineHeight, measureOnly) {
     var words = text.split(' ');
@@ -9690,13 +9719,13 @@ function drawGameOver() {
     y += 46;
     cx.font = 'bold 46px ' + DCF;
     cx.fillStyle = hudColor('danger');
-    cx.fillText(S('gameOver'), centerX, y);
+    drawFittedText(cx, S('gameOver'), centerX, y, W - 24);
     y += 40;
 
     // Failure reason
     cx.font = 'bold 24px ' + DCF;
     cx.fillStyle = '#ffb060';
-    cx.fillText(S('gameOverReasons')[gameOverReason] || gameOverReason, centerX, y);
+    drawFittedText(cx, S('gameOverReasons')[gameOverReason] || gameOverReason, centerX, y, W - 24);
     y += 35;
 
     cx.textAlign = 'left';
@@ -9770,7 +9799,7 @@ function drawGameOver() {
     cx.font = '14px monospace';
     cx.fillStyle = '#8694a1';
     cx.textAlign = 'center';
-    cx.fillText(S('diveTimeLbl') + ': ' + formatTime(diveTime) + '    ' + S('maxDepthLbl') + ': ' + maxDepth.toFixed(1) + 'm', centerX, y);
+    drawFittedText(cx, S('diveTimeLbl') + ': ' + formatTime(diveTime) + '    ' + S('maxDepthLbl') + ': ' + maxDepth.toFixed(1) + 'm', centerX, y, W - 32);
     y += 35;
 
     if (!isTouchDevice) {
@@ -9786,7 +9815,7 @@ function drawGameOver() {
         cx.lineWidth = 1;
         cx.stroke();
         cx.fillStyle = '#ff9a9a';
-        cx.fillText(gTxt, centerX, y + 4);
+        drawFittedText(cx, gTxt, centerX, y + 4, W - 32);
         y += 14;
     }
 

@@ -1948,6 +1948,9 @@ window.gameAPI = {
     get cssHeight() { return cssHeight; },
     set cssHeight(v) { cssHeight = v; },
     get gameOverReason() { return gameOverReason; },
+    // Issue #120 test hook: result-screen layout is asserted per reason, and
+    // each reason produces a different amount of text.
+    set gameOverReason(v) { gameOverReason = v; },
     get tissues() { return tissues; },
     set tissues(v) { tissues = v; },
     get tissuesHe() { return tissuesHe; },
@@ -1993,6 +1996,9 @@ window.gameAPI = {
     get ndlDroppedBelow5() { return ndlDroppedBelow5; },
     calculateSafetyStopDuration: calculateSafetyStopDuration,
     get showHelp() { return showHelp; },
+    // Issue #120 test hook: the help overlay layers over a result screen, and
+    // the two must not fight over the same wheel/touch events.
+    set showHelp(v) { showHelp = !!v; },
     get showAdvanced() { return isAdvanced(); },
     set showAdvanced(v) { switchMode(v ? 'tec' : 'rec'); },
     get diveMode() { return diveMode; },
@@ -2037,6 +2043,14 @@ window.gameAPI = {
     calculatePO2: calculatePO2,
     calculateMOD: calculateMOD,
     calculateTTS: calculateTTS,
+    // Issue #120: result-screen scroll offset and its measured bound, so a test
+    // can assert that content drawn below the fold is actually reachable.
+    get resultScrollY() { return resultScrollY; },
+    set resultScrollY(v) { resultScrollY = v; },
+    get resultScrollMaxY() { return resultScrollMaxY; },
+    // Translation lookup, so layout assertions can enumerate the strings that
+    // are actually drawn rather than restating them.
+    S: S,
     bestGasForDepth: bestGasForDepth,
     get DIVER_SCREEN_X_FRACTION() { return DIVER_SCREEN_X_FRACTION; },
     get SAFETY_STOP_ACTIVE_MIN_D() { return SAFETY_STOP_ACTIVE_MIN_D; },
