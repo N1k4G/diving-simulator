@@ -91,7 +91,6 @@ const CURRENT_PARAMS = {
 };
 
 // Phase C: dive-site geometry constants
-const DIVER_RADIUS          = 0.6;   // metres — half-width of the diver collision shape
 const GUIDELINE_MAX_NODES   = 400;   // maximum breadcrumb nodes stored
 const GUIDELINE_SAMPLE_SEC  = 1.0;   // dive-seconds between guideline samples
 const SILT_KICK_THRESHOLD   = 0.35;  // m/s above which fast kicks stir silt

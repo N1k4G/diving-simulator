@@ -27,7 +27,6 @@ const gameGlobals = {
   FINKICK_PARAMS: "readonly", CURRENT_PARAMS: "readonly",
   WORLD_MPS: "readonly",
   // Phase C constants (sites.js / constants.js)
-  DIVER_RADIUS: "readonly",
   GUIDELINE_MAX_NODES: "readonly", GUIDELINE_SAMPLE_SEC: "readonly",
   SILT_KICK_THRESHOLD: "readonly", SILT_DECAY: "readonly",
   SILT_RECOVER: "readonly", TORCH_RADIUS_M: "readonly",
