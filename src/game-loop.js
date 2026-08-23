@@ -2163,6 +2163,8 @@ window.gameAPI = {
     // so a spec can assert extent and passability without restating the maths.
     solidBoxAt: solidBoxAt,
     diverSolidAt: diverSolidAt,
+    solidOverlapArea: solidOverlapArea,
+    diverOverlapArea: diverOverlapArea,
     get DIVER_HALF_WIDTH_M() { return DIVER_HALF_WIDTH_M; },
     get DIVER_HALF_HEIGHT_M() { return DIVER_HALF_HEIGHT_M; },
     overheadAt: overheadAt,

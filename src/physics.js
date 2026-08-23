@@ -129,11 +129,24 @@ function updateBuoyancyPhysics(dtSec) {
         var vstep = _dz / vsteps;
         for (var vk = 0; vk < vsteps; vk++) {
             var ndp = depth + vstep;
-            // Issue #122: the diver's body, not its centre. The
-            // "only block when crossing from open water INTO solid" rule is
-            // what lets a diver who somehow starts overlapping swim free, and
-            // it matters more with an extent than it did with a point.
-            if (diverSolidAt(diverX, ndp) && !diverSolidAt(diverX, depth)) {
+            // Issue #122: the diver's body, not its centre — and the step is
+            // allowed only if it does not bury the diver deeper.
+            //
+            // "Block only when crossing from open water into solid" was too
+            // permissive: once overlapping, nothing blocked at all, so a diver
+            // resting 0.1 m inside the 39..40 m deck sank straight through it
+            // to d=43.7. Comparing buried area keeps the escape (out is always
+            // allowed) without granting free passage through the slab.
+            // Strictly INCREASING, not "non-decreasing": a diver buried deep
+            // enough to be fully engulfed sees a flat gradient — every nearby
+            // step has identical buried area — so demanding a strict decrease
+            // pins it in place, which is the stuck-diver bug this guard exists
+            // to prevent. Equal is allowed so it can drift to where the
+            // gradient tips; increasing never is, so it cannot bury itself
+            // further or reach the far side.
+            var vHere = diverOverlapArea(diverX, depth);
+            var vThere = diverOverlapArea(diverX, ndp);
+            if (vThere > vHere) {
                 verticalVelocity = 0;
                 break;
             }
@@ -182,15 +195,15 @@ function updateHorizontalPhysics(dtSec, kickDir) {
     var sx = dispX / steps;
     for (var k = 0; k < steps; k++) {
         var nx = diverX + sx;
-        // Issue #122: same body test as the vertical pass, and the same escape
-        // clause — which this path never had. With a point test, a diver could
-        // not be inside a wall without its centre being there, so there was
-        // nothing to escape from. With an extent, an overlap is reachable (a
-        // structure appearing, a site switch, a restored save), and without the
-        // `!diverSolidAt(diverX, depth)` guard the diver would be walled in
-        // with no way out in either direction.
+        // Issue #122: same rule as the vertical pass. An overlap is reachable
+        // with an extent (a restored save, a site switch, edited geometry), so
+        // the diver must always be able to work its way out — but only out.
+        // Allowing any movement while overlapping let it cross the whole bow
+        // stem from x=16.2 to x=11 and exit the far side.
         var pinched = depth > floorAt(nx) || depth < ceilingAt(nx);
-        if (pinched || (diverSolidAt(nx, depth) && !diverSolidAt(diverX, depth))) {
+        var hHere = diverOverlapArea(diverX, depth);
+        var hThere = diverOverlapArea(nx, depth);
+        if (pinched || hThere > hHere) {
             horizontalVelocity = 0;
             break;
         }

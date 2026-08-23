@@ -208,6 +208,7 @@ const gameGlobals = {
   floorAt: "readonly", ceilingAt: "readonly",
   solidAt: "readonly", overheadAt: "readonly", badAirAt: "readonly",
   solidBoxAt: "readonly", diverSolidAt: "readonly",
+  solidOverlapArea: "readonly", diverOverlapArea: "readonly",
   // Issue #53: Visual zones (sites.js + state.js + renderer.js)
   visualZoneAt: "readonly", zoneBlendWeight: "readonly",
   VISUAL_ZONE_DEFAULT_PRIORITY: "readonly", VISUAL_ZONE_DEFAULT_BLEND: "readonly",

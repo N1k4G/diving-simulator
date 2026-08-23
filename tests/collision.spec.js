@@ -93,6 +93,94 @@ test('a diver already overlapping a structure can swim free', async ({ page }) =
   expect(errors).toEqual([]);
 });
 
+test('vertical extent blocks where the centre is clear', async ({ page }) => {
+  // Every other probe here approaches a VERTICAL wall, so it exercises
+  // DIVER_HALF_WIDTH_M only. Setting DIVER_HALF_HEIGHT_M to 0 used to pass the
+  // whole file: the passability assertion only requires the height to be
+  // SMALLER than a doorway, and zero is smaller.
+  const errors = await bootGame(page);
+
+  const probe = await page.evaluate(() => {
+    const A = window.gameAPI;
+    A.diveSite = 'wreck';
+    const halfH = A.DIVER_HALF_HEIGHT_M;
+    // Vehicle-deck floor is a horizontal slab at d=39..40, x=14..78. Just above
+    // it the centre is in open water while the diver's underside is not.
+    const x = 50, d = 39 - halfH / 2;
+    return {
+      halfH,
+      centreClear: A.solidAt(x, d),
+      bodyBlocked: A.diverSolidAt(x, d),
+      // Well clear of the slab, both must agree it is open water.
+      farAboveCentre: A.solidAt(x, 39 - halfH - 1),
+      farAboveBody: A.diverSolidAt(x, 39 - halfH - 1),
+    };
+  });
+
+  expect(probe.halfH, 'the diver must have a vertical extent at all').toBeGreaterThan(0);
+  expect(probe.centreClear, 'centre should be above the deck').toBe(false);
+  expect(probe.bodyBlocked, 'underside should be inside the deck').toBe(true);
+  expect(probe.farAboveCentre).toBe(false);
+  expect(probe.farAboveBody).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('an overlapping diver can escape but cannot travel through', async ({ page }) => {
+  // The escape clause has to permit only overlap-REDUCING movement. Permitting
+  // any movement while overlapping let the diver cross the whole bow stem from
+  // x=16.2 out to x=11, and sink through the 39..40 m deck from d=38.8 to
+  // d=43.7 — turning a stuck-diver guard into a noclip.
+  const errors = await bootGame(page);
+
+  const result = await page.evaluate(() => {
+    const A = window.gameAPI;
+    A.diveSite = 'wreck';
+
+    // Horizontal: start with the body overlapping the bow stem (x=14..16).
+    const startX = 16.2, startD = 33.8;
+    const runH = dir => {
+      diverX = startX; depth = startD;
+      horizontalVelocity = 0; verticalVelocity = 0;
+      for (let i = 0; i < 600; i += 1) updateHorizontalPhysics(1 / 60, dir);
+      return +diverX.toFixed(3);
+    };
+    const outward = runH(1);
+    const inward = runH(-1);
+
+    // Vertical: rest the body 0.1 m inside the deck slab and let go.
+    diverX = 50; depth = 38.8;
+    verticalVelocity = 0; horizontalVelocity = 0;
+    const sank = (() => {
+      for (let i = 0; i < 900; i += 1) updateBuoyancyPhysics(1 / 60);
+      return +depth.toFixed(3);
+    })();
+
+    return {
+      startX, startOverlapping: A.diverSolidAt(startX, startD),
+      outward, inward,
+      stemFarSide: 14,
+      deckStartOverlapping: A.diverSolidAt(50, 38.8),
+      sank, deckBottom: 40,
+    };
+  });
+
+  expect(result.startOverlapping, 'probe must start overlapping').toBe(true);
+  // Escape outward still works.
+  expect(result.outward).toBeGreaterThan(result.startX + 0.5);
+  // But the far side of the structure is unreachable.
+  expect(
+    result.inward,
+    `travelled through the stem to x=${result.inward}`
+  ).toBeGreaterThan(result.stemFarSide);
+
+  expect(result.deckStartOverlapping, 'deck probe must start overlapping').toBe(true);
+  expect(
+    result.sank,
+    `sank through the deck to d=${result.sank}`
+  ).toBeLessThan(result.deckBottom);
+  expect(errors).toEqual([]);
+});
+
 test('every authored passage stays navigable with the diver extent applied', async ({ page }) => {
   // The guard against over-correcting. Measured openings before this change:
   // wreck bulkhead doorways 1.5m in depth, mess/cabin door 2.0m in x; cave

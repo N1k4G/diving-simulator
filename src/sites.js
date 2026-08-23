@@ -831,6 +831,34 @@ function diverSolidAt(x, d) {
   return solidBoxAt(x, d, DIVER_HALF_WIDTH_M, DIVER_HALF_HEIGHT_M);
 }
 
+// How much of a box centred on (x, d) is buried in solid structure, as summed
+// overlap area in m².
+//
+// A boolean "am I inside something" is not enough to move safely out of an
+// overlap. Permitting *any* movement while overlapping lets the diver keep
+// going straight through and out the far side — from x=16.2 the diver crossed
+// the entire bow stem to x=11, and one resting 0.1 m into the 39..40 m deck
+// fell through it to d=43.7. Comparing buried area before and after a step
+// distinguishes "getting out" from "going further in", which a boolean cannot.
+function solidOverlapArea(x, d, halfWidth, halfHeight) {
+  var s = activeSite();
+  if (!s) return 0;
+  var total = 0;
+  for (var i = 0; i < s.structures.length; i++) {
+    var w = s.structures[i];
+    var dx = Math.min(x + halfWidth, w.x2) - Math.max(x - halfWidth, w.x1);
+    if (dx <= 0) continue;
+    var dd = Math.min(d + halfHeight, w.dBottom) - Math.max(d - halfHeight, w.dTop);
+    if (dd <= 0) continue;
+    total += dx * dd;
+  }
+  return total;
+}
+
+function diverOverlapArea(x, d) {
+  return solidOverlapArea(x, d, DIVER_HALF_WIDTH_M, DIVER_HALF_HEIGHT_M);
+}
+
 // True if the straight-up path from (x, d) to the surface is blocked.
 // Drives torch / silt / guideline / rule-of-thirds for overhead environments.
 function overheadAt(x, d) {
