@@ -61,6 +61,77 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
+// SECTION: Result-screen scrolling
+// SEARCH TERMS: resultScrollY, resultScrollMaxY, issue #120
+
+// ============================================================
+//  RESULT-SCREEN SCROLLING (issue #120)
+//
+//  The post-dive and game-over screens are painted onto the canvas, and
+//  `html, body { overflow: hidden }` (style.css) means the page itself never
+//  scrolls. drawPostDive()/drawGameOver() lay out in absolute pixels with no
+//  clamp, so on a phone the content simply runs off the bottom and is
+//  unreachable — the whole tissue-loading chart starts below the fold at
+//  320x568, and every game-over reason overflows.
+//
+//  The setup and help overlays solve this by being HTML with overflow-y:auto.
+//  These two are canvas, so they carry their own scroll offset instead: the
+//  renderer translates by -resultScrollY and reports how tall the content
+//  actually was, which is what bounds the offset.
+// ============================================================
+
+// Current scroll offset in CSS px. 0 = top.
+var resultScrollY = 0;
+// Furthest the content can scroll, in CSS px. Set by the renderer once it has
+// measured the frame it just drew; 0 means everything fits and scrolling is
+// inert (no wheel capture, no indicator).
+var resultScrollMaxY = 0;
+
+// Wheel/drag steps are in CSS px; the key step is a comfortable "page" nudge.
+var RESULT_SCROLL_KEY_STEP = 60;
+
+function resultScreenScrollable() {
+    return (gameState === 'post-dive' || gameState === 'gameover') && resultScrollMaxY > 0;
+}
+
+function scrollResultScreen(deltaPx) {
+    if (!resultScreenScrollable()) return;
+    resultScrollY = Math.max(0, Math.min(resultScrollMaxY, resultScrollY + deltaPx));
+}
+
+// Previous frame's gameState, so the loop can spot entry into a result screen.
+var _lastGameState = null;
+
+// Reset on entry so a second dive never opens mid-page.
+function resetResultScroll() {
+    resultScrollY = 0;
+    resultScrollMaxY = 0;
+}
+
+window.addEventListener('wheel', e => {
+    if (!resultScreenScrollable()) return;
+    e.preventDefault();
+    scrollResultScreen(e.deltaY);
+}, { passive: false });
+
+// Touch drag. Tracked separately from touch.js's button bindings: those live on
+// #touch-ui elements, this is a drag anywhere over the canvas.
+var _resultTouchY = null;
+window.addEventListener('touchstart', e => {
+    if (!resultScreenScrollable()) return;
+    if (e.target && e.target.closest && e.target.closest('.t-btn')) return;
+    _resultTouchY = e.touches[0] ? e.touches[0].clientY : null;
+}, { passive: true });
+window.addEventListener('touchmove', e => {
+    if (_resultTouchY === null || !resultScreenScrollable()) return;
+    var y = e.touches[0] ? e.touches[0].clientY : null;
+    if (y === null) return;
+    e.preventDefault();
+    scrollResultScreen(_resultTouchY - y);
+    _resultTouchY = y;
+}, { passive: false });
+window.addEventListener('touchend', () => { _resultTouchY = null; }, { passive: true });
+
 // SECTION: Input / keyboard state
 // SEARCH TERMS: keys, keydown, keyup, addEventListener
 
@@ -106,6 +177,22 @@ window.addEventListener('keydown', e => {
     // needed here for those overlays being open at press time.
     if ((e.key === 'l' || e.key === 'L') && gameState === 'diving') {
         instructorMode = !instructorMode;
+    }
+    // Issue #120: keyboard scrolling for the canvas result screens. Guarded on
+    // resultScreenScrollable() so these keys keep their normal meaning
+    // everywhere else, and stay inert when the content already fits.
+    if (resultScreenScrollable()) {
+        var step = 0;
+        if (e.key === 'ArrowDown') step = RESULT_SCROLL_KEY_STEP;
+        else if (e.key === 'ArrowUp') step = -RESULT_SCROLL_KEY_STEP;
+        else if (e.key === 'PageDown') step = cssHeight * 0.8;
+        else if (e.key === 'PageUp') step = -cssHeight * 0.8;
+        else if (e.key === 'Home') step = -resultScrollMaxY;
+        else if (e.key === 'End') step = resultScrollMaxY;
+        if (step !== 0) {
+            e.preventDefault();
+            scrollResultScreen(step);
+        }
     }
 });
 window.addEventListener('keyup', e => {

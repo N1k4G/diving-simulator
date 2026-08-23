@@ -261,7 +261,9 @@ canvas { display: block; }
 #html-help-overlay .help-section-title { font-size: 12px; font-weight: bold; margin-bottom: 4px; }
 #html-help-overlay .help-section-text { font-size: 11px; color: #bbb; line-height: 1.5; }
 #html-help-overlay .help-close-btn {
-  display: block; margin: 20px auto; padding: 12px 40px;
+  /* Issue #121: 12px padding + 14px monospace came to 43px — one pixel under
+     the minimum, which is exactly the kind of thing only measurement finds. */
+  display: block; margin: 20px auto; padding: 12px 40px; min-height: 44px;
   background: rgba(255,255,255,0.12); color: #888; border: 1px solid rgba(255,255,255,0.25);
   border-radius: 10px; font-family: monospace; font-weight: bold; font-size: 14px; cursor: pointer;
   touch-action: manipulation;
@@ -521,14 +523,17 @@ canvas { display: block; }
   background: rgba(255,255,255,0.038);
   border: 1px solid rgba(255,255,255,0.09);
   border-radius: 14px;
-  padding: 3px;
-  gap: 3px;
+  padding: 4px;
+  /* Issue #121: 3px between two 41px targets left almost no dead space, so a
+     slightly-off tap landed on the neighbouring mode. */
+  gap: 6px;
   margin: 0 0 14px !important;
 }
 #html-gas-setup .gs-modes:has([data-mode]) .gs-btn {
   border-radius: 11px;
   padding: 10px 0;
-  min-height: 40px;
+  /* WCAG 2.5.5 / iOS HIG minimum. Was 40px. */
+  min-height: 44px;
   border-color: transparent;
   background: transparent;
   letter-spacing: 0.08em;
@@ -537,16 +542,23 @@ canvas { display: block; }
 
 /* ── Gas Setup: layout density ─────────────────────────────────── */
 #html-gas-setup .gs-card { padding: 11px 14px; margin-bottom: 10px; }
-#html-gas-setup .gs-presets { gap: 6px; margin-bottom: 14px; }
+/* Issue #121: gas/site preset chips measured 38-39px tall with 5-7px gaps. */
+#html-gas-setup .gs-presets { gap: 8px; margin-bottom: 14px; }
 #html-gas-setup .gs-presets .gs-btn {
-  padding: 9px 0; font-size: 12px; border-radius: 10px; letter-spacing: 0.02em;
+  padding: 12px 0; min-height: 44px; font-size: 12px; border-radius: 10px;
+  letter-spacing: 0.02em;
 }
 #html-gas-setup .gs-mod { padding: 8px 14px; margin: 0 0 12px; font-size: 12px; }
 #html-gas-setup .gs-title { margin-bottom: 14px; }
 
 @media (max-width: 480px) {
   .t-tank-btns .t-btn { width: 44px; height: 44px; font-size: 12px; }
-  #html-gas-setup .gs-btn { min-width: 40px; min-height: 38px; padding: 4px 10px; font-size: 14px; }
+  /* Issue #121: this used to set min-height: 38px, overriding the 44px base
+     rule specifically on the phones where hitting a target is hardest. Narrow
+     the button (horizontal room is the real constraint at 320px) but keep the
+     full touch height. The setup panel already scrolls (overflow-y: auto), so
+     the extra height costs reachability nothing. */
+  #html-gas-setup .gs-btn { min-width: 44px; min-height: 44px; padding: 4px 8px; font-size: 14px; }
   #html-gas-setup .gs-btn.gs-accent { min-width: 160px; min-height: 44px; font-size: 16px; }
   #html-gas-setup .gs-value { font-size: 26px; }
   #html-gas-setup .gs-title { font-size: 20px; }

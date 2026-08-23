@@ -1139,6 +1139,28 @@ function gameLoop(timestamp) {
 
     ctx.clearRect(0, 0, cssWidth, cssHeight);
 
+    // Issue #120: reset the result-screen scroll on entry, so a second dive
+    // never opens mid-page. Detected as a transition rather than reset at each
+    // `gameState = 'post-dive'` / `'gameover'` assignment — there are 13 of
+    // those and a 14th would silently miss it.
+    if (gameState !== _lastGameState) {
+        if (gameState === 'post-dive' || gameState === 'gameover') resetResultScroll();
+        // Issue #120: the four in-dive HUD chips are shown/hidden inside
+        // updateDiving(), which stops being called the moment the dive ends —
+        // so whatever was on screen at that instant stayed on screen. Ending a
+        // wreck or cave dive left the rule-of-thirds chip latched on, sitting
+        // over the post-dive header. Clear them on any exit from 'diving'
+        // rather than at each of the 13 places that end a dive.
+        if (_lastGameState === 'diving' && gameState !== 'diving') {
+            var _chipIds = ['hud-horizontal-speed', 'hud-current', 'hud-thirds', 'hud-backway'];
+            for (var _ci = 0; _ci < _chipIds.length; _ci++) {
+                var _chip = document.getElementById(_chipIds[_ci]);
+                if (_chip) _chip.style.display = 'none';
+            }
+        }
+        _lastGameState = gameState;
+    }
+
     switch (gameState) {
         case 'gas-setup':
             updateGasSetup();
