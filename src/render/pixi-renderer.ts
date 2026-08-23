@@ -1,11 +1,27 @@
 import { Application, Container, Graphics } from "pixi.js";
 
 import type { PresentationState } from "../presentation/presentation-state";
-import { createCameraTransform } from "./camera";
+import { LAYERS, type LayerId, type QualityTier } from "../sites/asset-manifest";
+import { buildSceneLayers } from "../sites/layer-factory";
+import { createCameraTransform, type CameraTransform } from "./camera";
+import {
+  BUBBLE_LAYER,
+  RETAINED_LAYER_ASSIGNMENT,
+  visibleHalfExtentM,
+  type RetainedElement,
+} from "./layer-assignment";
 import type { SceneRenderer, WreckSceneState } from "./renderer";
 
 const MAX_RESOLUTION = 2;
 const BUBBLE_COUNT = 14;
+const SITE_ID = "wreck";
+
+// Extra world-space margin beyond the visible window, so content is resident
+// before it scrolls in. Resyncs happen only once the camera has travelled
+// RESYNC_DISTANCE_M, so the margin has to exceed that or content can enter the
+// frame during the gap between syncs.
+const CULL_MARGIN_M = 10;
+const RESYNC_DISTANCE_M = 4;
 
 export class PixiWreckRenderer implements SceneRenderer {
   readonly kind = "pixi" as const;
@@ -18,6 +34,14 @@ export class PixiWreckRenderer implements SceneRenderer {
   #diver = new Container();
   #bubbles: Graphics[] = [];
   #viewport = { width: 1, height: 1 };
+  #layers = new Map<LayerId, Container>();
+  // Placement markers are pooled. Camera movement changes which features are
+  // visible many times a dive; allocating a Graphics per feature per resync
+  // would churn the heap for a scene whose contents barely change.
+  #markerPool: Graphics[] = [];
+  #activeMarkers: Graphics[] = [];
+  #lastSyncFocus: { x: number; y: number } | null = null;
+  #qualityTier: QualityTier = "high";
 
   async mount(host: HTMLElement): Promise<void> {
     if (this.#app) {
@@ -43,10 +67,17 @@ export class PixiWreckRenderer implements SceneRenderer {
     app.stage.addChild(this.#background, this.#world);
     this.#buildRetainedScene();
 
+    // Size first, then sync: the cull window is derived from the camera, so
+    // syncing against the placeholder 1x1 viewport would populate the scene for
+    // a window that does not exist.
     const bounds = host.getBoundingClientRect();
     this.resize(
       Math.max(1, bounds.width || 960),
       Math.max(1, bounds.height || 540),
+    );
+    this.#syncSceneLayers(
+      createCameraTransform(this.#viewport, { x: 0, y: 0 }),
+      true,
     );
   }
 
@@ -61,6 +92,11 @@ export class PixiWreckRenderer implements SceneRenderer {
     }
     app.renderer.resize(this.#viewport.width, this.#viewport.height);
     this.#drawBackground();
+    // The cull window is a function of the viewport, so a resize or an
+    // orientation change invalidates it even when the camera has not moved.
+    // Without this, rotating to portrait keeps the landscape window and the
+    // newly visible depth band stays empty until the diver travels 4 m.
+    this.#lastSyncFocus = null;
   }
 
   render(
@@ -79,6 +115,7 @@ export class PixiWreckRenderer implements SceneRenderer {
     );
     this.#world.pivot.set(camera.focus.x, camera.focus.y);
     this.#world.scale.set(camera.scale);
+    this.#syncSceneLayers(camera, false);
     this.#diver.position.set(scene.routePositionM, scene.diverDepthM);
     this.#diver.scale.x = scene.facing;
     this.#torch.visible = scene.torchOn;
@@ -110,6 +147,102 @@ export class PixiWreckRenderer implements SceneRenderer {
     this.#app = null;
     this.#host = null;
     this.#bubbles = [];
+    this.#layers.clear();
+    this.#markerPool = [];
+    this.#activeMarkers = [];
+    this.#lastSyncFocus = null;
+  }
+
+  /** Quality tier drops decoration before anything a diver navigates by. */
+  setQualityTier(tier: QualityTier): void {
+    if (tier === this.#qualityTier) {
+      return;
+    }
+    this.#qualityTier = tier;
+    this.#lastSyncFocus = null;
+  }
+
+  /** Visible placement count, for tests and the diagnostics overlay. */
+  get placementCount(): number {
+    return this.#activeMarkers.length;
+  }
+
+  #syncSceneLayers(camera: CameraTransform, force: boolean): void {
+    const focus = camera.focus;
+    if (
+      !force &&
+      this.#lastSyncFocus &&
+      Math.abs(focus.x - this.#lastSyncFocus.x) < RESYNC_DISTANCE_M &&
+      Math.abs(focus.y - this.#lastSyncFocus.y) < RESYNC_DISTANCE_M
+    ) {
+      return;
+    }
+    this.#lastSyncFocus = { x: focus.x, y: focus.y };
+
+    // Derive the window from the camera rather than from constants. A fixed
+    // half-height cannot describe the visible world: the camera fits a constant
+    // 58 m of WIDTH, so visible height is viewport.height / scale and grows with
+    // aspect ratio. At 390x844 that is ~125 m of depth on screen against a
+    // 20 m half-height, which culled four on-screen placements — the engine row
+    // at d=61 and the anchor at d=66 — while the diver was looking straight at
+    // them. Desktop and landscape hid this because their windows are shorter
+    // than the constant.
+    const { halfWidthM, halfHeightM } = visibleHalfExtentM(camera);
+
+    const layers = buildSceneLayers(SITE_ID, {
+      qualityTier: this.#qualityTier,
+      cullMarginM: CULL_MARGIN_M,
+      camera: {
+        leftM: focus.x - halfWidthM,
+        rightM: focus.x + halfWidthM,
+        topM: focus.y - halfHeightM,
+        bottomM: focus.y + halfHeightM,
+      },
+    });
+
+    for (const marker of this.#activeMarkers) {
+      marker.visible = false;
+      this.#markerPool.push(marker);
+    }
+    this.#activeMarkers = [];
+
+    for (const layer of layers) {
+      const container = this.#layers.get(layer.id);
+      if (!container) {
+        continue;
+      }
+      for (const placement of layer.placements) {
+        const marker = this.#takeMarker();
+        marker.visible = true;
+        marker.position.set(placement.x, placement.d);
+        // Unconditional, not `if (marker.parent !== container)`. buildSceneLayers
+        // sorts placements within a layer (shallowest first, then x) so the same
+        // data always yields the same scene — but a pooled marker reused in the
+        // container it already sits in keeps its stale child index, so that sort
+        // stopped being reflected in the display list after the first resync.
+        // Pixi's addChild splices an existing child out and pushes it to the
+        // end, so calling it every time is what applies the ordering. Invisible
+        // today because every marker is the same provisional circle; it would
+        // surface as soon as real atlas frames overlap.
+        container.addChild(marker);
+        this.#activeMarkers.push(marker);
+      }
+    }
+  }
+
+  #takeMarker(): Graphics {
+    const pooled = this.#markerPool.pop();
+    if (pooled) {
+      return pooled;
+    }
+    // Provisional marker geometry. Production atlases are BLOCKED_EXTERNAL, so
+    // placements are drawn as a deliberately plain shape rather than as art
+    // guessed at here; the manifest already fixes the atlas/frame contract they
+    // will be loaded through.
+    return new Graphics()
+      .circle(0, 0, 0.32)
+      .fill({ color: 0x4f7f7a, alpha: 0.34 })
+      .stroke({ color: 0x8fd4c8, width: 0.06, alpha: 0.5 });
   }
 
   #buildRetainedScene(): void {
@@ -184,7 +317,23 @@ export class PixiWreckRenderer implements SceneRenderer {
       .stroke({ color: 0x17252a, width: 0.25 });
 
     this.#diver.addChild(this.#torch, diverBody);
-    this.#world.addChild(
+
+    // Explicit, named layers replace a flat addChild list. Draw order is now a
+    // declared property of the scene rather than an accident of call order, and
+    // data-driven placements have somewhere to go.
+    for (const id of LAYERS) {
+      const container = new Container();
+      container.label = id;
+      this.#layers.set(id, container);
+    }
+
+    // Draw order is only "declared" if something can read the declaration.
+    // Expressed as addChild calls it was still an accident of call order, and
+    // nothing could assert it — which is how silt ended up in `terrain`, below
+    // the hull, hiding 31 of its 48 particles. RETAINED_LAYER_ASSIGNMENT is the
+    // declaration; see render/layer-assignment.ts for why each element sits
+    // where it does, and site-layers.test.ts for the invariants it must hold.
+    const retained: Readonly<Record<RetainedElement, Graphics | Container>> = {
       distantHull,
       seabed,
       hull,
@@ -192,15 +341,25 @@ export class PixiWreckRenderer implements SceneRenderer {
       engine,
       route,
       silt,
-      this.#diver,
-    );
+      diver: this.#diver,
+    };
+    for (const [element, layerId] of Object.entries(RETAINED_LAYER_ASSIGNMENT)) {
+      this.#layers.get(layerId)?.addChild(retained[element as RetainedElement]);
+    }
+
+    for (const id of LAYERS) {
+      const container = this.#layers.get(id);
+      if (container) {
+        this.#world.addChild(container);
+      }
+    }
 
     for (let index = 0; index < BUBBLE_COUNT; index += 1) {
       const bubble = new Graphics()
         .circle(0, 0, 0.08 + (index % 4) * 0.025)
         .stroke({ color: 0xbdefff, width: 0.045, alpha: 0.88 });
       this.#bubbles.push(bubble);
-      this.#world.addChild(bubble);
+      this.#layers.get(BUBBLE_LAYER)?.addChild(bubble);
     }
   }
 

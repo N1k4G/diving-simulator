@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://diving-simulator.local/schemas/site-presentation.json",
+  "title": "Dive site presentation resource",
+  "description": "Art-only site data: features, visual zones, atmosphere and decoration rules. Nothing here may reach collision, air, spawning or currents — those live in the gameplay resource. Feature kinds carry their own extra fields, so feature objects stay open; every field this schema does name is typed, so a string where a number belongs fails validation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "sourceDigest", "generator", "sites"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "diving-simulator-site-presentation" },
+    "sourceDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "generator": { "type": "string", "minLength": 1 },
+    "sites": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/site" }
+    }
+  },
+  "$defs": {
+    "feature": {
+      "type": "object",
+      "required": ["kind", "x"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "x": { "type": "number" },
+        "d": { "type": "number", "minimum": 0 },
+        "dTop": { "type": "number", "minimum": 0 },
+        "dBottom": { "type": "number", "minimum": 0 }
+      }
+    },
+    "visualZone": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "x1", "x2", "d1", "d2"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "x1": { "type": "number" },
+        "x2": { "type": "number" },
+        "d1": { "type": "number", "minimum": 0 },
+        "d2": { "type": "number", "minimum": 0 },
+        "priority": { "type": "number" },
+        "blend": { "type": "number", "minimum": 0 },
+        "tags": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "atmosphereProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "visibility": { "type": "number", "minimum": 0 },
+        "tint": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "type": "number" }
+        },
+        "particleDensity": { "type": "number", "minimum": 0 },
+        "particleBrightness": { "type": "number", "minimum": 0 },
+        "ambient": { "type": "number", "minimum": 0 }
+      }
+    },
+    "decorationRule": {
+      "description": "Every field renderer.js reads off a rule, whether or not the shipped data authors it yet. An undeclared numeric field is worse than an absent one: the renderer's guards are all `rule.f != null && x < rule.f`, so a string makes the comparison NaN-false and the guard silently stops guarding. Closed against unknown fields so a typo'd name fails here rather than being read as `undefined` and defaulted away.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "zone"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "zone": { "type": "string", "minLength": 1 },
+        "spacing": { "type": "number", "exclusiveMinimum": 0 },
+        "density": { "type": "number", "minimum": 0 },
+        "seed": { "type": "number" },
+        "surface": { "type": "string", "enum": ["floor", "ceiling"] },
+        "minDepth": { "type": "number", "minimum": 0 },
+        "maxDepth": { "type": "number", "minimum": 0 },
+        "minScale": { "type": "number", "exclusiveMinimum": 0 },
+        "maxScale": { "type": "number", "exclusiveMinimum": 0 },
+        "maxPerScreen": { "type": "integer", "minimum": 0 },
+        "rotationJitter": { "type": "number", "minimum": 0 },
+        "alpha": { "type": "number", "minimum": 0, "maximum": 1 },
+        "props": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind"],
+            "properties": {
+              "kind": { "type": "string", "minLength": 1 },
+              "weight": { "type": "number", "exclusiveMinimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "site": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "surfaceMarker": { "type": "string" },
+        "features": { "type": "array", "items": { "$ref": "#/$defs/feature" } },
+        "visualZones": { "type": "array", "items": { "$ref": "#/$defs/visualZone" } },
+        "atmosphereProfiles": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/atmosphereProfile" }
+        },
+        "decorationRules": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/decorationRule" }
+        }
+      }
+    }
+  }
+}

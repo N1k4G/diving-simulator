@@ -26,7 +26,9 @@
     "wp06:perf": "npm run build && node scripts/capture-wp06-performance.mjs",
     "license-check": "license-checker --excludePrivatePackages --onlyAllow \"MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;MPL-2.0;0BSD;CC0-1.0;CC-BY-3.0;Python-2.0;WTFPL;Unlicense;BlueOak-1.0.0\"",
     "prepare": "husky",
-    "baseline:visual-compare": "node scripts/compare-rendering.mjs"
+    "baseline:visual-compare": "node scripts/compare-rendering.mjs",
+    "sites:generate": "node scripts/generate-site-resources.mjs",
+    "sites:check": "node scripts/generate-site-resources.mjs --check"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.0",

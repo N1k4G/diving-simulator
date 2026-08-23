@@ -1,0 +1,692 @@
+{
+  "schemaVersion": 1,
+  "sourceDigest": "sha256:58e238f55504ff06feb901fde6adc3d0234ab8a9b0bfbb3702a803b1cf35bc69",
+  "generator": "npm run sites:generate",
+  "kind": "diving-simulator-site-gameplay",
+  "sites": {
+    "shore": {
+      "id": "shore",
+      "maxDepth": 32,
+      "hasOverhead": false,
+      "entry": {
+        "x": 0
+      },
+      "boatX": 100,
+      "floor": [
+        {
+          "x": -10,
+          "d": 0
+        },
+        {
+          "x": 0,
+          "d": 3
+        },
+        {
+          "x": 35,
+          "d": 6
+        },
+        {
+          "x": 70,
+          "d": 10
+        },
+        {
+          "x": 95,
+          "d": 14
+        },
+        {
+          "x": 115,
+          "d": 22
+        },
+        {
+          "x": 140,
+          "d": 28
+        },
+        {
+          "x": 185,
+          "d": 30
+        }
+      ],
+      "ceiling": null,
+      "structures": [
+        {
+          "x1": 100,
+          "x2": 118,
+          "dTop": 14,
+          "dBottom": 26,
+          "kind": "rock"
+        },
+        {
+          "x1": 122,
+          "x2": 132,
+          "dTop": 18,
+          "dBottom": 30,
+          "kind": "rock"
+        },
+        {
+          "x1": 135,
+          "x2": 152,
+          "dTop": 24,
+          "dBottom": 30,
+          "kind": "wreckSmall"
+        },
+        {
+          "x1": 158,
+          "x2": 171,
+          "dTop": 25,
+          "dBottom": 36,
+          "kind": "rock"
+        },
+        {
+          "x1": 175,
+          "x2": 184,
+          "dTop": 27,
+          "dBottom": 37,
+          "kind": "rock"
+        }
+      ],
+      "badAir": [],
+      "currentBias": 0,
+      "noShark": true
+    },
+    "reef": {
+      "id": "reef",
+      "maxDepth": 300,
+      "hasOverhead": false,
+      "entry": {
+        "x": 0
+      },
+      "boatX": 60,
+      "floor": [
+        {
+          "x": -200,
+          "d": 300
+        },
+        {
+          "x": -26,
+          "d": 300
+        },
+        {
+          "x": -20,
+          "d": 90
+        },
+        {
+          "x": -12,
+          "d": 30
+        },
+        {
+          "x": -9,
+          "d": 12
+        },
+        {
+          "x": -8,
+          "d": 5
+        },
+        {
+          "x": 8,
+          "d": 5
+        },
+        {
+          "x": 9,
+          "d": 12
+        },
+        {
+          "x": 12,
+          "d": 30
+        },
+        {
+          "x": 20,
+          "d": 90
+        },
+        {
+          "x": 26,
+          "d": 300
+        },
+        {
+          "x": 200,
+          "d": 300
+        }
+      ],
+      "ceiling": null,
+      "structures": [],
+      "badAir": [],
+      "currentBias": 0.4,
+      "noShark": false
+    },
+    "wreck": {
+      "id": "wreck",
+      "maxDepth": 68,
+      "hasOverhead": true,
+      "entry": {
+        "x": 0
+      },
+      "boatX": 5,
+      "floor": [
+        {
+          "x": -40,
+          "d": 66
+        },
+        {
+          "x": 200,
+          "d": 66
+        }
+      ],
+      "ceiling": null,
+      "structures": [
+        {
+          "x1": 14,
+          "x2": 170,
+          "dTop": 65,
+          "dBottom": 66,
+          "kind": "hull"
+        },
+        {
+          "x1": 14,
+          "x2": 16,
+          "dTop": 28,
+          "dBottom": 66,
+          "kind": "hull"
+        },
+        {
+          "x1": 168,
+          "x2": 170,
+          "dTop": 28,
+          "dBottom": 66,
+          "kind": "hull"
+        },
+        {
+          "x1": 22,
+          "x2": 78,
+          "dTop": 27,
+          "dBottom": 28,
+          "kind": "deck"
+        },
+        {
+          "x1": 92,
+          "x2": 148,
+          "dTop": 27,
+          "dBottom": 28,
+          "kind": "deck"
+        },
+        {
+          "x1": 40,
+          "x2": 42,
+          "dTop": 22,
+          "dBottom": 28,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 138,
+          "x2": 140,
+          "dTop": 22,
+          "dBottom": 28,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 88,
+          "x2": 90,
+          "dTop": 23,
+          "dBottom": 26,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 42,
+          "x2": 78,
+          "dTop": 22,
+          "dBottom": 23,
+          "kind": "deck"
+        },
+        {
+          "x1": 92,
+          "x2": 138,
+          "dTop": 22,
+          "dBottom": 23,
+          "kind": "deck"
+        },
+        {
+          "x1": 70,
+          "x2": 72,
+          "dTop": 18,
+          "dBottom": 23,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 108,
+          "x2": 110,
+          "dTop": 18,
+          "dBottom": 23,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 72,
+          "x2": 108,
+          "dTop": 18,
+          "dBottom": 19,
+          "kind": "deck"
+        },
+        {
+          "x1": 84,
+          "x2": 96,
+          "dTop": 14,
+          "dBottom": 19,
+          "kind": "funnel"
+        },
+        {
+          "x1": 75,
+          "x2": 76,
+          "dTop": 10,
+          "dBottom": 18,
+          "kind": "mast"
+        },
+        {
+          "x1": 14,
+          "x2": 78,
+          "dTop": 39,
+          "dBottom": 40,
+          "kind": "deck"
+        },
+        {
+          "x1": 92,
+          "x2": 168,
+          "dTop": 39,
+          "dBottom": 40,
+          "kind": "deck"
+        },
+        {
+          "x1": 14,
+          "x2": 78,
+          "dTop": 45,
+          "dBottom": 46,
+          "kind": "deck"
+        },
+        {
+          "x1": 92,
+          "x2": 168,
+          "dTop": 45,
+          "dBottom": 46,
+          "kind": "deck"
+        },
+        {
+          "x1": 14,
+          "x2": 78,
+          "dTop": 52,
+          "dBottom": 53,
+          "kind": "deck"
+        },
+        {
+          "x1": 92,
+          "x2": 168,
+          "dTop": 52,
+          "dBottom": 53,
+          "kind": "deck"
+        },
+        {
+          "x1": 14,
+          "x2": 78,
+          "dTop": 61,
+          "dBottom": 62,
+          "kind": "deck"
+        },
+        {
+          "x1": 92,
+          "x2": 168,
+          "dTop": 61,
+          "dBottom": 62,
+          "kind": "deck"
+        },
+        {
+          "x1": 22,
+          "x2": 23,
+          "dTop": 40,
+          "dBottom": 43.5,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 32,
+          "x2": 33,
+          "dTop": 41.5,
+          "dBottom": 45,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 42,
+          "x2": 43,
+          "dTop": 40,
+          "dBottom": 43.5,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 52,
+          "x2": 53,
+          "dTop": 41.5,
+          "dBottom": 45,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 62,
+          "x2": 63,
+          "dTop": 40,
+          "dBottom": 43.5,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 72,
+          "x2": 73,
+          "dTop": 41.5,
+          "dBottom": 45,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 96,
+          "x2": 97,
+          "dTop": 40,
+          "dBottom": 43.5,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 106,
+          "x2": 107,
+          "dTop": 41.5,
+          "dBottom": 45,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 116,
+          "x2": 117,
+          "dTop": 40,
+          "dBottom": 43.5,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 126,
+          "x2": 127,
+          "dTop": 41.5,
+          "dBottom": 45,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 136,
+          "x2": 137,
+          "dTop": 40,
+          "dBottom": 43.5,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 146,
+          "x2": 147,
+          "dTop": 41.5,
+          "dBottom": 45,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 156,
+          "x2": 157,
+          "dTop": 40,
+          "dBottom": 43.5,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 28,
+          "x2": 29,
+          "dTop": 46,
+          "dBottom": 50.5,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 42,
+          "x2": 43,
+          "dTop": 47.5,
+          "dBottom": 52,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 56,
+          "x2": 57,
+          "dTop": 46,
+          "dBottom": 52,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 70,
+          "x2": 71,
+          "dTop": 47.5,
+          "dBottom": 52,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 100,
+          "x2": 101,
+          "dTop": 46,
+          "dBottom": 50.5,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 114,
+          "x2": 115,
+          "dTop": 47.5,
+          "dBottom": 52,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 128,
+          "x2": 129,
+          "dTop": 46,
+          "dBottom": 50.5,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 142,
+          "x2": 143,
+          "dTop": 46,
+          "dBottom": 52,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 156,
+          "x2": 157,
+          "dTop": 47.5,
+          "dBottom": 52,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 34,
+          "x2": 35,
+          "dTop": 53,
+          "dBottom": 59,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 56,
+          "x2": 57,
+          "dTop": 53,
+          "dBottom": 59,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 112,
+          "x2": 113,
+          "dTop": 53,
+          "dBottom": 59,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 134,
+          "x2": 135,
+          "dTop": 53,
+          "dBottom": 59,
+          "kind": "bulkhead"
+        },
+        {
+          "x1": 156,
+          "x2": 157,
+          "dTop": 53,
+          "dBottom": 59,
+          "kind": "bulkhead"
+        }
+      ],
+      "badAir": [],
+      "currentBias": 0.2,
+      "noShark": false
+    },
+    "cave": {
+      "id": "cave",
+      "maxDepth": 106,
+      "hasOverhead": true,
+      "entry": {
+        "x": 0
+      },
+      "floor": [
+        {
+          "x": -10,
+          "d": 2
+        },
+        {
+          "x": 0,
+          "d": 10
+        },
+        {
+          "x": 15,
+          "d": 16
+        },
+        {
+          "x": 30,
+          "d": 20
+        },
+        {
+          "x": 50,
+          "d": 23
+        },
+        {
+          "x": 56,
+          "d": 42
+        },
+        {
+          "x": 64,
+          "d": 74
+        },
+        {
+          "x": 72,
+          "d": 96
+        },
+        {
+          "x": 90,
+          "d": 103
+        },
+        {
+          "x": 112,
+          "d": 103
+        },
+        {
+          "x": 124,
+          "d": 95
+        },
+        {
+          "x": 132,
+          "d": 74
+        },
+        {
+          "x": 140,
+          "d": 42
+        },
+        {
+          "x": 146,
+          "d": 24
+        },
+        {
+          "x": 160,
+          "d": 20
+        },
+        {
+          "x": 185,
+          "d": 14
+        },
+        {
+          "x": 200,
+          "d": 6
+        }
+      ],
+      "ceiling": [
+        {
+          "x": -10,
+          "d": 0
+        },
+        {
+          "x": 14,
+          "d": 0
+        },
+        {
+          "x": 18,
+          "d": 14
+        },
+        {
+          "x": 30,
+          "d": 15
+        },
+        {
+          "x": 50,
+          "d": 14
+        },
+        {
+          "x": 75,
+          "d": 13
+        },
+        {
+          "x": 103,
+          "d": 12
+        },
+        {
+          "x": 109,
+          "d": 12
+        },
+        {
+          "x": 130,
+          "d": 14
+        },
+        {
+          "x": 146,
+          "d": 16
+        },
+        {
+          "x": 160,
+          "d": 15
+        },
+        {
+          "x": 185,
+          "d": 9
+        },
+        {
+          "x": 196,
+          "d": 4
+        },
+        {
+          "x": 200,
+          "d": 0
+        }
+      ],
+      "structures": [
+        {
+          "x1": 70,
+          "x2": 130,
+          "dTop": 22,
+          "dBottom": 52,
+          "kind": "bedrock"
+        },
+        {
+          "x1": 88,
+          "x2": 91,
+          "dTop": 12,
+          "dBottom": 16,
+          "kind": "pillar"
+        }
+      ],
+      "badAir": [
+        {
+          "x1": 103,
+          "x2": 109,
+          "d": 12
+        }
+      ],
+      "currentBias": 0.05,
+      "noShark": true
+    }
+  }
+}

@@ -33,6 +33,9 @@ jobs:
       - name: License check
         run: npm run license-check
 
+      - name: Check generated site resources are current
+        run: npm run sites:check
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
