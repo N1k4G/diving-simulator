@@ -42,6 +42,17 @@ jobs:
       - name: Pixi visual regression check
         run: npm run pixi:visual-check
 
+      # As in pr.yml: the breach diagnostic is written to disk and would
+      # otherwise die with the runner.
+      - name: Upload Pixi visual diff frames
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pixi-visual-actual-frames
+          path: tests/fixtures/reference-frames/pixi/**/*.actual.png
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Run migration client unit tests
         run: npm run test:unit
 

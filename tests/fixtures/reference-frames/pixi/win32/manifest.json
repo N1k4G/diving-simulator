@@ -29,7 +29,7 @@
         "channelSpread": 31.946
       }
     },
-    "wreck-torch-on": {
+    "wreck-torch-off": {
       "statistics": {
         "meanLuma": 40.454,
         "sdLuma": 29.135,

@@ -91,8 +91,10 @@ const VIEWPORT = { width: 960, height: 540 };
 const SCENES = [
   {
     id: 'wreck-exterior-start',
-    // As mounted: backdrop, terrain, structure and foreground all visible.
+    // As mounted: backdrop, terrain, structure and foreground all visible,
+    // including the torch beam, which the controller enables by default.
     frames: 30,
+    expectTorch: true,
   },
   {
     id: 'wreck-descended',
@@ -101,12 +103,21 @@ const SCENES = [
     // it does not depend on how fast the machine ran.
     frames: 30,
     hold: { key: 'ArrowDown', frames: 75 },
+    expectTorch: true,
   },
   {
-    id: 'wreck-torch-on',
-    // The torch is a foreground element drawn over the structure layer.
+    id: 'wreck-torch-off',
+    // The torch beam is a foreground element over the structure layer, so the
+    // scene that earns its place is the one WITHOUT it — the controller starts
+    // with the torch on, which the two scenes above already cover.
+    //
+    // This was originally named `wreck-torch-on` and pressed `t` to "enable"
+    // the torch. It disabled it: GameController starts torchOn=true. The scene
+    // captured the opposite of its name and duplicated coverage it claimed to
+    // add, and nothing noticed because a frame is a frame.
     frames: 30,
     press: 't',
+    expectTorch: false,
   },
 ];
 
@@ -221,6 +232,20 @@ async function captureScene(browser, baseUrl, scene) {
   if (scene.press) {
     await page.keyboard.press(scene.press);
     await step(scene.frames);
+  }
+
+  // Assert the scene is the state it claims to be, rather than trusting that
+  // driving it produced one. A frame is a frame — a scene that silently
+  // captures the opposite of its name still records and still compares clean.
+  if (scene.expectTorch !== undefined) {
+    const pressed = await page.locator('[data-torch]').getAttribute('aria-pressed');
+    const actual = pressed === 'true';
+    if (actual !== scene.expectTorch) {
+      throw new Error(
+        `${scene.id}: expected the torch ${scene.expectTorch ? 'on' : 'off'} but it is ` +
+        `${actual ? 'on' : 'off'} — the scene is not exercising what its name says.`,
+      );
+    }
   }
 
   const viewport = page.locator('[data-wreck-viewport]');
