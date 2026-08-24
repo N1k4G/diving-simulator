@@ -42,6 +42,22 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
+      - name: Pixi visual regression check
+        run: npm run pixi:visual-check
+
+      # The checker writes <scene>.actual.png beside its reference on a breach
+      # and tells the reviewer to look at it. Without this the runner exits and
+      # the only copy is gone — and the references are platform-keyed, so a
+      # maintainer on another OS cannot reproduce these pixels locally.
+      - name: Upload Pixi visual diff frames
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pixi-visual-actual-frames
+          path: tests/fixtures/reference-frames/pixi/**/*.actual.png
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Run migration client unit tests
         run: npm run test:unit
 

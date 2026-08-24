@@ -28,7 +28,11 @@
     "prepare": "husky",
     "baseline:visual-compare": "node scripts/compare-rendering.mjs",
     "sites:generate": "node scripts/generate-site-resources.mjs",
-    "sites:check": "node scripts/generate-site-resources.mjs --check"
+    "sites:check": "node scripts/generate-site-resources.mjs --check",
+    "prepixi:visual-check": "npm run build",
+    "pixi:visual-check": "node scripts/pixi-visual-check.mjs",
+    "prepixi:visual-update": "npm run build",
+    "pixi:visual-update": "node scripts/pixi-visual-check.mjs --update"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.0",
