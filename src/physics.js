@@ -129,7 +129,22 @@ function updateBuoyancyPhysics(dtSec) {
         var vstep = _dz / vsteps;
         for (var vk = 0; vk < vsteps; vk++) {
             var ndp = depth + vstep;
-            if (solidAt(diverX, ndp) && !solidAt(diverX, depth)) {
+            // Issue #122: the diver's body, not its centre — and the step is
+            // allowed only if it does not bury the diver deeper.
+            //
+            // "Block only when crossing from open water into solid" was too
+            // permissive: once overlapping, nothing blocked at all, so a diver
+            // resting 0.1 m inside the 39..40 m deck sank straight through it
+            // to d=43.7. Comparing buried area keeps the escape (out is always
+            // allowed) without granting free passage through the slab.
+            // Strictly INCREASING, not "non-decreasing": a diver buried deep
+            // enough to be fully engulfed sees a flat gradient — every nearby
+            // step has identical buried area — so demanding a strict decrease
+            // pins it in place, which is the stuck-diver bug this guard exists
+            // to prevent. Equal is allowed so it can drift to where the
+            // gradient tips; increasing never is, so it cannot bury itself
+            // further or reach the far side.
+            if (diverOverlapGrew(diverX, depth, diverX, ndp)) {
                 verticalVelocity = 0;
                 break;
             }
@@ -178,8 +193,13 @@ function updateHorizontalPhysics(dtSec, kickDir) {
     var sx = dispX / steps;
     for (var k = 0; k < steps; k++) {
         var nx = diverX + sx;
-        // Blocked by solid structure, or by terrain pinch at the new x position
-        if (solidAt(nx, depth) || depth > floorAt(nx) || depth < ceilingAt(nx)) {
+        // Issue #122: same rule as the vertical pass. An overlap is reachable
+        // with an extent (a restored save, a site switch, edited geometry), so
+        // the diver must always be able to work its way out — but only out.
+        // Allowing any movement while overlapping let it cross the whole bow
+        // stem from x=16.2 to x=11 and exit the far side.
+        var pinched = depth > floorAt(nx) || depth < ceilingAt(nx);
+        if (pinched || diverOverlapGrew(diverX, depth, nx, depth)) {
             horizontalVelocity = 0;
             break;
         }

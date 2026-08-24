@@ -804,6 +804,81 @@ function solidAt(x, d) {
   return false;
 }
 
+// True if an axis-aligned box centred on (x, d) overlaps any solid structure.
+//
+// Issue #122: solidAt() is a point test, so the diver only stopped once its
+// CENTRE reached a wall and the sprite had already penetrated about a metre.
+// This is the same AABB comparison widened by the diver's extent — still exact,
+// not sampled, so a box can never slip between two probe points.
+//
+// solidAt() is kept as-is rather than reimplemented in terms of this: it is the
+// site-geometry predicate the parity suite replays and other callers (fauna
+// steering, visual zones) genuinely want a point test.
+function solidBoxAt(x, d, halfWidth, halfHeight) {
+  var s = activeSite();
+  if (!s) return false;
+  for (var i = 0; i < s.structures.length; i++) {
+    var w = s.structures[i];
+    if (x + halfWidth >= w.x1 && x - halfWidth <= w.x2 &&
+        d + halfHeight >= w.dTop && d - halfHeight <= w.dBottom) return true;
+  }
+  return false;
+}
+
+// The diver's own body, for the movement code. Everything that asks "can the
+// diver be here" goes through this rather than solidAt().
+function diverSolidAt(x, d) {
+  return solidBoxAt(x, d, DIVER_HALF_WIDTH_M, DIVER_HALF_HEIGHT_M);
+}
+
+// How much of a box centred on (x, d) is buried in solid structure, as summed
+// overlap area in m².
+//
+// A boolean "am I inside something" is not enough to move safely out of an
+// overlap. Permitting *any* movement while overlapping lets the diver keep
+// going straight through and out the far side — from x=16.2 the diver crossed
+// the entire bow stem to x=11, and one resting 0.1 m into the 39..40 m deck
+// fell through it to d=43.7. Comparing buried area before and after a step
+// distinguishes "getting out" from "going further in", which a boolean cannot.
+function solidOverlapArea(x, d, halfWidth, halfHeight) {
+  var s = activeSite();
+  if (!s) return 0;
+  var total = 0;
+  for (var i = 0; i < s.structures.length; i++) {
+    var w = s.structures[i];
+    var dx = Math.min(x + halfWidth, w.x2) - Math.max(x - halfWidth, w.x1);
+    if (dx <= 0) continue;
+    var dd = Math.min(d + halfHeight, w.dBottom) - Math.max(d - halfHeight, w.dTop);
+    if (dd <= 0) continue;
+    total += dx * dd;
+  }
+  return total;
+}
+
+function diverOverlapArea(x, d) {
+  return solidOverlapArea(x, d, DIVER_HALF_WIDTH_M, DIVER_HALF_HEIGHT_M);
+}
+
+// True if moving from (fromX, fromD) to (toX, toD) would bury the diver deeper.
+//
+// The comparison needs a tolerance, and the tolerance is the whole point. A
+// fully engulfed diver sits on a mathematically FLAT gradient — the buried area
+// is a constant 0.54 m² whichever way it moves — and that allowance is what
+// lets it work its way out instead of being pinned. But a flat gradient does
+// not produce bitwise-equal doubles: at wreck (15.5, 63.7) adjacent depths
+// sample as 0.539999999999994 and 0.5400000000000005, so an exact `>` reads
+// "no change" as "deeper" and re-traps the diver — at d=63.706328 with zero
+// velocity, still inside the hull. Whether it happened depended on the
+// coordinate, which is the worst kind of intermittent.
+//
+// Scaled to the diver's own box so it stays correct if the extents change, and
+// ~1e-9 of it: far above double noise (~1e-16 at this magnitude), far below any
+// overlap change a movement step could actually produce.
+function diverOverlapGrew(fromX, fromD, toX, toD) {
+  var tolerance = (2 * DIVER_HALF_WIDTH_M) * (2 * DIVER_HALF_HEIGHT_M) * 1e-9;
+  return diverOverlapArea(toX, toD) > diverOverlapArea(fromX, fromD) + tolerance;
+}
+
 // True if the straight-up path from (x, d) to the surface is blocked.
 // Drives torch / silt / guideline / rule-of-thirds for overhead environments.
 function overheadAt(x, d) {
