@@ -874,6 +874,99 @@ function diverOverlapArea(x, d) {
 // Scaled to the diver's own box so it stays correct if the extents change, and
 // ~1e-9 of it: far above double noise (~1e-16 at this magnitude), far below any
 // overlap change a movement step could actually produce.
+// Push the diver out of any structure it is overlapping, along whichever axis
+// needs the least movement, and report whether it moved.
+//
+// Issue #131: escaping an overlap during movement requires allowing equal-area
+// steps, because a fully engulfed diver sits on a flat gradient and has no
+// strictly-reducing step available. That allowance also lets it slide along
+// inside a slab. Resolving the overlap before physics runs makes the engulfed
+// state transient instead of somewhere the diver can travel.
+//
+// An overlap is only reachable anomalously — a restored save, a site switch,
+// edited geometry — so a discontinuous nudge is the right shape of fix. It is
+// also less strange to watch than a diver swimming out through solid steel.
+function resolveDiverOverlap() {
+  var s = activeSite();
+  if (!s) return false;
+  var moved = false;
+
+  // Bounded: each pass strictly reduces buried area, so it terminates. Ten is
+  // far more than the authored geometry stacks.
+  for (var pass = 0; pass < 10; pass++) {
+    var here = diverOverlapArea(diverX, depth);
+    if (here <= 0) return moved;
+
+    // Candidate exits from EVERY structure the diver is inside, not just the
+    // deepest one. Exiting one box at a time ping-pongs through stacked
+    // geometry: at the wreck mast (x=75..76, d=10..18) sitting on the bridge
+    // deck (x=72..108, d=18..19) the two form one continuous column, and
+    // leaving the mast downward lands in the deck, whose own cheapest exit is
+    // straight back up into the mast. The diver oscillated 17.7 <-> 18.3 until
+    // the pass limit gave up.
+    var CLEAR = 1e-6;
+    var candidates = [];
+    for (var i = 0; i < s.structures.length; i++) {
+      var w = s.structures[i];
+      var dx = Math.min(diverX + DIVER_HALF_WIDTH_M, w.x2) - Math.max(diverX - DIVER_HALF_WIDTH_M, w.x1);
+      if (dx <= 0) continue;
+      var dd = Math.min(depth + DIVER_HALF_HEIGHT_M, w.dBottom) - Math.max(depth - DIVER_HALF_HEIGHT_M, w.dTop);
+      if (dd <= 0) continue;
+      candidates.push({ x: w.x1 - DIVER_HALF_WIDTH_M - CLEAR,  d: depth, vertical: false });
+      candidates.push({ x: w.x2 + DIVER_HALF_WIDTH_M + CLEAR,  d: depth, vertical: false });
+      candidates.push({ x: diverX, d: w.dTop - DIVER_HALF_HEIGHT_M - CLEAR,    vertical: true });
+      candidates.push({ x: diverX, d: w.dBottom + DIVER_HALF_HEIGHT_M + CLEAR, vertical: true });
+    }
+
+    // The NEAREST candidate that makes progress, not the one that clears the
+    // most. Ranking residual area first made the resolver jump straight to
+    // whatever fully freed it, however far away: at the wreck bulkhead/deck
+    // corner (56.1, 51.9) that was a 22.35 m horizontal teleport to the main
+    // hatch, when stepping 0.55 m left and then 0.2 m up clears it in two
+    // passes for about 0.75 m total.
+    //
+    // Requiring a strict reduction is what guarantees termination — each pass
+    // leaves the diver less buried than it found it, and zero is the floor.
+    //
+    // Legality is checked against the site clamp, because an exit the clamp
+    // undoes is not an exit. On the wreck keel (x=14..170, d=65..66, floor 66)
+    // at (100, 65.5), up and down tie on distance; "down" reached d=66.300001
+    // and the buoyancy clamp put it straight back to d=66, still inside, where
+    // it stayed for as long as anything cared to tick.
+    var best = null;
+    for (var c = 0; c < candidates.length; c++) {
+      var cand = candidates[c];
+      var legal = cand.vertical
+        ? (cand.d >= ceilingAt(diverX) && cand.d <= floorAt(diverX) &&
+           cand.d >= 0 && cand.d <= MAX_DEPTH)
+        : (depth >= ceilingAt(cand.x) && depth <= floorAt(cand.x));
+      if (!legal) continue;
+      var after = diverOverlapArea(cand.x, cand.d);
+      if (after >= here - 1e-12) continue;   // no progress: cannot terminate on it
+      var move = Math.abs(cand.vertical ? cand.d - depth : cand.x - diverX);
+      if (best === null || move < best.move) {
+        best = { cand: cand, after: after, move: move };
+      }
+    }
+
+    // Nothing legal, or nothing that improves matters: the diver is buried in
+    // geometry with no way out the site clamp will allow. Shoving it somewhere
+    // illegal would trade one stuck state for another, so leave it to the
+    // movement rule, which still permits overlap-reducing steps.
+    if (best === null) return moved;
+
+    if (best.cand.vertical) {
+      depth = best.cand.d;
+      verticalVelocity = 0;
+    } else {
+      diverX = best.cand.x;
+      horizontalVelocity = 0;
+    }
+    moved = true;
+  }
+  return moved;
+}
+
 function diverOverlapGrew(fromX, fromD, toX, toD) {
   var tolerance = (2 * DIVER_HALF_WIDTH_M) * (2 * DIVER_HALF_HEIGHT_M) * 1e-9;
   return diverOverlapArea(toX, toD) > diverOverlapArea(fromX, fromD) + tolerance;

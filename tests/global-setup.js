@@ -15,6 +15,18 @@ const MIME_TYPES = {
   '.woff2': 'font/woff2',
 };
 
+// One stat instead of up to four. The handler called existsSync + statSync
+// twice over, so every request did four synchronous filesystem round-trips on
+// the event loop — and the loop is the whole server. Under parallel workers
+// that serialised every asset fetch behind every other one.
+function statOrNull(filePath) {
+  try {
+    return fs.statSync(filePath);
+  } catch {
+    return null;
+  }
+}
+
 module.exports = async function startStaticTestServer() {
   const root = path.resolve(__dirname, '..');
   const server = http.createServer((request, response) => {
@@ -27,10 +39,12 @@ module.exports = async function startStaticTestServer() {
         response.writeHead(403).end();
         return;
       }
-      if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
+      let stats = statOrNull(filePath);
+      if (stats && stats.isDirectory()) {
         filePath = path.join(filePath, 'index.html');
+        stats = statOrNull(filePath);
       }
-      if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      if (!stats || !stats.isFile()) {
         response.writeHead(404).end();
         return;
       }

@@ -1,5 +1,11 @@
 const { expect, test } = require('@playwright/test');
 
+/** "28.1 m" -> 28.1. Returns NaN for a placeholder such as the em dash. */
+function parseMetres(text) {
+  const match = /(-?\d+(?:\.\d+)?)/.exec(String(text ?? ''));
+  return match ? Number(match[1]) : NaN;
+}
+
 const CROSS_CLIENT_TRACE = Object.freeze([
   Object.freeze({ kind: 'hold', key: 'ArrowDown', durationMs: 1250 }),
   Object.freeze({ kind: 'press', key: 't' }),
@@ -61,12 +67,35 @@ test('production starts the Pixi wreck shell with semantic HUD and controls', as
   await expect(depthValue).not.toHaveText(initialDepth || '');
   await expect(page.locator('[role="alert"]')).toBeHidden();
 
-  const savedDepth = await depthValue.textContent();
+  // Compare like with like. Reading the HUD here and asserting the restored HUD
+  // matches it raced the simulation: `pagehide` saves
+  // controller.authoritativeState, which keeps moving after the frame the HUD
+  // was painted from, so buoyancy momentum made the two differ by about a metre
+  // (27 m read, 28.1 m restored) and failed roughly one full-suite run in two.
+  //
+  // The property worth testing is that restoration reproduces what was SAVED,
+  // so read that back rather than a snapshot taken before the save happened.
+  const depthBeforeReload = parseMetres(await depthValue.textContent());
   await page.reload();
+
+  const savedDepthM = await page.evaluate(() => {
+    const raw = localStorage.getItem('diving-simulator.save-game');
+    return raw === null ? null : JSON.parse(raw).state.depthM;
+  });
+  expect(savedDepthM, 'the dive should have been persisted on pagehide').not.toBeNull();
+  // The descent really happened, so restoration has something to prove.
+  expect(savedDepthM).toBeGreaterThan(parseMetres(initialDepth));
+
   await page
     .getByRole('button', { name: 'I understand — start simulation' })
     .click();
-  await expect(page.locator('.wreck-hud dd').first()).toHaveText(savedDepth || '');
+  const restored = page.locator('.wreck-hud dd').first();
+  await expect(restored).toBeVisible();
+  await expect
+    .poll(async () => parseMetres(await restored.textContent()))
+    .toBeCloseTo(savedDepthM, 0);
+  // And it is the saved dive, not a fresh one at the starting depth.
+  expect(Math.abs(savedDepthM - depthBeforeReload)).toBeLessThan(5);
 });
 
 test('persisted safety states produce visible semantic warnings', async ({ page }) => {

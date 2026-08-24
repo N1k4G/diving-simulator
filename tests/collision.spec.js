@@ -235,6 +235,119 @@ test('a fully engulfed diver is not pinned by floating-point noise', async ({ pa
   expect(errors).toEqual([]);
 });
 
+test('no buried start position stays stuck, anywhere in any site', async ({ page }) => {
+  // Issue #131, and the two ways the first attempt at it failed.
+  //
+  // A single hand-picked probe cannot catch either. The slab originally used
+  // (x=14..78, d=39..40) has open water above and below, so both exits are
+  // legal and it never exercises the interesting cases:
+  //
+  //   - the site clamp undoing an exit. On the wreck keel (x=14..170, d=65..66,
+  //     floor 66) up and down tie, "down" reached d=66.300001, and the buoyancy
+  //     clamp put it straight back to d=66 still inside.
+  //   - stacked geometry. The mast (x=75..76, d=10..18) sits on the bridge deck
+  //     (x=72..108, d=18..19), forming one continuous column; leaving the mast
+  //     downward lands in the deck, whose cheapest exit is back up into the
+  //     mast. The diver oscillated 17.7 <-> 18.3 until the pass limit gave up.
+  //
+  // So sweep every authored structure instead of trusting a chosen spot, and
+  // drive the real dive loop rather than resolveDiverOverlap() directly — the
+  // wiring is what the fix depends on.
+  const errors = await bootGame(page);
+
+  const result = await page.evaluate(() => {
+    const A = window.gameAPI;
+    const stuck = [];
+    let tested = 0;
+    for (const site of ['shore', 'reef', 'wreck', 'cave']) {
+      A.diveSite = site;
+      for (const w of A.activeSite().structures) {
+        for (const x of [(w.x1 + w.x2) / 2, w.x1 + 0.1, w.x2 - 0.1]) {
+          for (const d of [(w.dTop + w.dBottom) / 2, w.dTop + 0.1, w.dBottom - 0.1]) {
+            if (!A.diverSolidAt(x, d)) continue;
+            tested += 1;
+            diverX = x; depth = d;
+            verticalVelocity = 0; horizontalVelocity = 0;
+            gameState = 'diving';
+            for (let i = 0; i < 120; i += 1) updateDiving(1 / 60);
+            if (A.diverSolidAt(diverX, depth)) {
+              stuck.push(`${site} (${x.toFixed(2)}, ${d.toFixed(2)}) -> (${diverX.toFixed(2)}, ${depth.toFixed(2)}) overlap ${A.diverOverlapArea(diverX, depth).toFixed(3)} m²`);
+            }
+          }
+        }
+      }
+    }
+    return { tested, stuck };
+  });
+
+  // Guard the sweep: if it stopped finding buried positions it would pass
+  // vacuously however broken resolution got.
+  expect(result.tested, 'sweep must find buried positions to test').toBeGreaterThan(400);
+  const report = `${result.stuck.length} of ${result.tested} still buried:\n${result.stuck.slice(0, 10).join('\n')}`;
+  expect(result.stuck, report).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('resolution takes the nearest way out, not the showiest', async ({ page }) => {
+  // Ranking residual overlap ahead of distance made the resolver clear itself
+  // in one jump however far that jump was. At the wreck bulkhead/deck corner
+  // (56.1, 51.9) it teleported 22.35 m sideways to the main hatch, because the
+  // hatch was the nearest place that left it completely free — while stepping
+  // 0.55 m left and then 0.2 m up clears it in two passes.
+  //
+  // The sweep above only asserts the diver ends up unstuck, so it called the
+  // 22 m teleport a success. Distance needs asserting separately.
+  const errors = await bootGame(page);
+
+  const result = await page.evaluate(() => {
+    const A = window.gameAPI;
+    A.diveSite = 'wreck';
+    const startX = 56.1, startD = 51.9;
+    diverX = startX; depth = startD;
+    verticalVelocity = 0; horizontalVelocity = 0;
+    const buriedAtStart = A.diverOverlapArea(startX, startD);
+
+    gameState = 'diving';
+    updateDiving(1 / 60);
+
+    return {
+      startX, startD, buriedAtStart,
+      x: diverX, d: depth,
+      stillSolid: A.diverSolidAt(diverX, depth),
+      displacement: Math.hypot(diverX - startX, depth - startD),
+    };
+  });
+
+  expect(result.buriedAtStart, 'corner probe must start buried').toBeGreaterThan(0);
+  expect(result.stillSolid).toBe(false);
+  // The two-step escape is about 0.75 m; the teleport was 22.35 m. Anything in
+  // between would still be the wrong shape of answer.
+  expect(
+    result.displacement,
+    `moved ${result.displacement.toFixed(2)} m to (${result.x.toFixed(2)}, ${result.d.toFixed(2)})`
+  ).toBeLessThan(2);
+});
+
+test('resolving an overlap is a no-op in open water', async ({ page }) => {
+  // It runs every dive tick, so it must not nudge a diver who is fine.
+  const errors = await bootGame(page);
+  const result = await page.evaluate(() => {
+    const A = window.gameAPI;
+    A.diveSite = 'wreck';
+    diverX = 100; depth = 33;   // clear of the wreck structures
+    horizontalVelocity = 1.2; verticalVelocity = -0.4;
+    const moved = A.resolveDiverOverlap();
+    return { moved, x: diverX, d: depth, hv: horizontalVelocity, vv: verticalVelocity };
+  });
+  expect(result.moved).toBe(false);
+  expect(result.x).toBe(100);
+  expect(result.d).toBe(33);
+  // Velocities untouched, so a normal tick is unaffected.
+  expect(result.hv).toBeCloseTo(1.2, 5);
+  expect(result.vv).toBeCloseTo(-0.4, 5);
+  expect(errors).toEqual([]);
+});
+
 test('every authored passage stays navigable with the diver extent applied', async ({ page }) => {
   // The guard against over-correcting. Measured openings before this change:
   // wreck bulkhead doorways 1.5m in depth, mess/cabin door 2.0m in x; cave
