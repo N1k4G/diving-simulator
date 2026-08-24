@@ -1,0 +1,45 @@
+{
+  "note": "Regenerate with `npm run pixi:visual-update`. Do not hand-edit.",
+  "viewport": {
+    "width": 960,
+    "height": 540
+  },
+  "scenes": {
+    "wreck-exterior-start": {
+      "statistics": {
+        "meanLuma": 42.624,
+        "sdLuma": 30.451,
+        "meanRGB": [
+          22.55,
+          47.412,
+          54.296
+        ],
+        "channelSpread": 31.746
+      }
+    },
+    "wreck-descended": {
+      "statistics": {
+        "meanLuma": 42.778,
+        "sdLuma": 30.054,
+        "meanRGB": [
+          22.682,
+          47.576,
+          54.425
+        ],
+        "channelSpread": 31.743
+      }
+    },
+    "wreck-torch-on": {
+      "statistics": {
+        "meanLuma": 40.519,
+        "sdLuma": 29.863,
+        "meanRGB": [
+          20.931,
+          45.193,
+          51.902
+        ],
+        "channelSpread": 30.971
+      }
+    }
+  }
+}
