@@ -249,8 +249,8 @@ A mechanic or site is migrated only when:
 - exact or epsilon numerical and event checkpoints pass;
 - save/load and pause/resume preserve the state;
 - keyboard and touch intents produce equivalent authoritative actions;
-- the PixiJS scene has camera culling, bounded allocations, quality tiers, and
-  no whole-screen effect at an unmeasured resolution;
+- the PixiJS scene has camera culling, bounded allocations, and no
+  whole-screen effect at an unmeasured resolution;
 - interactive controls and critical status have accessible, localizable,
   non-canvas representations;
 - every warning has visual equivalence, semantic audio priority, and

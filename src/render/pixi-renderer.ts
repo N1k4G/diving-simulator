@@ -21,6 +21,20 @@ const SITE_ID = "wreck";
 // RESYNC_DISTANCE_M, so the margin has to exceed that or content can enter the
 // frame during the gap between syncs.
 const CULL_MARGIN_M = 10;
+
+// Issue #128: adaptive quality is not planned, so this never varies.
+//
+// The tier machinery underneath is real — every asset declares a
+// `minimumQualityTier` and `buildSceneLayers` filters on it — but nothing ever
+// chose a tier. `setQualityTier()` and `placementCount` were removed rather
+// than left in place, because an API that advertises adaptive quality while
+// the value is pinned is worse than no API: it reads as a working feature.
+//
+// Wiring it later means adding something that decides the tier (a frame
+// budget, a device-capability probe, or a user setting), putting the setter on
+// SceneRenderer, and replacing this constant. The filtering is already there
+// and tested.
+const QUALITY_TIER: QualityTier = "high";
 const RESYNC_DISTANCE_M = 4;
 
 export class PixiWreckRenderer implements SceneRenderer {
@@ -41,7 +55,6 @@ export class PixiWreckRenderer implements SceneRenderer {
   #markerPool: Graphics[] = [];
   #activeMarkers: Graphics[] = [];
   #lastSyncFocus: { x: number; y: number } | null = null;
-  #qualityTier: QualityTier = "high";
 
   async mount(host: HTMLElement): Promise<void> {
     if (this.#app) {
@@ -153,20 +166,6 @@ export class PixiWreckRenderer implements SceneRenderer {
     this.#lastSyncFocus = null;
   }
 
-  /** Quality tier drops decoration before anything a diver navigates by. */
-  setQualityTier(tier: QualityTier): void {
-    if (tier === this.#qualityTier) {
-      return;
-    }
-    this.#qualityTier = tier;
-    this.#lastSyncFocus = null;
-  }
-
-  /** Visible placement count, for tests and the diagnostics overlay. */
-  get placementCount(): number {
-    return this.#activeMarkers.length;
-  }
-
   #syncSceneLayers(camera: CameraTransform, force: boolean): void {
     const focus = camera.focus;
     if (
@@ -190,7 +189,7 @@ export class PixiWreckRenderer implements SceneRenderer {
     const { halfWidthM, halfHeightM } = visibleHalfExtentM(camera);
 
     const layers = buildSceneLayers(SITE_ID, {
-      qualityTier: this.#qualityTier,
+      qualityTier: QUALITY_TIER,
       cullMarginM: CULL_MARGIN_M,
       camera: {
         leftM: focus.x - halfWidthM,
