@@ -4516,6 +4516,13 @@ function drawForegroundCaveColumns(cx, W, H, dsx, dsy, mpp) {
 // (via the camera transform) so the wall scrolls with the diver.
 function drawWreckBackdrop(cx, W, H, dsx, dsy, mpp) {
     // Base dark steel gradient
+    //
+    // Issue #124: tried rusting this (#563e2c / #362a1f / #1f1913 at matched
+    // luminance) on the theory that the wreck interior read grey because its
+    // steel was grey. It measured WORSE — per-pixel chroma fell from 26.1 to
+    // 25.1 on the vehicle deck and 14.1 to 13.1 in the engine room. The scene
+    // is blue-dominant from the depth tint, so warming a large surface pulls it
+    // toward neutral rather than away. Reverted; the wreck's lever is elsewhere.
     var g = cx.createLinearGradient(0, 0, 0, H);
     g.addColorStop(0, '#3b424a'); g.addColorStop(0.5, '#2a3036'); g.addColorStop(1, '#171b1f');
     cx.fillStyle = g;
@@ -7551,8 +7558,17 @@ function drawSiltAndTorch() {
     // (that read as an ugly dark "cloud" stuck to the diver). Torch OFF: the
     // cave is nearly pitch black. Torch ON: cut a bright cone of light around
     // the diver so the torch genuinely illuminates the passage.
+    // Issue #124: the gloom is cool, not neutral.
+    //
+    // This was rgba(2,5,9), which is so close to black that at alpha 0.80-0.93
+    // it erased hue rather than tinting it — measured, the cave interiors came
+    // out at a channel spread of 10-14 against 94-120 for open water at the
+    // same brightness. Dark was never the problem; colourless was.
+    //
+    // A deep blue-teal keeps the darkness while leaving the ambient with a
+    // temperature for the warm torch to read against.
     var baseDark = (torchOn ? 0.80 : 0.93) * _torchDark;
-    cx.fillStyle = 'rgba(2,5,9,' + baseDark.toFixed(3) + ')';
+    cx.fillStyle = 'rgba(3,11,21,' + baseDark.toFixed(3) + ')';
     cx.fillRect(0, 0, W, H);
 
     if (torchOn) {
@@ -7626,9 +7642,17 @@ function drawTorchGlowAndSparkles(cx, W, H, diverScreenX, diverScreenY, effectiv
     // in the cutout pass so the diver's immediate surroundings glow softly.
     var warm = cx.createRadialGradient(diverScreenX, diverScreenY, 0,
                                        diverScreenX, diverScreenY, effectiveR * 0.72);
-    warm.addColorStop(0, 'rgba(255,220,150,0.10)');
-    warm.addColorStop(0.45, 'rgba(120,180,190,0.045)');
-    warm.addColorStop(1, 'rgba(80,130,170,0)');
+    // Issue #124: the torch reads warm against a cool ambient.
+    //
+    // The glow was already warm-to-cool but too faint to separate anything —
+    // interiors measured near-neutral. Strengthened, and the falloff now goes
+    // amber to teal rather than amber to grey-blue, so lit surfaces differ from
+    // the surrounding gloom in temperature and not only in brightness. This
+    // runs for the wreck as well as the cave, which is where the wreck gets its
+    // warmth: the cave gloom overlay above returns early for wrecks.
+    warm.addColorStop(0, 'rgba(255,206,132,0.17)');
+    warm.addColorStop(0.45, 'rgba(96,168,182,0.06)');
+    warm.addColorStop(1, 'rgba(52,116,164,0)');
     cx.fillStyle = warm;
     cx.fillRect(0, 0, W, H);
 
