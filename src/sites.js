@@ -874,6 +874,61 @@ function diverOverlapArea(x, d) {
 // Scaled to the diver's own box so it stays correct if the extents change, and
 // ~1e-9 of it: far above double noise (~1e-16 at this magnitude), far below any
 // overlap change a movement step could actually produce.
+// Push the diver out of any structure it is overlapping, along whichever axis
+// needs the least movement, and report whether it moved.
+//
+// Issue #131: escaping an overlap during movement requires allowing equal-area
+// steps, because a fully engulfed diver sits on a flat gradient and has no
+// strictly-reducing step available. That allowance also lets it slide along
+// inside a slab. Resolving the overlap before physics runs makes the engulfed
+// state transient instead of somewhere the diver can travel.
+//
+// An overlap is only reachable anomalously — a restored save, a site switch,
+// edited geometry — so a discontinuous nudge is the right shape of fix. It is
+// also less strange to watch than a diver swimming out through solid steel.
+function resolveDiverOverlap() {
+  var s = activeSite();
+  if (!s) return false;
+  var moved = false;
+  // Bounded: each pass clears at least one structure, and a nudge can push the
+  // diver into another one. Ten is far more than the authored geometry stacks.
+  for (var pass = 0; pass < 10; pass++) {
+    var worst = null;
+    var worstArea = 0;
+    for (var i = 0; i < s.structures.length; i++) {
+      var w = s.structures[i];
+      var dx = Math.min(diverX + DIVER_HALF_WIDTH_M, w.x2) - Math.max(diverX - DIVER_HALF_WIDTH_M, w.x1);
+      if (dx <= 0) continue;
+      var dd = Math.min(depth + DIVER_HALF_HEIGHT_M, w.dBottom) - Math.max(depth - DIVER_HALF_HEIGHT_M, w.dTop);
+      if (dd <= 0) continue;
+      if (dx * dd > worstArea) { worstArea = dx * dd; worst = w; }
+    }
+    if (!worst) return moved;
+
+    // Minimal translation: the four ways out, smallest wins. Each overshoots
+    // the face by a hair, because solidAt/solidBoxAt are inclusive on their
+    // bounds — landing exactly flush still reads as "inside", which would leave
+    // the diver touching and this loop declaring victory.
+    var CLEAR = 1e-6;
+    var outLeft   = (worst.x1 - DIVER_HALF_WIDTH_M - CLEAR) - diverX;      // negative
+    var outRight  = (worst.x2 + DIVER_HALF_WIDTH_M + CLEAR) - diverX;      // positive
+    var outUp     = (worst.dTop - DIVER_HALF_HEIGHT_M - CLEAR) - depth;    // negative
+    var outDown   = (worst.dBottom + DIVER_HALF_HEIGHT_M + CLEAR) - depth; // positive
+    var best = outLeft;
+    if (Math.abs(outRight) < Math.abs(best)) best = outRight;
+    var bestVertical = Math.abs(outUp) < Math.abs(outDown) ? outUp : outDown;
+    if (Math.abs(bestVertical) < Math.abs(best)) {
+      depth += bestVertical;
+      verticalVelocity = 0;
+    } else {
+      diverX += best;
+      horizontalVelocity = 0;
+    }
+    moved = true;
+  }
+  return moved;
+}
+
 function diverOverlapGrew(fromX, fromD, toX, toD) {
   var tolerance = (2 * DIVER_HALF_WIDTH_M) * (2 * DIVER_HALF_HEIGHT_M) * 1e-9;
   return diverOverlapArea(toX, toD) > diverOverlapArea(fromX, fromD) + tolerance;

@@ -419,6 +419,13 @@ function updateDiving(dtReal) {
     // Same pattern as the existing collision sub-stepping inside
     // updateBuoyancyPhysics() (line ~128) and updateHorizontalPhysics()
     // (line ~177) — those are spatial, this is temporal.
+    // Issue #131: clear any pre-existing overlap before the step, so physics
+    // never runs from inside a structure. Escaping during movement needs
+    // equal-area steps to be legal (a fully engulfed diver has no strictly
+    // reducing step), and that same allowance would otherwise let it slide
+    // along inside a slab. A no-op on every normal tick.
+    resolveDiverOverlap();
+
     var prevDepth = depth;
     var _physRemaining = dtDiveSeconds;
     while (_physRemaining > 1e-9) {
@@ -2166,6 +2173,7 @@ window.gameAPI = {
     solidOverlapArea: solidOverlapArea,
     diverOverlapArea: diverOverlapArea,
     diverOverlapGrew: diverOverlapGrew,
+    resolveDiverOverlap: resolveDiverOverlap,
     get DIVER_HALF_WIDTH_M() { return DIVER_HALF_WIDTH_M; },
     get DIVER_HALF_HEIGHT_M() { return DIVER_HALF_HEIGHT_M; },
     overheadAt: overheadAt,

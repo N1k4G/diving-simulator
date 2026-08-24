@@ -235,6 +235,71 @@ test('a fully engulfed diver is not pinned by floating-point noise', async ({ pa
   expect(errors).toEqual([]);
 });
 
+test('an engulfed diver is pushed out before physics runs', async ({ page }) => {
+  // Issue #131. Escaping during movement requires equal-area steps to be legal,
+  // because a fully engulfed diver has no strictly reducing step available —
+  // and that allowance also let it slide the length of a slab at constant
+  // depth. Resolving the overlap up front makes the engulfed state transient,
+  // so there is nowhere to slide from.
+  const errors = await bootGame(page);
+
+  const result = await page.evaluate(() => {
+    const A = window.gameAPI;
+    A.diveSite = 'wreck';
+
+    // Deep inside the vehicle-deck floor slab (x=14..78, d=39..40). The nearest
+    // way out is vertical: 0.2 m up beats 44 m sideways.
+    const startX = 46, startD = 39.5;
+    diverX = startX; depth = startD;
+    horizontalVelocity = 0; verticalVelocity = 0;
+    const engulfedBefore = A.diverSolidAt(diverX, depth);
+
+    // Drive the REAL dive tick, not resolveDiverOverlap() directly — otherwise
+    // this passes just as happily with the call removed from the loop, which is
+    // the wiring the fix actually depends on.
+    gameState = 'diving';
+    updateDiving(1 / 60);
+    const after = { x: +diverX.toFixed(3), d: +depth.toFixed(3) };
+    const movedOut = after.x !== startX || after.d !== startD;
+
+    return {
+      startX, startD, engulfedBefore, movedOut, after,
+      stillOverlapping: A.diverSolidAt(diverX, depth),
+      overlapArea: A.diverOverlapArea(diverX, depth),
+      // Pushed out the near side (up), not dragged the length of the slab.
+      horizontalDrift: Math.abs(after.x - startX),
+    };
+  });
+
+  expect(result.engulfedBefore, 'probe must start engulfed').toBe(true);
+  expect(result.movedOut).toBe(true);
+  expect(result.stillOverlapping, `still inside at ${JSON.stringify(result.after)}`).toBe(false);
+  expect(result.overlapArea).toBe(0);
+  // Minimal translation: out through the nearest face, not along the slab.
+  expect(result.horizontalDrift, 'should exit vertically, not slide 30m').toBeLessThan(0.01);
+  expect(errors).toEqual([]);
+});
+
+test('resolving an overlap is a no-op in open water', async ({ page }) => {
+  // It runs every dive tick, so it must not nudge a diver who is fine.
+  const errors = await bootGame(page);
+  const result = await page.evaluate(() => {
+    const A = window.gameAPI;
+    A.diveSite = 'wreck';
+    diverX = 100; depth = 33;   // clear of the wreck structures
+    horizontalVelocity = 1.2; verticalVelocity = -0.4;
+    const moved = A.resolveDiverOverlap();
+    return { moved, x: diverX, d: depth, hv: horizontalVelocity, vv: verticalVelocity };
+  });
+  expect(result.moved).toBe(false);
+  expect(result.x).toBe(100);
+  expect(result.d).toBe(33);
+  // Velocities untouched, so a normal tick is unaffected.
+  expect(result.hv).toBeCloseTo(1.2, 5);
+  expect(result.vv).toBeCloseTo(-0.4, 5);
+  expect(errors).toEqual([]);
+});
+
 test('every authored passage stays navigable with the diver extent applied', async ({ page }) => {
   // The guard against over-correcting. Measured openings before this change:
   // wreck bulkhead doorways 1.5m in depth, mess/cabin door 2.0m in x; cave
