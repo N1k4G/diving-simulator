@@ -45,6 +45,21 @@ jobs:
       - name: Pixi visual regression check
         run: npm run pixi:visual-check
 
+      # TEMPORARY: seeds the linux reference set, which cannot be recorded from
+      # a Windows machine. Remove both steps once
+      # tests/fixtures/reference-frames/pixi/linux/ is committed.
+      - name: Record linux reference frames
+        if: failure()
+        run: npm run pixi:visual-update
+
+      - name: Upload linux reference frames
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pixi-reference-frames-linux
+          path: tests/fixtures/reference-frames/pixi/linux/
+          retention-days: 1
+
       - name: Run migration client unit tests
         run: npm run test:unit
 

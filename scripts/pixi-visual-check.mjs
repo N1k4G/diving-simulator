@@ -37,10 +37,24 @@ import { createServer } from 'node:http';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { existsSync, statSync, createReadStream } from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { chromium } from '@playwright/test';
 
 const root = path.resolve(import.meta.dirname, '..');
-const referenceDir = path.join(root, 'tests', 'fixtures', 'reference-frames', 'pixi');
+// References are keyed by platform.
+//
+// The first version of this guard assumed SwiftShader made captures portable,
+// because it is a software rasteriser and captures were byte-identical across
+// runs and browser processes on one machine. CI disproved that immediately:
+// frames recorded on win32 differed from the same scenes rendered on linux by
+// a max channel delta of 230 across 10.6% of pixels — structural, not
+// antialiasing noise. Deterministic per platform, not across them.
+//
+// Loosening the budget to absorb that would take it past the silt regression
+// this guard exists to catch (delta 35), so the frames are per-platform
+// instead and each environment compares against its own.
+const PLATFORM = process.platform;
+const referenceDir = path.join(root, 'tests', 'fixtures', 'reference-frames', 'pixi', PLATFORM);
 const args = process.argv.slice(2);
 const UPDATE = args.includes('--update');
 
@@ -299,7 +313,7 @@ async function analyse(browser, baseUrl, sceneId, freshPng, withReference) {
       maxChannelDelta,
     };
   }, {
-    referenceUrl: `/tests/fixtures/reference-frames/pixi/${sceneId}.png`,
+    referenceUrl: `/tests/fixtures/reference-frames/pixi/${PLATFORM}/${sceneId}.png`,
     freshBase64: freshPng.toString('base64'),
     compare: withReference,
   });
@@ -365,7 +379,12 @@ try {
     : JSON.parse(await readFile(manifestPath, 'utf8'));
 
   if (!UPDATE && !manifest) {
-    throw new Error('no reference manifest — run `npm run pixi:visual-update` to record one');
+    throw new Error(
+      `no reference frames recorded for platform "${PLATFORM}".
+` +
+      'Record them with `npm run pixi:visual-update` and commit ' +
+      `tests/fixtures/reference-frames/pixi/${PLATFORM}/.`,
+    );
   }
 
   const recorded = {};
@@ -395,7 +414,7 @@ try {
       for (const breach of breaches) console.error(`FAIL ${breach}`);
       // Leave the offending capture on disk so it can be looked at.
       await writeFile(path.join(referenceDir, `${scene.id}.actual.png`), png);
-      console.error(`     wrote tests/fixtures/reference-frames/pixi/${scene.id}.actual.png`);
+      console.error(`     wrote tests/fixtures/reference-frames/pixi/${PLATFORM}/${scene.id}.actual.png`);
     } else {
       console.log(
         `ok   ${scene.id}  ${analysis.changedPixelPercent}% pixels, max delta ${analysis.maxChannelDelta}, ` +
