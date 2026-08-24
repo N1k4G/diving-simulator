@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceDigest": "sha256:d882f93586c0906273d6cb2bbd671c5c43446425d6fae11fb4074841e10b9f07",
+  "sourceDigest": "sha256:865186623179124906cd5a852b03d92670636f15cb1b785cf39d931f3eb568ba",
   "generator": "npm run sites:generate",
   "kind": "diving-simulator-site-presentation",
   "sites": {

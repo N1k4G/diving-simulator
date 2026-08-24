@@ -918,9 +918,15 @@ function resolveDiverOverlap() {
       candidates.push({ x: diverX, d: w.dBottom + DIVER_HALF_HEIGHT_M + CLEAR, vertical: true });
     }
 
-    // Score by what the diver would actually be left buried in, then by how far
-    // it has to travel. Distance alone picked exits that were cheap for one box
-    // and useless overall.
+    // The NEAREST candidate that makes progress, not the one that clears the
+    // most. Ranking residual area first made the resolver jump straight to
+    // whatever fully freed it, however far away: at the wreck bulkhead/deck
+    // corner (56.1, 51.9) that was a 22.35 m horizontal teleport to the main
+    // hatch, when stepping 0.55 m left and then 0.2 m up clears it in two
+    // passes for about 0.75 m total.
+    //
+    // Requiring a strict reduction is what guarantees termination — each pass
+    // leaves the diver less buried than it found it, and zero is the floor.
     //
     // Legality is checked against the site clamp, because an exit the clamp
     // undoes is not an exit. On the wreck keel (x=14..170, d=65..66, floor 66)
@@ -936,9 +942,9 @@ function resolveDiverOverlap() {
         : (depth >= ceilingAt(cand.x) && depth <= floorAt(cand.x));
       if (!legal) continue;
       var after = diverOverlapArea(cand.x, cand.d);
+      if (after >= here - 1e-12) continue;   // no progress: cannot terminate on it
       var move = Math.abs(cand.vertical ? cand.d - depth : cand.x - diverX);
-      if (best === null || after < best.after - 1e-12 ||
-          (Math.abs(after - best.after) <= 1e-12 && move < best.move)) {
+      if (best === null || move < best.move) {
         best = { cand: cand, after: after, move: move };
       }
     }
@@ -947,7 +953,7 @@ function resolveDiverOverlap() {
     // geometry with no way out the site clamp will allow. Shoving it somewhere
     // illegal would trade one stuck state for another, so leave it to the
     // movement rule, which still permits overlap-reducing steps.
-    if (best === null || best.after >= here) return moved;
+    if (best === null) return moved;
 
     if (best.cand.vertical) {
       depth = best.cand.d;

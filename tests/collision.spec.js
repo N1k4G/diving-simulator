@@ -288,6 +288,46 @@ test('no buried start position stays stuck, anywhere in any site', async ({ page
   expect(errors).toEqual([]);
 });
 
+test('resolution takes the nearest way out, not the showiest', async ({ page }) => {
+  // Ranking residual overlap ahead of distance made the resolver clear itself
+  // in one jump however far that jump was. At the wreck bulkhead/deck corner
+  // (56.1, 51.9) it teleported 22.35 m sideways to the main hatch, because the
+  // hatch was the nearest place that left it completely free — while stepping
+  // 0.55 m left and then 0.2 m up clears it in two passes.
+  //
+  // The sweep above only asserts the diver ends up unstuck, so it called the
+  // 22 m teleport a success. Distance needs asserting separately.
+  const errors = await bootGame(page);
+
+  const result = await page.evaluate(() => {
+    const A = window.gameAPI;
+    A.diveSite = 'wreck';
+    const startX = 56.1, startD = 51.9;
+    diverX = startX; depth = startD;
+    verticalVelocity = 0; horizontalVelocity = 0;
+    const buriedAtStart = A.diverOverlapArea(startX, startD);
+
+    gameState = 'diving';
+    updateDiving(1 / 60);
+
+    return {
+      startX, startD, buriedAtStart,
+      x: diverX, d: depth,
+      stillSolid: A.diverSolidAt(diverX, depth),
+      displacement: Math.hypot(diverX - startX, depth - startD),
+    };
+  });
+
+  expect(result.buriedAtStart, 'corner probe must start buried').toBeGreaterThan(0);
+  expect(result.stillSolid).toBe(false);
+  // The two-step escape is about 0.75 m; the teleport was 22.35 m. Anything in
+  // between would still be the wrong shape of answer.
+  expect(
+    result.displacement,
+    `moved ${result.displacement.toFixed(2)} m to (${result.x.toFixed(2)}, ${result.d.toFixed(2)})`
+  ).toBeLessThan(2);
+});
+
 test('resolving an overlap is a no-op in open water', async ({ page }) => {
   // It runs every dive tick, so it must not nudge a diver who is fine.
   const errors = await bootGame(page);
