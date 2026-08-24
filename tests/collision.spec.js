@@ -235,48 +235,56 @@ test('a fully engulfed diver is not pinned by floating-point noise', async ({ pa
   expect(errors).toEqual([]);
 });
 
-test('an engulfed diver is pushed out before physics runs', async ({ page }) => {
-  // Issue #131. Escaping during movement requires equal-area steps to be legal,
-  // because a fully engulfed diver has no strictly reducing step available —
-  // and that allowance also let it slide the length of a slab at constant
-  // depth. Resolving the overlap up front makes the engulfed state transient,
-  // so there is nowhere to slide from.
+test('no buried start position stays stuck, anywhere in any site', async ({ page }) => {
+  // Issue #131, and the two ways the first attempt at it failed.
+  //
+  // A single hand-picked probe cannot catch either. The slab originally used
+  // (x=14..78, d=39..40) has open water above and below, so both exits are
+  // legal and it never exercises the interesting cases:
+  //
+  //   - the site clamp undoing an exit. On the wreck keel (x=14..170, d=65..66,
+  //     floor 66) up and down tie, "down" reached d=66.300001, and the buoyancy
+  //     clamp put it straight back to d=66 still inside.
+  //   - stacked geometry. The mast (x=75..76, d=10..18) sits on the bridge deck
+  //     (x=72..108, d=18..19), forming one continuous column; leaving the mast
+  //     downward lands in the deck, whose cheapest exit is back up into the
+  //     mast. The diver oscillated 17.7 <-> 18.3 until the pass limit gave up.
+  //
+  // So sweep every authored structure instead of trusting a chosen spot, and
+  // drive the real dive loop rather than resolveDiverOverlap() directly — the
+  // wiring is what the fix depends on.
   const errors = await bootGame(page);
 
   const result = await page.evaluate(() => {
     const A = window.gameAPI;
-    A.diveSite = 'wreck';
-
-    // Deep inside the vehicle-deck floor slab (x=14..78, d=39..40). The nearest
-    // way out is vertical: 0.2 m up beats 44 m sideways.
-    const startX = 46, startD = 39.5;
-    diverX = startX; depth = startD;
-    horizontalVelocity = 0; verticalVelocity = 0;
-    const engulfedBefore = A.diverSolidAt(diverX, depth);
-
-    // Drive the REAL dive tick, not resolveDiverOverlap() directly — otherwise
-    // this passes just as happily with the call removed from the loop, which is
-    // the wiring the fix actually depends on.
-    gameState = 'diving';
-    updateDiving(1 / 60);
-    const after = { x: +diverX.toFixed(3), d: +depth.toFixed(3) };
-    const movedOut = after.x !== startX || after.d !== startD;
-
-    return {
-      startX, startD, engulfedBefore, movedOut, after,
-      stillOverlapping: A.diverSolidAt(diverX, depth),
-      overlapArea: A.diverOverlapArea(diverX, depth),
-      // Pushed out the near side (up), not dragged the length of the slab.
-      horizontalDrift: Math.abs(after.x - startX),
-    };
+    const stuck = [];
+    let tested = 0;
+    for (const site of ['shore', 'reef', 'wreck', 'cave']) {
+      A.diveSite = site;
+      for (const w of A.activeSite().structures) {
+        for (const x of [(w.x1 + w.x2) / 2, w.x1 + 0.1, w.x2 - 0.1]) {
+          for (const d of [(w.dTop + w.dBottom) / 2, w.dTop + 0.1, w.dBottom - 0.1]) {
+            if (!A.diverSolidAt(x, d)) continue;
+            tested += 1;
+            diverX = x; depth = d;
+            verticalVelocity = 0; horizontalVelocity = 0;
+            gameState = 'diving';
+            for (let i = 0; i < 120; i += 1) updateDiving(1 / 60);
+            if (A.diverSolidAt(diverX, depth)) {
+              stuck.push(`${site} (${x.toFixed(2)}, ${d.toFixed(2)}) -> (${diverX.toFixed(2)}, ${depth.toFixed(2)}) overlap ${A.diverOverlapArea(diverX, depth).toFixed(3)} m²`);
+            }
+          }
+        }
+      }
+    }
+    return { tested, stuck };
   });
 
-  expect(result.engulfedBefore, 'probe must start engulfed').toBe(true);
-  expect(result.movedOut).toBe(true);
-  expect(result.stillOverlapping, `still inside at ${JSON.stringify(result.after)}`).toBe(false);
-  expect(result.overlapArea).toBe(0);
-  // Minimal translation: out through the nearest face, not along the slab.
-  expect(result.horizontalDrift, 'should exit vertically, not slide 30m').toBeLessThan(0.01);
+  // Guard the sweep: if it stopped finding buried positions it would pass
+  // vacuously however broken resolution got.
+  expect(result.tested, 'sweep must find buried positions to test').toBeGreaterThan(400);
+  const report = `${result.stuck.length} of ${result.tested} still buried:\n${result.stuck.slice(0, 10).join('\n')}`;
+  expect(result.stuck, report).toEqual([]);
   expect(errors).toEqual([]);
 });
 
