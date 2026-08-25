@@ -61,7 +61,7 @@
 // against and to sit beside the `.actual.png` a breach writes out.
 //
 // The enforced half is the statistics, and they do cross platforms: the same
-// scenes measured on win32 and on ubuntu-latest agree to within 0.5 on every
+// scenes measured on win32 and on ubuntu-latest agree exactly on every
 // interior, while their pixels do not agree at all. Figures under THRESHOLDS.
 // ============================================================
 
@@ -178,18 +178,28 @@ const MAX_IDENTICAL_PERCENT = 0.5;
 // 10.6% of pixels — which is the reason it keeps a reference set per platform,
 // and the reason this guard enforces statistics instead.
 //
-// That bet is confirmed. Running the same nine scenes on ubuntu-latest against
-// the win32 figures the bands were built from moved every interior by at most
-// 0.5 and every control by at most 1.2, against 3.2-4.7 of headroom. Aggregate
-// statistics over ~63k samples average the per-pixel rasteriser differences
-// away even though the frames themselves do not match at all.
+// That bet is confirmed, and by a wider margin than expected. The same nine
+// scenes, win32 against ubuntu-latest:
 //
-// (That comparison was measured before the overhead state stopped being forced
-// by the harness, which shifted some absolute values — most by under 0.1, the
-// engine room by 1.4 and the exterior bow by 3.1. The conclusion is about how
-// far the two platforms sit APART on identical code, so it carries over; the
-// paired figures are not reproduced here because they would no longer match
-// what this script prints.)
+//   wreck-vehicle-deck   35.5 / 35.5    cave-upper-tunnel   17.5 / 17.5
+//   wreck-crew-deck      31.7 / 31.7    cave-restriction    19.2 / 19.2
+//   wreck-cargo-hold     27.9 / 27.9    cave-cathedral      23.6 / 23.6
+//   wreck-engine-room    22.5 / 22.5    wreck-exterior-bow 116.2 / 116.1
+//                                       reef-open-water     53.9 / 53.9
+//
+// Every interior agrees exactly and the controls to within 0.1, on renderers
+// whose individual pixels do not match at all. Aggregating over ~63k samples
+// averages the rasteriser differences away completely.
+//
+// An earlier version of this harness measured drift of up to 0.5 on interiors
+// and 1.2 on a control. That was not the platforms; it was this script letting
+// the diver drift a little between the pin and the read. Re-pinning position
+// every frame removed it, which is worth knowing: when these numbers do move,
+// suspect the harness before the environment.
+//
+// So the headroom is not guesswork about platforms at all. It is slack for
+// future art changes that are meant to happen, and a band that starts failing
+// is overwhelmingly likely to be a real change.
 //
 // So the headroom is not guesswork about platforms any more; it is mostly
 // slack for future art changes that are meant to happen. A band that does
