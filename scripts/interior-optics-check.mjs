@@ -149,12 +149,12 @@ const MAX_IDENTICAL_PERCENT = 0.5;
 //
 //   scene                flat -> fixed   floor   catches   headroom
 //   wreck-vehicle-deck   26.4 -> 35.5     31.0     +4.6      -4.5
-//   wreck-crew-deck      22.6 -> 31.7     27.0     +4.4      -4.7
-//   wreck-cargo-hold     19.1 -> 27.8     23.5     +4.4      -4.3
-//   wreck-engine-room    14.3 -> 21.1     17.5     +3.2      -3.6
-//   cave-upper-tunnel    10.1 -> 17.8     14.0     +3.9      -3.8
-//   cave-restriction     12.2 -> 19.4     15.5     +3.3      -3.9
-//   cave-cathedral       16.6 -> 23.6     20.0     +3.4      -3.6
+//   wreck-crew-deck      22.5 -> 31.7     27.0     +4.5      -4.7
+//   wreck-cargo-hold     19.1 -> 27.9     23.5     +4.4      -4.4
+//   wreck-engine-room    15.0 -> 22.5     18.5     +3.5      -4.0
+//   cave-upper-tunnel     9.8 -> 17.5     13.5     +3.7      -4.0
+//   cave-restriction     12.0 -> 19.2     15.5     +3.5      -3.7
+//   cave-cathedral       16.7 -> 23.6     20.0     +3.3      -3.6
 //
 // ("catches" is how far the flat state is below the floor; "headroom" is how
 // far the current state can drift down before a false failure.)
@@ -176,19 +176,20 @@ const MAX_IDENTICAL_PERCENT = 0.5;
 // thresholds were derived on win32. #133 found that Playwright FRAMES are not
 // portable — win32 and linux differed by a max channel delta of 230 across
 // 10.6% of pixels — which is the reason it keeps a reference set per platform,
-// and the reason this guard enforces statistics instead. That bet is now
-// confirmed: the same nine scenes on ubuntu-latest, against the win32 figures
-// the bands were built from, moved by
+// and the reason this guard enforces statistics instead.
 //
-//   wreck-vehicle-deck   35.5 -> 35.5    cave-upper-tunnel   17.8 -> 17.7
-//   wreck-crew-deck      31.7 -> 31.8    cave-restriction    19.4 -> 19.3
-//   wreck-cargo-hold     27.8 -> 27.8    cave-cathedral      23.6 -> 23.6
-//   wreck-engine-room    21.1 -> 21.6    wreck-exterior-bow 113.1 -> 114.3
-//                                        reef-open-water     54.2 -> 54.1
+// That bet is confirmed. Running the same nine scenes on ubuntu-latest against
+// the win32 figures the bands were built from moved every interior by at most
+// 0.5 and every control by at most 1.2, against 3.2-4.7 of headroom. Aggregate
+// statistics over ~63k samples average the per-pixel rasteriser differences
+// away even though the frames themselves do not match at all.
 //
-// — at most 0.5 on any interior and 1.2 on a control, against 3.2-4.7 of
-// headroom. Aggregate statistics over ~63k samples average the per-pixel
-// rasteriser differences away even though the frames themselves do not match.
+// (That comparison was measured before the overhead state stopped being forced
+// by the harness, which shifted some absolute values — most by under 0.1, the
+// engine room by 1.4 and the exterior bow by 3.1. The conclusion is about how
+// far the two platforms sit APART on identical code, so it carries over; the
+// paired figures are not reproduced here because they would no longer match
+// what this script prints.)
 //
 // So the headroom is not guesswork about platforms any more; it is mostly
 // slack for future art changes that are meant to happen. A band that does
@@ -221,17 +222,17 @@ const SCENES = [
   },
   {
     // The deepest and, before #136, by far the flattest scene in the game:
-    // chroma 14.3 against wreck-exterior-bow's 113.2 at a comparable
+    // chroma 15.0 against wreck-exterior-bow's 116.2 at a comparable
     // brightness. If any one scene earns its place here it is this one.
     id: 'wreck-engine-room', kind: 'interior',
     site: 'Wreck', x: 92, depth: 57, torch: true,
-    chroma: [17.5, 33.0], luma: [48.0, 68.0],
+    chroma: [18.5, 34.0], luma: [48.0, 68.0],
   },
   // ── Cave interiors (guarding #135) ──
   {
     id: 'cave-upper-tunnel', kind: 'interior',
     site: 'Cave', x: 40, depth: 16, torch: true,
-    chroma: [14.0, 30.0], luma: [53.0, 73.0],
+    chroma: [13.5, 29.0], luma: [53.0, 73.0],
   },
   {
     id: 'cave-restriction', kind: 'interior',
@@ -254,7 +255,7 @@ const SCENES = [
   {
     id: 'wreck-exterior-bow', kind: 'control',
     site: 'Wreck', x: 20, depth: 22, torch: false,
-    chroma: [95.0, 135.0], luma: [72.0, 92.0],
+    chroma: [95.0, 135.0], luma: [75.0, 96.0],
   },
   {
     id: 'reef-open-water', kind: 'control',
@@ -332,19 +333,39 @@ async function openScene(browser, scene) {
   // toast and draws amber text across the sample window. Clearing every frame
   // and reading immediately after the last one closes that window entirely.
   //
-  // The ramp pinning is here for a related reason. _torchDark and _wreckMetal
-  // ease toward their target at 0.06 per frame, so a scene captured shortly
-  // after entering shows almost none of the gloom and measures far better than
-  // the same scene actually looks — #124's first baseline was taken that way
-  // and understated the problem, as its re-baseline notes. drawScene re-nudges
-  // both every frame, so they have to be re-pinned every frame, not once.
+  // WHAT IS PINNED, AND WHAT IS DELIBERATELY NOT.
   //
-  // `isOverhead` is deliberately not "the site is a wreck or a cave":
-  // wreck-exterior-bow is an open-water control AT a wreck site and must not be
-  // forced inside. Conflating the two was a real bug in the harness this script
-  // grew out of, and it silently turned a control into a fourth wreck interior.
-  const isOverhead = scene.torch && (scene.site === 'Wreck' || scene.site === 'Cave');
-  const reading = await page.evaluate(async ({ crop, overhead, wantFingerprint }) => {
+  // Pinned: the diver's position, and the two ANIMATION RAMPS. _torchDark and
+  // _wreckMetal ease toward their target at 0.06 per frame, so a scene captured
+  // shortly after entering shows almost none of the gloom and measures far
+  // better than the same scene actually looks — #124's first baseline was taken
+  // that way and understated the problem, as its re-baseline notes. drawScene
+  // re-nudges both every frame, so they are re-pinned every frame. These are
+  // easing state, not world state: pinning them skips a transition, it does not
+  // assert anything about where the diver is.
+  //
+  // NOT pinned: `inOverhead`. An earlier version of this harness set it to true
+  // for interior scenes and then asserted it was true, which is not a check —
+  // it is the harness reading back its own input. The failure that matters is
+  // the quiet one: if the wreck or cave geometry moves, or one of these
+  // hard-coded sample positions stops being inside the room it is named after,
+  // forcing the flag would keep the guard green while measuring a scene the
+  // player could never be in. Thresholds would then be defending a view that
+  // does not exist.
+  //
+  // So the diver's position is re-pinned every frame and the game's own
+  // updateOverheadState() recomputes `inOverhead = overheadAt(diverX, depth)`
+  // from world geometry each tick, exactly as it does in play. The assertion
+  // below then checks BOTH the geometry predicate and the flag the simulation
+  // actually settled on, against what the scene claims to be.
+  //
+  // `wantsOverhead` is deliberately not "the site is a wreck or a cave":
+  // wreck-exterior-bow is an open-water control AT a wreck site, and asserting
+  // it is NOT in an overhead is a real check on that control. Conflating the two
+  // was a bug in the harness this script grew out of, and it silently turned a
+  // control into a fourth wreck interior.
+  const wantsOverhead = scene.kind === 'interior';
+  const reading = await page.evaluate(async ({ crop, at, wantFingerprint }) => {
     const quiet = () => {
       hintNotifyTime = 0;
       hintNotifyText = '';
@@ -352,17 +373,27 @@ async function openScene(browser, scene) {
       gasSwitchNotifyTime = 0;
       gasSwitchNotifyText = '';
     };
-    const pin = () => {
+    // Hold the diver still and let everything else run normally. Buoyancy and
+    // current would otherwise walk it out of frame over the settle, and the
+    // whole point is that the overhead flag is derived from where it ends up.
+    const hold = () => {
       quiet();
-      if (!overhead) return;
-      inOverhead = true;
-      if (typeof _torchDark !== 'undefined') _torchDark = 1;
-      if (typeof _wreckMetal !== 'undefined') _wreckMetal = 1;
+      diverX = at.x;
+      depth = at.depth;
+      verticalVelocity = 0;
+      horizontalVelocity = 0;
+      if (typeof _torchDark !== 'undefined') _torchDark = _torchDarkTarget();
+      if (typeof _wreckMetal !== 'undefined') _wreckMetal = _torchDarkTarget();
     };
+    // Both ramps ease toward inOverhead ? 1 : 0, so settle them to whatever the
+    // simulation currently believes rather than to a value chosen here.
+    function _torchDarkTarget() { return inOverhead ? 1 : 0; }
     for (let i = 0; i < 12; i += 1) {
-      pin();
+      hold();
       await new Promise(r => requestAnimationFrame(r));
     }
+    hold();
+    await new Promise(r => requestAnimationFrame(r));
 
     const canvas = document.getElementById('c');
     const context = canvas.getContext('2d');
@@ -421,12 +452,16 @@ async function openScene(browser, scene) {
       state: {
         site: activeSite() ? activeSite().id : null,
         torch: !!torchOn,
+        // The flag the simulation settled on, and the world-geometry
+        // predicate it is derived from. Neither is supplied by the harness.
         overhead: typeof inOverhead !== 'undefined' ? !!inOverhead : null,
+        geometryOverhead: overheadAt(diverX, depth),
+        restedAt: { x: +diverX.toFixed(2), depth: +depth.toFixed(2) },
         gameState,
         toastsSilent: hintNotifyTime === 0 && gasSwitchNotifyTime === 0,
       },
     };
-  }, { crop: CROP, overhead: isOverhead, wantFingerprint: CHROME_PROBES.includes(scene.id) });
+  }, { crop: CROP, at: { x: scene.x, depth: scene.depth }, wantFingerprint: CHROME_PROBES.includes(scene.id) });
 
   // Assert the scene is the state its thresholds assume, rather than trusting
   // that driving it produced one. A scene that quietly failed to enter the hull
@@ -446,8 +481,27 @@ async function openScene(browser, scene) {
       ' — the scene is not exercising what its thresholds assume.',
     );
   }
-  if (isOverhead && state.overhead !== true) {
-    throw new Error(`${scene.id}: expected to be inside an overhead but inOverhead is ${state.overhead}`);
+  // Both halves matter and they fail differently. `geometryOverhead` says the
+  // sample position is (or is not) inside a room per the world model, so it
+  // catches a scene whose hard-coded coordinates have drifted out of the
+  // geometry they were chosen for. `overhead` is what the simulation actually
+  // settled on over the frames just rendered, so it catches the case where the
+  // geometry says one thing and the running game disagrees.
+  const where = `at (${state.restedAt.x}, ${state.restedAt.depth} m)`;
+  if (state.geometryOverhead !== wantsOverhead) {
+    throw new Error(
+      `${scene.id}: overheadAt() says inside=${state.geometryOverhead} ${where}, expected ` +
+      `${wantsOverhead}. The sample position is no longer in the ` +
+      `${wantsOverhead ? 'room this scene is named after' : 'open water this control needs'} — ` +
+      'move the scene rather than the threshold, then re-derive its bands.',
+    );
+  }
+  if (state.overhead !== wantsOverhead) {
+    throw new Error(
+      `${scene.id}: the simulation settled on inOverhead=${state.overhead} ${where} while ` +
+      `overheadAt() says ${state.geometryOverhead}. The overhead state and the geometry ` +
+      'it is derived from disagree.',
+    );
   }
   // The sample window sits across the toast band, so amber text getting into a
   // capture would be the highest-chroma pixels in the frame. Suppression that
@@ -539,6 +593,7 @@ function breachesFor(scene, stats) {
 
 const browser = await chromium.launch();
 let failed = false;
+let recordedOutOfBand = 0;
 
 try {
   await mkdir(referenceDir, { recursive: true });
@@ -549,6 +604,15 @@ try {
   }
 
   const fingerprints = {};
+  // Capture everything first and write nothing yet.
+  //
+  // The chrome probe needs two scenes before it can say anything, so it cannot
+  // run until the sweep is done. Writing references as they arrive would mean a
+  // HUD change that moved chrome into the sample window could overwrite all nine
+  // supposedly-trustworthy frames with contaminated captures and only THEN fail
+  // the probe — destroying the references in the course of discovering they
+  // could not be trusted. Nothing reaches disk until the window is validated.
+  const captured = [];
 
   for (const scene of SCENES) {
     const { context, errors, stats, png, fingerprint } = await openScene(browser, scene);
@@ -558,26 +622,40 @@ try {
     if (errors.length) {
       throw new Error(`${scene.id} raised page errors:\n  ${errors.join('\n  ')}`);
     }
+    captured.push({ scene, stats, png });
+  }
 
+  // Validate the sample window itself before any of these numbers are trusted,
+  // recorded, or judged against.
+  assertNoChrome(fingerprints);
+
+  for (const { scene, stats, png } of captured) {
     const summary =
       `luma ${stats.luma.toFixed(1).padStart(5)}  sd ${stats.sd.toFixed(1).padStart(5)}  ` +
       `chroma ${stats.chroma.toFixed(1).padStart(6)}`;
+    // One source of truth for what 'acceptable' means, in both modes. Update
+    // mode used to run its own reduced version of this that looked at chroma
+    // only, which let a reference be recorded with no warning at any brightness
+    // at all — precisely the 'this is not a brightening exercise' requirement
+    // the luma bands exist to hold.
+    const breaches = breachesFor(scene, stats);
 
     if (UPDATE) {
       await writeFile(path.join(referenceDir, `${scene.id}.png`), png);
-      const [cMin, cMax] = scene.chroma;
-      const inBand = stats.chroma >= cMin && stats.chroma <= cMax;
       // Recording is not a licence to record a shortfall. Say plainly when a
-      // frame being recorded does not meet the thresholds it will be judged
-      // by, so nobody re-records their way out of a red run by accident.
-      console.log(
-        `recorded ${scene.id.padEnd(20)} ${summary}` +
-        (inBand ? '' : `   <-- WARNING: outside its band [${cMin}, ${cMax}] — recorded anyway, thresholds NOT changed`),
-      );
+      // frame being recorded does not meet the thresholds it will be judged by,
+      // so nobody re-records their way out of a red run by accident.
+      console.log(`recorded ${scene.id.padEnd(20)} ${summary}`);
+      for (const breach of breaches) {
+        console.warn(`     WARNING: ${breach}`);
+      }
+      if (breaches.length) {
+        console.warn('     recorded anyway — thresholds are NOT changed by --update');
+        recordedOutOfBand += 1;
+      }
       continue;
     }
 
-    const breaches = breachesFor(scene, stats);
     if (breaches.length) {
       failed = true;
       for (const breach of breaches) console.error(`FAIL ${breach}`);
@@ -589,13 +667,17 @@ try {
     }
   }
 
-  // Both probes are captured by now, so the window itself can be validated
-  // before any of these numbers are trusted.
-  assertNoChrome(fingerprints);
-
   if (UPDATE) {
     console.log(`\nrecorded ${SCENES.length} reference frames to ${path.relative(root, referenceDir)}`);
     console.log('thresholds were NOT touched — they live in scripts/interior-optics-check.mjs by design');
+    if (recordedOutOfBand) {
+      console.warn(
+        `\n${recordedOutOfBand} of ${SCENES.length} frames were recorded OUTSIDE their bands. ` +
+        'They are now the references for a look the thresholds reject. Either the change\n' +
+        'that moved them is wrong, or the bands need moving deliberately — with the new\n' +
+        'numbers written into the derivation table in this script.',
+      );
+    }
   }
 } finally {
   await browser.close();
