@@ -4523,6 +4523,22 @@ function drawWreckBackdrop(cx, W, H, dsx, dsy, mpp) {
     // 25.1 on the vehicle deck and 14.1 to 13.1 in the engine room. The scene
     // is blue-dominant from the depth tint, so warming a large surface pulls it
     // toward neutral rather than away. Reverted; the wreck's lever is elsewhere.
+    //
+    // Follow-up, also reverted: #124 suggested that if a large warm surface is
+    // wrong, LOCALISED warm detail should be right, and pointed at the per-plate
+    // rust streaks as the mechanism. Built as a per-plate-cell pass here (rust
+    // blooms, scale flakes, tears bleeding from the top seam, scaled by the
+    // zone's #56 `streaks` value) and it changed nothing measurable: frame-wide
+    // chroma moved by less than 0.5 even with every alpha cranked to 1.0, and a
+    // box around the torch-lit area moved 34.8 -> 34.7, 30.2 -> 29.7, 26.0 ->
+    // 26.5 — noise, in both directions.
+    //
+    // The reason is the gloom in drawWreckHullSkin: it covers everything past
+    // ~53 px from the diver at alpha 0.9, so only a tenth of any surface detail
+    // painted here survives, and inside the bubble the interior structures
+    // cover the backdrop anyway. Surface detail on the backdrop cannot reach
+    // the frame in either region. Recolouring that gloom is what actually moved
+    // the wreck; see the note at its call site.
     var g = cx.createLinearGradient(0, 0, 0, H);
     g.addColorStop(0, '#3b424a'); g.addColorStop(0.5, '#2a3036'); g.addColorStop(1, '#171b1f');
     cx.fillStyle = g;
@@ -4882,16 +4898,40 @@ function drawWreckHullSkin() {
         _renderDiag().record('renderWreckOverlayBlit', _wreckOverlayStarted);
     }
 
-    // Feather the rim of the near-field circle so the always-visible spill
-    // blends into steel instead of a hard disc. The cone's radial-gradient
-    // falloff already softens its own edges, so no separate feather there.
+    // Feathers the rim of the near-field circle so the always-visible spill
+    // blends into steel instead of a hard disc — and, because a radial
+    // gradient holds its last stop past its outer radius and this fills the
+    // whole silhouette, it is ALSO the wreck's ambient gloom everywhere beyond
+    // ~nearR from the diver. That second role is by far the larger one: with
+    // the torch on, nearR * 1.16 is about 53 px, so this covers essentially
+    // the entire interior frame at alpha 0.9.
+    //
+    // Issue #124: that gloom is cool, not neutral.
+    //
+    // It was rgba(28,33,38) — chroma 10, a near-perfect grey — and being both
+    // near-opaque and near-neutral over the whole frame, it was most of what
+    // the interior-flatness measurements were measuring. The cave had the same
+    // problem in its own gloom overlay and was fixed the same way in #135; the
+    // wreck reaches its gloom through drawWreckHullSkin instead of
+    // drawSiltAndTorch, which is why the cave fix left the wreck untouched and
+    // #124 was only half closed by it.
+    //
+    // A cool blue-teal at matched luminance (31.2 against the old 32.3) keeps
+    // the interior exactly as dark while giving the warm torch (#135) and the
+    // rusting steel a temperature to separate from. Measured, torch on, gloom
+    // settled, per-pixel chroma:
+    //
+    //   wreck-engine-room    14.8 -> 21.3   luma 58.3 -> 58.4
+    //   wreck-cargo-hold     19.4 -> 27.9   luma 64.5 -> 64.7
+    //   wreck-crew-deck      22.8 -> 31.8   luma 66.3 -> 66.5
+    //   wreck-vehicle-deck   26.6 -> 35.4   luma 61.4 -> 61.9
     if (rad > 1) {
         cx.save();
         _buildWreckSilhouette(cx, dsx, dsy, mpp);
         cx.clip();
         var ring = cx.createRadialGradient(dsx, dsy, nearR * 0.72, dsx, dsy, nearR * 1.16);
-        ring.addColorStop(0, 'rgba(28,33,38,0)');
-        ring.addColorStop(1, 'rgba(28,33,38,' + (0.9 * _wreckMetal).toFixed(3) + ')');
+        ring.addColorStop(0, 'rgba(16,34,49,0)');
+        ring.addColorStop(1, 'rgba(16,34,49,' + (0.9 * _wreckMetal).toFixed(3) + ')');
         cx.fillStyle = ring;
         cx.fillRect(0, 0, W, H);
         cx.restore();
