@@ -230,7 +230,9 @@ Two things about it are deliberate and easy to undo by accident:
   change to the interiors is intended, move the specific band and say why.
 - **The reference frames are review artefacts, not a pixel diff.** Playwright's
   frames are deterministic per platform but not across them, and there is no
-  linux reference set here. The enforced half is the statistics.
+  linux reference set here. The enforced half is the statistics — which do
+  travel: the same scenes measured on Windows and on `ubuntu-latest` agree to
+  within 0.5 chroma on every interior, while their pixels do not agree at all.
 
 **CI pipelines** (GitHub Actions):
 

@@ -58,9 +58,11 @@
 // That is not available here — these references were recorded on win32 and
 // there is no linux node on this machine to record the matching set — so the
 // frames are committed as REVIEW ARTEFACTS, for a human to grade a change
-// against and to sit beside the `.actual.png` a breach writes out. The
-// enforced half is the statistics, whose bands are set wide enough to cross
-// platforms (see THRESHOLDS below).
+// against and to sit beside the `.actual.png` a breach writes out.
+//
+// The enforced half is the statistics, and they do cross platforms: the same
+// scenes measured on win32 and on ubuntu-latest agree to within 0.5 on every
+// interior, while their pixels do not agree at all. Figures under THRESHOLDS.
 // ============================================================
 
 import { mkdir, readdir, writeFile, unlink } from 'node:fs/promises';
@@ -165,14 +167,32 @@ const MAX_IDENTICAL_PERCENT = 0.5;
 // comparable to these. The regression each floor has to catch is a real
 // measured state of this codebase, not an estimate.
 //
-// WHY THAT HEADROOM IS THE RIGHT SIZE. Run-to-run noise on one machine is
-// under 0.1 — measured over three consecutive runs of all nine scenes, no
-// value moved by more than that. So the entire 3.2-4.8 of headroom is there to
-// absorb cross-platform rendering differences, which could not be measured
-// from a win32 machine with no linux node available. If linux turns out to sit
-// further than that from win32, the first CI run says so with the actual
-// number in the failure, and the fix is to widen the specific band that moved
-// with that number recorded here — not to re-record thresholds wholesale.
+// WHY THAT HEADROOM IS THE RIGHT SIZE. Two sources of drift, both measured.
+//
+// Run-to-run noise on one machine is under 0.1: across three consecutive runs
+// of all nine scenes, no value moved by more than that.
+//
+// Cross-platform drift is the one that mattered, because CI is linux and these
+// thresholds were derived on win32. #133 found that Playwright FRAMES are not
+// portable — win32 and linux differed by a max channel delta of 230 across
+// 10.6% of pixels — which is the reason it keeps a reference set per platform,
+// and the reason this guard enforces statistics instead. That bet is now
+// confirmed: the same nine scenes on ubuntu-latest, against the win32 figures
+// the bands were built from, moved by
+//
+//   wreck-vehicle-deck   35.5 -> 35.5    cave-upper-tunnel   17.8 -> 17.7
+//   wreck-crew-deck      31.7 -> 31.8    cave-restriction    19.4 -> 19.3
+//   wreck-cargo-hold     27.8 -> 27.8    cave-cathedral      23.6 -> 23.6
+//   wreck-engine-room    21.1 -> 21.6    wreck-exterior-bow 113.1 -> 114.3
+//                                        reef-open-water     54.2 -> 54.1
+//
+// — at most 0.5 on any interior and 1.2 on a control, against 3.2-4.7 of
+// headroom. Aggregate statistics over ~63k samples average the per-pixel
+// rasteriser differences away even though the frames themselves do not match.
+//
+// So the headroom is not guesswork about platforms any more; it is mostly
+// slack for future art changes that are meant to happen. A band that does
+// start failing is far more likely to be a real change than an environment.
 //
 // The ceilings are deliberately loose. Nothing has ever regressed by being too
 // colourful, so they exist only to catch gross drift, and are set at roughly
