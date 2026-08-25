@@ -210,6 +210,29 @@ New TypeScript UI copy is keyed in `src/app/i18n/catalog.ts`; direct user-facing
 | `npm run test:e2e` | Builds and tests the migration Worker plus the full legacy Playwright suite |
 | `npm run test:perf` | Captures the opt-in performance baseline |
 | `npm run screenshots` | Captures review screenshots (phone + desktop, setup + in-dive) to `screenshots/` via `scripts/screenshots.mjs` |
+| `npm run interior:check` | Issue #124 optics guard: measures the legacy client's overhead interiors and fails if one has gone flat (CI-gated) |
+| `npm run interior:update` | Re-records that guard's reference frames. Deliberately does **not** touch its thresholds — see the note below |
+
+### Interior optics thresholds (issue #124)
+
+`npm run interior:check` enforces per-scene floors on **per-pixel chroma**
+(`mean(max(R,G,B) - min(R,G,B))`) for the torch-lit wreck and cave interiors,
+plus two open-water control scenes. It exists because those interiors drifted to
+near-neutral grey twice — once per renderer surface — and nothing caught either.
+
+Two things about it are deliberate and easy to undo by accident:
+
+- **The thresholds live in `scripts/interior-optics-check.mjs`, not in a
+  recorded manifest.** `--update` re-records the reference *frames* only.
+  Thresholds derived from whatever is currently on screen describe the current
+  state, and if the current state is the shortfall, recording it locks the
+  shortfall in — which is the sequencing trap #124 explicitly warns about. If a
+  change to the interiors is intended, move the specific band and say why.
+- **The reference frames are review artefacts, not a pixel diff.** Playwright's
+  frames are deterministic per platform but not across them, and there is no
+  linux reference set here. The enforced half is the statistics — which do
+  travel: the same scenes measured on Windows and on `ubuntu-latest` agree
+  exactly on every interior, while their pixels do not agree at all.
 
 **CI pipelines** (GitHub Actions):
 
