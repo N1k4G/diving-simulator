@@ -218,6 +218,36 @@ New TypeScript UI copy is keyed in `src/app/i18n/catalog.ts`; direct user-facing
 
 So a PR is fully checked (and produces screenshots for review) before merge, and deployment only happens once the change lands on `main`.
 
+### Dev container
+
+`.devcontainer/` defines a Linux container on the Playwright image, pinned to the
+`playwright-core` version in `package-lock.json`, with Node pinned to the version
+the workflows install. Open the repository in it with **Dev Containers: Reopen in
+Container**.
+
+It reproduces CI's *toolchain* — Ubuntu 24.04, Node 22 with npm 10, the same
+Chromium build — so lint, type-check, unit, parity and e2e behave as they do on
+`ubuntu-latest`. On a machine with no local Node install it is the only way to run
+them at all.
+
+It does **not** reproduce CI's pixels, and that was measured rather than assumed:
+`npm run pixi:visual-check` inside the container fails against the committed
+`linux` frames by a max channel delta of 230 over 10.46% of pixels — the same
+magnitude issue #133 measured between Windows and Linux — while the frame
+*statistics* agree with both reference sets. The OS and the browser build match the
+runner, so what differs is the host CPU that Chromium's software rasteriser
+generates code for. Record the `linux` reference set in CI; use the container for
+everything else.
+
+Do not capture performance in it either. Software rendering, so `npm run test:perf`
+and `npm run wp06:perf` produce numbers that are not comparable with the committed
+baselines — run those on the host or in CI.
+
+On Windows, keep the clone inside the WSL2 filesystem rather than under `C:\`. A
+`/mnt/c` bind mount is slower, and the container user does not own `.git` there, so
+git operations that change file modes fail: husky cannot install the pre-commit
+hook, and the lint gate disappears without `npm ci` failing.
+
 ## gameAPI
 
 The simulator exposes `window.gameAPI` for programmatic access and testing:
