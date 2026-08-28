@@ -1,0 +1,103 @@
+// Linux development container for the diving simulator.
+//
+// WHAT IT REPRODUCES. The toolchain CI runs: Ubuntu 24.04, Node 22 with npm 10,
+// and the Chromium build pinned to the playwright-core version in
+// package-lock.json. Lint, type-check, unit, parity and e2e behave here as they
+// do on ubuntu-latest — and on a host with no Node installed, this is the only
+// way to run them at all.
+//
+// WHAT IT DOES NOT REPRODUCE: the runner's pixels. It was built to. The idea was
+// to record the Pixi guard's linux reference set here instead of through CI, and
+// that turned out to be wrong. Measured, not assumed: pixi:visual-check in this
+// container fails against the committed linux frames by a max channel delta of
+// 230 over 10.46% of pixels — the same magnitude #133 measured between win32 and
+// linux — while the frame STATISTICS agree with both reference sets. The OS and
+// the browser build match the runner, so the platform is not the variable; what
+// is left is the host CPU, which is what Chromium's software rasteriser
+// generates code for. Pixel references therefore still come from CI, and this is
+// a second data point for #133's rule: statistics travel between machines,
+// frames do not.
+//
+// NOT for performance work either. Software rendering, so test:perf and
+// wp06:perf produce numbers that cannot be compared with the recorded
+// baselines. Capture those on the host or in CI.
+{
+  "name": "diving-simulator",
+
+  // Pinned to the exact Playwright release in package-lock.json. The browser
+  // build ships inside the image, so an image tag that disagrees with the
+  // lockfile renders different pixels than CI does — post-create.sh fails the
+  // build rather than let that happen quietly.
+  //
+  // -noble is deliberate: GitHub's ubuntu-latest is Ubuntu 24.04, and the
+  // committed linux reference frames were recorded there.
+  "image": "mcr.microsoft.com/playwright:v1.62.0-noble",
+
+  "containerEnv": {
+    // Kept beside the image tag so the two are edited together; asserted
+    // against the lockfile on create.
+    "PLAYWRIGHT_IMAGE_VERSION": "1.62.0",
+    // The browsers live in the image, not under node_modules.
+    "PLAYWRIGHT_BROWSERS_PATH": "/ms-playwright",
+    "LANG": "C.UTF-8"
+  },
+
+  // Both are Playwright's documented Docker requirements: without --ipc=host
+  // Chromium runs out of shared memory partway through a suite, and without an
+  // init process the browsers it spawns are never reaped.
+  "runArgs": ["--ipc=host"],
+  "init": true,
+
+  "features": {
+    // pwuser ships with the Playwright image; this gives it passwordless sudo
+    // so the container does not have to run as root.
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "username": "pwuser",
+      "installZsh": false,
+      "installOhMyZsh": false,
+      "upgradePackages": false
+    },
+    // The image ships whatever Node its own build pinned — 24, at the time of
+    // writing — while the workflows run 22. That difference cannot reach the
+    // pixels, which come from the browser baked into the image, but it does
+    // reach npm: 22 carries npm 10 and 24 carries npm 11. Since the point of
+    // this container is that a green run here means a green run there, match
+    // the workflows instead. post-create.sh asserts the two agree.
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22"
+    }
+    // git and openssh-client are already in the Playwright image, so no
+    // feature for them: husky and lint-staged shell out to the image's git.
+  },
+  "remoteUser": "pwuser",
+
+  // node_modules on a Windows bind mount is slow enough to change how npm ci
+  // and vite feel; a volume keeps it on the container filesystem. Everything
+  // else stays bind-mounted so edits land in the real working tree.
+  "mounts": [
+    "source=diving-simulator-node-modules,target=${containerWorkspaceFolder}/node_modules,type=volume"
+  ],
+
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "waitFor": "postCreateCommand",
+
+  "forwardPorts": [5173, 8080],
+  "portsAttributes": {
+    "5173": { "label": "vite — npm run dev" },
+    "8080": { "label": "legacy client — npm run dev:legacy" }
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "ms-playwright.playwright",
+        "vitest.explorer"
+      ],
+      "settings": {
+        "eslint.useFlatConfig": true,
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}

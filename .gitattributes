@@ -1,0 +1,4 @@
+# Shell scripts run inside the Linux dev container from this Windows working
+# tree, and bash cannot read a CRLF shebang. core.autocrlf would otherwise
+# write them out with CRLF on checkout.
+*.sh text eol=lf
