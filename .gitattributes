@@ -2,3 +2,9 @@
 # tree, and bash cannot read a CRLF shebang. core.autocrlf would otherwise
 # write them out with CRLF on checkout.
 *.sh text eol=lf
+
+# The git hooks are shell scripts without the extension, so the rule above does
+# not reach them. A CRLF hook is worse than a broken one: sh carries the \r into
+# the command it runs, and `npx lint-staged` fails as `undefined@lint-staged`
+# rather than as a lint failure.
+.husky/* text eol=lf
