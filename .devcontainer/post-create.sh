@@ -13,6 +13,17 @@ fi
 # act on until it is declared safe — husky would fail on the first commit.
 git config --global --add safe.directory "$PWD"
 
+# A worktree checked out by a Windows git sits on disk as CRLF while the blobs
+# are LF. This git has no autocrlf, so it reads that difference as content: the
+# first edit to any file turns into a whole-file rewrite in the diff, and the
+# line-ending churn lands in the commit. Match the checkout instead of fighting
+# it — the eol=lf attributes in .gitattributes still override this for the
+# scripts and hooks that have to be LF to run.
+if [ -z "$(git config --get core.autocrlf)" ] &&
+   git ls-files --eol -- README.md package.json | grep -q 'w/crlf'; then
+  git config --global core.autocrlf true
+fi
+
 # The image carries the browser build; the lockfile carries the client that
 # drives it. If they disagree, every visual guard measures a different renderer
 # than CI does and says nothing about it.
@@ -38,12 +49,20 @@ fi
 
 npm ci
 
-# husky sets core.hooksPath from the prepare script. On a worktree bind-mounted
-# from a Windows drive the container user does not own .git, that write fails,
-# and npm ci still exits 0 — so the pre-commit lint gate goes missing quietly.
+# husky sets core.hooksPath by writing the repository config. On a worktree
+# bind-mounted from a Windows drive that mount reports a fixed owner, git's
+# chmod of config.lock is refused, and git discards the whole write — husky
+# swallows it and npm ci still exits 0, so the pre-commit lint gate would go
+# missing quietly. No ownership fix applies: 9p/drvfs serves uid from a mount
+# option, so chown cannot move it. The global config lives on the container
+# filesystem, which this user does own, so put the hooks path there instead.
+# A repository-level value, once one can be written, still takes precedence.
 if [ -z "$(git config --get core.hooksPath)" ]; then
-  echo "WARNING: husky did not install the git hooks — commits from this container will" >&2
-  echo "         skip the lint gate. Clone into the WSL filesystem instead of /mnt/<drive>." >&2
+  git config --global core.hooksPath .husky
+  echo "NOTE: husky could not write .git/config — this worktree is owned by uid $(stat -c %u .git)," >&2
+  echo "      not $(id -u). core.hooksPath is set in the container's global config instead," >&2
+  echo "      so the pre-commit lint gate still runs. The 'chmod on .git/config.lock'" >&2
+  echo "      error above is that same write, and is expected here." >&2
 fi
 
 cat <<EOF
