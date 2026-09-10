@@ -7,7 +7,13 @@
     <title>Diving Simulator Migration Diagnostic</title>
   </head>
   <body>
-    <main id="app" aria-live="polite"></main>
+    <!-- No aria-live here. The wreck HUD mounts into #app and updates depth,
+         dive time, gas, NDL and zone every frame; a live region at the root
+         made a screen reader try to announce all of them continuously. The one
+         announcement that matters, a safety warning, is carried by the
+         role="alert" paragraph the shell builds itself (#138). The status chip
+         is a visual redundancy for that and must stay silent. -->
+    <main id="app"></main>
     <script type="module" src="/src/app/bootstrap.ts"></script>
   </body>
 </html>
