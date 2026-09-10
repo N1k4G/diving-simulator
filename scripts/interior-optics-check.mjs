@@ -33,9 +33,25 @@
 // to 25.1 on spread while looking warmer, because the scene is blue-dominant
 // from the depth grade.
 //
-// Per-pixel chroma measures how colourful each pixel is regardless of what the
-// frame averages to. It rises when warm marks appear against cool ambient and
-// does not reward a flat global tint. Every number below is in it.
+// Per-pixel chroma measures how colourful each pixel is before anything is
+// averaged, so the cancellation cannot happen: warm marks against cool ambient
+// raise it whatever the frame averages to. Every number below is in it.
+//
+// What that fixes, and what it does not. It fixes CANCELLATION — the defect
+// that made channel spread unusable, where a warm change over a blue-dominant
+// scene moves the frame mean toward neutral and the metric falls while the
+// scene genuinely warms. It does NOT make the metric sensitive to arrangement,
+// because the thing thresholded here is still a mean over the region. A
+// uniform fill of rgb(41,61,73) has per-pixel chroma 32 at every pixel and so
+// scores 32, comfortably inside the wreck bands, with no torch, no materials
+// and no gloom anywhere in the frame.
+//
+// An earlier version of this comment claimed per-pixel chroma "does not reward
+// a flat global tint". That overstated it by conflating the two: a flat tint
+// cannot fake SEPARATION, which is the cancellation point and is true, but it
+// can absolutely satisfy the mean-chroma band, which is the arrangement point
+// and is not. The variance floors under THRESHOLDS exist to close exactly that
+// residual blindness; the metric choice alone never did.
 //
 // WHY THRESHOLDS ARE HAND-WRITTEN AND FRAMES ARE RECORDED
 //
