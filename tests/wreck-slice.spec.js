@@ -144,22 +144,47 @@ test('persisted safety states produce visible semantic warnings', async ({ page 
   // the colour-only encoding #138 was filed about.
   await expect(page.locator('.wreck-shell')).toHaveClass(/has-warning/);
 
-  // The shell declares exactly one live region: the alert.
+  // The status chip must not sit inside any live region.
   //
-  // The chip is a visual redundancy for readers who cannot use the colour, so
-  // it must not also speak. Giving it role=status — the obvious repair for the
-  // aria-label ARIA prohibits on role=paragraph — makes it a second live
-  // region fed by the same severity as the alert, and assistive technology
-  // then announces every warning twice: assertively, then again from the
-  // queued polite update. Counting catches that however it is reintroduced,
-  // by role or by a bare aria-live.
+  // It is a visual redundancy for readers who cannot use the red styling; the
+  // role=alert paragraph does the announcing. Two failure modes put the chip
+  // into a live region and are both checked here against the EFFECTIVE
+  // ancestry, i.e. what a screen reader actually resolves:
   //
-  // Scoped to the shell on purpose. index.html mounts the whole app inside
-  // <main aria-live="polite">, so a document-wide count would be measuring
-  // that too — a separate and wider problem, since every per-frame HUD value
-  // sits inside it. This asserts what the shell itself declares.
+  //   1. an explicit role/aria-live back on the chip itself — the obvious but
+  //      wrong repair for the aria-label ARIA prohibits on role=paragraph;
+  //   2. inheritance. aria-live applies from the nearest ancestor that sets
+  //      it, and index.html used to wrap everything in <main id="app"
+  //      aria-live="polite">, so updating the chip queued a polite
+  //      announcement alongside the assertive alert — every warning spoken
+  //      twice. That was a WP-02 bootstrap artifact (the diagnostic view it
+  //      served renders static text once); removing it also stopped the
+  //      per-frame depth/time/gas/NDL churn from being announced.
+  //
+  // closest() includes the chip itself and walks the real tree to <html>, so
+  // one assertion covers both. The alert is a sibling inside the shell, not an
+  // ancestor, so it is correctly not matched.
+  const LIVE = [
+    '[aria-live]:not([aria-live="off"])',
+    '[role=alert]',
+    '[role=status]',
+    '[role=log]',
+    '[role=marquee]',
+    '[role=timer]',
+  ].join(', ');
+  const chipInLiveRegion = await chip.evaluate(
+    (el, sel) => el.closest(sel) !== null,
+    LIVE,
+  );
+  expect(chipInLiveRegion).toBe(false);
+
+  // Pin the root fix directly so a regression names index.html, not just the
+  // chip: #app must not reintroduce a live region over the whole HUD.
+  await expect(page.locator('#app')).not.toHaveAttribute('aria-live', /.+/);
+
+  // And the shell still declares exactly one live region of its own: the alert.
   await expect(
-    page.locator('.wreck-shell').locator('[role=alert], [role=status], [aria-live]'),
+    page.locator('.wreck-shell').locator(LIVE),
   ).toHaveCount(1);
 });
 
