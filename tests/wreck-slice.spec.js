@@ -143,6 +143,24 @@ test('persisted safety states produce visible semantic warnings', async ({ page 
   // The chip must never contradict the styling: red without a warning word is
   // the colour-only encoding #138 was filed about.
   await expect(page.locator('.wreck-shell')).toHaveClass(/has-warning/);
+
+  // The shell declares exactly one live region: the alert.
+  //
+  // The chip is a visual redundancy for readers who cannot use the colour, so
+  // it must not also speak. Giving it role=status — the obvious repair for the
+  // aria-label ARIA prohibits on role=paragraph — makes it a second live
+  // region fed by the same severity as the alert, and assistive technology
+  // then announces every warning twice: assertively, then again from the
+  // queued polite update. Counting catches that however it is reintroduced,
+  // by role or by a bare aria-live.
+  //
+  // Scoped to the shell on purpose. index.html mounts the whole app inside
+  // <main aria-live="polite">, so a document-wide count would be measuring
+  // that too — a separate and wider problem, since every per-frame HUD value
+  // sits inside it. This asserts what the shell itself declares.
+  await expect(
+    page.locator('.wreck-shell').locator('[role=alert], [role=status], [aria-live]'),
+  ).toHaveCount(1);
 });
 
 test('the same input trace drives equivalent legacy and Pixi control semantics', async ({ page }) => {

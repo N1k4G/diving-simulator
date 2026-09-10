@@ -238,13 +238,19 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     "status-chip",
     translate(locale, "wreck.hud.normal"),
   );
-  // role=status rather than a bare <p>: ARIA prohibits naming on
-  // role=paragraph, so the aria-label below was unreliable and could suppress
-  // the chip's own text for some screen readers. role=status accepts a name
-  // and is a POLITE live region, so a change in dive state is announced
-  // without interrupting the assertive alert region below it.
-  status.setAttribute("role", "status");
-  status.setAttribute("aria-label", translate(locale, "wreck.hud.status"));
+  // Deliberately NOT a live region, and deliberately unnamed.
+  //
+  // The chip carried aria-label="Simulation status", which ARIA prohibits on
+  // role=paragraph — conforming AT already discarded it, so it never named
+  // anything. The obvious repair is role=status, and that is wrong here: it
+  // would make this a second live region fed by the same severity as the
+  // role=alert paragraph below, so every warning would be announced twice —
+  // once assertively, then again from the queued polite update.
+  //
+  // The alert region owns announcement. This chip exists for the sighted
+  // reader who cannot rely on the colour, and its own text says which state
+  // it is in ("Simulation running", "⚠ Dive failure"), so it reads correctly
+  // in document order without a name.
   const topbarActions = document.createElement("div");
   topbarActions.className = "topbar-actions";
   const mute = document.createElement("button");
@@ -351,11 +357,11 @@ function updateHud(
 
   hud.warning.hidden = severity === null;
   hud.shell.classList.toggle("has-warning", severity !== null);
-  // Assign only on an actual change. Both of these are live regions and this
-  // runs every frame; `textContent =` replaces the child nodes even when the
-  // string is identical, and a live region watching those mutations can
-  // re-announce on every frame. Writing only real transitions keeps each state
-  // change announced exactly once.
+  // Assign only on an actual change. This runs every frame and `textContent =`
+  // replaces the child nodes even when the string is identical. For the alert
+  // that matters for correctness: a live region watching those mutations can
+  // re-announce on every frame, so writing only real transitions keeps each
+  // state change announced exactly once. For the chip it is just avoided churn.
   if (hud.warning.textContent !== alertText) {
     hud.warning.textContent = alertText;
   }
