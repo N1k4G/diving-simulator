@@ -43,6 +43,30 @@ const zoneMessageKeys: Record<WreckZone, MessageKey> = {
   "engine-room": "wreck.zone.engine-room",
 };
 
+// The chip in the topbar and the alert paragraph describe the same state at
+// two lengths, so both are derived from one severity rather than chosen
+// separately. #138: `updateHud` used to set `has-warning` from the warning
+// selection and then overwrite the chip with the normal string three lines
+// later, so a failing dive still read "Simulation running" and the only thing
+// saying otherwise was the chip turning red — meaning encoded through colour
+// alone, which docs/decisions.md:100 rules out.
+type WarningSeverity = "lowGas" | "oxygen" | "failure";
+
+// Full sentence for the role=alert region.
+const warningAlertKeys: Record<WarningSeverity, MessageKey> = {
+  lowGas: "wreck.warning.lowGas",
+  oxygen: "wreck.warning.oxygen",
+  failure: "wreck.warning.failure",
+};
+
+// Short form for the status chip, which sits in the topbar away from the
+// alert text and has to stand on its own.
+const warningStatusKeys: Record<WarningSeverity, MessageKey> = {
+  lowGas: "wreck.hud.warning.lowGas",
+  oxygen: "wreck.hud.warning.oxygen",
+  failure: "wreck.hud.warning.failure",
+};
+
 export function renderWreckApplication(
   root: HTMLElement,
   locale: SupportedLocale = detectPreferredLocale(),
@@ -209,12 +233,18 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     createElement("p", "wreck-eyebrow", translate(locale, "wreck.preview")),
     createElement("h1", "wreck-title", translate(locale, "wreck.site")),
   );
-  const normalStatus = createElement(
+  const status = createElement(
     "p",
     "status-chip",
     translate(locale, "wreck.hud.normal"),
   );
-  normalStatus.setAttribute("aria-label", translate(locale, "wreck.hud.status"));
+  // role=status rather than a bare <p>: ARIA prohibits naming on
+  // role=paragraph, so the aria-label below was unreliable and could suppress
+  // the chip's own text for some screen readers. role=status accepts a name
+  // and is a POLITE live region, so a change in dive state is announced
+  // without interrupting the assertive alert region below it.
+  status.setAttribute("role", "status");
+  status.setAttribute("aria-label", translate(locale, "wreck.hud.status"));
   const topbarActions = document.createElement("div");
   topbarActions.className = "topbar-actions";
   const mute = document.createElement("button");
@@ -223,7 +253,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   mute.setAttribute("aria-label", translate(locale, "wreck.controls.mute"));
   mute.setAttribute("aria-pressed", "false");
   mute.textContent = translate(locale, "wreck.symbol.audio");
-  topbarActions.append(normalStatus, mute);
+  topbarActions.append(status, mute);
   topbar.append(identity, topbarActions);
 
   const viewport = document.createElement("div");
@@ -285,7 +315,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     gas,
     ndl,
     zone,
-    status: normalStatus,
+    status,
     warning,
     torch,
     mute,
@@ -310,28 +340,47 @@ function updateHud(
   hud.zone.textContent = translate(locale, zoneMessageKeys[scene.zone]);
   hud.torch.setAttribute("aria-pressed", String(scene.torchOn));
 
-  const warningKey = selectWarning(presentation);
-  hud.warning.hidden = warningKey === null;
-  hud.warning.textContent = warningKey ? translate(locale, warningKey) : "";
-  hud.shell.classList.toggle("has-warning", warningKey !== null);
-  hud.status.textContent = translate(locale, "wreck.hud.normal");
+  const severity = selectWarning(presentation);
+  const alertText = severity ? translate(locale, warningAlertKeys[severity]) : "";
+  // The glyph makes the warning legible without colour at all — in greyscale,
+  // or to a reader who cannot tell the red chip from the green one. Same
+  // redundant-encoding approach #39 took in the legacy client.
+  const statusText = severity
+    ? `${translate(locale, "wreck.symbol.warning")} ${translate(locale, warningStatusKeys[severity])}`
+    : translate(locale, "wreck.hud.normal");
+
+  hud.warning.hidden = severity === null;
+  hud.shell.classList.toggle("has-warning", severity !== null);
+  // Assign only on an actual change. Both of these are live regions and this
+  // runs every frame; `textContent =` replaces the child nodes even when the
+  // string is identical, and a live region watching those mutations can
+  // re-announce on every frame. Writing only real transitions keeps each state
+  // change announced exactly once.
+  if (hud.warning.textContent !== alertText) {
+    hud.warning.textContent = alertText;
+  }
+  if (hud.status.textContent !== statusText) {
+    hud.status.textContent = statusText;
+  }
 }
 
+// Returns the severity rather than a message, so callers cannot pick one
+// wording for the chip and a different state for the styling.
 function selectWarning(
   presentation: Readonly<PresentationState>,
-): MessageKey | null {
+): WarningSeverity | null {
   if (presentation.failureReason) {
-    return "wreck.warning.failure";
+    return "failure";
   }
   if (
     presentation.breathingPo2Bar < 0.16 ||
     presentation.breathingPo2Bar > 1.6
   ) {
-    return "wreck.warning.oxygen";
+    return "oxygen";
   }
   const activeTank = presentation.tanks[presentation.activeTankIndex];
   if (activeTank && activeTank.pressureBar <= 50) {
-    return "wreck.warning.lowGas";
+    return "lowGas";
   }
   return null;
 }

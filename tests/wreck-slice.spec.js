@@ -106,6 +106,12 @@ test('persisted safety states produce visible semantic warnings', async ({ page 
   await page.locator('[data-renderer=pixi] canvas').waitFor();
   await page.reload();
 
+  // Issue #138: the status chip has to say which state it is in, not just turn
+  // red. Asserting it alongside the alert copy is what stops the two drifting
+  // apart again — the original defect was exactly that they were set from the
+  // same selection but three lines apart, and nothing checked the chip.
+  const chip = page.locator('.status-chip');
+
   await mutateSavedState(page, 'low-gas');
   await page
     .getByRole('button', { name: 'I understand — start simulation' })
@@ -113,6 +119,7 @@ test('persisted safety states produce visible semantic warnings', async ({ page 
   await expect(page.getByRole('alert')).toHaveText(
     'Low gas pressure — begin a controlled exit',
   );
+  await expect(chip).toHaveText('⚠ Low gas');
   await page.reload();
 
   await mutateSavedState(page, 'oxygen');
@@ -122,6 +129,7 @@ test('persisted safety states produce visible semantic warnings', async ({ page 
   await expect(page.getByRole('alert')).toHaveText(
     'Unsafe simulated oxygen pressure',
   );
+  await expect(chip).toHaveText('⚠ Oxygen warning');
   await page.reload();
 
   await mutateSavedState(page, 'failure');
@@ -131,6 +139,10 @@ test('persisted safety states produce visible semantic warnings', async ({ page 
   await expect(page.getByRole('alert')).toHaveText(
     'Simulated dive failure — return to the surface',
   );
+  await expect(chip).toHaveText('⚠ Dive failure');
+  // The chip must never contradict the styling: red without a warning word is
+  // the colour-only encoding #138 was filed about.
+  await expect(page.locator('.wreck-shell')).toHaveClass(/has-warning/);
 });
 
 test('the same input trace drives equivalent legacy and Pixi control semantics', async ({ page }) => {
