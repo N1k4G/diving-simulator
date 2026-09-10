@@ -213,22 +213,80 @@ const MAX_IDENTICAL_PERCENT = 0.5;
 // explicit requirement: a torch-lit overhead has to still read as dark. They
 // are current +/- 10, wide enough that ordinary art changes pass and narrow
 // enough that lighting an interior up to open-water levels does not.
+//
+// THE VARIANCE FLOORS, AND WHY MEANS ALONE WERE NOT ENOUGH.
+//
+// `sd` and `chromaSD` are floors with no ceiling. They exist because every
+// band above is a frame MEAN, and means are blind to arrangement: a single
+// flat fill of rgb(41,61,73) satisfies the chroma and luma bands of all four
+// wreck scenes simultaneously, and rgb(45,60,70) does the same for all three
+// cave scenes. The entire torch, every material highlight and the gloom they
+// read against could collapse into one colour with the mean checks still
+// green — which is the precise opposite of what this guard is for.
+//
+// Both floors sit near 60% of the measured value, which is far enough below
+// to leave room for real art changes and far enough above zero to make any
+// collapse toward uniformity fail hard:
+//
+//   scene                 sd    floor      chromaSD   floor
+//   wreck-vehicle-deck    8.3    5.0           6.9     4.2
+//   wreck-crew-deck       7.8    5.0           6.2     3.6
+//   wreck-cargo-hold      8.0    5.0           6.2     3.6
+//   wreck-engine-room     7.5    4.5           8.0     5.4
+//   cave-upper-tunnel    20.2   12.0           7.2     3.9
+//   cave-restriction     18.9   11.0           7.2     3.9
+//   cave-cathedral       19.5   11.5           4.1     2.4
+//   wreck-exterior-bow   23.9   14.0          43.1    27.0
+//   reef-open-water      30.5   17.0          54.8    32.0
+//
+// Two floors rather than one because either alone is escapable: a frame can
+// hold its luminance structure while every pixel drifts to the same hue, or
+// keep varied hues at uniform brightness. Requiring structure in both leaves
+// no single fill that satisfies them.
+//
+// WHAT WAS TRIED INSTEAD, MEASURED, AND REJECTED.
+//
+// The property #124 actually decided is a temperature one — lit surfaces
+// separate from ambient by hue, not only by brightness — so the first attempt
+// measured that directly: warmth as R - B, compared between the brightest and
+// darkest quarters of the frame. It does not work here, and the numbers say
+// why. The whole scene sits under the #36 depth grade, which leaves R - B
+// negative EVERYWHERE, so the split is decided by composition rather than by
+// the torch: the dark quarter contains the warm olive seabed, so it measures
+// warmer than the lit quarter, and the metric comes out negative for six of
+// seven interiors (-0.03 to -26.9) with no relationship to how well the torch
+// is reading.
+//
+// Comparing a box on the beam against the far field fails the same way
+// (-0.03 to -8.75, sign inconsistent). Masking to the true cone wedge would
+// fix the measurement and break the guard: it would hard-code the beam's
+// angle, reach and facing, so re-aiming the torch would require re-deriving
+// this file. A guard meant to outlive art changes cannot depend on the
+// geometry of the thing it is guarding.
+//
+// So the floors assert that structure EXISTS in brightness and in colour,
+// which is weaker than asserting the torch reads warm, but is composition-
+// independent, cheap, and provably zero for the failure it was added to catch.
+// The mean-chroma bands still carry the 'is there colour at all' half.
 const SCENES = [
   // ── Wreck interiors ──
   {
     id: 'wreck-vehicle-deck', kind: 'interior',
     site: 'Wreck', x: 92, depth: 32, torch: true,
     chroma: [31.0, 48.0], luma: [52.0, 72.0],
+    sd: 5.0, chromaSD: 4.2,
   },
   {
     id: 'wreck-crew-deck', kind: 'interior',
     site: 'Wreck', x: 92, depth: 43, torch: true,
     chroma: [27.0, 44.0], luma: [57.0, 77.0],
+    sd: 5.0, chromaSD: 3.6,
   },
   {
     id: 'wreck-cargo-hold', kind: 'interior',
     site: 'Wreck', x: 92, depth: 49, torch: true,
     chroma: [23.5, 40.0], luma: [55.0, 75.0],
+    sd: 5.0, chromaSD: 3.6,
   },
   {
     // The deepest and, before #136, by far the flattest scene in the game:
@@ -237,22 +295,26 @@ const SCENES = [
     id: 'wreck-engine-room', kind: 'interior',
     site: 'Wreck', x: 92, depth: 57, torch: true,
     chroma: [18.5, 34.0], luma: [48.0, 68.0],
+    sd: 4.5, chromaSD: 5.4,
   },
   // ── Cave interiors (guarding #135) ──
   {
     id: 'cave-upper-tunnel', kind: 'interior',
     site: 'Cave', x: 40, depth: 16, torch: true,
     chroma: [13.5, 29.0], luma: [53.0, 73.0],
+    sd: 12.0, chromaSD: 3.9,
   },
   {
     id: 'cave-restriction', kind: 'interior',
     site: 'Cave', x: 90, depth: 16, torch: true,
     chroma: [15.5, 32.0], luma: [56.0, 76.0],
+    sd: 11.0, chromaSD: 3.9,
   },
   {
     id: 'cave-cathedral', kind: 'interior',
     site: 'Cave', x: 90, depth: 70, torch: true,
     chroma: [20.0, 36.0], luma: [46.0, 66.0],
+    sd: 11.5, chromaSD: 2.4,
   },
   // ── Open-water controls ──
   //
@@ -266,11 +328,13 @@ const SCENES = [
     id: 'wreck-exterior-bow', kind: 'control',
     site: 'Wreck', x: 20, depth: 22, torch: false,
     chroma: [95.0, 135.0], luma: [75.0, 96.0],
+    sd: 14.0, chromaSD: 27.0,
   },
   {
     id: 'reef-open-water', kind: 'control',
     site: 'Reef', x: 11, depth: 20, torch: false,
     chroma: [44.0, 70.0], luma: [50.0, 78.0],
+    sd: 17.0, chromaSD: 32.0,
   },
 ];
 
@@ -427,6 +491,32 @@ async function openScene(browser, scene) {
     }
     const mean = sum / n;
 
+    // SPATIAL STRUCTURE.
+    //
+    // Everything above this point is a frame MEAN, and a mean cannot see
+    // arrangement. That is not a theoretical gap: a single flat fill of
+    // rgb(41,61,73) has luma 57.61 and chroma 32.0, which satisfies the mean
+    // bands of all four wreck scenes at once, and rgb(45,60,70) does the same
+    // for all three cave scenes. Every trace of torch, material and gloom could
+    // vanish into one colour and the mean checks would stay green — the exact
+    // opposite of what this guard exists to assert.
+    //
+    // So two variance floors sit alongside the means. `sd` is spread in
+    // luminance, `chromaSD` is spread in per-pixel chroma, and both are
+    // identically zero for a uniform frame whatever colour it is. Together they
+    // require the frame to have structure in brightness AND in colour, which no
+    // single fill can satisfy.
+    let chroma2 = 0;
+    for (let y = 0; y < h; y += 2) {
+      for (let x = 0; x < w; x += 2) {
+        const i = ((y * w) + x) << 2;
+        const R = data[i], G = data[i + 1], B = data[i + 2];
+        const c = Math.max(R, G, B) - Math.min(R, G, B);
+        chroma2 += c * c;
+      }
+    }
+    const meanChroma = chroma / n;
+    const chromaSD = Math.sqrt(Math.max(0, chroma2 / n - meanChroma * meanChroma));
     // The reference frame is cut from the SAME pixels just measured. A page
     // screenshot would composite the DOM HUD over the canvas, so the frame and
     // the numbers printed beside it would describe different images — and the
@@ -456,6 +546,7 @@ async function openScene(browser, scene) {
         luma: +mean.toFixed(2),
         sd: +Math.sqrt(Math.max(0, sum2 / n - mean * mean)).toFixed(2),
         chroma: +(chroma / n).toFixed(2),
+        chromaSD: +chromaSD.toFixed(2),
         rgb: [r / n, g / n, b / n].map(v => +v.toFixed(1)),
       },
       png: out.toDataURL('image/png'),
@@ -580,6 +671,10 @@ function breachesFor(scene, stats) {
   const checks = [
     ['chroma', stats.chroma, scene.chroma],
     ['luma', stats.luma, scene.luma],
+    // Variance floors, open-ended above: nothing has ever regressed by having
+    // too much structure.
+    ['sd', stats.sd, [scene.sd, Infinity]],
+    ['chromaSD', stats.chromaSD, [scene.chromaSD, Infinity]],
   ];
   for (const [name, value, [min, max]] of checks) {
     if (value < min) {
@@ -588,7 +683,11 @@ function breachesFor(scene, stats) {
       // change pulling the colour out of the whole game, which would drag the
       // interiors back into band while destroying the contrast that made them
       // worth measuring against.
-      const why = name !== 'chroma' ? ''
+      const why =
+        name === 'sd' || name === 'chromaSD'
+          ? ` — the frame has lost its ${name === 'sd' ? 'brightness' : 'colour'} structure and is`
+            + ' collapsing toward a uniform fill, which the mean bands alone cannot see'
+        : name !== 'chroma' ? ''
         : scene.kind === 'interior'
           ? ' — the interior has gone flat, which is what #124 was about'
           : ' — this is an OPEN-WATER control: something has drained the colour from the whole scene,'
@@ -642,7 +741,7 @@ try {
   for (const { scene, stats, png } of captured) {
     const summary =
       `luma ${stats.luma.toFixed(1).padStart(5)}  sd ${stats.sd.toFixed(1).padStart(5)}  ` +
-      `chroma ${stats.chroma.toFixed(1).padStart(6)}`;
+      `chroma ${stats.chroma.toFixed(1).padStart(6)}  cSD ${stats.chromaSD.toFixed(1).padStart(5)}`;
     // One source of truth for what 'acceptable' means, in both modes. Update
     // mode used to run its own reduced version of this that looked at chroma
     // only, which let a reference be recorded with no warning at any brightness

@@ -215,10 +215,16 @@ New TypeScript UI copy is keyed in `src/app/i18n/catalog.ts`; direct user-facing
 
 ### Interior optics thresholds (issue #124)
 
-`npm run interior:check` enforces per-scene floors on **per-pixel chroma**
-(`mean(max(R,G,B) - min(R,G,B))`) for the torch-lit wreck and cave interiors,
-plus two open-water control scenes. It exists because those interiors drifted to
-near-neutral grey twice — once per renderer surface — and nothing caught either.
+`npm run interior:check` enforces per-scene bands on **per-pixel chroma**
+(`mean(max(R,G,B) - min(R,G,B))`) and mean luminance for the torch-lit wreck and
+cave interiors, plus two open-water control scenes. It exists because those
+interiors drifted to near-neutral grey twice — once per renderer surface — and
+nothing caught either.
+
+Alongside the means sit **variance floors** on luminance and on chroma. Means
+are blind to arrangement: one flat fill of `rgb(41,61,73)` satisfies the mean
+bands of all four wreck scenes at once. The floors require the frame to have
+structure in brightness *and* in colour, which no single fill can do.
 
 Two things about it are deliberate and easy to undo by accident:
 
