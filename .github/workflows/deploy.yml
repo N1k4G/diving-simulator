@@ -53,6 +53,22 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      # Issue #124: the interiors went flat twice, once per renderer surface,
+      # and nothing caught either. This is the guard, and unlike the Pixi one it
+      # enforces hand-set thresholds rather than recorded frames — see the header
+      # of the script for why recording them would defeat the purpose.
+      - name: Interior optics check
+        run: npm run interior:check
+
+      - name: Upload interior optics diff frames
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: interior-optics-actual-frames
+          path: tests/fixtures/reference-frames/interior-optics/*.actual.png
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Run migration client unit tests
         run: npm run test:unit
 

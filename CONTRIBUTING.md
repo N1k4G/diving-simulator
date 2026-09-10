@@ -20,6 +20,8 @@ your commit will be blocked if lint fails.
 | `npm run lint` | ESLint over `src/*.js` |
 | `npm test` | Runs the in-browser test suite headless via Playwright |
 | `npm run screenshots` | Captures review screenshots to `screenshots/` |
+| `npm run interior:check` | Fails if a wreck or cave interior has gone flat (issue #124) |
+| `npm run interior:update` | Re-records that guard's reference frames — never its thresholds |
 | `npm run license-check` | Fails if any dependency's license isn't in the allowlist below |
 
 ### License allowlist (issue #40)

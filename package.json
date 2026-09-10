@@ -32,7 +32,9 @@
     "prepixi:visual-check": "npm run build",
     "pixi:visual-check": "node scripts/pixi-visual-check.mjs",
     "prepixi:visual-update": "npm run build",
-    "pixi:visual-update": "node scripts/pixi-visual-check.mjs --update"
+    "pixi:visual-update": "node scripts/pixi-visual-check.mjs --update",
+    "interior:check": "node scripts/interior-optics-check.mjs",
+    "interior:update": "node scripts/interior-optics-check.mjs --update"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.0",
