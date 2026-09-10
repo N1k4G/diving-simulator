@@ -16,3 +16,24 @@ updates:
       dev-dependencies:
         patterns:
           - "*"
+    ignore:
+      # Hold TypeScript at 6.x until typescript-eslint supports 7.
+      #
+      # This is not a preference. typescript-eslint declares
+      # `peer typescript: ">=4.8.4 <6.1.0"`, and its newest release at the
+      # time of writing (8.70.0) still does — there is no published version
+      # that accepts TS 7. Because every npm update lands in one group here,
+      # a TypeScript major drags typescript-eslint along with it and the
+      # result cannot install at all: PR #139 failed at `npm ci` with
+      # ERESOLVE before any check could run, taking the other eight
+      # perfectly good bumps down with it.
+      #
+      # Verified before adding this: holding TypeScript at ^6.0.3 and taking
+      # the other eight resolves and passes the full gate, including the
+      # Vitest 4 -> 5 major.
+      #
+      # REMOVE THIS as soon as typescript-eslint ships a release whose
+      # typescript peer range admits 7.x. Check with:
+      #   npm view typescript-eslint@latest peerDependencies
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
