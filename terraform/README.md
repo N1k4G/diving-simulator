@@ -24,10 +24,41 @@ Two things make that safe enough to be worth the trade:
   a provider change a reviewable diff instead of a surprise. Hashes are
   recorded for `linux_amd64` (HCP's runners) as well as `windows_amd64` —
   `terraform providers lock -platform=linux_amd64 -platform=windows_amd64`.
-- **The steady-state plan is empty.** The `build_config` drift that produced a
-  perpetual one-resource diff was applied on 2026-09-16; runs since then plan
-  no changes. A non-empty plan now means something actually changed, which is
-  the signal auto-apply needs to be trustworthy.
+- **Drift no longer accumulates.** The 2026-09-16 apply absorbed the deployment
+  metadata Cloudflare had moved on (`latest_deployment`, domain validation
+  status); the run after it reported zero drift entries. Runs no longer carry
+  a growing gap between state and reality.
+
+### The plan is never empty — do not read `1 to change` as a signal
+
+Every run plans exactly one change:
+
+```
+cloudflare_pages_project.this will be updated in-place
+  + build_config = (known after apply)
+```
+
+This is permanent and cannot be confirmed away. `build_config` is
+`Optional+Computed` in the provider schema, `main.tf` does not set it, and
+Cloudflare returns nothing for it (this is a direct-upload project with no
+build command). So state holds `null`, Terraform cannot promise the value and
+plans it unknown, the apply writes `null` back, and the next run plans it
+again. Verified on 2026-09-16: state serial 10 still has
+`build_config: null` immediately after a successful apply.
+
+Two consequences worth internalising:
+
+- **It is why auto-apply exists here.** A perpetual diff means every merge
+  produces a run awaiting confirmation forever. That is precisely how ~30 runs
+  queued up between July and September, each holding the lock from the next.
+  Confirming a no-op by hand on every merge was never going to hold.
+- **"The plan is not empty" carries no information.** Reviewing a
+  `terraform/` change means reading the attribute-level diff, not the change
+  count. One in-place update with only `build_config` unknown is the floor,
+  not a finding.
+
+Worth fixing upstream or with an explicit `build_config` block someday; until
+then it is noise that has to be recognised rather than removed.
 
 Auto-apply was enabled on 2026-09-16, after ~30 unconfirmed runs had queued up
 since 2026-07-26. A waiting run holds the workspace lock, so the backlog also
@@ -82,10 +113,14 @@ Plan: 0 to add, 1 to change, 0 to destroy.
   exact signature separating this from the destructive bug this resource had
   in early v5.x (upstream #5146, where any update replaces the project and
   `id` itself changes to `(known after apply)`).
-- What remains — `build_config` populating on first apply — is the documented
-  non-destructive case: v5's state upgrader cannot carry every `build_config`
-  field forward from v4-shaped state. Upstream's fix for this exact resource
-  landed in 5.20.0, which is why `providers.tf` now floors on
+- What remains is `build_config`, which is non-destructive either way. The
+  reading recorded here beforehand — that it would *populate on first apply*,
+  v5's state upgrader having failed to carry it forward from v4-shaped state —
+  turned out to be wrong: the apply ran, and state serial 10 still holds
+  `build_config: null`. It is a permanent no-op diff, not a migration
+  leftover; see "The plan is never empty" above for the actual mechanism. The
+  provider floor still matters for the separate replacement bug, whose fix
+  landed in 5.20.0, which is why `providers.tf` floors on
   `>= 5.20, < 6.0` (was the open `~> 5.0`, which could re-resolve to the buggy
   5.1.0 on a future re-init). The floor rules out the known-bad releases; the
   committed lock file is what fixes the exact build.

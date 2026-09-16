@@ -28,11 +28,14 @@ terraform {
       # ~> 5.0 constraint could re-resolve to the buggy 5.1.0 on a future
       # re-init. Applied against the live workspace on 2026-09-16 (run
       # run-r8tWZdNA3JmywgiM): cloudflare_pages_project.this resolved as an
-      # in-place update — id/name no-op/unchanged, only the build_config
-      # sub-fields the v5 state upgrader can't carry forward from v4 state
-      # showed known-after-apply — not the replacement bug's signature
-      # (which shows id itself changing under a `# forces replacement`
-      # marker).
+      # in-place update — id/name no-op/unchanged, only build_config showed
+      # known-after-apply — not the replacement bug's signature (which shows
+      # id itself changing under a `# forces replacement` marker).
+      #
+      # That build_config diff is permanent, not a migration leftover: the
+      # attribute is Optional+Computed, main.tf does not set it, and the API
+      # returns nothing for it, so every plan re-plans it. Do not expect a
+      # clean plan here. terraform/README.md has the detail.
       #
       # This range is a floor, not a pin: it still admits every future 5.x.
       # What actually decides which build reaches production is
