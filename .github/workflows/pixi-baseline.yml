@@ -118,10 +118,27 @@ jobs:
         env:
           TARGET_REF: ${{ inputs.target_ref }}
         run: |
+          # target_ref is a SHORT branch name — "my-feature", never
+          # "refs/heads/my-feature", a tag, or a SHA. Everything below
+          # enforces that, and the checkout and push then supply the
+          # refs/heads/ prefix themselves.
+          #
+          # Rejecting only the bare names main|master was not enough:
+          # "refs/heads/main" slipped past that test, passed the character
+          # check because slashes are legal in branch names, and would have
+          # been handed to checkout and to `git push HEAD:$TARGET_REF` as a
+          # fully-qualified ref — writing straight to main from a job that
+          # holds contents:write. Namespacing is what actually closes it;
+          # the explicit rejections below are the second layer.
           case "$TARGET_REF" in
-            main|master)
+            main|master|HEAD)
               echo "Refusing to record a baseline directly onto $TARGET_REF." >&2
               echo "Dispatch against the feature branch that needs it, and let review carry it to main." >&2
+              exit 1
+              ;;
+            refs/*)
+              echo "target_ref must be a short branch name, not a fully-qualified ref: $TARGET_REF" >&2
+              echo "Use 'my-feature', not 'refs/heads/my-feature'." >&2
               exit 1
               ;;
             -*|*..*|*' '*)
@@ -129,15 +146,29 @@ jobs:
               exit 1
               ;;
           esac
+          # Conservative charset first, so anything git would interpret
+          # rather than take literally (@{-1}, ^, ~, ?, *, []) is gone before
+          # git sees it at all.
           printf '%s' "$TARGET_REF" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._/-]*$' || {
             echo "target_ref is not a plain branch name: $TARGET_REF" >&2
             exit 1
           }
-          echo "Recording baseline on branch: $TARGET_REF"
+          # Then git's own rules, which know things a regex does not —
+          # trailing ".lock", "..", a trailing dot, and so on.
+          git check-ref-format --branch "$TARGET_REF" >/dev/null 2>&1 || {
+            echo "git rejects '$TARGET_REF' as a branch name" >&2
+            exit 1
+          }
+          echo "Recording baseline on branch: $TARGET_REF (as refs/heads/$TARGET_REF)"
 
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.target_ref }}
+          # refs/heads/ is supplied here rather than trusting the input to be
+          # a branch: checkout accepts branches, tags and SHAs alike, so an
+          # unqualified value could resolve to something that is not a branch
+          # at all. Qualified, a tag or a fully-qualified ref simply fails to
+          # resolve instead of silently becoming the target.
+          ref: refs/heads/${{ inputs.target_ref }}
           # Do not leave a usable git credential behind for the branch's own
           # build scripts to find. This job needs none — it only uploads.
           persist-credentials: false
@@ -244,7 +275,7 @@ jobs:
           # "is the branch still at X" test would race in the same window it
           # is trying to close. A non-fast-forward rejection here means the
           # branch moved while recording, and the frames are stale.
-          if ! git push origin "HEAD:$TARGET_REF"; then
+          if ! git push origin "HEAD:refs/heads/$TARGET_REF"; then
             echo "::error::Push rejected. $TARGET_REF moved while the baseline was being recorded, so these frames describe $RECORDED_SHA rather than the current tip. Nothing was committed — re-dispatch against the new tip."
             exit 1
           fi
