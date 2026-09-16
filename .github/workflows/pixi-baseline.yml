@@ -108,6 +108,10 @@ jobs:
     permissions:
       # Deliberately read-only: this job runs code from target_ref.
       contents: read
+    outputs:
+      # The exact commit these frames describe. `commit` pins to this
+      # rather than re-resolving the branch name — see the race note there.
+      recorded_sha: ${{ steps.resolve.outputs.sha }}
     steps:
       # Validate before checkout, so a hostile value never reaches an action.
       - name: Validate target_ref
@@ -137,6 +141,15 @@ jobs:
           # Do not leave a usable git credential behind for the branch's own
           # build scripts to find. This job needs none — it only uploads.
           persist-credentials: false
+
+      # Pin what was actually built. Everything downstream refers to this
+      # commit, never to the branch name, which can move underneath us.
+      - name: Resolve the recorded commit
+        id: resolve
+        run: |
+          SHA="$(git rev-parse HEAD)"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "Recording the baseline for commit $SHA"
 
       - uses: actions/setup-node@v7
         with:
@@ -186,9 +199,18 @@ jobs:
     steps:
       # Checking the branch out does not execute any of it. Nothing in this job
       # installs dependencies or runs a build — that is the point.
+      #
+      # Pinned to the commit `record` actually built, not to target_ref.
+      # Re-resolving the branch name here would be a time-of-check to
+      # time-of-use race: if the branch is pushed to while the baseline is
+      # being recorded, frames describing the old commit would be committed
+      # on top of the new one — a baseline that silently does not match the
+      # code it claims to. Pinning makes that case fail instead: the commit
+      # is built on the recorded SHA, so if the branch has moved the push
+      # below is not a fast-forward and is rejected.
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.target_ref }}
+          ref: ${{ needs.record.outputs.recorded_sha }}
 
       - name: Download the recorded baseline
         uses: actions/download-artifact@v7
@@ -204,6 +226,7 @@ jobs:
         env:
           BASELINE_REASON: ${{ inputs.reason }}
           TARGET_REF: ${{ inputs.target_ref }}
+          RECORDED_SHA: ${{ needs.record.outputs.recorded_sha }}
         run: |
           if git diff --quiet -- tests/fixtures/reference-frames/pixi/; then
             echo "Baseline already current — nothing to commit."
@@ -216,6 +239,13 @@ jobs:
           git add tests/fixtures/reference-frames/pixi/
           git commit -m "chore: re-record Pixi visual baseline (linux)" \
                      -m "$BASELINE_REASON" \
-                     -m "Recorded by .github/workflows/pixi-baseline.yml on ubuntu-latest."
-          git push origin "HEAD:$TARGET_REF"
-          echo "::notice::Baseline pushed. The PR Checks run for this commit needs approving from the PR's Checks tab before it reports."
+                     -m "Recorded by .github/workflows/pixi-baseline.yml on ubuntu-latest, from $RECORDED_SHA."
+          # The push is the atomic check, not a preceding comparison: any
+          # "is the branch still at X" test would race in the same window it
+          # is trying to close. A non-fast-forward rejection here means the
+          # branch moved while recording, and the frames are stale.
+          if ! git push origin "HEAD:$TARGET_REF"; then
+            echo "::error::Push rejected. $TARGET_REF moved while the baseline was being recorded, so these frames describe $RECORDED_SHA rather than the current tip. Nothing was committed — re-dispatch against the new tip."
+            exit 1
+          fi
+          echo "::notice::Baseline for $RECORDED_SHA pushed to $TARGET_REF. The PR Checks run for the new commit needs approving from the PR's Checks tab before it reports."
