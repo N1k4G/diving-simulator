@@ -26,9 +26,34 @@ name: Record Pixi visual baseline
 # needing a baseline generally does not, and cannot be expected to.
 #
 # So dispatch this on the default branch (where workflow_dispatch requires it to
-# live anyway) and name the branch to record in `target_ref`. The job checks out
-# that branch, records there, and pushes back to it. The workflow version that
-# runs is always main's.
+# live anyway) and name the branch to record in `target_ref`. The workflow
+# version that runs is always the default branch's.
+#
+# WHY TWO JOBS
+#
+# `record` builds and runs code from target_ref. `commit` holds the write
+# permission. They are separate on purpose, and the split is the security
+# boundary, not a stylistic one.
+#
+# A single job would have to hold contents:write while running `npm ci` and a
+# Playwright build from an arbitrary branch — and actions/checkout persists its
+# credentials into .git/config by default, so an install script or build step
+# on that branch could use the write token long before the deliberately narrow
+# `git add` at the end. That is the "privileged workflow runs untrusted code"
+# pattern GitHub's own hardening guidance warns about, and target_ref is
+# attacker-chosen in the sense that it need not be a branch anyone reviewed.
+#
+# So: `record` runs the branch's code with contents:read and credentials not
+# persisted, and hands the frames over as an artifact. `commit` takes the write
+# permission but executes nothing from the branch — it checks out, unpacks the
+# artifact, and commits. Build code can never reach the write token.
+#
+# AFTER IT PUSHES
+#
+# The push uses GITHUB_TOKEN, which does not set a normal PR check run going on
+# its own — the resulting run needs approving by someone with write access
+# before PR Checks will report green. Expect to approve it from the PR's Checks
+# tab; the baseline landing is not by itself the end of the sequence.
 #
 # NEVER runs automatically. A baseline is a statement that the current render is
 # correct, which is a human judgement — a scheduled or on-push regeneration
@@ -55,12 +80,37 @@ jobs:
   record:
     runs-on: ubuntu-latest
     permissions:
-      # Needed to push the regenerated frames back to target_ref.
-      contents: write
+      # Deliberately read-only: this job runs code from target_ref.
+      contents: read
     steps:
+      # Validate before checkout, so a hostile value never reaches an action.
+      - name: Validate target_ref
+        env:
+          TARGET_REF: ${{ inputs.target_ref }}
+        run: |
+          case "$TARGET_REF" in
+            main|master)
+              echo "Refusing to record a baseline directly onto $TARGET_REF." >&2
+              echo "Dispatch against the feature branch that needs it, and let review carry it to main." >&2
+              exit 1
+              ;;
+            -*|*..*|*' '*)
+              echo "Refusing suspicious target_ref: $TARGET_REF" >&2
+              exit 1
+              ;;
+          esac
+          printf '%s' "$TARGET_REF" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._/-]*$' || {
+            echo "target_ref is not a plain branch name: $TARGET_REF" >&2
+            exit 1
+          }
+          echo "Recording baseline on branch: $TARGET_REF"
+
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.target_ref }}
+          # Do not leave a usable git credential behind for the branch's own
+          # build scripts to find. This job needs none — it only uploads.
+          persist-credentials: false
 
       - uses: actions/setup-node@v7
         with:
@@ -81,8 +131,6 @@ jobs:
       - name: Show what changed
         run: git --no-pager diff --stat tests/fixtures/reference-frames/pixi/
 
-      # Uploaded as well as committed: if the commit step is ever removed or
-      # the push is rejected, the frames are still recoverable from the run.
       - name: Upload the recorded baseline
         uses: actions/upload-artifact@v7
         with:
@@ -91,12 +139,30 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  commit:
+    needs: record
+    runs-on: ubuntu-latest
+    permissions:
+      # The write permission lives only here, where no target_ref code runs.
+      contents: write
+    steps:
+      # Checking the branch out does not execute any of it. Nothing in this job
+      # installs dependencies or runs a build — that is the point.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.target_ref }}
+
+      - name: Download the recorded baseline
+        uses: actions/download-artifact@v7
+        with:
+          name: pixi-baseline-linux
+          path: tests/fixtures/reference-frames/pixi/linux
+
       - name: Commit the baseline
-        # Both values are user-supplied dispatch inputs, so they are passed
-        # through the environment and dereferenced as shell variables rather
-        # than interpolated into the script text. A ${{ }} expression is
-        # substituted before the shell ever parses the line, which would let a
-        # crafted input run arbitrary commands in a job holding contents:write.
+        # Dispatch inputs are passed through the environment and dereferenced as
+        # shell variables. A ${{ }} expression is substituted before the shell
+        # parses the line, so interpolating one here would let a crafted input
+        # run arbitrary commands in the job that holds contents:write.
         env:
           BASELINE_REASON: ${{ inputs.reason }}
           TARGET_REF: ${{ inputs.target_ref }}
@@ -107,10 +173,11 @@ jobs:
           fi
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # Scoped to the reference directory on purpose: this job regenerates
-          # baselines and must never sweep up unrelated working-tree changes.
+          # Scoped to the reference directory on purpose: this job must never
+          # sweep up anything else that happens to be in the tree.
           git add tests/fixtures/reference-frames/pixi/
           git commit -m "chore: re-record Pixi visual baseline (linux)" \
                      -m "$BASELINE_REASON" \
                      -m "Recorded by .github/workflows/pixi-baseline.yml on ubuntu-latest."
           git push origin "HEAD:$TARGET_REF"
+          echo "::notice::Baseline pushed. The PR Checks run for this commit needs approving from the PR's Checks tab before it reports."
