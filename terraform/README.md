@@ -5,6 +5,49 @@ Manages the Cloudflare Pages project and DNS record for
 `Infrastruktur/diving-simulator`). There is no CI workflow for
 `terraform plan`/`apply` — runs happen through the HCP workspace directly.
 
+## How changes reach production
+
+The workspace **auto-applies**: every push to `main` uploads a configuration
+version, plans, and applies without anyone confirming in the HCP UI.
+
+The review gate is therefore the pull request, not the run. Whatever is merged
+here is what production gets, so `terraform/` changes need reviewing as
+carefully as the plan output used to be.
+
+Two things make that safe enough to be worth the trade:
+
+- **`.terraform.lock.hcl` is committed** (and deliberately not gitignored).
+  The version constraint in `providers.tf` is a floor admitting every future
+  5.x; without a committed lock file each run would resolve to whatever is
+  newest at that moment, so an unrelated app merge could pull a fresh provider
+  and auto-apply its behaviour to production DNS. The lock file is what makes
+  a provider change a reviewable diff instead of a surprise. Hashes are
+  recorded for `linux_amd64` (HCP's runners) as well as `windows_amd64` —
+  `terraform providers lock -platform=linux_amd64 -platform=windows_amd64`.
+- **The steady-state plan is empty.** The `build_config` drift that produced a
+  perpetual one-resource diff was applied on 2026-09-16; runs since then plan
+  no changes. A non-empty plan now means something actually changed, which is
+  the signal auto-apply needs to be trustworthy.
+
+Auto-apply was enabled on 2026-09-16, after ~30 unconfirmed runs had queued up
+since 2026-07-26. A waiting run holds the workspace lock, so the backlog also
+blocked itself: the oldest run stayed `planned` and everything behind it sat
+`pending`. If auto-apply is ever turned back off, put a notification on
+waiting runs in its place.
+
+### Raising the provider version
+
+Do it deliberately, never by widening the constraint:
+
+```
+cd terraform
+terraform init -upgrade
+terraform providers lock -platform=linux_amd64 -platform=windows_amd64
+```
+
+Then open a PR with the lock diff and review the resulting plan **before**
+merging — merging is what applies it.
+
 ## Provider v5 migration (issue #23)
 
 `providers.tf`/`main.tf` are staged for the Cloudflare provider v4 → v5
@@ -12,9 +55,11 @@ migration: `cloudflare_record` renamed to `cloudflare_dns_record`, with a
 `moved` block so Terraform treats it as an in-place rename rather than a
 destroy/recreate.
 
-**Plan confirmed clean, not yet applied.** `terraform plan` was run against
-the live HCP workspace on 2026-09-16, with the raised provider floor below
-(resolved 5.25.0, run `run-ZAqvvGau1zjJEpDd`):
+**Applied 2026-09-16** (run `run-r8tWZdNA3JmywgiM`, provider 5.25.0) after the
+plan below was confirmed clean. The plan was first verified on
+`run-ZAqvvGau1zjJEpDd` and re-verified attribute-by-attribute on the applied
+run; the apply finished `0 add / 1 change / 0 destroy`, matching the plan
+exactly:
 
 ```
 Plan: 0 to add, 1 to change, 0 to destroy.
@@ -42,8 +87,8 @@ Plan: 0 to add, 1 to change, 0 to destroy.
   field forward from v4-shaped state. Upstream's fix for this exact resource
   landed in 5.20.0, which is why `providers.tf` now floors on
   `>= 5.20, < 6.0` (was the open `~> 5.0`, which could re-resolve to the buggy
-  5.1.0 on a future re-init — no lock file is committed to prevent it, see
-  `.gitignore`).
+  5.1.0 on a future re-init). The floor rules out the known-bad releases; the
+  committed lock file is what fixes the exact build.
 
 Two things worth knowing that this README previously assumed otherwise:
 
@@ -58,13 +103,23 @@ Two things worth knowing that this README previously assumed otherwise:
   refresh, but produces no planned action — refresh reconciled it against the
   API and the config now matches.
 
-Before running `apply` against the live workspace:
+### Reviewing a change to this directory
 
-1. Re-run `terraform plan` and confirm the shape above still holds — in
-   particular `0 to destroy`, no diff for `cloudflare_dns_record.pages_cname`,
-   and no `# forces replacement` / changing `id`.
-2. Only apply once that plan output is in hand and reviewed — this is
-   production DNS and a production Pages project.
+Auto-apply means the merge is the apply, so the checks that used to happen at
+the HCP confirmation prompt have moved earlier. Before approving a PR that
+touches `terraform/`, get a plan (open it in the HCP UI against the branch, or
+run `terraform plan` locally) and confirm:
+
+1. `0 to destroy`, and no `-/+ must be replaced`.
+2. No diff at all for `cloudflare_dns_record.pages_cname` — that is production
+   DNS for `scuba.gorman.monster`.
+3. No `# forces replacement` marker and no `id` changing to
+   `(known after apply)` on `cloudflare_pages_project.this`. That pair is the
+   signature of upstream #5146, which destroys and recreates the Pages
+   project.
+4. If `.terraform.lock.hcl` changed, the provider version moved — treat the
+   plan as untrusted until you have read the provider's changelog for the
+   range.
 
 `cloudflare_pages_project`'s resource-type and top-level arguments are
 otherwise unchanged by the v4 → v5 rename. `cloudflare_pages_domain` needed

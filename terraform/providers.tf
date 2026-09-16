@@ -26,13 +26,21 @@ terraform {
       # resource ("fix pages_project: fix source.config drift for API-
       # populated fields by preserving computed state values"). The open
       # ~> 5.0 constraint could re-resolve to the buggy 5.1.0 on a future
-      # re-init with no local lock file to prevent it; nothing here pins one
-      # (see terraform/.gitignore). Confirmed via a real HCP plan run
-      # (2026-09-16): cloudflare_pages_project.this resolved as an in-place
-      # update — id/name no-op/unchanged, only the build_config sub-fields
-      # the v5 state upgrader can't carry forward from v4 state showed
-      # known-after-apply — not the replacement bug's signature (which
-      # shows id itself changing under a `# forces replacement` marker).
+      # re-init. Applied against the live workspace on 2026-09-16 (run
+      # run-r8tWZdNA3JmywgiM): cloudflare_pages_project.this resolved as an
+      # in-place update — id/name no-op/unchanged, only the build_config
+      # sub-fields the v5 state upgrader can't carry forward from v4 state
+      # showed known-after-apply — not the replacement bug's signature
+      # (which shows id itself changing under a `# forces replacement`
+      # marker).
+      #
+      # This range is a floor, not a pin: it still admits every future 5.x.
+      # What actually decides which build reaches production is
+      # .terraform.lock.hcl, which IS committed — it has to be, now that the
+      # workspace auto-applies. Raise the provider by running
+      # `terraform init -upgrade` and reviewing the lock diff in a PR, never
+      # by widening this constraint and letting a run resolve whatever is
+      # newest.
       version = ">= 5.20, < 6.0"
     }
   }

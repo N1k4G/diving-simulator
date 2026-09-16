@@ -3,7 +3,8 @@ terraform/.terraform/
 terraform/*.tfstate
 terraform/*.tfstate.backup
 terraform/*.tfvars
-terraform/.terraform.lock.hcl
+# .terraform.lock.hcl is deliberately NOT ignored — it is the only thing that
+# pins which provider build reaches production. See terraform/README.md.
 
 # Claude Code local settings
 .claude/settings.local.json
