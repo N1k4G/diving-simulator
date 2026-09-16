@@ -1,5 +1,18 @@
 const { expect, test } = require('@playwright/test');
 
+// Mirrors smoke.spec.js's MOBILE_VIEWPORT: a hand-rolled touch viewport
+// rather than Playwright's `devices['iPhone 12']`, which forbids overriding
+// `defaultBrowserType` inside a describe group and would take us off the
+// project's default browser (chromium). Width 390 sits well under the
+// diagnostic.css `width <= 720px` breakpoint these tests exercise.
+const MOBILE_VIEWPORT = {
+  viewport: { width: 390, height: 844 },
+  hasTouch: true,
+  isMobile: true,
+  userAgent:
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
+};
+
 /** "28.1 m" -> 28.1. Returns NaN for a placeholder such as the em dash. */
 function parseMetres(text) {
   const match = /(-?\d+(?:\.\d+)?)/.exec(String(text ?? ''));
@@ -186,6 +199,44 @@ test('persisted safety states produce visible semantic warnings', async ({ page 
   await expect(
     page.locator('.wreck-shell').locator(LIVE),
   ).toHaveCount(1);
+});
+
+test.describe('mobile viewport', () => {
+  test.use(MOBILE_VIEWPORT);
+
+  test('#137 A15: the narrow HUD layout never hides NDL, and the mute button meets the touch-target minimum', async ({
+    page,
+  }) => {
+    await page.goto('/dist/');
+    await page
+      .getByRole('button', { name: 'I understand — start simulation' })
+      .click();
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+
+    // The narrow-layout media query used to hide the HUD's 4th metric
+    // (construction order depth/time/gas/ndl/zone in wreck-app.ts), which is
+    // NDL — a safety-relevant readout that must never be dropped to make a
+    // five-metric list fit a 12.5rem-wide box. Assert on the metric's own
+    // label rather than nth-child position, so the check still means
+    // something if the construction order in wreck-app.ts ever changes.
+    const ndlRow = page
+      .locator('.wreck-hud > div')
+      .filter({ has: page.getByText('No-decompression time', { exact: true }) });
+    await expect(ndlRow).toBeVisible();
+    // dd is the value element appendMetric() returns and updateHud() writes
+    // to; hidden ':not(:visible)' catches display:none on an ancestor too.
+    await expect(ndlRow.locator('dd')).toBeVisible();
+
+    // The mute button was 2.3rem (~37px), under this project's 44px
+    // touch-target standard (the class of defect #121 fixed in the legacy
+    // client). Measure the live box rather than reading the CSS value, so a
+    // change to font-size or padding that shrinks the box some other way is
+    // still caught.
+    const box = await page.locator('.audio-control').boundingBox();
+    expect(box).not.toBeNull();
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+  });
 });
 
 test('the same input trace drives equivalent legacy and Pixi control semantics', async ({ page }) => {

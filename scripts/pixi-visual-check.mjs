@@ -86,6 +86,44 @@ const MAX_CHANNEL_SPREAD_DELTA = Number(argValue('--max-channel-spread-delta', '
 
 const VIEWPORT = { width: 960, height: 540 };
 
+// DOM chrome painted over the captured region.
+//
+// The capture is an element screenshot of [data-wreck-viewport], and
+// Playwright element screenshots grab the page region at that element's box
+// — including anything painted on top of it. The topbar, HUD, controls and
+// warning banner are absolutely positioned siblings that overlap it, so they
+// land in the frame even though none of them is renderer output.
+//
+// That made a renderer guard fail on CSS. Raising the mute button to the 44px
+// touch-target minimum (#137 A15) moved 3786 px at a max channel delta of
+// 215, all of it inside the topbar — x 678..873, y 16..59 of an 894x542
+// frame — with the rendered scene byte-identical. Re-recording would have
+// been the wrong answer twice over: it would bless a change the renderer did
+// not make, and the references are per-platform (#133), so every chrome tweak
+// would need a linux re-record as well.
+//
+// The statistics half already had this right — `statisticsOf` centre-crops
+// with the note "Scene area only, excluding the HUD strips", which is why
+// only the pixel delta failed. This applies the same principle to the pixel
+// comparison, but by masking the chrome's measured boxes rather than cropping
+// to a rectangle, so every renderer pixel outside the chrome stays guarded.
+//
+// Masking changes only which pixels are COMPARED. The reference PNGs are
+// untouched and stay valid, on both platforms.
+const CHROME_SELECTORS = [
+  '.wreck-topbar',
+  '.wreck-hud',
+  '.wreck-controls',
+  '.controls-hint',
+  '.wreck-warning',
+];
+
+// Ceiling on how much of the frame chrome may hide. Chrome currently masks
+// about a fifth; if a layout change pushed it past this the guard would be
+// watching too little to be worth trusting, and should fail loudly rather
+// than quietly go blind.
+const MAX_MASKED_PERCENT = Number(argValue('--max-masked-percent', '40'));
+
 // A deliberately small set. Each scene has to earn its place by exercising a
 // layer the others do not.
 const SCENES = [
@@ -250,8 +288,31 @@ async function captureScene(browser, baseUrl, scene) {
 
   const viewport = page.locator('[data-wreck-viewport]');
   const png = await viewport.screenshot();
+  // Measure the chrome boxes in the same coordinate space as the capture:
+  // relative to the viewport element's own box, which is what the screenshot
+  // is cropped to. deviceScaleFactor is 1 here, so CSS px map 1:1 to frame px.
+  const chromeRects = await page.evaluate((selectors) => {
+    const origin = document
+      .querySelector('[data-wreck-viewport]')
+      .getBoundingClientRect();
+    return selectors.flatMap((selector) =>
+      Array.from(document.querySelectorAll(selector))
+        // A hidden warning banner has a zero box and would mask nothing, but
+        // skip it explicitly rather than relying on that.
+        .filter((el) => el.getBoundingClientRect().width > 0)
+        .map((el) => {
+          const r = el.getBoundingClientRect();
+          return {
+            x0: Math.floor(r.left - origin.left),
+            y0: Math.floor(r.top - origin.top),
+            x1: Math.ceil(r.right - origin.left),
+            y1: Math.ceil(r.bottom - origin.top),
+          };
+        }),
+    );
+  }, CHROME_SELECTORS);
   await context.close();
-  return { png, errors };
+  return { png, errors, chromeRects };
 }
 
 /**
@@ -265,11 +326,11 @@ async function captureScene(browser, baseUrl, scene) {
  * meanLuma 0 for every scene. Zero compares equal to zero, so the statistics
  * half of the guard would have passed no matter what the renderer did.
  */
-async function analyse(browser, baseUrl, sceneId, freshPng, withReference) {
+async function analyse(browser, baseUrl, sceneId, freshPng, withReference, chromeRects = []) {
   const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1 });
   const page = await context.newPage();
   await page.goto(`${baseUrl}/dist/`);
-  const result = await page.evaluate(async ({ referenceUrl, freshBase64, compare }) => {
+  const result = await page.evaluate(async ({ referenceUrl, freshBase64, compare, chrome }) => {
     const decode = async (src) => {
       const image = new Image();
       image.src = src;
@@ -315,8 +376,23 @@ async function analyse(browser, baseUrl, sceneId, freshPng, withReference) {
         sizeMismatch: `reference ${reference.width}x${reference.height} vs fresh ${fresh.width}x${fresh.height}`,
       };
     }
+    // Chrome mask: a per-pixel lookup is cheaper to reason about than
+    // rectangle tests inside the hot loop, and the frame is small.
+    const masked = new Uint8Array(reference.width * reference.height);
+    for (const r of chrome) {
+      const x0 = Math.max(0, r.x0), y0 = Math.max(0, r.y0);
+      const x1 = Math.min(reference.width, r.x1);
+      const y1 = Math.min(reference.height, r.y1);
+      for (let y = y0; y < y1; y += 1) {
+        masked.fill(1, y * reference.width + x0, y * reference.width + x1);
+      }
+    }
+    let maskedPixels = 0;
+    for (let k = 0; k < masked.length; k += 1) if (masked[k]) maskedPixels += 1;
+
     let changedPixels = 0, totalDelta = 0, maxChannelDelta = 0;
     for (let i = 0; i < reference.data.length; i += 4) {
+      if (masked[i >> 2]) continue;
       let pixelChanged = false;
       for (let c = 0; c < 4; c += 1) {
         const delta = Math.abs(reference.data[i + c] - fresh.data[i + c]);
@@ -328,19 +404,25 @@ async function analyse(browser, baseUrl, sceneId, freshPng, withReference) {
       }
       if (pixelChanged) changedPixels += 1;
     }
+    // Percentages are over the pixels actually compared, not the whole frame,
+    // so the budgets keep meaning what they meant before the mask existed.
     const pixelCount = reference.width * reference.height;
+    const comparedPixels = pixelCount - maskedPixels;
     return {
       statistics,
       pixelCount,
+      comparedPixels,
+      maskedPercent: +(maskedPixels * 100 / pixelCount).toFixed(2),
       changedPixels,
-      changedPixelPercent: +(changedPixels * 100 / pixelCount).toFixed(4),
-      meanAbsoluteDeltaPerChannel: +(totalDelta / (pixelCount * 4)).toFixed(5),
+      changedPixelPercent: +(changedPixels * 100 / comparedPixels).toFixed(4),
+      meanAbsoluteDeltaPerChannel: +(totalDelta / (comparedPixels * 4)).toFixed(5),
       maxChannelDelta,
     };
   }, {
     referenceUrl: `/tests/fixtures/reference-frames/pixi/${PLATFORM}/${sceneId}.png`,
     freshBase64: freshPng.toString('base64'),
     compare: withReference,
+    chrome: chromeRects,
   });
   await context.close();
 
@@ -370,6 +452,14 @@ function breachesFor(sceneId, frame, statistics, reference) {
   }
   if (frame.changedPixelPercent > MAX_CHANGED_PIXEL_PERCENT) {
     breaches.push(`${sceneId}: ${frame.changedPixelPercent}% of pixels changed, over ${MAX_CHANGED_PIXEL_PERCENT}%`);
+  }
+  // A guard that has masked most of the frame is not guarding much. Fail
+  // loudly rather than let chrome creep quietly shrink what is watched.
+  if (frame.maskedPercent > MAX_MASKED_PERCENT) {
+    breaches.push(
+      `${sceneId}: DOM chrome masks ${frame.maskedPercent}% of the frame, over ${MAX_MASKED_PERCENT}% — ` +
+      'too little renderer output left under guard',
+    );
   }
   const checks = [
     ['meanLuma', MAX_MEAN_LUMA_DELTA],
@@ -414,12 +504,12 @@ try {
 
   const recorded = {};
   for (const scene of SCENES) {
-    const { png, errors } = await captureScene(browser, baseUrl, scene);
+    const { png, errors, chromeRects } = await captureScene(browser, baseUrl, scene);
     if (errors.length) {
       throw new Error(`${scene.id} raised page errors:\n  ${errors.join('\n  ')}`);
     }
 
-    const analysis = await analyse(browser, baseUrl, scene.id, png, !UPDATE);
+    const analysis = await analyse(browser, baseUrl, scene.id, png, !UPDATE, chromeRects);
     const statistics = analysis.statistics;
 
     if (UPDATE) {
@@ -443,6 +533,7 @@ try {
     } else {
       console.log(
         `ok   ${scene.id}  ${analysis.changedPixelPercent}% pixels, max delta ${analysis.maxChannelDelta}, ` +
+        `chrome masked ${analysis.maskedPercent}%, ` +
         `luma ${statistics.meanLuma}, spread ${statistics.channelSpread}`,
       );
     }

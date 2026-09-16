@@ -255,8 +255,19 @@ summary:focus-visible {
 }
 
 .audio-control {
-  width: 2.3rem;
-  height: 2.3rem;
+  /* #137 §4.4.2: was 2.3rem (~37px), below this project's 44px touch-target
+     standard (the same class of defect #121 fixed in the legacy client).
+     2.75rem = 44px at the unmodified 16px root this file assumes throughout. */
+  width: 2.75rem;
+  height: 2.75rem;
+  /* Without this, .audio-control is a flex child of .topbar-actions with the
+     default flex-shrink: 1, so on a narrow viewport it shares the squeeze
+     with the status chip's text and renders under 44px regardless of the
+     size declared above — measured 42px wide at 390px viewport before this
+     was added. A touch target's size is the one thing here that must not
+     give; the chip's variable-length text is what should absorb the space
+     pressure instead. */
+  flex-shrink: 0;
   border: 1px solid rgb(131 217 231 / 48%);
   border-radius: 50%;
   color: #bcecf4;
@@ -437,7 +448,12 @@ summary:focus-visible {
     width: 12.5rem;
   }
 
-  .wreck-hud div:nth-child(4) {
+  /* #137 §4.4.1: this used to hide the 4th metric (NDL, construction order
+     depth/time/gas/ndl/zone in wreck-app.ts) to make five metrics fit a
+     12.5rem-wide box. NDL is safety-relevant and must never be the one
+     dropped; zone (5th — current area, orientation only) is the droppable
+     one. */
+  .wreck-hud div:nth-child(5) {
     display: none;
   }
 
