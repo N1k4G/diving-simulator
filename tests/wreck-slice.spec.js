@@ -1,5 +1,18 @@
 const { expect, test } = require('@playwright/test');
 
+// Mirrors smoke.spec.js's MOBILE_VIEWPORT: a hand-rolled touch viewport
+// rather than Playwright's `devices['iPhone 12']`, which forbids overriding
+// `defaultBrowserType` inside a describe group and would take us off the
+// project's default browser (chromium). Width 390 sits well under the
+// diagnostic.css `width <= 720px` breakpoint these tests exercise.
+const MOBILE_VIEWPORT = {
+  viewport: { width: 390, height: 844 },
+  hasTouch: true,
+  isMobile: true,
+  userAgent:
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
+};
+
 /** "28.1 m" -> 28.1. Returns NaN for a placeholder such as the em dash. */
 function parseMetres(text) {
   const match = /(-?\d+(?:\.\d+)?)/.exec(String(text ?? ''));
@@ -186,6 +199,55 @@ test('persisted safety states produce visible semantic warnings', async ({ page 
   await expect(
     page.locator('.wreck-shell').locator(LIVE),
   ).toHaveCount(1);
+});
+
+test.describe('mobile viewport', () => {
+  test.use(MOBILE_VIEWPORT);
+
+  test('#137 A15: the narrow HUD layout never hides NDL, and the mute button meets the touch-target minimum', async ({
+    page,
+  }) => {
+    await page.goto('/dist/');
+    await page
+      .getByRole('button', { name: 'I understand — start simulation' })
+      .click();
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+
+    // The narrow-layout media query used to hide the HUD's 4th metric, which
+    // by construction order (depth/time/gas/ndl/zone) is NDL — a
+    // safety-relevant readout that must never be the one dropped to make five
+    // metrics fit a 12.5rem-wide box.
+    //
+    // Assert on identity, not position, on both sides of the rule. Checking
+    // only that NDL survives would stay green if a reorder made the media
+    // query hide gas or dive time instead — a different safety readout gone,
+    // same defect. So: every safety-relevant metric visible, and the one
+    // metric that may be dropped actually the one that is.
+    const metric = (name) => page.locator(`.wreck-hud [data-hud-metric="${name}"]`);
+
+    for (const name of ['depth', 'time', 'gas', 'ndl']) {
+      await expect(metric(name), `${name} must stay visible on a narrow layout`).toBeVisible();
+      // dd is the value element appendMetric() returns and updateHud() writes
+      // to; toBeVisible catches display:none on an ancestor too.
+      await expect(metric(name).locator('dd')).toBeVisible();
+    }
+    // Zone is orientation only, and is what the layout is allowed to drop.
+    await expect(metric('zone')).toBeHidden();
+
+    // The marker has to match the label, or the check above proves nothing:
+    // a stray data-hud-metric="ndl" on the wrong row would satisfy it.
+    await expect(metric('ndl').locator('dt')).toHaveText('No-decompression time');
+
+    // The mute button was 2.3rem (~37px), under this project's 44px
+    // touch-target standard (the class of defect #121 fixed in the legacy
+    // client). Measure the live box rather than reading the CSS value, so a
+    // change to font-size or padding that shrinks the box some other way is
+    // still caught.
+    const box = await page.locator('.audio-control').boundingBox();
+    expect(box).not.toBeNull();
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+  });
 });
 
 test('the same input trace drives equivalent legacy and Pixi control semantics', async ({ page }) => {
