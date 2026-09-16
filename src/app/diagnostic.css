@@ -448,12 +448,17 @@ summary:focus-visible {
     width: 12.5rem;
   }
 
-  /* #137 §4.4.1: this used to hide the 4th metric (NDL, construction order
-     depth/time/gas/ndl/zone in wreck-app.ts) to make five metrics fit a
-     12.5rem-wide box. NDL is safety-relevant and must never be the one
-     dropped; zone (5th — current area, orientation only) is the droppable
-     one. */
-  .wreck-hud div:nth-child(5) {
+  /* #137 §4.4.1: this used to hide the HUD's 4th metric to make five fit a
+     12.5rem-wide box. The 4th was NDL — safety-relevant, and never the one to
+     drop. Zone (current area, orientation only) is the droppable one.
+
+     Named rather than positional. The first fix moved the rule to
+     nth-child(5), which is correct only for today's construction order in
+     wreck-app.ts; reorder the metrics and the rule silently hides whichever
+     one now sits fifth, with the safety readout gone again under a green
+     test. data-hud-metric is set from a typed union, so this selector and the
+     markup cannot drift apart without a compile error. */
+  .wreck-hud [data-hud-metric="zone"] {
     display: none;
   }
 

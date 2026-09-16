@@ -213,19 +213,30 @@ test.describe('mobile viewport', () => {
       .click();
     await page.locator('[data-renderer=pixi] canvas').waitFor();
 
-    // The narrow-layout media query used to hide the HUD's 4th metric
-    // (construction order depth/time/gas/ndl/zone in wreck-app.ts), which is
-    // NDL — a safety-relevant readout that must never be dropped to make a
-    // five-metric list fit a 12.5rem-wide box. Assert on the metric's own
-    // label rather than nth-child position, so the check still means
-    // something if the construction order in wreck-app.ts ever changes.
-    const ndlRow = page
-      .locator('.wreck-hud > div')
-      .filter({ has: page.getByText('No-decompression time', { exact: true }) });
-    await expect(ndlRow).toBeVisible();
-    // dd is the value element appendMetric() returns and updateHud() writes
-    // to; hidden ':not(:visible)' catches display:none on an ancestor too.
-    await expect(ndlRow.locator('dd')).toBeVisible();
+    // The narrow-layout media query used to hide the HUD's 4th metric, which
+    // by construction order (depth/time/gas/ndl/zone) is NDL — a
+    // safety-relevant readout that must never be the one dropped to make five
+    // metrics fit a 12.5rem-wide box.
+    //
+    // Assert on identity, not position, on both sides of the rule. Checking
+    // only that NDL survives would stay green if a reorder made the media
+    // query hide gas or dive time instead — a different safety readout gone,
+    // same defect. So: every safety-relevant metric visible, and the one
+    // metric that may be dropped actually the one that is.
+    const metric = (name) => page.locator(`.wreck-hud [data-hud-metric="${name}"]`);
+
+    for (const name of ['depth', 'time', 'gas', 'ndl']) {
+      await expect(metric(name), `${name} must stay visible on a narrow layout`).toBeVisible();
+      // dd is the value element appendMetric() returns and updateHud() writes
+      // to; toBeVisible catches display:none on an ancestor too.
+      await expect(metric(name).locator('dd')).toBeVisible();
+    }
+    // Zone is orientation only, and is what the layout is allowed to drop.
+    await expect(metric('zone')).toBeHidden();
+
+    // The marker has to match the label, or the check above proves nothing:
+    // a stray data-hud-metric="ndl" on the wrong row would satisfy it.
+    await expect(metric('ndl').locator('dt')).toHaveText('No-decompression time');
 
     // The mute button was 2.3rem (~37px), under this project's 44px
     // touch-target standard (the class of defect #121 fixed in the legacy

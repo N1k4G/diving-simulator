@@ -269,11 +269,11 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   const hud = document.createElement("dl");
   hud.className = "wreck-hud";
   const unavailable = translate(locale, "wreck.value.unavailable");
-  const depth = appendMetric(hud, translate(locale, "wreck.hud.depth"), unavailable);
-  const time = appendMetric(hud, translate(locale, "wreck.hud.time"), unavailable);
-  const gas = appendMetric(hud, translate(locale, "wreck.hud.gas"), unavailable);
-  const ndl = appendMetric(hud, translate(locale, "wreck.hud.ndl"), unavailable);
-  const zone = appendMetric(hud, translate(locale, "wreck.hud.zone"), unavailable);
+  const depth = appendMetric(hud, "depth", translate(locale, "wreck.hud.depth"), unavailable);
+  const time = appendMetric(hud, "time", translate(locale, "wreck.hud.time"), unavailable);
+  const gas = appendMetric(hud, "gas", translate(locale, "wreck.hud.gas"), unavailable);
+  const ndl = appendMetric(hud, "ndl", translate(locale, "wreck.hud.ndl"), unavailable);
+  const zone = appendMetric(hud, "zone", translate(locale, "wreck.hud.zone"), unavailable);
 
   const warning = document.createElement("p");
   warning.className = "wreck-warning";
@@ -411,12 +411,23 @@ function bindContinuousControl(
   }
 }
 
+// Stable identity for each HUD metric, independent of render order.
+//
+// #137 §4.4.1 was that the narrow layout hid NDL, a safety-relevant readout,
+// via `.wreck-hud div:nth-child(4)`. Moving that rule to nth-child(5) fixes
+// today's order but keeps the fragility: reorder the metrics and the media
+// query silently hides whichever one now sits fifth. The CSS names the metric
+// it means instead, so the rule cannot drift away from its intent.
+type HudMetric = "depth" | "time" | "gas" | "ndl" | "zone";
+
 function appendMetric(
   list: HTMLDListElement,
+  metric: HudMetric,
   label: string,
   unavailable: string,
 ): HTMLElement {
   const group = document.createElement("div");
+  group.dataset.hudMetric = metric;
   const term = document.createElement("dt");
   const value = document.createElement("dd");
   term.textContent = label;
