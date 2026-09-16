@@ -7,12 +7,39 @@ Manages the Cloudflare Pages project and DNS record for
 
 ## How changes reach production
 
-The workspace **auto-applies**: every push to `main` uploads a configuration
-version, plans, and applies without anyone confirming in the HCP UI.
+### What triggers what
+
+Terraform and the app deploy are on separate tracks, and the paths decide
+which one runs:
+
+| Merge touches | HCP Terraform run | `deploy.yml` (Pages deploy) |
+| --- | --- | --- |
+| app code only | no | yes |
+| `terraform/` only | yes | no |
+| both | yes | yes |
+
+The workspace triggers on `terraform/*` and `terraform/**/*`
+(`file-triggers-enabled`); `deploy.yml` carries the mirror-image
+`paths-ignore: terraform/**`.
+
+This was not the original setup, and the original setup is what produced the
+July–September backlog: file triggers were off, so **every** push to `main`
+queued a run — roughly thirty of them, none confirmed, each holding the
+workspace lock from the next. It also meant an ordinary app merge issued a
+write against the production Pages project at the same moment `wrangler` was
+deploying to it. Two writers, one resource, no benefit.
+
+A mixed PR runs both tracks against the same commit. That is a reason to keep
+infrastructure changes in their own PR, not a supported configuration.
+
+### Applying
+
+The workspace **auto-applies**: a triggering merge plans and applies without
+anyone confirming in the HCP UI.
 
 The review gate is therefore the pull request, not the run. Whatever is merged
 here is what production gets, so `terraform/` changes need reviewing as
-carefully as the plan output used to be.
+carefully as the plan output used to be — see the checklist below.
 
 Two things make that safe enough to be worth the trade:
 
@@ -29,16 +56,27 @@ Two things make that safe enough to be worth the trade:
   status); the run after it reported zero drift entries. Runs no longer carry
   a growing gap between state and reality.
 
-### The plan is never empty — do not read `1 to change` as a signal
+**A discarded run reports as `failure` on the commit.** HCP sets the commit
+status from the run outcome, and `discarded` is not a success — so a commit
+can show Terraform Cloud red without anything having gone wrong or any apply
+having happened. This is worth knowing before diagnosing one: the red status
+on `6cdeba1` (the #149 merge) is exactly this. Run `run-jDW4iVspccya3zHi` was
+discarded by hand at 18:35:02 UTC to free the workspace lock, and the status
+landed eleven seconds later. Its apply object never left `unreachable` and
+state stayed at serial 10. Check the run's `status` and its apply's
+`status-timestamps` before reaching for a provider bug.
 
-Every run plans exactly one change:
+### The baseline plan is one in-place update — `1 to change` is not a signal
+
+A run with nothing else to do still plans one change:
 
 ```
 cloudflare_pages_project.this will be updated in-place
   + build_config = (known after apply)
 ```
 
-This is permanent and cannot be confirmed away. `build_config` is
+Under **provider 5.25.0 with the current `main.tf`**, this is the baseline: it
+recurs on every run and cannot be confirmed away. `build_config` is
 `Optional+Computed` in the provider schema, `main.tf` does not set it, and
 Cloudflare returns nothing for it (this is a direct-upload project with no
 build command). So state holds `null`, Terraform cannot promise the value and
@@ -46,25 +84,26 @@ plans it unknown, the apply writes `null` back, and the next run plans it
 again. Verified on 2026-09-16: state serial 10 still has
 `build_config: null` immediately after a successful apply.
 
+Scoped to the provider version deliberately — a provider fix could end it, and
+then this section is what should be deleted rather than worked around.
+
 Two consequences worth internalising:
 
-- **It is why auto-apply exists here.** A perpetual diff means every merge
-  produces a run awaiting confirmation forever. That is precisely how ~30 runs
-  queued up between July and September, each holding the lock from the next.
-  Confirming a no-op by hand on every merge was never going to hold.
+- **It is not cosmetic.** Terraform turns this into a resource *update*, and
+  the update path issues a real `Pages.Projects.Edit` against the production
+  Pages project. Calling it a no-op — as earlier revisions of this file did —
+  understates it: nothing changes in effect, but a write is genuinely
+  performed every time. That is the reason the workspace must not be triggered
+  by app merges, and the reason it must not overlap a `wrangler` deploy.
 - **"The plan is not empty" carries no information.** Reviewing a
   `terraform/` change means reading the attribute-level diff, not the change
   count. One in-place update with only `build_config` unknown is the floor,
   not a finding.
 
-Worth fixing upstream or with an explicit `build_config` block someday; until
-then it is noise that has to be recognised rather than removed.
-
-Auto-apply was enabled on 2026-09-16, after ~30 unconfirmed runs had queued up
-since 2026-07-26. A waiting run holds the workspace lock, so the backlog also
-blocked itself: the oldest run stayed `planned` and everything behind it sat
-`pending`. If auto-apply is ever turned back off, put a notification on
-waiting runs in its place.
+There is no obvious local fix. Declaring an empty `build_config` block does
+not work — the provider normalises a fully empty one back to `null`, which is
+the state it is already in. Setting real build settings would be a lie about a
+project that has none. So it is noise to recognise, not to remove.
 
 ### Raising the provider version
 
