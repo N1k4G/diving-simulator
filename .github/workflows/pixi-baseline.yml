@@ -1,7 +1,7 @@
 name: Record Pixi visual baseline
 
 # Regenerates the platform-specific reference frames the Pixi visual guard
-# compares against, and commits them to the branch it is dispatched on.
+# compares against, and commits them to a branch you name.
 #
 # WHY THIS EXISTS
 #
@@ -10,12 +10,25 @@ name: Record Pixi visual baseline
 # max channel delta of 230 across 10.6% of pixels). That was the right call, but
 # it left a gap: a maintainer on Windows can regenerate win32 locally and has no
 # way to produce the linux set, even though linux is the canonical CI
-# environment. The gap surfaced in #147, where a legitimate change to what the
-# guard captures required new baselines on both platforms.
+# environment that judges those frames. The gap surfaced in #147, where a
+# legitimate change to what the guard captures required new baselines on both
+# platforms.
 #
 # CI already runs the guard on ubuntu-latest with Node 22, so the environment
 # that judges the frames can also produce them. This job is that environment,
 # run deliberately.
+#
+# WHY target_ref RATHER THAN THE DISPATCH REF
+#
+# A manually dispatched workflow runs the workflow FILE FROM THE REF IT IS
+# DISPATCHED ON. Reading the branch to record from `github.ref_name` therefore
+# only works if that branch already carries this file — which a feature branch
+# needing a baseline generally does not, and cannot be expected to.
+#
+# So dispatch this on the default branch (where workflow_dispatch requires it to
+# live anyway) and name the branch to record in `target_ref`. The job checks out
+# that branch, records there, and pushes back to it. The workflow version that
+# runs is always main's.
 #
 # NEVER runs automatically. A baseline is a statement that the current render is
 # correct, which is a human judgement — a scheduled or on-push regeneration
@@ -25,25 +38,29 @@ name: Record Pixi visual baseline
 on:
   workflow_dispatch:
     inputs:
+      target_ref:
+        description: 'Branch to record the baseline on and commit back to'
+        required: true
+        type: string
       reason:
         description: 'Why the baseline is being re-recorded (goes in the commit message)'
         required: true
         type: string
 
 concurrency:
-  group: pixi-baseline-${{ github.ref }}
+  group: pixi-baseline-${{ inputs.target_ref }}
   cancel-in-progress: false
 
 jobs:
   record:
     runs-on: ubuntu-latest
     permissions:
-      # Needed to push the regenerated frames back to the dispatched branch.
+      # Needed to push the regenerated frames back to target_ref.
       contents: write
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ inputs.target_ref }}
 
       - uses: actions/setup-node@v7
         with:
@@ -75,6 +92,14 @@ jobs:
           retention-days: 14
 
       - name: Commit the baseline
+        # Both values are user-supplied dispatch inputs, so they are passed
+        # through the environment and dereferenced as shell variables rather
+        # than interpolated into the script text. A ${{ }} expression is
+        # substituted before the shell ever parses the line, which would let a
+        # crafted input run arbitrary commands in a job holding contents:write.
+        env:
+          BASELINE_REASON: ${{ inputs.reason }}
+          TARGET_REF: ${{ inputs.target_ref }}
         run: |
           if git diff --quiet -- tests/fixtures/reference-frames/pixi/; then
             echo "Baseline already current — nothing to commit."
@@ -86,6 +111,6 @@ jobs:
           # baselines and must never sweep up unrelated working-tree changes.
           git add tests/fixtures/reference-frames/pixi/
           git commit -m "chore: re-record Pixi visual baseline (linux)" \
-                     -m "${{ inputs.reason }}" \
+                     -m "$BASELINE_REASON" \
                      -m "Recorded by .github/workflows/pixi-baseline.yml on ubuntu-latest."
-          git push origin HEAD:${{ github.ref_name }}
+          git push origin "HEAD:$TARGET_REF"
