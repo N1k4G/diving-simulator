@@ -115,7 +115,19 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
-          cache: 'npm'
+          # No `cache: npm` here, deliberately — CodeQL flagged the original as
+          # cache poisoning, and it was right.
+          #
+          # workflow_dispatch runs in the DEFAULT BRANCH's cache scope, so a
+          # cache this job writes can later be restored by workflows running on
+          # main. Combined with the npm ci and build below, which execute code
+          # from an arbitrary target_ref, that is a path for untrusted code to
+          # plant entries a trusted default-branch run would then consume — the
+          # same "untrusted code in a privileged context" problem as the write
+          # token, reached through the cache instead.
+          #
+          # Restoring no cache costs this job about a minute. It is dispatched
+          # by hand a few times a year.
 
       - name: Install dependencies
         run: npm ci
