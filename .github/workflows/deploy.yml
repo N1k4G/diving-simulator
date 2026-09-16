@@ -3,6 +3,22 @@ name: Deploy
 on:
   push:
     branches: [main]
+    # An infrastructure-only merge changes nothing this workflow ships, so
+    # running it would rebuild and redeploy byte-identical app content — and
+    # it would do so while the HCP run for the same commit is issuing a
+    # Pages.Projects.Edit against the same project. Two writers on one
+    # Cloudflare resource, for no benefit. #149 and #150 both did this.
+    #
+    # The split is deliberate and mirrors the HCP workspace, which now
+    # triggers only on `terraform/*` and `terraform/**/*`: an app change
+    # deploys and runs no Terraform, a Terraform change plans and deploys
+    # nothing. A mixed PR does both, which is a reason to avoid mixing them.
+    #
+    # NOTE: skipping this workflow also skips the `release` job, so an
+    # infrastructure-only PR produces no GitHub release. Label those
+    # `release:none`.
+    paths-ignore:
+      - 'terraform/**'
 
 concurrency:
   group: production-deploy
