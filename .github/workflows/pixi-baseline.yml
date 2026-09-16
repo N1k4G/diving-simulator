@@ -59,6 +59,32 @@ name: Record Pixi visual baseline
 # correct, which is a human judgement — a scheduled or on-push regeneration
 # would quietly bless whatever regression happened to be in the tree. Dispatch
 # it only after looking at what changed and deciding the new frames are right.
+#
+# ACCEPTED RISK: actions/cache-poisoning/poisonable-step
+#
+# CodeQL flags the `record` job (alerts #1 and #2, dismissed as "won't fix").
+# The finding is structural and correct as far as it goes: workflow_dispatch
+# runs in the default branch's cache scope, and this job builds code from a
+# branch chosen at dispatch time, so in principle that code could plant Actions
+# cache entries a later trusted run on main would restore.
+#
+# It is accepted rather than fixed because the two things that would make it
+# exploitable are already gone, and removing the rest would mean giving up the
+# job's only purpose — building an arbitrary branch is what producing a
+# baseline for that branch *is*:
+#
+#   - No Actions cache is written here at all. setup-node's `cache: npm` was
+#     removed for exactly this reason, and nothing else in the job uses
+#     @actions/cache. There is currently no cache entry to poison.
+#   - contents:write lives in the separate `commit` job, which executes nothing
+#     from target_ref. Poisoning the build could not reach the write token.
+#   - Only accounts with write access can dispatch this, and target_ref is
+#     validated to a plain in-repo branch name with main/master refused.
+#
+# REVISIT IF any of those change — in particular if a cache is ever added back
+# to `record`, or if the repository starts granting dispatch to accounts whose
+# branches are not review-gated. The alert is dismissed, not suppressed, so it
+# will reappear for re-triage if the rule matches something new.
 
 on:
   workflow_dispatch:
