@@ -55,6 +55,26 @@ const INK_RECORDER = () => {
   window.__inkStop = () => { const sink = window.__ink; window.__ink = null; return sink; };
 };
 
+// Installs window.__controlBoxes(): the box of every control a thumb could
+// actually hit. Defined once because the #121 test both waits on this set and
+// measures it — two copies of the predicate could disagree, and the wait would
+// then let the measurement run against a set it had not actually waited for.
+const CONTROL_BOXES = () => {
+  window.__controlBoxes = () => Array.from(document.querySelectorAll('button, .gs-btn'))
+    .filter(el => {
+      const s = getComputedStyle(el);
+      return s.display !== 'none' && s.visibility !== 'hidden' && el.offsetParent !== null;
+    })
+    .map(el => {
+      const r = el.getBoundingClientRect();
+      return {
+        label: (el.textContent || '').trim().slice(0, 16) || el.id,
+        x: r.x, y: r.y, w: r.width, h: r.height,
+      };
+    })
+    .filter(b => b.w > 0 && b.h > 0);
+};
+
 async function bootGame(page) {
   const consoleErrors = [];
   page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
@@ -245,17 +265,26 @@ test.describe('issue #121: mobile touch targets', () => {
 
   test('every setup control meets 44px and is at least 8px from its neighbours', async ({ page }) => {
     await bootGame(page);
+    await page.evaluate(CONTROL_BOXES);
+
+    // bootGame waits only for window.gameAPI, which can exist before the setup
+    // screen has been laid out. The predicate below filters on offsetParent and
+    // a non-zero box, so reading too early returns an EMPTY set — and an empty
+    // set satisfies both array assertions at the end of this test trivially.
+    //
+    // `total > 10` is the guard against that silent pass, and on a slow runner
+    // it is what fired instead: issue #151, "expected 0 to be greater than 10",
+    // on a PR that touched nothing but a workflow file. The guard did its job;
+    // it was just standing in for a wait that was never written.
+    //
+    // Waiting on the same predicate the assertions measure keeps `total > 10`
+    // an assertion about the UI rather than about timing. It deliberately stays
+    // below: if the controls are ever built differently, it should still catch
+    // a set that silently collapses.
+    await page.waitForFunction(() => window.__controlBoxes().length > 10, { timeout: 10000 });
 
     const geometry = await page.evaluate(() => {
-      const visible = Array.from(document.querySelectorAll('button, .gs-btn'))
-        .filter(el => {
-          const s = getComputedStyle(el);
-          return s.display !== 'none' && s.visibility !== 'hidden' && el.offsetParent !== null;
-        });
-      const boxes = visible.map(el => {
-        const r = el.getBoundingClientRect();
-        return { label: (el.textContent || '').trim().slice(0, 16) || el.id, x: r.x, y: r.y, w: r.width, h: r.height };
-      }).filter(b => b.w > 0 && b.h > 0);
+      const boxes = window.__controlBoxes();
 
       const undersized = boxes
         .filter(b => b.w < 44 || b.h < 44)
