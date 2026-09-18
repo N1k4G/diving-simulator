@@ -8,3 +8,7 @@
 # the command it runs, and `npx lint-staged` fails as `undefined@lint-staged`
 # rather than as a lint failure.
 .husky/* text eol=lf
+
+# The exact Node pin, read by actions/setup-node, the dev container and nvm.
+# A CRLF here is a version string with a stray carriage return in it.
+.nvmrc text eol=lf
