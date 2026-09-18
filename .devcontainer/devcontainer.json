@@ -3,7 +3,7 @@
 // WHAT IT REPRODUCES. The toolchain CI runs: Ubuntu 24.04, Node 22 with npm 10,
 // and the Chromium build pinned to the playwright-core version in
 // package-lock.json. Lint, type-check, unit, parity and e2e behave here as they
-// do on ubuntu-latest — and on a host with no Node installed, this is the only
+// do on ubuntu-24.04 — and on a host with no Node installed, this is the only
 // way to run them at all.
 //
 // WHAT IT DOES NOT REPRODUCE: the runner's pixels. It was built to. The idea was
@@ -31,7 +31,7 @@
   // check, so the drift surfaces on the PR that causes it instead of waiting for
   // whoever rebuilds next.
   //
-  // -noble is deliberate: GitHub's ubuntu-latest is Ubuntu 24.04, and the
+  // -noble is deliberate: the workflows are pinned to ubuntu-24.04, and the
   // committed linux reference frames were recorded there.
   "image": "mcr.microsoft.com/playwright:v1.63.0-noble",
 
@@ -67,7 +67,7 @@
     // the workflows instead. scripts/devcontainer-check.mjs asserts the two agree —
     // against every workflow, not just pr.yml.
     "ghcr.io/devcontainers/features/node:1": {
-      "version": "22"
+      "version": "22.23.2"
     }
     // git and openssh-client are already in the Playwright image, so no
     // feature for them: husky and lint-staged shell out to the image's git.

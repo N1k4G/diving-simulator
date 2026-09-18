@@ -30,7 +30,7 @@ fi
 # here without the PR that drifted it going red. --runtime adds the checks only
 # this side can make: that the container which was actually built is the one
 # devcontainer.json now describes.
-node scripts/devcontainer-check.mjs --runtime
+node scripts/devcontainer-check.mjs --container
 
 npm ci
 
@@ -55,7 +55,7 @@ cat <<EOF
 node $(node -v), npm $(npm -v), playwright $PLAYWRIGHT_IMAGE_VERSION, $(grep -oP '(?<=^PRETTY_NAME=").*(?=")' /etc/os-release)
 
 This container exists to match CI's renderer: the visual guards measure here what
-they measure on ubuntu-latest.
+they measure on ubuntu-24.04.
 
 Do not capture performance here — test:perf and wp06:perf hit software rendering
 and their numbers are not comparable with the committed baselines.

@@ -237,7 +237,7 @@ Two things about it are deliberate and easy to undo by accident:
 - **The reference frames are review artefacts, not a pixel diff.** Playwright's
   frames are deterministic per platform but not across them, and there is no
   linux reference set here. The enforced half is the statistics — which do
-  travel: the same scenes measured on Windows and on `ubuntu-latest` agree
+  travel: the same scenes measured on Windows and on `ubuntu-24.04` agree
   exactly on every interior, while their pixels do not agree at all.
 
 **CI pipelines** (GitHub Actions):
@@ -256,7 +256,7 @@ Container**.
 
 It reproduces CI's *toolchain* — Ubuntu 24.04, Node 22 with npm 10, the same
 Chromium build — so lint, type-check, unit, parity and e2e behave as they do on
-`ubuntu-latest`. On a machine with no local Node install it is the only way to run
+`ubuntu-24.04`. On a machine with no local Node install it is the only way to run
 them at all.
 
 It does **not** reproduce CI's pixels, and that was measured rather than assumed:
@@ -272,19 +272,34 @@ Do not capture performance in it either. Software rendering, so `npm run test:pe
 and `npm run wp06:perf` produce numbers that are not comparable with the committed
 baselines — run those on the host or in CI.
 
-The pins are not on an honour system. `npm run devcontainer:check` compares three
-things against CI: the image version and `PLAYWRIGHT_IMAGE_VERSION` against
+The pins are not on an honour system. `npm run devcontainer:check` compares them
+against CI: the image version and `PLAYWRIGHT_IMAGE_VERSION` against
 `playwright-core` in `package-lock.json`, the image's distro suffix against the
-runner label, and the node feature against the `node-version` the workflows
-install. `pr.yml` runs it, so a Dependabot bump that leaves the container behind
-turns its own PR red instead of surfacing whenever someone next rebuilds.
-`post-create.sh` runs it with `--runtime`, which additionally catches a container
-built before the pins it is now being checked against.
+runner label, and the node feature against `.nvmrc`. `pr.yml` runs it, so a
+Dependabot bump that leaves the container behind turns its own PR red instead of
+surfacing whenever someone next rebuilds. It has two stricter modes:
+`--toolchain`, which `pr.yml` uses after `setup-node` so CI proves it resolved
+the pin rather than something merely compatible with it, and `--container`,
+which `post-create.sh` uses to also catch a container built before the pins it
+is now being checked against.
 
-It fails closed. A `node-version` it cannot resolve to a bare major — `lts/*`, a
-`node-version-file`, a `setup-node` step that names no version at all — is an
-error rather than a skipped file, because the failure that matters here is the
-one where nothing looks wrong.
+**`.nvmrc` holds an exact version**, not a major. `22` is a range: both
+`actions/setup-node` and the container's node feature resolve it to whatever
+22.x they find, and two resolutions a week apart can ship different npm builds —
+the same drift this guard exists to catch, one level down. Because Node bundles
+npm, pinning Node exactly pins npm too, and `NPM_BY_NODE` in
+`scripts/devcontainer-check.mjs` records which npm comes with it so the check can
+assert that as well.
+
+Nothing bumps `.nvmrc` automatically — Dependabot does not read it. Moving it is
+a deliberate edit, and the check fails until `NPM_BY_NODE` gains a row for the
+new version, which is the prompt to look at what npm came along.
+
+It fails closed. A version it cannot resolve to an exact `major.minor.patch` —
+a bare major, `lts/*`, a `node-version-file` that is missing or holds a range, a
+`setup-node` step that names no version at all — is an error rather than a
+skipped file, because the failure that matters here is the one where nothing
+looks wrong.
 
 This is also why the toolchain workflows run on `ubuntu-24.04` rather than
 `ubuntu-latest`. A moving label is not a pin: `ubuntu-latest` migrates to Ubuntu
