@@ -272,10 +272,29 @@ Do not capture performance in it either. Software rendering, so `npm run test:pe
 and `npm run wp06:perf` produce numbers that are not comparable with the committed
 baselines — run those on the host or in CI.
 
-On Windows, keep the clone inside the WSL2 filesystem rather than under `C:\`. A
-`/mnt/c` bind mount is slower, and the container user does not own `.git` there, so
-git operations that change file modes fail: husky cannot install the pre-commit
-hook, and the lint gate disappears without `npm ci` failing.
+The pins are not on an honour system. `npm run devcontainer:check` compares the
+image tag and `PLAYWRIGHT_IMAGE_VERSION` in `devcontainer.json` against
+`playwright-core` in `package-lock.json`, and the node feature against the
+`node-version` every workflow installs; `pr.yml` runs it, so a Dependabot bump
+that leaves the container behind turns its own PR red instead of surfacing
+whenever someone next rebuilds. `post-create.sh` runs it with `--runtime`, which
+additionally catches a container that was built before the pins it is now being
+checked against.
+
+**Opening it on Windows.** Dev Containers needs a Docker daemon it can reach. With
+Docker Desktop, **Dev Containers: Reopen in Container** works straight from a
+Windows window. With Docker Engine installed inside WSL2 and no Desktop, it does
+not — open the folder in WSL first (**WSL: Connect to WSL**, or `code .` from the
+distro), then reopen in the container from there.
+
+**Where the clone lives.** Inside the WSL2 filesystem is the faster option: a
+`/mnt/c` bind mount pays 9p/drvfs on every file, which `npm ci` and Vite both
+feel. A clone under `C:\` does work — `post-create.sh` handles the two ways that
+mount breaks git, declaring the worktree safe and putting `core.hooksPath` in the
+container's global config, because `/mnt/c` reports a fixed owner that no `chown`
+can move and husky's write to `.git/config` is silently discarded there without
+failing `npm ci`. Expect the "chmod on .git/config.lock" error on create; the
+script says so and the pre-commit gate still runs.
 
 ## gameAPI
 

@@ -24,28 +24,13 @@ if [ -z "$(git config --get core.autocrlf)" ] &&
   git config --global core.autocrlf true
 fi
 
-# The image carries the browser build; the lockfile carries the client that
-# drives it. If they disagree, every visual guard measures a different renderer
-# than CI does and says nothing about it.
-image_version="${PLAYWRIGHT_IMAGE_VERSION:?not set — see .devcontainer/devcontainer.json}"
-locked="$(node -p "require('./package-lock.json').packages['node_modules/playwright-core'].version")"
-if [ "$locked" != "$image_version" ]; then
-  echo "playwright-core is pinned to $locked in package-lock.json, but this container is built" >&2
-  echo "on the v$image_version image. Set \"image\" to mcr.microsoft.com/playwright:v$locked-noble" >&2
-  echo "and PLAYWRIGHT_IMAGE_VERSION to $locked in .devcontainer/devcontainer.json, then rebuild." >&2
-  exit 1
-fi
-
-# The claim this container makes is that a run here predicts a run in CI, so
-# the Node the workflows install is the Node it has to be running.
-ci_node="$(grep -oP "(?<=node-version: ')[0-9]+" .github/workflows/pr.yml | head -n 1)"
-here_node="$(node -p 'process.versions.node.split(".")[0]')"
-if [ -n "$ci_node" ] && [ "$ci_node" != "$here_node" ]; then
-  echo "this container runs Node $here_node but .github/workflows/pr.yml installs Node $ci_node." >&2
-  echo "Point the node feature in .devcontainer/devcontainer.json at $ci_node, or move both" >&2
-  echo "together — a container on a different major than CI cannot vouch for a CI run." >&2
-  exit 1
-fi
+# The image carries the browser build, the node feature carries npm, and the
+# lockfile and the workflows carry what CI uses. scripts/devcontainer-check.mjs
+# is the one place those are compared; CI runs it too, so a pin cannot drift
+# here without the PR that drifted it going red. --runtime adds the checks only
+# this side can make: that the container which was actually built is the one
+# devcontainer.json now describes.
+node scripts/devcontainer-check.mjs --runtime
 
 npm ci
 
@@ -67,7 +52,7 @@ fi
 
 cat <<EOF
 
-node $(node -v), npm $(npm -v), playwright $locked, $(grep -oP '(?<=^PRETTY_NAME=").*(?=")' /etc/os-release)
+node $(node -v), npm $(npm -v), playwright $PLAYWRIGHT_IMAGE_VERSION, $(grep -oP '(?<=^PRETTY_NAME=").*(?=")' /etc/os-release)
 
 This container exists to match CI's renderer: the visual guards measure here what
 they measure on ubuntu-latest.

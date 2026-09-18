@@ -26,17 +26,19 @@
 
   // Pinned to the exact Playwright release in package-lock.json. The browser
   // build ships inside the image, so an image tag that disagrees with the
-  // lockfile renders different pixels than CI does — post-create.sh fails the
-  // build rather than let that happen quietly.
+  // lockfile renders different pixels than CI does — scripts/devcontainer-check.mjs
+  // fails the build rather than let that happen quietly, and pr.yml runs the same
+  // check, so the drift surfaces on the PR that causes it instead of waiting for
+  // whoever rebuilds next.
   //
   // -noble is deliberate: GitHub's ubuntu-latest is Ubuntu 24.04, and the
   // committed linux reference frames were recorded there.
-  "image": "mcr.microsoft.com/playwright:v1.62.0-noble",
+  "image": "mcr.microsoft.com/playwright:v1.63.0-noble",
 
   "containerEnv": {
     // Kept beside the image tag so the two are edited together; asserted
     // against the lockfile on create.
-    "PLAYWRIGHT_IMAGE_VERSION": "1.62.0",
+    "PLAYWRIGHT_IMAGE_VERSION": "1.63.0",
     // The browsers live in the image, not under node_modules.
     "PLAYWRIGHT_BROWSERS_PATH": "/ms-playwright",
     "LANG": "C.UTF-8"
@@ -62,7 +64,8 @@
     // pixels, which come from the browser baked into the image, but it does
     // reach npm: 22 carries npm 10 and 24 carries npm 11. Since the point of
     // this container is that a green run here means a green run there, match
-    // the workflows instead. post-create.sh asserts the two agree.
+    // the workflows instead. scripts/devcontainer-check.mjs asserts the two agree —
+    // against every workflow, not just pr.yml.
     "ghcr.io/devcontainers/features/node:1": {
       "version": "22"
     }

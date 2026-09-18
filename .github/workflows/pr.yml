@@ -39,6 +39,13 @@ jobs:
       - name: Check generated site resources are current
         run: npm run sites:check
 
+      # The dev container claims a run inside it predicts a run here, and that
+      # rests on pins in three files that nothing else compares. Dependabot moves
+      # Playwright on its own schedule, so without this the container rots between
+      # one rebuild and the next and only the next person to rebuild finds out.
+      - name: Check dev container pins match this workflow
+        run: npm run devcontainer:check
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 

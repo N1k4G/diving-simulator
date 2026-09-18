@@ -29,6 +29,7 @@
     "baseline:visual-compare": "node scripts/compare-rendering.mjs",
     "sites:generate": "node scripts/generate-site-resources.mjs",
     "sites:check": "node scripts/generate-site-resources.mjs --check",
+    "devcontainer:check": "node scripts/devcontainer-check.mjs",
     "prepixi:visual-check": "npm run build",
     "pixi:visual-check": "node scripts/pixi-visual-check.mjs",
     "prepixi:visual-update": "npm run build",
