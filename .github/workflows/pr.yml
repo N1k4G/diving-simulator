@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -21,7 +21,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Install dependencies
@@ -38,6 +38,13 @@ jobs:
 
       - name: Check generated site resources are current
         run: npm run sites:check
+
+      # The dev container claims a run inside it predicts a run here, and that
+      # rests on pins in three files that nothing else compares. Dependabot moves
+      # Playwright on its own schedule, so without this the container rots between
+      # one rebuild and the next and only the next person to rebuild finds out.
+      - name: Check dev container pins match this workflow
+        run: npm run devcontainer:check -- --toolchain
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium

@@ -237,7 +237,7 @@ Two things about it are deliberate and easy to undo by accident:
 - **The reference frames are review artefacts, not a pixel diff.** Playwright's
   frames are deterministic per platform but not across them, and there is no
   linux reference set here. The enforced half is the statistics — which do
-  travel: the same scenes measured on Windows and on `ubuntu-latest` agree
+  travel: the same scenes measured on Windows and on `ubuntu-24.04` agree
   exactly on every interior, while their pixels do not agree at all.
 
 **CI pipelines** (GitHub Actions):
@@ -246,6 +246,83 @@ Two things about it are deliberate and easy to undo by accident:
 - **`.github/workflows/deploy.yml`** — runs the same dual-client checks on push to `main` (i.e. after a PR is merged), then deploys the legacy client to Cloudflare Pages until the migration cutover.
 
 So a PR is fully checked (and produces screenshots for review) before merge, and deployment only happens once the change lands on `main`.
+
+### Dev container
+
+`.devcontainer/` defines a Linux container on the Playwright image, pinned to the
+`playwright-core` version in `package-lock.json`, with Node pinned to the version
+the workflows install. Open the repository in it with **Dev Containers: Reopen in
+Container**.
+
+It reproduces CI's *toolchain* — Ubuntu 24.04, Node 22 with npm 10, the same
+Chromium build — so lint, type-check, unit, parity and e2e behave as they do on
+`ubuntu-24.04`. On a machine with no local Node install it is the only way to run
+them at all.
+
+It does **not** reproduce CI's pixels, and that was measured rather than assumed:
+`npm run pixi:visual-check` inside the container fails against the committed
+`linux` frames by a max channel delta of 230 over 10.46% of pixels — the same
+magnitude issue #133 measured between Windows and Linux — while the frame
+*statistics* agree with both reference sets. The OS and the browser build match the
+runner, so what differs is the host CPU that Chromium's software rasteriser
+generates code for. Record the `linux` reference set in CI; use the container for
+everything else.
+
+Do not capture performance in it either. Software rendering, so `npm run test:perf`
+and `npm run wp06:perf` produce numbers that are not comparable with the committed
+baselines — run those on the host or in CI.
+
+The pins are not on an honour system. `npm run devcontainer:check` compares them
+against CI: the image version and `PLAYWRIGHT_IMAGE_VERSION` against
+`playwright-core` in `package-lock.json`, the image's distro suffix against the
+runner label, and the node feature against `.nvmrc`. `pr.yml` runs it, so a
+Dependabot bump that leaves the container behind turns its own PR red instead of
+surfacing whenever someone next rebuilds. It has two stricter modes:
+`--toolchain`, which `pr.yml` uses after `setup-node` so CI proves it resolved
+the pin rather than something merely compatible with it, and `--container`,
+which `post-create.sh` uses to also catch a container built before the pins it
+is now being checked against.
+
+**`.nvmrc` holds an exact version**, not a major. `22` is a range: both
+`actions/setup-node` and the container's node feature resolve it to whatever
+22.x they find, and two resolutions a week apart can ship different npm builds —
+the same drift this guard exists to catch, one level down. Because Node bundles
+npm, pinning Node exactly pins npm too, and `NPM_BY_NODE` in
+`scripts/devcontainer-check.mjs` records which npm comes with it so the check can
+assert that as well.
+
+Nothing bumps `.nvmrc` automatically — Dependabot does not read it. Moving it is
+a deliberate edit, and the check fails until `NPM_BY_NODE` gains a row for the
+new version, which is the prompt to look at what npm came along.
+
+It fails closed. A version it cannot resolve to an exact `major.minor.patch` —
+a bare major, `lts/*`, a `node-version-file` that is missing or holds a range, a
+`setup-node` step that names no version at all — is an error rather than a
+skipped file, because the failure that matters here is the one where nothing
+looks wrong.
+
+This is also why the toolchain workflows run on `ubuntu-24.04` rather than
+`ubuntu-latest`. A moving label is not a pin: `ubuntu-latest` migrates to Ubuntu
+26 from 19 October 2026, which would change the OS under the committed `linux`
+reference frames without a commit touching them, and `-noble` and `-jammy` ship
+the same Playwright on different Ubuntu releases, so the version alone does not
+say which. `release-label.yml` stays on `ubuntu-latest` — it runs none of the
+toolchain, and the check ignores workflows that never install Node.
+
+**Opening it on Windows.** Dev Containers needs a Docker daemon it can reach. With
+Docker Desktop, **Dev Containers: Reopen in Container** works straight from a
+Windows window. With Docker Engine installed inside WSL2 and no Desktop, it does
+not — open the folder in WSL first (**WSL: Connect to WSL**, or `code .` from the
+distro), then reopen in the container from there.
+
+**Where the clone lives.** Inside the WSL2 filesystem is the faster option: a
+`/mnt/c` bind mount pays 9p/drvfs on every file, which `npm ci` and Vite both
+feel. A clone under `C:\` does work — `post-create.sh` handles the two ways that
+mount breaks git, declaring the worktree safe and putting `core.hooksPath` in the
+container's global config, because `/mnt/c` reports a fixed owner that no `chown`
+can move and husky's write to `.git/config` is silently discarded there without
+failing `npm ci`. Expect the "chmod on .git/config.lock" error on create; the
+script says so and the pre-commit gate still runs.
 
 ## gameAPI
 

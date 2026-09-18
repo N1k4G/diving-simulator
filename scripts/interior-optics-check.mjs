@@ -77,7 +77,7 @@
 // against and to sit beside the `.actual.png` a breach writes out.
 //
 // The enforced half is the statistics, and they do cross platforms: the same
-// scenes measured on win32 and on ubuntu-latest agree exactly on every
+// scenes measured on win32 and on ubuntu-24.04 agree exactly on every
 // interior, while their pixels do not agree at all. Figures under THRESHOLDS.
 // ============================================================
 
@@ -195,7 +195,7 @@ const MAX_IDENTICAL_PERCENT = 0.5;
 // and the reason this guard enforces statistics instead.
 //
 // That bet is confirmed, and by a wider margin than expected. The same nine
-// scenes, win32 against ubuntu-latest:
+// scenes, win32 against ubuntu-24.04:
 //
 //   wreck-vehicle-deck   35.5 / 35.5    cave-upper-tunnel   17.5 / 17.5
 //   wreck-crew-deck      31.7 / 31.7    cave-restriction    19.2 / 19.2

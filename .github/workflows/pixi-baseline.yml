@@ -14,7 +14,7 @@ name: Record Pixi visual baseline
 # legitimate change to what the guard captures required new baselines on both
 # platforms.
 #
-# CI already runs the guard on ubuntu-latest with Node 22, so the environment
+# CI already runs the guard on ubuntu-24.04 with the pinned Node, so the environment
 # that judges the frames can also produce them. This job is that environment,
 # run deliberately.
 #
@@ -104,7 +104,7 @@ concurrency:
 
 jobs:
   record:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       # Deliberately read-only: this job runs code from target_ref.
       contents: read
@@ -112,7 +112,17 @@ jobs:
       # The exact commit these frames describe. `commit` pins to this
       # rather than re-resolving the branch name — see the race note there.
       recorded_sha: ${{ steps.resolve.outputs.sha }}
+      # Provenance for the commit message, taken from the machine that
+      # produced the frames rather than the one that commits them. They are
+      # the same label today; the frames belong to this job either way.
+      recorded_os: ${{ steps.runner-os.outputs.pretty }}
     steps:
+      - name: Record the runner OS
+        id: runner-os
+        run: |
+          . /etc/os-release
+          echo "pretty=$PRETTY_NAME" >> "$GITHUB_OUTPUT"
+
       # Validate before checkout, so a hostile value never reaches an action.
       - name: Validate target_ref
         env:
@@ -184,7 +194,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version-file: '.nvmrc'
           # No `cache: npm` here, deliberately — CodeQL flagged the original as
           # cache poisoning, and it was right.
           #
@@ -223,7 +233,7 @@ jobs:
 
   commit:
     needs: record
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       # The write permission lives only here, where no target_ref code runs.
       contents: write
@@ -258,6 +268,7 @@ jobs:
           BASELINE_REASON: ${{ inputs.reason }}
           TARGET_REF: ${{ inputs.target_ref }}
           RECORDED_SHA: ${{ needs.record.outputs.recorded_sha }}
+          RECORDED_OS: ${{ needs.record.outputs.recorded_os }}
         run: |
           if git diff --quiet -- tests/fixtures/reference-frames/pixi/; then
             echo "Baseline already current — nothing to commit."
@@ -270,7 +281,7 @@ jobs:
           git add tests/fixtures/reference-frames/pixi/
           git commit -m "chore: re-record Pixi visual baseline (linux)" \
                      -m "$BASELINE_REASON" \
-                     -m "Recorded by .github/workflows/pixi-baseline.yml on ubuntu-latest, from $RECORDED_SHA."
+                     -m "Recorded by .github/workflows/pixi-baseline.yml on $RECORDED_OS, from $RECORDED_SHA."
           # The push is the atomic check, not a preceding comparison: any
           # "is the branch still at X" test would race in the same window it
           # is trying to close. A non-fast-forward rejection here means the
