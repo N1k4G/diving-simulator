@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   lint-and-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -103,7 +103,7 @@ jobs:
           retention-days: 7
 
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: lint-and-test
     environment: PROD
     permissions:
@@ -125,7 +125,7 @@ jobs:
           command: pages deploy src/ --project-name=diving-simulator --branch=main
 
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: deploy
     permissions:
       contents: write

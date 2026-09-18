@@ -272,14 +272,27 @@ Do not capture performance in it either. Software rendering, so `npm run test:pe
 and `npm run wp06:perf` produce numbers that are not comparable with the committed
 baselines — run those on the host or in CI.
 
-The pins are not on an honour system. `npm run devcontainer:check` compares the
-image tag and `PLAYWRIGHT_IMAGE_VERSION` in `devcontainer.json` against
-`playwright-core` in `package-lock.json`, and the node feature against the
-`node-version` every workflow installs; `pr.yml` runs it, so a Dependabot bump
-that leaves the container behind turns its own PR red instead of surfacing
-whenever someone next rebuilds. `post-create.sh` runs it with `--runtime`, which
-additionally catches a container that was built before the pins it is now being
-checked against.
+The pins are not on an honour system. `npm run devcontainer:check` compares three
+things against CI: the image version and `PLAYWRIGHT_IMAGE_VERSION` against
+`playwright-core` in `package-lock.json`, the image's distro suffix against the
+runner label, and the node feature against the `node-version` the workflows
+install. `pr.yml` runs it, so a Dependabot bump that leaves the container behind
+turns its own PR red instead of surfacing whenever someone next rebuilds.
+`post-create.sh` runs it with `--runtime`, which additionally catches a container
+built before the pins it is now being checked against.
+
+It fails closed. A `node-version` it cannot resolve to a bare major — `lts/*`, a
+`node-version-file`, a `setup-node` step that names no version at all — is an
+error rather than a skipped file, because the failure that matters here is the
+one where nothing looks wrong.
+
+This is also why the toolchain workflows run on `ubuntu-24.04` rather than
+`ubuntu-latest`. A moving label is not a pin: `ubuntu-latest` migrates to Ubuntu
+26 from 19 October 2026, which would change the OS under the committed `linux`
+reference frames without a commit touching them, and `-noble` and `-jammy` ship
+the same Playwright on different Ubuntu releases, so the version alone does not
+say which. `release-label.yml` stays on `ubuntu-latest` — it runs none of the
+toolchain, and the check ignores workflows that never install Node.
 
 **Opening it on Windows.** Dev Containers needs a Docker daemon it can reach. With
 Docker Desktop, **Dev Containers: Reopen in Container** works straight from a
