@@ -14,9 +14,9 @@ describe("string catalogue", () => {
     expect(resolveSupportedLocale(["fr-FR"])).toBe("en");
   });
 
-  it("provides the diagnostic copy through typed keys", () => {
-    expect(translate("en", "diagnostic.status.ready")).toBe("ready");
-    expect(translate("de", "diagnostic.status.ready")).toBe("bereit");
+  it("provides shipped copy through typed keys in both locales", () => {
+    expect(translate("en", "wreck.brand")).toBe("Diving Simulator");
+    expect(translate("de", "wreck.brand")).toBe("Tauchsimulator");
   });
 });
 

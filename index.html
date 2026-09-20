@@ -4,7 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#061923" />
-    <title>Diving Simulator Migration Diagnostic</title>
+    <!-- The pre-hydration title: these are the bytes a tab, a WebView and a
+         share preview show before the module runs, so it is the product name,
+         not a milestone. renderWreckApplication() replaces it with the
+         catalogue's localized `wreck.brand` as soon as the locale is known
+         (wreck-app.ts), which is why this one stays the English default. -->
+    <title>Diving Simulator</title>
   </head>
   <body>
     <!-- No aria-live here. The wreck HUD mounts into #app and updates depth,

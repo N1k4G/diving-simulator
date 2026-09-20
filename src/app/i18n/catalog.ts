@@ -5,14 +5,6 @@ export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 export const DEFAULT_LOCALE: SupportedLocale = "en";
 
 const englishMessages = {
-  "diagnostic.eyebrow": "Migration diagnostic",
-  "diagnostic.heading": "Diving Simulator",
-  "diagnostic.milestone": "WP-02 dual-client bootstrap",
-  "diagnostic.status.typescript": "TypeScript",
-  "diagnostic.status.vite": "Vite",
-  "diagnostic.status.pixi": "PixiJS",
-  "diagnostic.status.ready": "ready",
-  "diagnostic.legacyLink": "Open the legacy simulator",
   "wreck.brand": "Diving Simulator",
   "wreck.preview": "WP-06 wreck preview",
   "wreck.site": "MV Northstar",
@@ -64,14 +56,6 @@ export type MessageKey = keyof typeof englishMessages;
 const catalog: Record<SupportedLocale, Record<MessageKey, string>> = {
   en: englishMessages,
   de: {
-    "diagnostic.eyebrow": "Migrationsdiagnose",
-    "diagnostic.heading": "Tauchsimulator",
-    "diagnostic.milestone": "WP-02-Bootstrap für zwei Clients",
-    "diagnostic.status.typescript": "TypeScript",
-    "diagnostic.status.vite": "Vite",
-    "diagnostic.status.pixi": "PixiJS",
-    "diagnostic.status.ready": "bereit",
-    "diagnostic.legacyLink": "Bestehenden Simulator öffnen",
     "wreck.brand": "Tauchsimulator",
     "wreck.preview": "WP-06-Wrackvorschau",
     "wreck.site": "MV Northstar",
