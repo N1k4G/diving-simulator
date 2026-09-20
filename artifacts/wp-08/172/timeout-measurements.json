@@ -1,0 +1,78 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 172,
+  "sourceCommit": "73a0bba9342a61b2572a86bbd425a1a6690e59e2",
+  "branch": "fix/172-collision-sweep-timeout",
+  "recordedAt": "2026-09-20T19:29:25+00:00",
+  "environment": {
+    "os": "Windows 11",
+    "cores": 14,
+    "playwrightWorkers": 4,
+    "node": "v26.8.2",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "note": "Windows host. CI runs on ubuntu-24.04 with 2 cores, where the margin is narrower."
+  },
+  "change": {
+    "mechanism": "test.slow() on tests/collision.spec.js 'no buried start position'",
+    "timeoutBeforeMs": 60000,
+    "timeoutAfterMs": 180000,
+    "verifiedBy": "a throwaway spec printing test.info().timeout with and without test.slow()",
+    "rejectedAlternative": "raising `timeout` in playwright.config.js, which would mask the #130 class across every spec"
+  },
+  "runs": [
+    {
+      "run": 1,
+      "suite": "37 passed",
+      "collisionS": 38.7
+    },
+    {
+      "run": 2,
+      "suite": "36 passed",
+      "collisionS": 38.3,
+      "note": "One test failed; its log was not captured. It was NOT this test, which passed at 38.3 s. Six later captured runs were clean. Most likely the game.spec.js flake seen on unmodified main during #161."
+    },
+    {
+      "run": 3,
+      "suite": "37 passed",
+      "collisionS": 40.0
+    },
+    {
+      "run": 4,
+      "suite": "37 passed",
+      "collisionS": 38.7
+    },
+    {
+      "run": 5,
+      "suite": "37 passed",
+      "collisionS": 38.1
+    },
+    {
+      "run": 6,
+      "suite": "37 passed",
+      "collisionS": 36.9
+    },
+    {
+      "run": 7,
+      "suite": "37 passed",
+      "collisionS": 38.5
+    },
+    {
+      "run": 8,
+      "suite": "37 passed",
+      "collisionS": 38.2
+    }
+  ],
+  "result": {
+    "collisionPassedInAllRuns": true,
+    "collisionRangeS": [
+      36.9,
+      40.0
+    ],
+    "budgetUsedMaxPercent": 22.2,
+    "fullyGreenRuns": "7 of 8",
+    "consecutivePassingRuns": "runs 3-5 and 6-8",
+    "vacuityGuardUnchanged": "expect(result.tested).toBeGreaterThan(400) is untouched"
+  },
+  "caveat": "The post-change durations are tighter than the pre-change ones partly because #161 removed 2.3 MB of source maps from dist/, reducing static-server contention. The headroom is therefore not attributable to test.slow() alone."
+}

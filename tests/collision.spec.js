@@ -236,6 +236,45 @@ test('a fully engulfed diver is not pinned by floating-point noise', async ({ pa
 });
 
 test('no buried start position stays stuck, anywhere in any site', async ({ page }) => {
+  // Issue #172: this one test is legitimately long, and marking it so is not
+  // the same as raising the suite's timeout.
+  //
+  // The sweep below is ~50,000 physics steps inside a SINGLE synchronous
+  // page.evaluate() — 57 authored structures across four sites, nine probe
+  // positions each, 120 updateDiving() steps per buried position. Playwright's
+  // timeout covers that call as one unit, so the wall clock scales with
+  // whatever else the machine is doing while the timeout does not.
+  //
+  // Measured on one Windows host (14 cores, 4 workers) and in CI:
+  //
+  //   isolated, this branch                33.2 s
+  //   full suite, various runs             43.6 s / 49.1 s / 56.5 s
+  //   full suite, one run                  TIMEOUT at 60 s
+  //   full suite on unmodified main        TIMEOUT (control — pre-existing)
+  //   linux dev container, full suite      32.0 s
+  //   playwright 1.63 isolated (#144)      timed out 2 of 4
+  //   playwright 1.62 isolated (#144)      never above 38.5 s
+  //
+  // So: ~45% headroom alone, none under load. test.slow() triples the budget to
+  // 180 s (verified: test.info().timeout goes 60000 -> 180000), which keeps a
+  // real ceiling — a genuine regression that doubled the sweep's cost would
+  // still fail. Raising `timeout` in playwright.config.js instead was rejected
+  // deliberately: it would mask the #130 class across every spec rather than
+  // marking the one test that is actually long.
+  //
+  // After the change, eight consecutive full-suite runs on the same host:
+  // 38.7, 38.3, 40.0, 38.7, 38.1, 36.9, 38.5, 38.2 s — this test passed in all
+  // eight, using at most 22% of the budget. Those numbers are tighter than the
+  // 43-57 s above because #161 took 2.3 MB of source maps out of dist/, so the
+  // shared static server contends less. That is a reason the margin looks
+  // comfortable here, not a reason to trust it on a 2-core CI runner.
+  //
+  // Do not make this cheaper by sweeping less. #131's first fix passed a
+  // hand-picked probe and still left the diver stuck on the wreck keel and in
+  // the mast/bridge-deck column; the breadth is the point, as the note below
+  // explains.
+  test.slow();
+
   // Issue #131, and the two ways the first attempt at it failed.
   //
   // A single hand-picked probe cannot catch either. The slab originally used
