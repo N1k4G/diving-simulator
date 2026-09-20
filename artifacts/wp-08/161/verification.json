@@ -2,9 +2,9 @@
   "schema": "wp-08-issue-evidence/1",
   "issue": 161,
   "workPackage": "WP-08",
-  "sourceCommit": "80e30ea4144ff51b0bde207b4e9b88541954f654",
+  "sourceCommit": "8cc87fbd70911a828d41bce7c0cd790b795c8204",
   "branch": "chore/161-production-shell-hygiene",
-  "recordedAt": "2026-09-20T09:04:23+00:00",
+  "recordedAt": "2026-09-20T14:31:33+00:00",
   "environment": {
     "os": "Windows 11",
     "node": "v26.8.2",
@@ -44,53 +44,105 @@
     {
       "command": "npm run dist:check",
       "result": "pass",
-      "detail": "17 files scanned, 4 markers absent"
+      "detail": "17 files scanned, no source maps, 4 markers absent"
     },
     {
       "command": "npm run test:e2e",
       "result": "pass",
       "tests": "37/37",
-      "note": "collision.spec.js:238 took 56.5s against its 60s timeout; it also failed once on this host under full-suite load, and failed on unmodified main in a control run. Pre-existing, load-dependent, legacy-client only (#130 class, flagged in #144)."
+      "durationS": 48.6,
+      "note": "collision.spec.js:238 at 43.6s against its 60s timeout. It failed once on this host earlier under full-suite load, and also failed on unmodified main in a control run: pre-existing, load-dependent, legacy-client only (#130 class, flagged in #144)."
     }
   ],
   "guardBehaviour": {
-    "preChangeBundle": {
-      "command": "npm run dist:check",
-      "result": "fail",
-      "rejected": [
-        "planner-worker-diagnostic",
-        "legacy-client-link",
-        "diagnostic-title (assets)",
-        "diagnostic-title (index.html)"
-      ]
+    "note": "Each mutation applied to a clean tree and reverted after.",
+    "cases": [
+      {
+        "case": "production build",
+        "expect": "accept",
+        "actual": "accept"
+      },
+      {
+        "case": "pre-fix bundle with 11 source maps",
+        "expect": "reject",
+        "actual": "reject",
+        "rejected": [
+          "source-map-in-distributable",
+          "planner-worker-diagnostic (in .map)",
+          "legacy-client-link (in .map)",
+          "canvas-reference-adapter (in .map)"
+        ]
+      },
+      {
+        "case": "npx vite build --sourcemap debug build",
+        "expect": "reject",
+        "actual": "reject"
+      },
+      {
+        "case": "title placeholder left untransformed",
+        "expect": "reject",
+        "actual": "reject"
+      },
+      {
+        "case": "pre-change bundle (before the runtime fix)",
+        "expect": "reject",
+        "actual": "reject",
+        "rejected": [
+          "planner-worker-diagnostic",
+          "legacy-client-link",
+          "diagnostic-title (assets)",
+          "diagnostic-title (index.html)"
+        ]
+      }
+    ]
+  },
+  "sourceMapRemoval": {
+    "before": {
+      "mapFiles": 11,
+      "distBytesHuman": "2.9M"
     },
-    "postChangeBundle": {
-      "command": "npm run dist:check",
-      "result": "pass"
-    }
+    "after": {
+      "mapFiles": 0,
+      "distBytes": 569516
+    },
+    "markersPreviouslyInMaps": [
+      "plannerWorkerDiagnostic",
+      "diving-simulator.html",
+      "CanvasReferenceAdapter"
+    ],
+    "carrier": "dist/assets/index-*.js.map sourcesContent for ../../src/app/bootstrap.ts"
   },
   "acceptanceProbe": {
-    "description": "?renderer=canvas under npm run dev, Chromium via Playwright, locale en-US",
-    "devRendererAttribute": "canvas",
-    "devDefaultRendererAttribute": "pixi",
-    "devPlannerDiagnosticPresent": true,
+    "description": "npm run dev on port 5200, Chromium via Playwright, both locales",
+    "devServerRawTitle": "Diving Simulator",
+    "builtIndexTitle": "Diving Simulator",
+    "en": {
+      "renderer": "canvas",
+      "titleAfterHydration": "Diving Simulator",
+      "pageErrors": 0
+    },
+    "de": {
+      "renderer": "canvas",
+      "titleAfterHydration": "Tauchsimulator",
+      "pageErrors": 0
+    },
     "legacyLinksOnSafetyGate": 0,
-    "documentTitleEn": "Diving Simulator",
-    "documentTitleDe": "Tauchsimulator"
+    "devPlannerDiagnosticPresent": true
   },
   "artifact": {
     "directory": "dist",
-    "sourceMapsExcluded": true,
+    "sourceMapsEmitted": false,
+    "totalBytes": 569516,
     "files": [
       {
         "path": "assets/BufferResource-ahTen_tU.js",
-        "sha256": "1cd93eb089c7f0ed924c42b7661a40d8506a9f57834477a2cdd1a88e34f5d422",
-        "bytes": 11089
+        "sha256": "ee057bb3bee2e726a619fad5e85e3ce35bc0e5a92c279703a612c304ff96bf50",
+        "bytes": 11037
       },
       {
         "path": "assets/CanvasPool-FrXDjSD-.js",
-        "sha256": "d7af0c023eb7fc87692bbac96cb4dfe03c1a9fa1bd4f5d693891dad1187187a0",
-        "bytes": 804
+        "sha256": "549c053b3ddb3fddd37e5e9848d33e7d4ce9d3bf0a35d3fe3dbfc22f22a2d6b5",
+        "bytes": 756
       },
       {
         "path": "assets/CanvasRenderer-QnLbdrHP.js",
@@ -99,13 +151,13 @@
       },
       {
         "path": "assets/Geometry-DadfJtsu.js",
-        "sha256": "fa0931e7605b90809c32adcff471e29cc4ba9a778fe69d94a17fc3c643838872",
-        "bytes": 104191
+        "sha256": "9c675967ac383229a3fdc44c775eb3c4154bc9222eff50bf4d895be2991b06c9",
+        "bytes": 104145
       },
       {
         "path": "assets/RenderTargetSystem-DI2UVPd1.js",
-        "sha256": "63679fe6e1d33491d879b15f739a0eb24408b19908b534797298006cbcfe2df8",
-        "bytes": 76744
+        "sha256": "1b55eaa3c6cd68de44dbb912575aea409115d1642d3eb803515da7258aa064f0",
+        "bytes": 76688
       },
       {
         "path": "assets/WebGLRenderer-C81EXEjV.js",
@@ -119,18 +171,18 @@
       },
       {
         "path": "assets/browserAll-BhpuBShL.js",
-        "sha256": "fef9a5704e91fc4c1355ddb24162bb1d0a5b9afa2d25e4eafb6ec2992fa57318",
-        "bytes": 42703
+        "sha256": "61681d3713f5003d3514feeffcb9385060b6b5649dfb0c0679dcb3104ff6d48d",
+        "bytes": 42655
       },
       {
         "path": "assets/canvasUtils-Da5V2-Yx.js",
-        "sha256": "2cf6597e6fae5cec6c3466b0637fc28e4c7f7a722d59a6edebbc65e066d6b6e9",
-        "bytes": 6071
+        "sha256": "62d866662ff0079fdde3702aabf9b1964e65dbf7963c7ad30d9b652fe874a284",
+        "bytes": 6022
       },
       {
         "path": "assets/getTextureBatchBindGroup-ylv1cTc5.js",
-        "sha256": "367c8b0d8b1f03a31e5aa345bb0e1b389da71474f8ab8c5f0101402a47931501",
-        "bytes": 404
+        "sha256": "d58eabaf543fab6fb64557b63b6998ba32ed56e79522516ede16be646e0f33dc",
+        "bytes": 342
       },
       {
         "path": "assets/index--eotPnGp.css",
@@ -139,23 +191,23 @@
       },
       {
         "path": "assets/index-DDNOjE7N.js",
-        "sha256": "fff5bef54e4ab34d0c22c43fa00a6d24ff7856c32fecc5102a2fb474c8504a73",
-        "bytes": 39663
+        "sha256": "6d1654eb282f6dddff1b36fefb9938c325c9441edf5e331afd168ee8a92c4e11",
+        "bytes": 39620
       },
       {
         "path": "assets/init-coISU_rQ.js",
-        "sha256": "d66a1115995722935e5bd6e5eda94337991b0c535827e13d220a1147c01a8901",
-        "bytes": 15629
+        "sha256": "40a6da4e9116034164b941e52eb485725c6d3d34ca1c8baaf23d3795d9886333",
+        "bytes": 15587
       },
       {
         "path": "assets/pixi-renderer-Boomm-bS.js",
-        "sha256": "23143a68e65b14fd92457bf3f4d8addfed58a0d1f1ce841836792a8db046ed81",
-        "bytes": 258868
+        "sha256": "52b52bbf24c81a021ad9bbe8f6bc8d71f2029299d0283b601bcd4b66062dd918",
+        "bytes": 258817
       },
       {
         "path": "assets/planner-worker-BqFMJni-.js",
-        "sha256": "f29f7293df1b8889f815edba0417238980d7959bbb3da1bfcd3615d5772b93db",
-        "bytes": 7338
+        "sha256": "56c0cd60fb976a86e1aad06fffa2c6070950a4dbaa24388c2f2ddf0231871768",
+        "bytes": 7286
       },
       {
         "path": "assets/webworkerAll-C8Gs6Wdq.js",
@@ -164,8 +216,8 @@
       },
       {
         "path": "index.html",
-        "sha256": "f12eca0d759c82f10db337996312ab20b404bab714ac14372b29290ec4353218",
-        "bytes": 1314
+        "sha256": "edcfa10740a35534cb8e0b3d006013335aa529b5b14cfbac814f365fe34a6565",
+        "bytes": 1303
       }
     ]
   }
