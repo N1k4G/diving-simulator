@@ -1,5 +1,11 @@
 import { defineConfig, type Plugin } from "vitest/config";
 
+// No file extension: `tsc --noEmit` rejects a `.ts` specifier unless
+// `allowImportingTsExtensions` is set project-wide (TS5097). Vite's native
+// config loader warns about both that and the CommonJS/ESM boundary this
+// import crosses; the warning is about a future Vite major, appears only in
+// Vitest runs, and the real fix is `"type": "module"` in package.json — a
+// repository-wide change that is not this file's to make.
 import { DEFAULT_LOCALE, translate } from "./src/app/i18n/catalog";
 
 // The pre-hydration document title, injected from the string catalogue at build
