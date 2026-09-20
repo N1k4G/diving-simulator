@@ -264,10 +264,18 @@ test('no buried start position stays stuck, anywhere in any site', async ({ page
   //
   // After the change, eight consecutive full-suite runs on the same host:
   // 38.7, 38.3, 40.0, 38.7, 38.1, 36.9, 38.5, 38.2 s — this test passed in all
-  // eight, using at most 22% of the budget. Those numbers are tighter than the
-  // 43-57 s above because #161 took 2.3 MB of source maps out of dist/, so the
-  // shared static server contends less. That is a reason the margin looks
-  // comfortable here, not a reason to trust it on a 2-core CI runner.
+  // eight, using at most 22% of the budget. Those are tighter than the 43-57 s
+  // above partly because #161 took 2.3 MB of source maps out of dist/, so the
+  // shared static server contends less.
+  //
+  // WHERE THE RISK ACTUALLY LIVES, which is the opposite of the obvious guess.
+  // The same run in CI took 23.5 s, faster than this 14-core host, because
+  // playwright.config.js sizes workers as ceil(cores / 4) capped at 4: a 2-core
+  // runner gets ONE worker and this sweep runs with no contention at all. Four
+  // workers is what a developer machine with 8+ cores gets, and that is the
+  // configuration every observed timeout came from. So CI is the safe case and
+  // the local full-suite run is the exposed one — do not read a green CI as
+  // evidence that the margin is comfortable everywhere.
   //
   // Do not make this cheaper by sweeping less. #131's first fix passed a
   // hand-picked probe and still left the diver stuck on the wreck keel and in
