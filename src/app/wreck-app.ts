@@ -141,11 +141,13 @@ function createSafetyGate(locale: SupportedLocale): HTMLElement {
   accept.dataset.acceptSafety = "true";
   accept.className = "primary-action";
   accept.textContent = translate(locale, "wreck.safety.accept");
-  const legacy = document.createElement("a");
-  legacy.href = "/src/diving-simulator.html";
-  legacy.className = "secondary-action";
-  legacy.textContent = translate(locale, "diagnostic.legacyLink");
-  actions.append(accept, legacy);
+  // No second action beside it. This used to link to
+  // /src/diving-simulator.html, which only resolves when the legacy client is
+  // served from the same origin — in a dist/-only package, and so in any
+  // Capacitor build, it is a dead link on the first screen a player sees
+  // (#161, #137 §4.8). The legacy client stays reachable at its own URL for as
+  // long as it is deployed; it is not this shell's job to advertise it.
+  actions.append(accept);
 
   gate.append(eyebrow, heading, summary, notices, methodology, actions);
   return gate;

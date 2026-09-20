@@ -4,7 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#061923" />
-    <title>Diving Simulator Migration Diagnostic</title>
+    <!-- Injected from the string catalogue at build time by the
+         `inject-app-title` plugin in vite.config.mts, so this title cannot
+         drift from `wreck.brand`. These are the bytes a tab, a WebView and a
+         link preview show before the module runs; renderWreckApplication()
+         replaces it with the localized title once the locale is known. -->
+    <title>%APP_TITLE%</title>
   </head>
   <body>
     <!-- No aria-live here. The wreck HUD mounts into #app and updates depth,

@@ -1,0 +1,224 @@
+{
+  "schema": "wp-08-issue-evidence/1",
+  "issue": 161,
+  "workPackage": "WP-08",
+  "sourceCommit": "8cc87fbd70911a828d41bce7c0cd790b795c8204",
+  "branch": "chore/161-production-shell-hygiene",
+  "recordedAt": "2026-09-20T14:31:33+00:00",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.8.2",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "note": "Host Node is ahead of the .nvmrc pin; CI on ubuntu-24.04 with the pinned Node is the arbiter."
+  },
+  "commands": [
+    {
+      "command": "npm run typecheck",
+      "result": "pass"
+    },
+    {
+      "command": "npm run lint",
+      "result": "pass"
+    },
+    {
+      "command": "npm run test:unit",
+      "result": "pass",
+      "tests": "132/132",
+      "files": "16/16",
+      "note": "133 before; bootstrap.test.ts removed with its subject."
+    },
+    {
+      "command": "npm run test:parity",
+      "result": "pass",
+      "tests": "28/28"
+    },
+    {
+      "command": "npm run sites:check",
+      "result": "pass"
+    },
+    {
+      "command": "npm run build",
+      "result": "pass"
+    },
+    {
+      "command": "npm run dist:check",
+      "result": "pass",
+      "detail": "17 files scanned, no source maps, 4 markers absent"
+    },
+    {
+      "command": "npm run test:e2e",
+      "result": "pass",
+      "tests": "37/37",
+      "durationS": 48.6,
+      "note": "collision.spec.js:238 at 43.6s against its 60s timeout. It failed once on this host earlier under full-suite load, and also failed on unmodified main in a control run: pre-existing, load-dependent, legacy-client only (#130 class, flagged in #144)."
+    }
+  ],
+  "guardBehaviour": {
+    "note": "Each mutation applied to a clean tree and reverted after.",
+    "cases": [
+      {
+        "case": "production build",
+        "expect": "accept",
+        "actual": "accept"
+      },
+      {
+        "case": "pre-fix bundle with 11 source maps",
+        "expect": "reject",
+        "actual": "reject",
+        "rejected": [
+          "source-map-in-distributable",
+          "planner-worker-diagnostic (in .map)",
+          "legacy-client-link (in .map)",
+          "canvas-reference-adapter (in .map)"
+        ]
+      },
+      {
+        "case": "npx vite build --sourcemap debug build",
+        "expect": "reject",
+        "actual": "reject"
+      },
+      {
+        "case": "title placeholder left untransformed",
+        "expect": "reject",
+        "actual": "reject"
+      },
+      {
+        "case": "pre-change bundle (before the runtime fix)",
+        "expect": "reject",
+        "actual": "reject",
+        "rejected": [
+          "planner-worker-diagnostic",
+          "legacy-client-link",
+          "diagnostic-title (assets)",
+          "diagnostic-title (index.html)"
+        ]
+      }
+    ]
+  },
+  "sourceMapRemoval": {
+    "before": {
+      "mapFiles": 11,
+      "distBytesHuman": "2.9M"
+    },
+    "after": {
+      "mapFiles": 0,
+      "distBytes": 569516
+    },
+    "markersPreviouslyInMaps": [
+      "plannerWorkerDiagnostic",
+      "diving-simulator.html",
+      "CanvasReferenceAdapter"
+    ],
+    "carrier": "dist/assets/index-*.js.map sourcesContent for ../../src/app/bootstrap.ts"
+  },
+  "acceptanceProbe": {
+    "description": "npm run dev on port 5200, Chromium via Playwright, both locales",
+    "devServerRawTitle": "Diving Simulator",
+    "builtIndexTitle": "Diving Simulator",
+    "en": {
+      "renderer": "canvas",
+      "titleAfterHydration": "Diving Simulator",
+      "pageErrors": 0
+    },
+    "de": {
+      "renderer": "canvas",
+      "titleAfterHydration": "Tauchsimulator",
+      "pageErrors": 0
+    },
+    "legacyLinksOnSafetyGate": 0,
+    "devPlannerDiagnosticPresent": true
+  },
+  "artifact": {
+    "directory": "dist",
+    "sourceMapsEmitted": false,
+    "totalBytes": 569516,
+    "files": [
+      {
+        "path": "assets/BufferResource-ahTen_tU.js",
+        "sha256": "ee057bb3bee2e726a619fad5e85e3ce35bc0e5a92c279703a612c304ff96bf50",
+        "bytes": 11037
+      },
+      {
+        "path": "assets/CanvasPool-FrXDjSD-.js",
+        "sha256": "549c053b3ddb3fddd37e5e9848d33e7d4ce9d3bf0a35d3fe3dbfc22f22a2d6b5",
+        "bytes": 756
+      },
+      {
+        "path": "assets/CanvasRenderer-QnLbdrHP.js",
+        "sha256": "cdd870b55b64c95164b63437e6a1a2a4718942ad1777a9fd88b3a2915ea2d382",
+        "bytes": 76
+      },
+      {
+        "path": "assets/Geometry-DadfJtsu.js",
+        "sha256": "9c675967ac383229a3fdc44c775eb3c4154bc9222eff50bf4d895be2991b06c9",
+        "bytes": 104145
+      },
+      {
+        "path": "assets/RenderTargetSystem-DI2UVPd1.js",
+        "sha256": "1b55eaa3c6cd68de44dbb912575aea409115d1642d3eb803515da7258aa064f0",
+        "bytes": 76688
+      },
+      {
+        "path": "assets/WebGLRenderer-C81EXEjV.js",
+        "sha256": "b2169534df2297d406ac3fdb0f076df3d507c1f370928468832b572f8ba41bda",
+        "bytes": 75
+      },
+      {
+        "path": "assets/WebGPURenderer-GdPyKMI0.js",
+        "sha256": "ac8666e5a7e8dd7b4c7148c366805c7628f93c6eda8d8c901b1282da4fb38f8d",
+        "bytes": 76
+      },
+      {
+        "path": "assets/browserAll-BhpuBShL.js",
+        "sha256": "61681d3713f5003d3514feeffcb9385060b6b5649dfb0c0679dcb3104ff6d48d",
+        "bytes": 42655
+      },
+      {
+        "path": "assets/canvasUtils-Da5V2-Yx.js",
+        "sha256": "62d866662ff0079fdde3702aabf9b1964e65dbf7963c7ad30d9b652fe874a284",
+        "bytes": 6022
+      },
+      {
+        "path": "assets/getTextureBatchBindGroup-ylv1cTc5.js",
+        "sha256": "d58eabaf543fab6fb64557b63b6998ba32ed56e79522516ede16be646e0f33dc",
+        "bytes": 342
+      },
+      {
+        "path": "assets/index--eotPnGp.css",
+        "sha256": "ab151cf94d260b57c4e41469e42d1ca904fcebd8ee1de4499b0a4856ff28e2c0",
+        "bytes": 4968
+      },
+      {
+        "path": "assets/index-DDNOjE7N.js",
+        "sha256": "6d1654eb282f6dddff1b36fefb9938c325c9441edf5e331afd168ee8a92c4e11",
+        "bytes": 39620
+      },
+      {
+        "path": "assets/init-coISU_rQ.js",
+        "sha256": "40a6da4e9116034164b941e52eb485725c6d3d34ca1c8baaf23d3795d9886333",
+        "bytes": 15587
+      },
+      {
+        "path": "assets/pixi-renderer-Boomm-bS.js",
+        "sha256": "52b52bbf24c81a021ad9bbe8f6bc8d71f2029299d0283b601bcd4b66062dd918",
+        "bytes": 258817
+      },
+      {
+        "path": "assets/planner-worker-BqFMJni-.js",
+        "sha256": "56c0cd60fb976a86e1aad06fffa2c6070950a4dbaa24388c2f2ddf0231871768",
+        "bytes": 7286
+      },
+      {
+        "path": "assets/webworkerAll-C8Gs6Wdq.js",
+        "sha256": "911cf0870a1677ea8e9c715bd2aa96479ff45e8c993ad9d1ca26ec967faaf103",
+        "bytes": 63
+      },
+      {
+        "path": "index.html",
+        "sha256": "edcfa10740a35534cb8e0b3d006013335aa529b5b14cfbac814f365fe34a6565",
+        "bytes": 1303
+      }
+    ]
+  }
+}

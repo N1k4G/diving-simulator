@@ -30,6 +30,13 @@ jobs:
       - name: Build and type-check migration client
         run: npm run build
 
+      # The bundle is the thing that ships, so the assertion is on its bytes,
+      # not on the source that produced them. Runs right after the build and
+      # before anything else touches dist/, so a failure names the build that
+      # caused it (#161).
+      - name: Check the production bundle carries no diagnostics
+        run: npm run dist:check
+
       - name: Lint
         run: npm run lint
 
