@@ -1,0 +1,172 @@
+{
+  "schema": "wp-08-issue-evidence/1",
+  "issue": 161,
+  "workPackage": "WP-08",
+  "sourceCommit": "80e30ea4144ff51b0bde207b4e9b88541954f654",
+  "branch": "chore/161-production-shell-hygiene",
+  "recordedAt": "2026-09-20T09:04:23+00:00",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.8.2",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "note": "Host Node is ahead of the .nvmrc pin; CI on ubuntu-24.04 with the pinned Node is the arbiter."
+  },
+  "commands": [
+    {
+      "command": "npm run typecheck",
+      "result": "pass"
+    },
+    {
+      "command": "npm run lint",
+      "result": "pass"
+    },
+    {
+      "command": "npm run test:unit",
+      "result": "pass",
+      "tests": "132/132",
+      "files": "16/16",
+      "note": "133 before; bootstrap.test.ts removed with its subject."
+    },
+    {
+      "command": "npm run test:parity",
+      "result": "pass",
+      "tests": "28/28"
+    },
+    {
+      "command": "npm run sites:check",
+      "result": "pass"
+    },
+    {
+      "command": "npm run build",
+      "result": "pass"
+    },
+    {
+      "command": "npm run dist:check",
+      "result": "pass",
+      "detail": "17 files scanned, 4 markers absent"
+    },
+    {
+      "command": "npm run test:e2e",
+      "result": "pass",
+      "tests": "37/37",
+      "note": "collision.spec.js:238 took 56.5s against its 60s timeout; it also failed once on this host under full-suite load, and failed on unmodified main in a control run. Pre-existing, load-dependent, legacy-client only (#130 class, flagged in #144)."
+    }
+  ],
+  "guardBehaviour": {
+    "preChangeBundle": {
+      "command": "npm run dist:check",
+      "result": "fail",
+      "rejected": [
+        "planner-worker-diagnostic",
+        "legacy-client-link",
+        "diagnostic-title (assets)",
+        "diagnostic-title (index.html)"
+      ]
+    },
+    "postChangeBundle": {
+      "command": "npm run dist:check",
+      "result": "pass"
+    }
+  },
+  "acceptanceProbe": {
+    "description": "?renderer=canvas under npm run dev, Chromium via Playwright, locale en-US",
+    "devRendererAttribute": "canvas",
+    "devDefaultRendererAttribute": "pixi",
+    "devPlannerDiagnosticPresent": true,
+    "legacyLinksOnSafetyGate": 0,
+    "documentTitleEn": "Diving Simulator",
+    "documentTitleDe": "Tauchsimulator"
+  },
+  "artifact": {
+    "directory": "dist",
+    "sourceMapsExcluded": true,
+    "files": [
+      {
+        "path": "assets/BufferResource-ahTen_tU.js",
+        "sha256": "1cd93eb089c7f0ed924c42b7661a40d8506a9f57834477a2cdd1a88e34f5d422",
+        "bytes": 11089
+      },
+      {
+        "path": "assets/CanvasPool-FrXDjSD-.js",
+        "sha256": "d7af0c023eb7fc87692bbac96cb4dfe03c1a9fa1bd4f5d693891dad1187187a0",
+        "bytes": 804
+      },
+      {
+        "path": "assets/CanvasRenderer-QnLbdrHP.js",
+        "sha256": "cdd870b55b64c95164b63437e6a1a2a4718942ad1777a9fd88b3a2915ea2d382",
+        "bytes": 76
+      },
+      {
+        "path": "assets/Geometry-DadfJtsu.js",
+        "sha256": "fa0931e7605b90809c32adcff471e29cc4ba9a778fe69d94a17fc3c643838872",
+        "bytes": 104191
+      },
+      {
+        "path": "assets/RenderTargetSystem-DI2UVPd1.js",
+        "sha256": "63679fe6e1d33491d879b15f739a0eb24408b19908b534797298006cbcfe2df8",
+        "bytes": 76744
+      },
+      {
+        "path": "assets/WebGLRenderer-C81EXEjV.js",
+        "sha256": "b2169534df2297d406ac3fdb0f076df3d507c1f370928468832b572f8ba41bda",
+        "bytes": 75
+      },
+      {
+        "path": "assets/WebGPURenderer-GdPyKMI0.js",
+        "sha256": "ac8666e5a7e8dd7b4c7148c366805c7628f93c6eda8d8c901b1282da4fb38f8d",
+        "bytes": 76
+      },
+      {
+        "path": "assets/browserAll-BhpuBShL.js",
+        "sha256": "fef9a5704e91fc4c1355ddb24162bb1d0a5b9afa2d25e4eafb6ec2992fa57318",
+        "bytes": 42703
+      },
+      {
+        "path": "assets/canvasUtils-Da5V2-Yx.js",
+        "sha256": "2cf6597e6fae5cec6c3466b0637fc28e4c7f7a722d59a6edebbc65e066d6b6e9",
+        "bytes": 6071
+      },
+      {
+        "path": "assets/getTextureBatchBindGroup-ylv1cTc5.js",
+        "sha256": "367c8b0d8b1f03a31e5aa345bb0e1b389da71474f8ab8c5f0101402a47931501",
+        "bytes": 404
+      },
+      {
+        "path": "assets/index--eotPnGp.css",
+        "sha256": "ab151cf94d260b57c4e41469e42d1ca904fcebd8ee1de4499b0a4856ff28e2c0",
+        "bytes": 4968
+      },
+      {
+        "path": "assets/index-DDNOjE7N.js",
+        "sha256": "fff5bef54e4ab34d0c22c43fa00a6d24ff7856c32fecc5102a2fb474c8504a73",
+        "bytes": 39663
+      },
+      {
+        "path": "assets/init-coISU_rQ.js",
+        "sha256": "d66a1115995722935e5bd6e5eda94337991b0c535827e13d220a1147c01a8901",
+        "bytes": 15629
+      },
+      {
+        "path": "assets/pixi-renderer-Boomm-bS.js",
+        "sha256": "23143a68e65b14fd92457bf3f4d8addfed58a0d1f1ce841836792a8db046ed81",
+        "bytes": 258868
+      },
+      {
+        "path": "assets/planner-worker-BqFMJni-.js",
+        "sha256": "f29f7293df1b8889f815edba0417238980d7959bbb3da1bfcd3615d5772b93db",
+        "bytes": 7338
+      },
+      {
+        "path": "assets/webworkerAll-C8Gs6Wdq.js",
+        "sha256": "911cf0870a1677ea8e9c715bd2aa96479ff45e8c993ad9d1ca26ec967faaf103",
+        "bytes": 63
+      },
+      {
+        "path": "index.html",
+        "sha256": "f12eca0d759c82f10db337996312ab20b404bab714ac14372b29290ec4353218",
+        "bytes": 1314
+      }
+    ]
+  }
+}
