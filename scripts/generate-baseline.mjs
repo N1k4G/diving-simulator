@@ -74,6 +74,7 @@ try {
           'tanks.length',
           'ccr.onBailout',
           'events.length',
+          'trajectory.length',
           'events.*.kind'
         ],
         absoluteEpsilon: {

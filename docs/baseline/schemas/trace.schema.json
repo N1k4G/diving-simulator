@@ -29,16 +29,23 @@
     },
     "tolerances": {
       "type": "object",
-      "required": ["exact", "absoluteEpsilon"],
+      "required": [
+        "exact",
+        "absoluteEpsilon"
+      ],
       "properties": {
         "exact": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "minItems": 1
         },
         "absoluteEpsilon": {
           "type": "object",
-          "required": ["default"],
+          "required": [
+            "default"
+          ],
           "properties": {
             "default": {
               "type": "number",
@@ -58,7 +65,11 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["scenarioId", "description", "checkpoints"],
+        "required": [
+          "scenarioId",
+          "description",
+          "checkpoints"
+        ],
         "properties": {
           "scenarioId": {
             "type": "string",
@@ -71,7 +82,9 @@
           "checkpoints": {
             "type": "array",
             "minItems": 1,
-            "items": { "$ref": "#/$defs/checkpoint" }
+            "items": {
+              "$ref": "#/$defs/checkpoint"
+            }
           }
         }
       }
@@ -79,7 +92,10 @@
   },
   "$defs": {
     "finiteOrNull": {
-      "type": ["number", "null"]
+      "type": [
+        "number",
+        "null"
+      ]
     },
     "checkpoint": {
       "type": "object",
@@ -98,37 +114,90 @@
         "events"
       ],
       "properties": {
-        "schemaVersion": { "const": 1 },
-        "scenarioId": { "type": "string" },
-        "checkpointId": { "type": "string" },
+        "schemaVersion": {
+          "const": 1
+        },
+        "scenarioId": {
+          "type": "string"
+        },
+        "checkpointId": {
+          "type": "string"
+        },
         "simulatedGeometry": {
           "type": "string",
-          "enum": ["open", "shore", "reef", "wreck", "cave"]
+          "enum": [
+            "open",
+            "shore",
+            "reef",
+            "wreck",
+            "cave"
+          ]
         },
-        "state": { "type": "object" },
-        "configuration": { "type": "object" },
-        "planner": { "type": "object" },
+        "state": {
+          "type": "object"
+        },
+        "configuration": {
+          "type": "object"
+        },
+        "planner": {
+          "type": "object"
+        },
         "tissues": {
           "type": "object",
-          "required": ["n2_bar", "he_bar"],
+          "required": [
+            "n2_bar",
+            "he_bar"
+          ],
           "properties": {
             "n2_bar": {
               "type": "array",
               "minItems": 16,
               "maxItems": 16,
-              "items": { "$ref": "#/$defs/finiteOrNull" }
+              "items": {
+                "$ref": "#/$defs/finiteOrNull"
+              }
             },
             "he_bar": {
               "type": "array",
               "minItems": 16,
               "maxItems": 16,
-              "items": { "$ref": "#/$defs/finiteOrNull" }
+              "items": {
+                "$ref": "#/$defs/finiteOrNull"
+              }
             }
           }
         },
-        "tanks": { "type": "array" },
-        "ccr": { "type": "object" },
-        "events": { "type": "array" }
+        "tanks": {
+          "type": "array"
+        },
+        "ccr": {
+          "type": "object"
+        },
+        "events": {
+          "type": "array"
+        },
+        "trajectory": {
+          "description": "Optional in v1, and optional on purpose: a v1 trace predates this field and stays valid without it. Making it required would redefine v1 rather than extend it. Presence in this repository's committed fixture is asserted by tests/baseline.spec.js; a future v2 can promote it to required. When present: the depth and duration of every updateDiving() tick since the previous checkpoint, in order. depth_m is the depth read back AFTER the tick, which is the depth updateTissues() integrated at \u2014 not the depth the scenario asked for. Empty for a scenario's first checkpoint. See docs/decisions.md, 'Trace contract limits'.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "depth_m",
+              "dtDive_min"
+            ],
+            "properties": {
+              "depth_m": {
+                "type": "number",
+                "minimum": 0
+              },
+              "dtDive_min": {
+                "type": "number",
+                "minimum": 0
+              }
+            }
+          }
+        }
       }
     }
   }

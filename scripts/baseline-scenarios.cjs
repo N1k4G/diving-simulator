@@ -2,6 +2,29 @@ function runBaselineScenarios() {
   const api = window.gameAPI;
   const originalRandom = Math.random;
 
+  // The depth/duration sequence the legacy client actually integrated tissues
+  // over, since the previous checkpoint. Filled by updateAtDepth() and drained
+  // by checkpoint().
+  //
+  // WHY THE RECORDED DEPTH IS READ BACK RATHER THAN PASSED IN. updateAtDepth()
+  // asks for a target depth, but updateDiving() does not integrate at it:
+  // updateBuoyancyPhysics() moves `depth` first, the result is clamped
+  // (game-loop.js), and only then does updateTissues() read the global `depth`
+  // for its ambient pressure. Nothing assigns `depth` between that clamp and
+  // updateTissues(), so the value left after the tick is exactly the one the
+  // tissues loaded at — and the one a pure replay has to use. Recording the
+  // requested depth instead is what made ascents unreproducible: replaying the
+  // nominal 12 m/min ramp lands ~1.2e-3 bar out against a 1e-9 tolerance
+  // (docs/decisions.md, "Trace contract limits").
+  const trajectory = [];
+
+  function checkpoint(scenarioId, checkpointId) {
+    const captured = api.captureBaselineCheckpoint(scenarioId, checkpointId);
+    // splice(0) drains: each checkpoint owns the steps since the previous one.
+    captured.trajectory = trajectory.splice(0);
+    return captured;
+  }
+
   function setup(mode, site, tankList) {
     api.diveMode = mode;
     api.tanks.length = 0;
@@ -22,6 +45,9 @@ function runBaselineScenarios() {
     // Prime captureBaselineCheckpoint's observed simulation geometry without
     // advancing any authoritative clock or model value.
     updateAtDepth(0, 0, 0);
+    // That priming tick is setup, not dive time: it carries dt 0 and belongs to
+    // no segment. Drop it so a scenario's first checkpoint starts from empty.
+    trajectory.length = 0;
   }
 
   function neutralizeAt(depth) {
@@ -49,6 +75,7 @@ function runBaselineScenarios() {
     } finally {
       api.diveSite = declaredSite;
     }
+    trajectory.push({ depth_m: api.depth, dtDive_min: stepMinutes });
   }
 
   function holdDepth(depth, minutes, stepMinutes = 0.1) {
@@ -85,28 +112,28 @@ function runBaselineScenarios() {
     const air = {
       scenarioId: 'air-18m-30min',
       description: 'Air at 18 m for 30 min followed by a 12 m/min direct ascent',
-      checkpoints: [api.captureBaselineCheckpoint('air-18m-30min', 'surface')]
+      checkpoints: [checkpoint('air-18m-30min', 'surface')]
     };
     holdDepth(18, 30);
-    air.checkpoints.push(api.captureBaselineCheckpoint('air-18m-30min', 'bottom-30min'));
+    air.checkpoints.push(checkpoint('air-18m-30min', 'bottom-30min'));
     ascend(18, 0, 12);
-    air.checkpoints.push(api.captureBaselineCheckpoint('air-18m-30min', 'surfaced'));
+    air.checkpoints.push(checkpoint('air-18m-30min', 'surfaced'));
     scenarios.push(air);
 
     setup('tec', 'wreck', [[0.21, 0.35, 200], [0.5, 0, 200]]);
     const trimix = {
       scenarioId: 'trimix-45m-20min',
       description: 'Trimix 21/35 at 45 m for 20 min, ascent to 21 m, and switch to 50% deco gas',
-      checkpoints: [api.captureBaselineCheckpoint('trimix-45m-20min', 'surface')]
+      checkpoints: [checkpoint('trimix-45m-20min', 'surface')]
     };
     holdDepth(45, 20);
-    trimix.checkpoints.push(api.captureBaselineCheckpoint('trimix-45m-20min', 'bottom-20min'));
+    trimix.checkpoints.push(checkpoint('trimix-45m-20min', 'bottom-20min'));
     ascend(45, 21, 9);
-    trimix.checkpoints.push(api.captureBaselineCheckpoint('trimix-45m-20min', 'ascent-21m'));
+    trimix.checkpoints.push(checkpoint('trimix-45m-20min', 'ascent-21m'));
     api.setKeys({ 2: true });
     updateAtDepth(21, 0.025, 0);
     api.clearKeys();
-    trimix.checkpoints.push(api.captureBaselineCheckpoint('trimix-45m-20min', 'deco-gas-21m'));
+    trimix.checkpoints.push(checkpoint('trimix-45m-20min', 'deco-gas-21m'));
     scenarios.push(trimix);
 
     setup('ccr', 'cave', [[0.21, 0, 200]]);
@@ -118,12 +145,12 @@ function runBaselineScenarios() {
     const ccr = {
       scenarioId: 'ccr-30m-30min',
       description: 'CCR at 1.3 bar with trimix 15/45 diluent at 30 m for 30 min and ascent to 12 m',
-      checkpoints: [api.captureBaselineCheckpoint('ccr-30m-30min', 'surface')]
+      checkpoints: [checkpoint('ccr-30m-30min', 'surface')]
     };
     holdDepth(30, 30);
-    ccr.checkpoints.push(api.captureBaselineCheckpoint('ccr-30m-30min', 'bottom-30min'));
+    ccr.checkpoints.push(checkpoint('ccr-30m-30min', 'bottom-30min'));
     ascend(30, 12, 9);
-    ccr.checkpoints.push(api.captureBaselineCheckpoint('ccr-30m-30min', 'ascent-12m'));
+    ccr.checkpoints.push(checkpoint('ccr-30m-30min', 'ascent-12m'));
     scenarios.push(ccr);
 
     setup('ccr', 'shore', [[0.21, 0, 200]]);
@@ -135,16 +162,16 @@ function runBaselineScenarios() {
     const bailout = {
       scenarioId: 'ccr-bailout-30m',
       description: 'CCR at 30 m followed by irreversible open-circuit bailout and ascent to 18 m; bailout drains the diluent cylinder by design, and changing that billing requires a reviewed fixture update',
-      checkpoints: [api.captureBaselineCheckpoint('ccr-bailout-30m', 'surface')]
+      checkpoints: [checkpoint('ccr-bailout-30m', 'surface')]
     };
     holdDepth(30, 10);
-    bailout.checkpoints.push(api.captureBaselineCheckpoint('ccr-bailout-30m', 'pre-bailout'));
+    bailout.checkpoints.push(checkpoint('ccr-bailout-30m', 'pre-bailout'));
     api.setKeys({ b: true });
     updateAtDepth(30, 0.025, 0);
     api.clearKeys();
-    bailout.checkpoints.push(api.captureBaselineCheckpoint('ccr-bailout-30m', 'bailed-out'));
+    bailout.checkpoints.push(checkpoint('ccr-bailout-30m', 'bailed-out'));
     ascend(30, 18, 9);
-    bailout.checkpoints.push(api.captureBaselineCheckpoint('ccr-bailout-30m', 'bailout-ascent-18m'));
+    bailout.checkpoints.push(checkpoint('ccr-bailout-30m', 'bailout-ascent-18m'));
     scenarios.push(bailout);
 
     return scenarios;
