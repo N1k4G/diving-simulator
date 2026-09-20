@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "diving-simulator-golden-traces",
-  "referenceCommit": "fb60e38acdd0c2e39e9db82652886ba671b2a661",
+  "referenceCommit": "b072eed73c57491f607a71b209d5a7dc51aef165",
   "generator": "npm run baseline:generate",
   "tolerances": {
     "exact": [
@@ -21,6 +21,7 @@
       "tanks.length",
       "ccr.onBailout",
       "events.length",
+      "trajectory.length",
       "events.*.kind"
     ],
     "absoluteEpsilon": {
@@ -145,7 +146,8 @@
             "scrubberRemaining_min": 180,
             "onBailout": false
           },
-          "events": []
+          "events": [],
+          "trajectory": []
         },
         {
           "schemaVersion": 1,
@@ -248,7 +250,1209 @@
             "scrubberRemaining_min": 180,
             "onBailout": false
           },
-          "events": []
+          "events": [],
+          "trajectory": [
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 18,
+              "dtDive_min": 0.1
+            }
+          ]
         },
         {
           "schemaVersion": 1,
@@ -356,6 +1560,244 @@
               "t": 31.475000000000072,
               "kind": "safetyStopSkipped",
               "value": 0
+            }
+          ],
+          "trajectory": [
+            {
+              "depth_m": 17.480201462333227,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 17.180201462333226,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 16.88020146233323,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 16.58020146233323,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 16.280201462333228,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 15.980201462333227,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 15.680201462333235,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 15.380201462333234,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 15.080201462333235,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 14.780201462333235,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 14.480201462333234,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 14.180201462333235,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 13.880201462333234,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 13.580201462333235,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 13.280201462333235,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 12.980201462333234,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 12.680201462333235,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 12.380201462333234,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 12.080201462333235,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 11.780201462333235,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 11.480201462333234,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 11.180201462333235,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 10.880201462333234,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 10.580201462333235,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 10.280201462333235,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 9.980201462333234,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 9.680201462333235,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 9.380201462333234,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 9.080201462333235,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 8.780201462333235,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 8.480201462333234,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 8.180201462333235,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 7.880201462333235,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 7.580201462333238,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 7.280201462333237,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 6.980201462333237,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 6.680201462333238,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 6.380201462333237,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 6.080201462333238,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 5.780201462333237,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 5.480201462333237,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 5.180201462333238,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 4.880201462333237,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 4.580201462333238,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 4.280201462333237,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 3.9802014623332367,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 3.6802014623332364,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 3.3802014623332357,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 3.0802014623332368,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 2.780201462333236,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 2.4802014623332354,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 2.1802014623332364,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 1.8802014623332364,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 1.5802014623332372,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 1.2802014623332365,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 0.9802014623332358,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 0.680201462333235,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 0.3802014623332377,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 0.08020146233323709,
+              "dtDive_min": 0.025
             }
           ]
         }
@@ -475,7 +1917,8 @@
             "scrubberRemaining_min": 180,
             "onBailout": false
           },
-          "events": []
+          "events": [],
+          "trajectory": []
         },
         {
           "schemaVersion": 1,
@@ -607,7 +2050,809 @@
             "scrubberRemaining_min": 180,
             "onBailout": false
           },
-          "events": []
+          "events": [],
+          "trajectory": [
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.1
+            }
+          ]
         },
         {
           "schemaVersion": 1,
@@ -739,7 +2984,437 @@
             "scrubberRemaining_min": 180,
             "onBailout": false
           },
-          "events": []
+          "events": [],
+          "trajectory": [
+            {
+              "depth_m": 44.611216906267344,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 44.386917840846785,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 44.162618775426225,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 43.938319710005665,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 43.7140206445851,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 43.48972157916454,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 43.26542251374398,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 43.04112344832342,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 42.81682438290286,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 42.5925253174823,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 42.36822625206174,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 42.14392718664118,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 41.91962812122061,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 41.69532905580005,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 41.47102999037949,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 41.24673092495893,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 41.02243185953837,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 40.79813279411781,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 40.57383372869725,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 40.34953466327669,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 40.125235597856125,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 39.900936532435566,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 39.676637467015006,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 39.452338401594446,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 39.228039336173886,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 39.003740270753326,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 38.779441205332766,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 38.555142139912206,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 38.330843074491646,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 38.10654400907108,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 37.88224494365052,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 37.65794587822996,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 37.4336468128094,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 37.20934774738884,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 36.98504868196828,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 36.76074961654772,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 36.53645055112715,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 36.3121514857066,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 36.08785242028603,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 35.86355335486547,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 35.639254289444914,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 35.414955224024354,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 35.190656158603794,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 34.966357093183234,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 34.742058027762674,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 34.51775896234211,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 34.29345989692155,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 34.06916083150099,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 33.84486176608043,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 33.62056270065987,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 33.39626363523931,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 33.17196456981875,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 32.94766550439818,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 32.72336643897763,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 32.49906737355706,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 32.2747683081365,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 32.05046924271594,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 31.826170177295374,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 31.601871111874814,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 31.377572046454254,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 31.15327298103369,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 30.92897391561313,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 30.704674850192568,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 30.480375784772008,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 30.256076719351448,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 30.031777653930888,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 29.807478588510328,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 29.58317952308977,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 29.358880457669205,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 29.134581392248645,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 28.91028232682808,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 28.685983261407525,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 28.46168419598696,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 28.237385130566402,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 28.013086065145842,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 27.788786999725282,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 27.56448793430472,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 27.34018886888416,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 27.1158898034636,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 26.89159073804304,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 26.667291672622476,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 26.442992607201916,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 26.218693541781356,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 25.994394476360796,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 25.770095410940232,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 25.545796345519673,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 25.321497280099113,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 25.097198214678553,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 24.87289914925799,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 24.64860008383743,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 24.42430101841687,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 24.20000195299631,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 23.975702887575746,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 23.751403822155186,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 23.527104756734627,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 23.302805691314067,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 23.078506625893503,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 22.854207560472943,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 22.629908495052383,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 22.405609429631824,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 22.18131036421126,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 21.9570112987907,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 21.73271223337014,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 21.50841316794958,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 21.284114102529017,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 21.059815037108457,
+              "dtDive_min": 0.024922118380062305
+            },
+            {
+              "depth_m": 20.835515971687897,
+              "dtDive_min": 0.024922118380062305
+            }
+          ]
         },
         {
           "schemaVersion": 1,
@@ -871,7 +3546,13 @@
             "scrubberRemaining_min": 180,
             "onBailout": false
           },
-          "events": []
+          "events": [],
+          "trajectory": [
+            {
+              "depth_m": 21,
+              "dtDive_min": 0.025
+            }
+          ]
         }
       ]
     },
@@ -980,7 +3661,8 @@
             "scrubberRemaining_min": 180,
             "onBailout": false
           },
-          "events": []
+          "events": [],
+          "trajectory": []
         },
         {
           "schemaVersion": 1,
@@ -1095,7 +3777,1209 @@
             "scrubberRemaining_min": 150.0000000000017,
             "onBailout": false
           },
-          "events": []
+          "events": [],
+          "trajectory": [
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            }
+          ]
         },
         {
           "schemaVersion": 1,
@@ -1210,7 +5094,329 @@
             "scrubberRemaining_min": 148.00000000000125,
             "onBailout": false
           },
-          "events": []
+          "events": [],
+          "trajectory": [
+            {
+              "depth_m": 29.610151096749927,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 29.38515109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 29.160151096749928,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 28.93515109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 28.71015109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 28.485151096749927,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 28.26015109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 28.035151096749928,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 27.81015109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 27.58515109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 27.360151096749927,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 27.13515109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 26.910151096749928,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 26.68515109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 26.46015109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 26.235151096749927,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 26.01015109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 25.785151096749928,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 25.56015109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 25.33515109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 25.110151096749927,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 24.88515109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 24.660151096749928,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 24.43515109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 24.21015109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 23.985151096749927,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 23.76015109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 23.535151096749928,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 23.31015109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 23.08515109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 22.860151096749927,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 22.63515109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 22.410151096749928,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 22.18515109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 21.96015109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 21.735151096749927,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 21.51015109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 21.285151096749928,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 21.06015109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 20.83515109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 20.610151096749927,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 20.38515109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 20.160151096749928,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 19.93515109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 19.71015109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 19.485151096749927,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 19.26015109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 19.035151096749928,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 18.81015109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 18.58515109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 18.360151096749927,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 18.13515109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 17.910151096749928,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 17.68515109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 17.46015109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 17.235151096749927,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 17.01015109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 16.785151096749928,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 16.56015109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 16.33515109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 16.110151096749927,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 15.88515109674993,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 15.660151096749926,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 15.435151096749927,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 15.210151096749927,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 14.985151096749927,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 14.760151096749928,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 14.535151096749926,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 14.310151096749927,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 14.085151096749927,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 13.860151096749927,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 13.635151096749928,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 13.410151096749926,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 13.185151096749928,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 12.960151096749927,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 12.735151096749926,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 12.510151096749928,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 12.285151096749926,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 12.060151096749928,
+              "dtDive_min": 0.025
+            },
+            {
+              "depth_m": 11.835151096749927,
+              "dtDive_min": 0.025
+            }
+          ]
         }
       ]
     },
@@ -1319,7 +5525,8 @@
             "scrubberRemaining_min": 180,
             "onBailout": false
           },
-          "events": []
+          "events": [],
+          "trajectory": []
         },
         {
           "schemaVersion": 1,
@@ -1422,7 +5629,409 @@
             "scrubberRemaining_min": 170.00000000000057,
             "onBailout": false
           },
-          "events": []
+          "events": [],
+          "trajectory": [
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.1
+            }
+          ]
         },
         {
           "schemaVersion": 1,
@@ -1525,7 +6134,13 @@
             "scrubberRemaining_min": 169.97500000000056,
             "onBailout": true
           },
-          "events": []
+          "events": [],
+          "trajectory": [
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.025
+            }
+          ]
         },
         {
           "schemaVersion": 1,
@@ -1628,7 +6243,225 @@
             "scrubberRemaining_min": 169.97500000000056,
             "onBailout": true
           },
-          "events": []
+          "events": [],
+          "trajectory": [
+            {
+              "depth_m": 29.614383547340605,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 29.392161325118384,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 29.16993910289616,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 28.947716880673937,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 28.725494658451716,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 28.503272436229494,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 28.28105021400727,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 28.058827991785048,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 27.836605769562826,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 27.614383547340605,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 27.392161325118384,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 27.16993910289616,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 26.947716880673937,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 26.725494658451716,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 26.503272436229494,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 26.28105021400727,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 26.058827991785048,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 25.836605769562826,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 25.614383547340605,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 25.392161325118384,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 25.16993910289616,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 24.947716880673937,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 24.725494658451716,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 24.503272436229494,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 24.28105021400727,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 24.058827991785048,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 23.836605769562826,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 23.614383547340605,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 23.392161325118384,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 23.16993910289616,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 22.947716880673937,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 22.725494658451716,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 22.503272436229494,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 22.28105021400727,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 22.058827991785048,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 21.836605769562826,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 21.614383547340605,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 21.392161325118384,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 21.169939102896162,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 20.947716880673937,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 20.725494658451716,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 20.50327243622949,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 20.28105021400727,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 20.058827991785048,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 19.836605769562826,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 19.614383547340605,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 19.392161325118384,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 19.169939102896162,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 18.947716880673937,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 18.725494658451716,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 18.50327243622949,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 18.28105021400727,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 18.058827991785048,
+              "dtDive_min": 0.024691358024691357
+            },
+            {
+              "depth_m": 17.836605769562826,
+              "dtDive_min": 0.024691358024691357
+            }
+          ]
         }
       ]
     }

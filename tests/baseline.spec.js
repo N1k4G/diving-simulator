@@ -142,6 +142,34 @@ test('baseline: generated contracts are complete and internally consistent', asy
       expect(checkpoint.simulatedGeometry).toBe('open');
       expect(checkpoint.tissues.n2_bar).toHaveLength(16);
       expect(checkpoint.tissues.he_bar).toHaveLength(16);
+
+      // #156. The schema leaves `trajectory` optional so that a v1 trace
+      // predating it stays valid under v1 — promoting it to required there
+      // would redefine the version rather than extend it. The guarantee this
+      // repository actually depends on is that ITS fixture carries one on
+      // every checkpoint, because that is what lets the pure suite replay an
+      // ascent once the legacy oracle is retired. So it is asserted here, on
+      // the artifact, rather than in the schema that describes the format.
+      expect(
+        Array.isArray(checkpoint.trajectory),
+        `${scenario.scenarioId}/${checkpoint.checkpointId} has no trajectory`
+      ).toBe(true);
+      for (const step of checkpoint.trajectory) {
+        expect(Number.isFinite(step.depth_m)).toBe(true);
+        expect(step.depth_m).toBeGreaterThanOrEqual(0);
+        expect(Number.isFinite(step.dtDive_min)).toBe(true);
+        expect(step.dtDive_min).toBeGreaterThanOrEqual(0);
+      }
+    }
+    // A scenario's first checkpoint is taken before any tick, so an empty
+    // trajectory there is correct; every later one has to have integrated
+    // something, or the fixture recorded a segment that never ran.
+    expect(scenario.checkpoints[0].trajectory).toHaveLength(0);
+    for (const checkpoint of scenario.checkpoints.slice(1)) {
+      expect(
+        checkpoint.trajectory.length,
+        `${scenario.scenarioId}/${checkpoint.checkpointId} recorded no steps`
+      ).toBeGreaterThan(0);
     }
   }
 

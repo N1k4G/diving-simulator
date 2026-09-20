@@ -1,0 +1,28 @@
+{
+  "strippedFields": 15,
+  "trajectorySteps": 1202,
+  "referenceCommitBefore": "fb60e38acdd0c2e39e9db82652886ba671b2a661",
+  "referenceCommitAfter": "b072eed73c57491f607a71b209d5a7dc51aef165",
+  "referenceCommitChanged": true,
+  "sha256Before": "800a6f7e55e169e17b583c0a52bf27750c7a3a3d7b1e6434956b7ee1c9dd5d63",
+  "sha256AfterStripped": "800a6f7e55e169e17b583c0a52bf27750c7a3a3d7b1e6434956b7ee1c9dd5d63",
+  "byteIdentical": true,
+  "reproducibility": {
+    "claim": "The fixture regenerates byte-for-byte from the commit it names as referenceCommit.",
+    "method": "git worktree --detach at the referenceCommit, npm run baseline:generate, sha256 compared against the committed file.",
+    "referenceCommit": "b072eed73c57491f607a71b209d5a7dc51aef165",
+    "generatorCommit": "b072eed73c57491f607a71b209d5a7dc51aef165",
+    "fixtureCommit": "c3aed32702dcdee1ca14a4405a6ab93dd2d69b9f",
+    "sha256Regenerated": "448058c3a6be81570497058cd2e06fcd7396761b7012d6a4763c05f7ec2e56ad",
+    "sha256Committed": "448058c3a6be81570497058cd2e06fcd7396761b7012d6a4763c05f7ec2e56ad",
+    "byteIdentical": true,
+    "note": "The generator lands one commit before the fixture on purpose. That commit is red in isolation \u2014 the driver emits a field the then-committed fixture lacks, and compareCheckpoint compares key sets \u2014 which is why the pair is squash-merged as one change."
+  },
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.8.2",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "recordedAt": "2026-09-20T18:59:52+00:00"
+  }
+}

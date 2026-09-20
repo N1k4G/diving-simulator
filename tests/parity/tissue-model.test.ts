@@ -10,6 +10,7 @@ import {
 import {
   createGasMix,
   createInitialDiveState,
+  type BreathingSource,
   type DiveState,
 } from "../../src/core/dive-state";
 import { metres, minutes, minutesToSeconds } from "../../src/core/units";
@@ -37,6 +38,10 @@ interface GoldenCheckpoint {
     pressure_bar: number;
     gasRemaining_l: number;
   }[];
+  // Every updateDiving() tick since the previous checkpoint, in order. depth_m
+  // is the depth read back after the tick — the depth updateTissues()
+  // integrated at, not the one the scenario asked for (#156).
+  trajectory: { depth_m: number; dtDive_min: number }[];
   ccr?: {
     targetPO2_bar: number;
     actualPO2_bar: number;
@@ -69,21 +74,60 @@ describe("pure tissue model parity", () => {
     expectTissuesToMatch(model.snapshot, bottom);
   });
 
-  // The `surfaced` checkpoint is deliberately not asserted here. It is reached
-  // through an ascent, and the golden fixture records depth only at
-  // checkpoints — not the per-step trajectory. In the legacy client
-  // updateBuoyancyPhysics() moves `depth` before updateTissues() runs, so
-  // tissues load at depths the fixture never captures. Replaying the nominal
-  // 12 m/min ramp lands ~1.2e-3 bar out, and a midpoint-depth replay ~1.0e-3,
-  // so no depth schedule derivable from the fixture reproduces it at the
-  // declared 1e-9 tolerance.
+  // The ascent-reached checkpoint the fixture could not previously express
+  // (#156). Until the trace recorded a trajectory, no depth schedule derivable
+  // from it reproduced this: the nominal 12 m/min ramp landed ~1.2e-3 bar out
+  // and a midpoint-depth replay ~1.0e-3, against a 1e-9 tolerance. The cause
+  // was never the model — updateBuoyancyPhysics() moves `depth` before
+  // updateTissues() reads it, so the legacy client integrates at depths the
+  // ramp never visits. The fixture now records those depths as they were read
+  // back after each tick, and replaying them closes the gap.
   //
-  // This is a trace-contract gap, not a model defect: every static-depth
-  // checkpoint matches exactly. Dynamic-depth parity is covered end to end by
-  // tests/baseline.spec.js, which replays the real scenarios against the legacy
-  // client and compares all checkpoints under the fixture's tolerance policy.
-  // Asserting it here as well would require the trace schema to record the
-  // depth trajectory, which is a WP-01 fixture change.
+  // Note what is asserted and what is not. The final trajectory step is at
+  // 0.08 m while the checkpoint's state.depth_m is 0, because ascend() calls
+  // setDepth(0) after its loop without a tick. The trajectory is the record of
+  // what the tissues saw, not of where the diver was parked afterwards, so
+  // this replays tissues and does not assert the final depth.
+  it("matches the air surfaced checkpoint by replaying the recorded ascent", () => {
+    const scenario = findScenario("air-18m-30min");
+    const bottom = findCheckpoint(scenario, "bottom-30min");
+    const surfaced = findCheckpoint(scenario, "surfaced");
+
+    expect(surfaced.trajectory.length).toBeGreaterThan(0);
+
+    const model = new DiveModel(diveStateFromLegacyCheckpoint(bottom, 4));
+    replayTrajectory(model, surfaced.trajectory, () =>
+      openCircuit(createGasMix(0.21, 0)),
+    );
+
+    expectTissuesToMatch(model.snapshot, surfaced);
+  });
+
+  it("replays the trimix ascent before the deco gas switch", () => {
+    const scenario = findScenario("trimix-45m-20min");
+    const bottom = findCheckpoint(scenario, "bottom-20min");
+    const ascent = findCheckpoint(scenario, "ascent-21m");
+
+    const model = new DiveModel(diveStateFromLegacyCheckpoint(bottom, 5));
+    replayTrajectory(model, ascent.trajectory, () =>
+      openCircuit(createGasMix(0.21, 0.35)),
+    );
+
+    expectTissuesToMatch(model.snapshot, ascent);
+  });
+
+  it("replays the CCR ascent at a held setpoint", () => {
+    const scenario = findScenario("ccr-30m-30min");
+    const bottom = findCheckpoint(scenario, "bottom-30min");
+    const ascent = findCheckpoint(scenario, "ascent-12m");
+
+    const model = new DiveModel(diveStateFromLegacyCheckpoint(bottom, 6));
+    replayTrajectory(model, ascent.trajectory, () =>
+      closedCircuit(1.3, createGasMix(0.15, 0.45)),
+    );
+
+    expectTissuesToMatch(model.snapshot, ascent);
+  });
 
   it("matches the canonical trimix bottom checkpoint", () => {
     const bottom = findCheckpoint(
@@ -177,6 +221,26 @@ function findCheckpoint(
   }
 
   return checkpoint;
+}
+
+// Drives the model through a recorded trajectory, one step per legacy tick.
+//
+// DiveModel.advance subdivides into FIXED_STEP_SECONDS, so a 1.5 s legacy tick
+// becomes 1.0 s + 0.5 s. That is exact for this comparison rather than merely
+// close: the tissue integrator is p + (t - p) * exp(-k * dt) at a constant
+// depth, and exp(-k * 1.0) * exp(-k * 0.5) === exp(-k * 1.5) to within double
+// rounding, far inside the 1e-9 tolerance.
+function replayTrajectory(
+  model: DiveModel,
+  trajectory: { depth_m: number; dtDive_min: number }[],
+  breathingAt: (depthM: number) => BreathingSource,
+): void {
+  for (const step of trajectory) {
+    model.advance(
+      { depthM: metres(step.depth_m), breathing: breathingAt(step.depth_m) },
+      minutesToSeconds(minutes(step.dtDive_min)),
+    );
+  }
 }
 
 function expectTissuesToMatch(

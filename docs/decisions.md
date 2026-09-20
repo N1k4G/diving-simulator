@@ -139,20 +139,30 @@ presentation snapshots.
 
 ### Trace contract limits
 
-- The golden trace records depth only at checkpoints, not the per-step depth
-  trajectory. In the legacy client `updateBuoyancyPhysics()` moves `depth`
-  before `updateTissues()` runs, so tissues load at depths the fixture never
-  captures.
-- A pure model can therefore reproduce every static-depth checkpoint exactly,
-  but no depth schedule derivable from the fixture reproduces a checkpoint
-  reached through an ascent. Replaying the nominal 12 m/min ramp lands about
-  1.2e-3 bar out and a midpoint-depth replay about 1.0e-3, against a declared
-  tolerance of 1e-9.
-- Assert dynamic-depth parity end to end against the legacy client, not in the
-  pure-model unit suite. Extending the trace schema to record the depth
-  trajectory would let the pure suite cover ascents too; that is a WP-01
-  fixture change and is not in scope for the core extraction.
-- Do not close this gap by widening a tolerance or regenerating expected values.
+- **Closed in #156.** Each checkpoint now carries a `trajectory`: the depth and
+  duration of every `updateDiving()` tick since the previous checkpoint. The
+  recorded depth is the one read back *after* the tick, because
+  `updateBuoyancyPhysics()` moves `depth` and the result is clamped before
+  `updateTissues()` reads it, and nothing assigns `depth` in between — so the
+  value left after the tick is the one the tissues integrated at. Replaying that
+  sequence reproduces ascent-reached checkpoints at the declared 1e-9 tolerance;
+  `tests/parity/tissue-model.test.ts` asserts the air, trimix and CCR ascents.
+  The pure suite no longer depends on the legacy client to prove dynamic-depth
+  parity, which is what the WP-12 cutover needs.
+- The history, because it explains the shape of the fixture: the trace recorded
+  depth only at checkpoints. A pure model reproduced every static-depth
+  checkpoint exactly, but no depth schedule derivable from the fixture
+  reproduced a checkpoint reached through an ascent — the nominal 12 m/min ramp
+  landed about 1.2e-3 bar out and a midpoint-depth replay about 1.0e-3, against
+  a tolerance of 1e-9. The legacy client integrates at depths the ramp never
+  visits, and the fixture did not record them.
+- A checkpoint's `state.depth_m` is not the last trajectory depth. `ascend()`
+  and `holdDepth()` call `setDepth()` after their loops without a tick, so the
+  recorded position can differ from the last integrated depth by ~0.1 m. The
+  trajectory is the record of what the tissues saw; replay it for tissue parity
+  and do not assert the final depth from it.
+- Do not close a gap of this kind by widening a tolerance or regenerating
+  expected values.
 - The same class of gap applies to latched planner state. `ndlDroppedBelow5` is
   set in `updateDiving()` *after* `calculateTTS()` has already run for that
   tick, so a checkpoint can record NDL 3 with the latch still false, or NDL 15
