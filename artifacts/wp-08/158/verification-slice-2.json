@@ -1,0 +1,67 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 158,
+  "slice": "PR 2 of 3: technical controls (helium, gradient factors, AMV, tank size, cylinders)",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npm run test:e2e",
+  "measuredCommit": "a7a88a78622f164228c3e0ef4b3dfd95fc502707",
+  "measuredTree": "017c55e8d6cbab5eec01ae289fb3d1ec6bee3f7c",
+  "workingTree": "clean",
+  "provenanceNote": "Run against the committed tree above rather than the working tree that became it. Provenance needed correcting four times earlier in WP-08, always because evidence was generated before the commit; this follows the rule instead of arguing the content is identical. Only the commit adding this file follows the measured one.",
+  "recordedAt": "2026-09-21T14:08:38+00:00",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.8.2",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass \u2014 17 files, no source maps, 4 markers absent",
+    "unit": "169 passed (150 before, +19)",
+    "parity": "35 passed (34 before, +1)",
+    "e2e": "55 passed (48 before, +7)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "10 scenes ok"
+  },
+  "boundsPortedFromTheOracle": {
+    "note": "The first slice invented two bounds and the tests codified them. Every value below cites the legacy function it was read from, and each has a test naming the same function, so a number is traceable rather than plausible.",
+    "helium": "src/state.js gsAdjustHe \u2014 0 to 1 minus fO2; oxygen is never moved to make room",
+    "consumption": "src/state.js gsAdjustAMV with src/constants.js AMV_MIN 8, AMV_MAX 25",
+    "tankVolume": "src/state.js gsAdjustTankVol with TANK_VOL_MIN 6, TANK_VOL_MAX 24",
+    "gradientFactors": "src/state.js gsAdjustGFLow and gsAdjustGFHigh \u2014 clamp to GF_*_MIN 30 / GF_*_MAX 100, then the pair cannot cross: low yields to high, high yields to low",
+    "addTank": "src/state.js gsAddTank \u2014 air at 200 bar, refused past MAX_TANKS 6",
+    "removeTank": "src/state.js gsRemoveTank \u2014 refused below one; tab and active index pulled back inside",
+    "tankTab": "src/game-loop.js selectedTankTab setter \u2014 clamps, does not wrap; TAB cycles",
+    "modeSwitch": "src/state.js switchMode \u2014 saveModeSettings then restoreModeSettings; entering CCR normalises to a single cylinder per its BUG-CCR-9 comment"
+  },
+  "notPortedAndWhy": {
+    "tankSwitchDepth": "gsAddTank and gsAdjustO2 maintain a per-tank switchDepth from calculateMOD. The pure model's TankState has no such field, so it is not reproduced. Recorded here rather than dropped silently; it belongs with the in-dive gas switching in #163."
+  },
+  "bugFoundByATest": {
+    "what": "The screen displayed tanks[activeTankIndex] while editing tanks[selectedTabIndex].",
+    "consequence": "A player selecting cylinder 2 would edit it while reading cylinder 1.",
+    "foundBy": "the e2e test 'cylinders can be added, selected and removed', before review"
+  },
+  "keyboardSemantics": "The tec shortcuts apply only when focus is outside a radio group, because a focused radio owns the arrow keys \u2014 the resolution the previous review asked for. The e2e tests blur before exercising a shortcut and say why, rather than working around it silently.",
+  "parityToGoldenTrace": {
+    "file": "tests/parity/dive-setup.test.ts",
+    "added": "A two-cylinder tec setup reproduces the trimix scenario's pair [[0.21, 0.35, 200], [0.5, 0, 200]] from scripts/baseline-scenarios.cjs, gasRemaining included.",
+    "ccr": "still asserted NOT covered"
+  },
+  "sliceBoundaries": {
+    "ccr": "Still offered and disabled with a stated reason; PR 3.",
+    "saveRestore": "A restored save still wins over the configuration. Unchanged, flagged in code.",
+    "sites": "Unchanged: all four offered, composition root holds RENDERABLE_SITES."
+  },
+  "releaseLabel": {
+    "chosen": "release:none",
+    "reasoning": "Deployed bytes change \u2014 deploy.yml runs `pages deploy src/` with no ignore file \u2014 but served behaviour does not: _redirects sends / to the legacy client and the migration client stays unreachable until the #170 cutover.",
+    "ownerCall": true
+  }
+}
