@@ -256,11 +256,18 @@ test('no buried start position stays stuck, anywhere in any site', async ({ page
   //   playwright 1.62 isolated (#144)      never above 38.5 s
   //
   // So: ~45% headroom alone, none under load. test.slow() triples the budget to
-  // 180 s (verified: test.info().timeout goes 60000 -> 180000), which keeps a
-  // real ceiling — a genuine regression that doubled the sweep's cost would
-  // still fail. Raising `timeout` in playwright.config.js instead was rejected
-  // deliberately: it would mask the #130 class across every spec rather than
-  // marking the one test that is actually long.
+  // 180 s (verified: test.info().timeout goes 60000 -> 180000).
+  //
+  // BE HONEST ABOUT WHAT THAT BUYS. Against the ~40 s this sweep costs under
+  // four workers, 180 s only fails at roughly a 4.5x slowdown — a doubling
+  // would pass unnoticed. So this is not a tight regression detector, and an
+  // earlier version of this comment claiming a 2x regression would still fail
+  // was simply wrong. The argument for test.slow() is locality: it buys the
+  // headroom for the one test that genuinely needs it and leaves every other
+  // spec on the 60 s default. Raising `timeout` in playwright.config.js would
+  // have bought the same headroom by masking the #130 class suite-wide, which
+  // is the thing worth avoiding. If this sweep's cost ever needs a real bound,
+  // that wants an explicit duration assertion, not a timeout.
   //
   // After the change, eight consecutive full-suite runs on the same host:
   // 38.7, 38.3, 40.0, 38.7, 38.1, 36.9, 38.5, 38.2 s — this test passed in all
