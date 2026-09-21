@@ -300,6 +300,84 @@ test.describe('technical mode', () => {
     await expect(page.locator('[data-setup-value=helium]')).toContainText('35');
   });
 
+
+  test('Tab moves focus through the form instead of cycling cylinders', async ({ page }) => {
+    // #158 review: handleTecKey used to take Tab and preventDefault() it, so a
+    // keyboard user could not leave whichever control they were on — in a
+    // surface that is DOM precisely so it can be navigated.
+    await toTec(page);
+    await page.locator('[data-setup-tank-add]').click();
+    await expect(page.locator('[data-setup-tab]')).toHaveCount(2);
+
+    const first = page.locator('[data-setup-tab="0"]');
+    await first.focus();
+    const selectedBefore = await page
+      .locator('[data-setup-tab="0"]')
+      .getAttribute('aria-pressed');
+
+    await page.keyboard.press('Tab');
+
+    // Focus moved off the control it was on...
+    await expect(first).not.toBeFocused();
+    // ...and the selected cylinder did not change.
+    await expect(page.locator('[data-setup-tab="0"]')).toHaveAttribute(
+      'aria-pressed',
+      selectedBefore ?? 'true',
+    );
+  });
+
+  test('a cylinder button keeps focus across the re-render it triggers', async ({ page }) => {
+    // The same class PR #177 fixed for the steppers; focusKeyOf did not know
+    // the tank buttons.
+    await toTec(page);
+
+    const add = page.locator('[data-setup-tank-add]');
+    await add.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('[data-setup-tab]')).toHaveCount(2);
+    await expect(add).toBeFocused();
+
+    await page.keyboard.press('Enter');
+    await expect(page.locator('[data-setup-tab]')).toHaveCount(3);
+  });
+
+  test('a new cylinder is the default size, not the resized one', async ({ page }) => {
+    // src/state.js createTank reads the module-level tankVolume (12);
+    // gsAdjustTankVol writes t.volume and never tankVolume.
+    await toTec(page);
+    await page.keyboard.press('.');
+    await page.keyboard.press('.');
+    await page.keyboard.press('.');
+    await expect(page.locator('[data-setup-value=volume]')).toContainText('15');
+
+    await page.locator('[data-setup-tank-add]').click();
+    await page.locator('[data-setup-tab="1"]').click();
+    await expect(page.locator('[data-setup-value=volume]')).toContainText('12');
+  });
+
+  test('the configured gradient factors reach the dive', async ({ page }) => {
+    // #158 review: the planner was called with DEFAULT_PLANNER_SETTINGS no
+    // matter what the screen said, so the GF controls were decorative. NDL is
+    // the readout they move.
+    const ndlFor = async (presses, key) => {
+      await toTec(page);
+      for (let i = 0; i < presses; i += 1) await page.keyboard.press(key);
+      await page.locator('[data-start-dive]').click();
+      await page.locator('[data-renderer=pixi] canvas').waitFor();
+      const ndl = page.locator('.wreck-hud [data-hud-metric=ndl] dd');
+      await expect(ndl).toHaveText(/\d/);
+      const text = await ndl.textContent();
+      await page.evaluate(() => window.localStorage.clear());
+      return text;
+    };
+
+    // G lowers GF low, F lowers GF high: the conservative end.
+    const conservative = await ndlFor(20, 'F');
+    const liberal = await ndlFor(20, 'f');
+
+    expect(conservative).not.toBe(liberal);
+  });
+
   test('a technical dive starts with the configured mix', async ({ page }) => {
     await toTec(page);
     await page.locator('[data-setup-preset=tx18-45]').click();

@@ -11,6 +11,10 @@
 // AMV and gradient-factor defaults) and src/state.js (diveMode, modeSettings).
 // The values here are those values; where this file diverges it says so.
 import {
+  DEFAULT_PLANNER_SETTINGS,
+  type PlannerSettings,
+} from "../../planner/dive-planner";
+import {
   createGasMix,
   createTankState,
   type GasMix,
@@ -268,6 +272,22 @@ export function adjustTankPressure(
       pressureBar: next,
     }),
   });
+}
+
+/**
+ * The gradient factors and ascent rate the forecast runs on.
+ *
+ * Separate from toInitialDiveOptions because they are planner inputs, not
+ * dive state: DiveState has no GF field. Without this the screen changed a
+ * stored number and the planner kept using DEFAULT_PLANNER_SETTINGS (#158
+ * review), so the control was decorative.
+ */
+export function toPlannerSettings(setup: DiveSetup): PlannerSettings {
+  return {
+    ...DEFAULT_PLANNER_SETTINGS,
+    gfLowPercent: setup.gradientFactorLow,
+    gfHighPercent: setup.gradientFactorHigh,
+  };
 }
 
 /** The configuration a DiveState is built from. */

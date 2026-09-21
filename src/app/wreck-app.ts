@@ -20,6 +20,7 @@ import {
 import { renderSetupScreen } from "./setup/setup-screen";
 import {
   toInitialDiveOptions,
+  toPlannerSettings,
   type DiveSetup,
   type SiteId,
 } from "./setup/dive-setup";
@@ -240,6 +241,9 @@ async function startWreckSimulation(
       loadResult.status === "loaded"
         ? loadResult.saveGame.state
         : createWreckInitialState(toInitialDiveOptions(setup)),
+    // The configured gradient factors, or the planner keeps using its
+    // defaults and the GF controls change a number nobody reads (#158 review).
+    plannerSettings: toPlannerSettings(setup),
     onAuthoritativeState: (state) => {
       if (state.elapsedTimeS >= nextSaveAtS) {
         saveState(repository, state);

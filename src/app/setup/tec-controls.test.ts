@@ -11,6 +11,7 @@ import {
 import {
   AMV_RANGE_LPM,
   GRADIENT_FACTOR_RANGE,
+  NEW_TANK_VOLUME_L,
   TANK_VOLUME_RANGE_L,
   addTank,
   adjustGradientFactorHigh,
@@ -18,7 +19,6 @@ import {
   adjustHeliumFraction,
   adjustSurfaceAirConsumption,
   adjustTankVolume,
-  cycleTankTab,
   removeTank,
   selectTankTab,
 } from "./tec-controls";
@@ -118,10 +118,18 @@ describe("the tank list, from gsAddTank and gsRemoveTank", () => {
     expect(addTank(setup)).toBe(setup);
   });
 
-  it("gives a new tank the current tank volume, as createTank does", () => {
-    // createTank reads the module-level tankVolume rather than a constant.
+  it("gives a new tank the default size, not the selected tank's", () => {
+    // createTank reads the module-level `tankVolume` (src/constants.js, 12),
+    // and gsAdjustTankVol writes `t.volume` — never `tankVolume`. So resizing
+    // cylinder 1 does not change what cylinder 2 is created at.
+    //
+    // An earlier revision of this file asserted 15 here, inheriting the
+    // selected tank's size. That was the second deviation in this issue
+    // written down as if it were the contract.
     const bigger = adjustTankVolume(tec(), 3);
-    expect(addTank(bigger).tanks[1]?.volumeL).toBe(15);
+    expect(bigger.tanks[0]?.volumeL).toBe(15);
+    expect(addTank(bigger).tanks[1]?.volumeL).toBe(NEW_TANK_VOLUME_L);
+    expect(NEW_TANK_VOLUME_L).toBe(12);
   });
 
   it("refuses to remove the last tank", () => {
@@ -150,13 +158,6 @@ describe("the tank tab", () => {
     const three = addTank(addTank(tec()));
     expect(selectTankTab(three, 99).selectedTabIndex).toBe(2);
     expect(selectTankTab(three, -5).selectedTabIndex).toBe(0);
-  });
-
-  it("cycles and wraps, as TAB does", () => {
-    const three = addTank(addTank(tec()));
-    expect(cycleTankTab(three).selectedTabIndex).toBe(1);
-    expect(cycleTankTab(cycleTankTab(three)).selectedTabIndex).toBe(2);
-    expect(cycleTankTab(cycleTankTab(cycleTankTab(three))).selectedTabIndex).toBe(0);
   });
 
   it("edits the selected tank, not the active one", () => {
@@ -195,7 +196,6 @@ describe("immutability", () => {
     addTank(setup);
     removeTank(setup);
     selectTankTab(setup, 1);
-    cycleTankTab(setup);
 
     expect(JSON.stringify(setup)).toBe(snapshot);
   });

@@ -45,7 +45,6 @@ import {
   adjustHeliumFraction,
   adjustSurfaceAirConsumption,
   adjustTankVolume,
-  cycleTankTab,
   removeTank,
   selectTankTab,
 } from "./tec-controls";
@@ -175,10 +174,10 @@ export function renderSetupScreen(
   };
 
   // Tec-only bindings, mirroring the legacy screen (README, Gas Setup
-  // Screen): up/down helium, [ ] consumption, comma/period tank size, TAB
-  // cycles the tank tab, + and - add and remove a tank, g/G and f/F the
-  // gradient factors. Gated on the mode so rec does not silently carry
-  // controls it does not show.
+  // Screen): up/down helium, [ ] consumption, comma/period tank size, + and -
+  // add and remove a cylinder, g/G and f/F the gradient factors. Gated on the
+  // mode so rec does not silently carry controls it does not show. Legacy's
+  // TAB binding is not carried over — see the note in the switch.
   function handleTecKey(event: KeyboardEvent): void {
     const take = (next: DiveSetup): void => {
       event.preventDefault();
@@ -198,8 +197,11 @@ export function renderSetupScreen(
         return take(adjustTankVolume(setup, -TANK_VOLUME_STEP_L));
       case ".":
         return take(adjustTankVolume(setup, TANK_VOLUME_STEP_L));
-      case "Tab":
-        return take(cycleTankTab(setup));
+      // Tab is deliberately absent. The legacy screen used it to cycle
+      // cylinders because a canvas has no focus order to protect; this one
+      // does, and taking Tab would strand a keyboard user on whatever control
+      // they were on — in a surface that is DOM precisely so it can be
+      // navigated. The visible tank buttons are focusable and do the same job.
       case "+":
         return take(addTank(setup));
       case "-":
@@ -564,6 +566,13 @@ function focusKeyOf(node: Element | null): string | null {
   }
   if (setupPreset !== undefined) {
     return `[data-setup-preset="${CSS.escape(setupPreset)}"]`;
+  }
+  if (node.dataset.setupTankAdd !== undefined) return "[data-setup-tank-add]";
+  if (node.dataset.setupTankRemove !== undefined) {
+    return "[data-setup-tank-remove]";
+  }
+  if (node.dataset.setupTab !== undefined) {
+    return `[data-setup-tab="${CSS.escape(node.dataset.setupTab)}"]`;
   }
   if (setupStep !== undefined) {
     const stepper = node.closest<HTMLElement>("[data-setup-stepper]")?.dataset

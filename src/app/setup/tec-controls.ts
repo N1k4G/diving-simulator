@@ -27,6 +27,21 @@ export const GRADIENT_FACTOR_RANGE = Object.freeze({ min: 30, max: 100 });
 export const GRADIENT_FACTOR_STEP = 5;
 
 /**
+ * The size a new cylinder gets.
+ *
+ * Legacy `gsAddTank` calls `createTank(0.21, 0, 200)`, and `createTank` reads
+ * the module-level `tankVolume` (src/constants.js, 12). Crucially
+ * `gsAdjustTankVol` writes `t.volume` and never `tankVolume`, so resizing the
+ * selected cylinder does NOT change what the next one is created at — set
+ * tank 1 to 15 L in the legacy screen and tank 2 still arrives at 12.
+ *
+ * An earlier revision inherited the selected tank's size here and asserted it
+ * in a test, which is the second time in this issue that a deviation was
+ * written down as the contract.
+ */
+export const NEW_TANK_VOLUME_L = 12;
+
+/**
  * Helium on the selected tank.
  *
  * src/state.js gsAdjustHe: `Math.min(1.0 - t.fO2, ...)` up,
@@ -138,10 +153,9 @@ export function adjustGradientFactorHigh(
 export function addTank(setup: DiveSetup): DiveSetup {
   if (setup.tanks.length >= MAX_TANKS) return setup;
 
-  const volumeL = selectedTank(setup).volumeL;
   const tank: SetupTank = Object.freeze({
     gas: createGasMix(AIR_PRESET.oxygenFraction, AIR_PRESET.heliumFraction),
-    volumeL,
+    volumeL: NEW_TANK_VOLUME_L,
     pressureBar: 200,
   });
   return Object.freeze({
@@ -171,20 +185,16 @@ export function removeTank(setup: DiveSetup): DiveSetup {
 
 /**
  * src/game-loop.js exposes `selectedTankTab` with
- * `Math.max(0, Math.min(tankCount - 1, v | 0))`; TAB cycles it. Out-of-range
- * values clamp rather than wrap, matching that setter.
+ * `Math.max(0, Math.min(tankCount - 1, v | 0))`. Out-of-range values clamp
+ * rather than wrap, matching that setter. Legacy also cycled the tab with
+ * TAB; this screen leaves TAB to the browser, so the visible tank buttons are
+ * the only way in and no cycle helper is needed.
  */
 export function selectTankTab(setup: DiveSetup, index: number): DiveSetup {
   const next = Math.max(0, Math.min(setup.tanks.length - 1, Math.trunc(index)));
   return next === setup.selectedTabIndex
     ? setup
     : Object.freeze({ ...setup, selectedTabIndex: next });
-}
-
-/** TAB on the legacy screen: next tab, wrapping at the end. */
-export function cycleTankTab(setup: DiveSetup): DiveSetup {
-  const next = (setup.selectedTabIndex + 1) % setup.tanks.length;
-  return selectTankTab(setup, next);
 }
 
 function selectedTank(setup: DiveSetup): SetupTank {
