@@ -256,6 +256,11 @@ async function captureScene(browser, baseUrl, scene) {
   await page.addInitScript(PIN_CLOCK);
   await page.goto(`${baseUrl}/dist/?renderer=pixi`);
   await page.getByRole('button', { name: /I understand/ }).click();
+  // #158 put a setup screen between the gate and the dive. The guard wants
+  // the default configuration, so it starts without touching anything —
+  // changing a gas here would change the frames for a reason unrelated to
+  // rendering.
+  await page.locator('[data-start-dive]').click();
   await page.locator('[data-wreck-viewport] canvas').waitFor();
 
   const step = (frames) => page.evaluate(n => window.__stepFrames(n), frames);
