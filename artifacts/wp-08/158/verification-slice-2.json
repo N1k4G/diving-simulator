@@ -3,11 +3,15 @@
   "issue": 158,
   "slice": "PR 2 of 3: technical controls (helium, gradient factors, AMV, tank size, cylinders)",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npm run test:e2e",
-  "measuredCommit": "a7a88a78622f164228c3e0ef4b3dfd95fc502707",
-  "measuredTree": "017c55e8d6cbab5eec01ae289fb3d1ec6bee3f7c",
-  "workingTree": "clean",
-  "provenanceNote": "Run against the committed tree above rather than the working tree that became it. Provenance needed correcting four times earlier in WP-08, always because evidence was generated before the commit; this follows the rule instead of arguing the content is identical. Only the commit adding this file follows the measured one.",
-  "recordedAt": "2026-09-21T14:08:38+00:00",
+  "measuredCommit": "23ff053ef97a9b5053b83fd21394a7d36fd33fd2",
+  "measuredTree": "1a2882d450020d109101b637ef488aa88ab88bf9",
+  "workingTree": "clean before the run and still clean after it",
+  "provenanceNote": "Re-measured after the review fixes rather than left at the pre-review numbers. Evidence in WP-08 needed correcting four times, twice for exactly this — stamped on the commit before the change, or left stale once review fixes landed. Only the commit updating this file follows the measured one.",
+  "recordedAt": "2026-09-21T14:57:51+00:00",
+  "supersedes": {
+    "measuredCommit": "a7a88a78622f164228c3e0ef4b3dfd95fc502707",
+    "why": "That run predates the four review fixes in 23ff053, so its unit and e2e counts no longer describe the tree under review."
+  },
   "environment": {
     "os": "Windows 11",
     "node": "v26.8.2",
@@ -22,33 +26,66 @@
     "sitesCheck": "pass",
     "devcontainerCheck": "pass",
     "build": "pass",
-    "distCheck": "pass \u2014 17 files, no source maps, 4 markers absent",
-    "unit": "169 passed (150 before, +19)",
-    "parity": "35 passed (34 before, +1)",
-    "e2e": "55 passed (48 before, +7)",
+    "distCheck": "pass — 17 files, no source maps, 4 markers absent",
+    "unit": "172 passed (150 on main, +22)",
+    "parity": "35 passed (34 on main, +1)",
+    "e2e": "59 passed in 53.5s (48 on main, +11)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "10 scenes ok"
   },
+  "reviewFixes": {
+    "note": "Four findings from the PR review, each with a test that was verified to fail without its fix. See counterCheck below — the first attempt at that verification was itself invalid.",
+    "gradientFactorsWereDecorative": {
+      "finding": "The screen stored gfLow/gfHigh and GameController asked the planner with DEFAULT_PLANNER_SETTINGS regardless, so choosing 50/80 changed a displayed number and nothing else: ceiling, NDL and TTS stayed on 35/75.",
+      "fix": "GameControllerOptions takes plannerSettings; #plannerSettings is passed to every forecast() call; wreck-app derives it with toPlannerSettings(setup).",
+      "tests": "src/app/setup/planner-settings.test.ts — the conversion, the value the controller carries, the default when nothing is configured, and that a conservative pair yields strictly less NDL than a liberal one. The last one exists so the first three cannot pass while the numbers are inert.",
+      "e2e": "'the configured gradient factors reach the dive' compares the HUD's NDL readout across a conservative and a liberal configuration."
+    },
+    "tabWasHijacked": {
+      "finding": "handleTecKey took Tab and called preventDefault(), stranding a keyboard user on whichever control they were on — in a surface that is DOM precisely so it can be navigated.",
+      "fix": "Tab removed from handleTecKey. cycleTankTab lost its last caller and is deleted with its test, following #128's precedent for exported code with no callers.",
+      "oracleDeviation": "Legacy binds Tab to cycling cylinders because a canvas has no focus order to protect. This screen has one, and the visible tank buttons already select a cylinder. Deviation is deliberate and recorded, not accidental.",
+      "e2e": "'Tab moves focus through the form instead of cycling cylinders'"
+    },
+    "newCylinderSize": {
+      "finding": "addTank inherited the selected tank's volume, so resizing cylinder 1 to 15 L made cylinder 2 arrive at 15 L. The unit test asserted 15 — the second deviation in this issue written down as if it were the contract.",
+      "oracle": "gsAddTank calls createTank(0.21, 0, 200); createTank reads the module-level tankVolume (12). gsAdjustTankVol writes t.volume and never tankVolume, so cylinder 2 arrives at 12.",
+      "fix": "NEW_TANK_VOLUME_L = 12, with the reasoning in the doc comment.",
+      "e2e": "'a new cylinder is the default size, not the resized one'"
+    },
+    "focusKeyOfNotExtended": {
+      "finding": "focusKeyOf did not know setupTankAdd, setupTankRemove or setupTab, so keyboard-activating them lost focus on the re-render — the class PR #177 fixed for the steppers.",
+      "fix": "All three added to focusKeyOf.",
+      "e2e": "'a cylinder button keeps focus across the re-render it triggers', which then presses Enter a second time to prove focus survived rather than merely being restorable."
+    }
+  },
+  "counterCheck": {
+    "method": "Each new test was run with its own fix reverted and then restored, one at a time.",
+    "result": "All four fail without their fix and pass with it.",
+    "firstAttemptWasInvalid": "The first counter-check reverted all four fixes at once. That left an unused toPlannerSettings import, typecheck failed, `npm run build` aborted, and the e2e suite ran against a stale dist/ — so all four tests passed and proved nothing. Recorded because the failure mode is silent: a green counter-check against a stale bundle looks exactly like a green one against a rebuilt bundle. The redo checks the build result before each run."
+  },
   "boundsPortedFromTheOracle": {
     "note": "The first slice invented two bounds and the tests codified them. Every value below cites the legacy function it was read from, and each has a test naming the same function, so a number is traceable rather than plausible.",
-    "helium": "src/state.js gsAdjustHe \u2014 0 to 1 minus fO2; oxygen is never moved to make room",
+    "helium": "src/state.js gsAdjustHe — 0 to 1 minus fO2; oxygen is never moved to make room",
     "consumption": "src/state.js gsAdjustAMV with src/constants.js AMV_MIN 8, AMV_MAX 25",
     "tankVolume": "src/state.js gsAdjustTankVol with TANK_VOL_MIN 6, TANK_VOL_MAX 24",
-    "gradientFactors": "src/state.js gsAdjustGFLow and gsAdjustGFHigh \u2014 clamp to GF_*_MIN 30 / GF_*_MAX 100, then the pair cannot cross: low yields to high, high yields to low",
-    "addTank": "src/state.js gsAddTank \u2014 air at 200 bar, refused past MAX_TANKS 6",
-    "removeTank": "src/state.js gsRemoveTank \u2014 refused below one; tab and active index pulled back inside",
-    "tankTab": "src/game-loop.js selectedTankTab setter \u2014 clamps, does not wrap; TAB cycles",
-    "modeSwitch": "src/state.js switchMode \u2014 saveModeSettings then restoreModeSettings; entering CCR normalises to a single cylinder per its BUG-CCR-9 comment"
+    "newTankVolume": "src/state.js createTank reading src/constants.js tankVolume 12 — not the selected tank's size",
+    "gradientFactors": "src/state.js gsAdjustGFLow and gsAdjustGFHigh — clamp to GF_*_MIN 30 / GF_*_MAX 100, then the pair cannot cross: low yields to high, high yields to low",
+    "addTank": "src/state.js gsAddTank — air at 200 bar, refused past MAX_TANKS 6",
+    "removeTank": "src/state.js gsRemoveTank — refused below one; tab and active index pulled back inside",
+    "tankTab": "src/game-loop.js selectedTankTab setter — clamps, does not wrap",
+    "modeSwitch": "src/state.js switchMode — saveModeSettings then restoreModeSettings; entering CCR normalises to a single cylinder per its BUG-CCR-9 comment"
   },
   "notPortedAndWhy": {
-    "tankSwitchDepth": "gsAddTank and gsAdjustO2 maintain a per-tank switchDepth from calculateMOD. The pure model's TankState has no such field, so it is not reproduced. Recorded here rather than dropped silently; it belongs with the in-dive gas switching in #163."
+    "tankSwitchDepth": "gsAddTank and gsAdjustO2 maintain a per-tank switchDepth from calculateMOD. The pure model's TankState has no such field, so it is not reproduced. Recorded here rather than dropped silently; it belongs with the in-dive gas switching in #163.",
+    "tabCyclesCylinders": "Deliberate, see reviewFixes.tabWasHijacked."
   },
   "bugFoundByATest": {
     "what": "The screen displayed tanks[activeTankIndex] while editing tanks[selectedTabIndex].",
     "consequence": "A player selecting cylinder 2 would edit it while reading cylinder 1.",
     "foundBy": "the e2e test 'cylinders can be added, selected and removed', before review"
   },
-  "keyboardSemantics": "The tec shortcuts apply only when focus is outside a radio group, because a focused radio owns the arrow keys \u2014 the resolution the previous review asked for. The e2e tests blur before exercising a shortcut and say why, rather than working around it silently.",
+  "keyboardSemantics": "The tec shortcuts apply only when focus is outside a radio group, because a focused radio owns the arrow keys — the resolution the previous review asked for. Tab, Enter and Space on buttons and links are likewise left to the browser. The e2e tests blur before exercising a shortcut and say why, rather than working around it silently.",
   "parityToGoldenTrace": {
     "file": "tests/parity/dive-setup.test.ts",
     "added": "A two-cylinder tec setup reproduces the trimix scenario's pair [[0.21, 0.35, 200], [0.5, 0, 200]] from scripts/baseline-scenarios.cjs, gasRemaining included.",
@@ -61,7 +98,8 @@
   },
   "releaseLabel": {
     "chosen": "release:none",
-    "reasoning": "Deployed bytes change \u2014 deploy.yml runs `pages deploy src/` with no ignore file \u2014 but served behaviour does not: _redirects sends / to the legacy client and the migration client stays unreachable until the #170 cutover.",
-    "ownerCall": true
+    "reasoning": "Deployed bytes change — deploy.yml runs `pages deploy src/` with no ignore file — but served behaviour does not: _redirects sends / to the legacy client and the migration client stays unreachable until the #170 cutover.",
+    "ownerCall": true,
+    "openQuestion": "Whether release:none or release:minor is the intended semantics while the migration client ships but is unreachable is still the owner's to settle; it applies to every WP-08 slice, not just this one."
   }
 }
