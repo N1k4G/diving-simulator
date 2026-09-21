@@ -1,0 +1,80 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 175,
+  "command": "npm run test:e2e",
+  "measuredCommit": "af9fdd4e77e4cf11e75e3297d33cfa5caf1e2f6a",
+  "finalCommit": "fe357978ce2d3098bef6b1107ffc2bd303f66e39",
+  "measuredTree": "9f5dab843c355bc7f7765dbde9ed9f6651d59e2f",
+  "provenanceNote": "The acceptance runs executed against af9fdd4, which was then amended to carry its real commit message. An amend that changes only the message leaves the tree untouched, so the measurement describes the shipped fix commit fe35797 exactly: both af9fdd4 and fe35797 have tree 9f5dab843c355bc7f7765dbde9ed9f6651d59e2f. The tree hash is recorded because it identifies content, which is what was measured, where a commit SHA also encodes history. Verify with: git rev-parse af9fdd4^{tree} fe35797^{tree}",
+  "recordedAt": "2026-09-21T10:35:45+00:00",
+  "environment": {
+    "os": "Windows 11",
+    "cores": 14,
+    "playwrightWorkers": 4,
+    "node": "v26.8.2",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "note": "4 workers is the exposed configuration; CI gets 1 worker on 2 cores (see #172)."
+  },
+  "rootCause": {
+    "legacy": "src/game-loop.js:402 polls keys['t'] in the frame loop; the key must be down during a frame",
+    "pixi": "src/app/game-controller.ts:260 handles keydown directly; any press works however brief",
+    "defect": "replayInputTrace sent page.keyboard.press('t'), default 0 ms between keydown and keyup, so the trace used an input only the Pixi client could reliably observe. The test failed on an asymmetry it created itself."
+  },
+  "deterministicProof": {
+    "method": "Legacy client, torch on, two dispatches differing only in whether an animation frame elapsed.",
+    "A_noFrameBetween": {
+      "torchOnAfter": true,
+      "toggled": false,
+      "note": "reproduces the exact failure signature"
+    },
+    "B_twoFramesBetween": {
+      "torchOnAfter": false,
+      "toggled": true
+    }
+  },
+  "fix": {
+    "where": "tests/wreck-slice.spec.js replayInputTrace",
+    "mechanism": "keyboard.down -> wait for 2 requestAnimationFrame callbacks via page.evaluate -> keyboard.up",
+    "whyNotAFixedDelay": "A millisecond count is a guess a loaded machine can beat; a frame having elapsed is the actual precondition.",
+    "clientsChanged": "none"
+  },
+  "acceptanceRuns": {
+    "command": "npm run test:e2e",
+    "againstCommit": "af9fdd4",
+    "workingTree": "clean",
+    "runs": [
+      {
+        "run": 1,
+        "suite": "37 passed",
+        "crossClientS": 5.3
+      },
+      {
+        "run": 2,
+        "suite": "37 passed",
+        "crossClientS": 4.8
+      },
+      {
+        "run": 3,
+        "suite": "37 passed",
+        "crossClientS": 4.4
+      },
+      {
+        "run": 4,
+        "suite": "37 passed",
+        "crossClientS": 6.1
+      },
+      {
+        "run": 5,
+        "suite": "37 passed",
+        "crossClientS": 4.8
+      }
+    ],
+    "result": "5 of 5 fully green; the target test passed in all five."
+  },
+  "assertionsKept": [
+    "legacy response compared against the literal expectation",
+    "legacy response compared against the Pixi response",
+    "no change to either client"
+  ]
+}
