@@ -324,10 +324,50 @@ async function replayInputTrace(page, trace) {
       await page.waitForTimeout(step.durationMs);
       await page.keyboard.up(step.key);
     } else {
-      await page.keyboard.press(step.key);
+      // #175. This used to be page.keyboard.press(), whose default delay
+      // between keydown and keyup is 0 ms — and the two clients do not read a
+      // key the same way:
+      //
+      //   legacy  game-loop.js:402  polls keys['t'] in the frame loop, so the
+      //                             key has to be down DURING a frame
+      //   pixi    game-controller.ts:260  handles keydown directly, so any
+      //                             press works however brief
+      //
+      // A zero-length press is therefore an input only one of the two clients
+      // can observe, which made this comparison fail whenever no frame
+      // happened to run between the two events. Measured on the legacy client,
+      // torch on, differing only in whether a frame elapsed:
+      //
+      //   keydown + keyup in one evaluate()   -> torchOn stayed true  (missed)
+      //   the same with two rAFs between      -> torchOn became false (seen)
+      //
+      // So hold the key across a frame. Waiting for rAF rather than for a
+      // millisecond count is deliberate: a fixed delay is a guess that a
+      // loaded machine can still beat, while a frame having elapsed is the
+      // actual precondition. rAF is the browser's, not either client's, so the
+      // trace stays client-agnostic.
+      await page.keyboard.down(step.key);
+      await waitForAnimationFrames(page, 2);
+      await page.keyboard.up(step.key);
     }
   }
   await page.waitForTimeout(150);
+}
+
+function waitForAnimationFrames(page, count) {
+  return page.evaluate(
+    (frames) =>
+      new Promise((resolve) => {
+        let remaining = frames;
+        const tick = () => {
+          remaining -= 1;
+          if (remaining <= 0) resolve();
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+    count,
+  );
 }
 
 async function readLegacyObservation(page) {
