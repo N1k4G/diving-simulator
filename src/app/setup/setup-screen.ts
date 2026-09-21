@@ -48,10 +48,19 @@ import {
   removeTank,
   selectTankTab,
 } from "./tec-controls";
+import {
+  CCR_DILUENT_PRESETS,
+  CCR_PRESSURE_STEP_BAR,
+  CCR_VOLUME_STEP_L,
+  SETPOINT_STEP_BAR,
+  adjustDiluentVolume,
+  adjustOxygenPressure,
+  adjustOxygenVolume,
+  adjustSetpoint,
+  applyDiluentPreset,
+  matchingDiluentPreset,
+} from "./ccr-controls";
 
-// CCR needs a loop setpoint and a diluent, and toInitialDiveOptions has no
-// way to express either yet, so offering it would start an open-circuit dive
-// under a CCR label. Disabled with a reason until its slice lands (#158 PR 3).
 // Decorative glyphs. The accessible name for each control comes from its
 // aria-label, so these carry no meaning a translator would need; naming
 // them also keeps them out of the no-literal-strings rule, which cannot
@@ -59,7 +68,10 @@ import {
 const GLYPH_PLUS = "+";
 const GLYPH_MINUS = "−";
 
-const AVAILABLE_MODES: readonly DiveMode[] = ["rec", "tec"];
+// All three now that toInitialDiveOptions can express a loop setpoint and a
+// diluent. CCR was offered and disabled with a stated reason through the
+// first two slices rather than hidden, so enabling it changes one list.
+const AVAILABLE_MODES: readonly DiveMode[] = DIVE_MODES;
 
 const MODE_LABEL_KEYS: Record<DiveMode, MessageKey> = {
   rec: "setup.mode.rec",
@@ -72,6 +84,17 @@ const SITE_LABEL_KEYS: Record<SiteId, MessageKey> = {
   reef: "setup.site.reef",
   wreck: "setup.site.wreck",
   cave: "setup.site.cave",
+};
+
+// Keyed by preset id rather than by position, because the diluent list and the
+// open-circuit list share two ids at different indices and a positional array
+// would silently label Tx 15/45 as EAN32 if either list ever moved.
+const DILUENT_LABEL_KEYS: Record<string, MessageKey> = {
+  air: "setup.ccr.diluent.air",
+  "tx21-35": "setup.ccr.diluent.tx2135",
+  "tx15-45": "setup.ccr.diluent.tx1545",
+  "tx10-70": "setup.ccr.diluent.tx1070",
+  "hx10-90": "setup.ccr.diluent.hx1090",
 };
 
 const PRESET_LABEL_KEYS: readonly MessageKey[] = [
@@ -127,34 +150,26 @@ export function renderSetupScreen(
     // which would otherwise both press the button and start the dive.
     if (nativelyHandles(event.target, event.key)) return;
 
-    const presetIndex = Number.parseInt(event.key, 10) - 1;
-    if (
-      !Number.isNaN(presetIndex) &&
-      presetIndex >= 0 &&
-      presetIndex < presetCountFor(setup.mode)
-    ) {
-      event.preventDefault();
-      update(applyPreset(setup, presetIndex));
-      return;
+    // The digits mean different things per mode: 1-8 pick an open-circuit gas,
+    // 1-5 pick a diluent. Legacy splits them the same way — updateGasSetup
+    // handles the CCR digits and returns before reaching the preset loop — and
+    // sharing one branch would have bound key 3 to EAN32 as a diluent.
+    const digitIndex = Number.parseInt(event.key, 10) - 1;
+    if (!Number.isNaN(digitIndex) && digitIndex >= 0) {
+      if (setup.mode === "ccr") {
+        if (digitIndex < CCR_DILUENT_PRESETS.length) {
+          event.preventDefault();
+          update(applyDiluentPreset(setup, digitIndex));
+          return;
+        }
+      } else if (digitIndex < presetCountFor(setup.mode)) {
+        event.preventDefault();
+        update(applyPreset(setup, digitIndex));
+        return;
+      }
     }
 
     switch (event.key) {
-      case "ArrowLeft":
-        event.preventDefault();
-        update(adjustOxygenFraction(setup, -OXYGEN_FRACTION_STEP));
-        break;
-      case "ArrowRight":
-        event.preventDefault();
-        update(adjustOxygenFraction(setup, OXYGEN_FRACTION_STEP));
-        break;
-      case "PageUp":
-        event.preventDefault();
-        update(adjustTankPressure(setup, TANK_PRESSURE_STEP_BAR));
-        break;
-      case "PageDown":
-        event.preventDefault();
-        update(adjustTankPressure(setup, -TANK_PRESSURE_STEP_BAR));
-        break;
       case "m":
       case "M": {
         event.preventDefault();
@@ -168,8 +183,65 @@ export function renderSetupScreen(
         onStart(setup);
         break;
       default:
-        if (setup.mode === "tec") handleTecKey(event);
+        // Mode and start are the only bindings every mode shares. Everything
+        // else belongs to one surface, and CCR must not fall through to the
+        // open-circuit keys: its screen shows no oxygen or pressure control,
+        // so ArrowRight would silently edit a cylinder the player cannot see.
+        // Legacy returns out of updateGasSetup for the same reason.
+        if (setup.mode === "ccr") handleCcrKey(event);
+        else handleOpenCircuitKey(event);
         break;
+    }
+  }
+
+  function handleOpenCircuitKey(event: KeyboardEvent): void {
+    const take = (next: DiveSetup): void => {
+      event.preventDefault();
+      update(next);
+    };
+
+    switch (event.key) {
+      case "ArrowLeft":
+        return take(adjustOxygenFraction(setup, -OXYGEN_FRACTION_STEP));
+      case "ArrowRight":
+        return take(adjustOxygenFraction(setup, OXYGEN_FRACTION_STEP));
+      case "PageUp":
+        return take(adjustTankPressure(setup, TANK_PRESSURE_STEP_BAR));
+      case "PageDown":
+        return take(adjustTankPressure(setup, -TANK_PRESSURE_STEP_BAR));
+      default:
+        if (setup.mode === "tec") handleTecKey(event);
+        return;
+    }
+  }
+
+  /**
+   * CCR bindings, mirroring the legacy screen (src/ui.js updateGasSetup):
+   * 1-5 diluent presets, [ and ] the setpoint, comma and period the diluent
+   * cylinder.
+   *
+   * The oxygen cylinder's volume and pressure get no shortcut, because legacy
+   * gives them none — they are button-only there too. They are reachable by
+   * Tab and Enter like every other control on this screen, which is the point
+   * of having given Tab back to the browser in the previous slice.
+   */
+  function handleCcrKey(event: KeyboardEvent): void {
+    const take = (next: DiveSetup): void => {
+      event.preventDefault();
+      update(next);
+    };
+
+    switch (event.key) {
+      case "[":
+        return take(adjustSetpoint(setup, -SETPOINT_STEP_BAR));
+      case "]":
+        return take(adjustSetpoint(setup, SETPOINT_STEP_BAR));
+      case ",":
+        return take(adjustDiluentVolume(setup, -CCR_VOLUME_STEP_L));
+      case ".":
+        return take(adjustDiluentVolume(setup, CCR_VOLUME_STEP_L));
+      default:
+        return;
     }
   };
 
@@ -225,6 +297,7 @@ export function renderSetupScreen(
     // player changes a cylinder they cannot see (caught by the e2e tab test).
     const tank = setup.tanks[setup.selectedTabIndex];
     if (!tank) throw new Error("setup has no active tank");
+    const isCcr = setup.mode === "ccr";
 
     // A full re-render replaces every control, including the focused one, so
     // keyboard operation would end after a single change: press the stepper's
@@ -259,32 +332,42 @@ export function renderSetupScreen(
         onSelect: (value) => update(selectSite(setup, value as SiteId)),
         locale,
       }),
-      presetGroup(locale, setup, (index) => update(applyPreset(setup, index))),
-      ...(setup.mode === "tec" ? [tankTabs(locale, setup, update)] : []),
-      stepper({
-        labelKey: "setup.gas.oxygen",
-        value: formatGasFraction(tank.gas.oxygenFraction, locale),
-        decreaseKey: "setup.gas.oxygen.decrease",
-        increaseKey: "setup.gas.oxygen.increase",
-        onDecrease: () =>
-          update(adjustOxygenFraction(setup, -OXYGEN_FRACTION_STEP)),
-        onIncrease: () =>
-          update(adjustOxygenFraction(setup, OXYGEN_FRACTION_STEP)),
-        locale,
-        testId: "oxygen",
-      }),
-      stepper({
-        labelKey: "setup.tank.pressure",
-        value: formatPressure(tank.pressureBar, locale),
-        decreaseKey: "setup.tank.pressure.decrease",
-        increaseKey: "setup.tank.pressure.increase",
-        onDecrease: () =>
-          update(adjustTankPressure(setup, -TANK_PRESSURE_STEP_BAR)),
-        onIncrease: () =>
-          update(adjustTankPressure(setup, TANK_PRESSURE_STEP_BAR)),
-        locale,
-        testId: "pressure",
-      }),
+      // In CCR the legacy screen hides every open-circuit control — presets,
+      // oxygen, pressure, tabs, helium, consumption, tank size and the
+      // gradient factors (src/ui.js, the isCcr display switches). The dive
+      // still carries the cylinder; the screen simply stops offering it.
+      ...(isCcr
+        ? ccrSection(locale, setup, update)
+        : [
+            presetGroup(locale, setup, (index) =>
+              update(applyPreset(setup, index)),
+            ),
+            ...(setup.mode === "tec" ? [tankTabs(locale, setup, update)] : []),
+            stepper({
+              labelKey: "setup.gas.oxygen",
+              value: formatGasFraction(tank.gas.oxygenFraction, locale),
+              decreaseKey: "setup.gas.oxygen.decrease",
+              increaseKey: "setup.gas.oxygen.increase",
+              onDecrease: () =>
+                update(adjustOxygenFraction(setup, -OXYGEN_FRACTION_STEP)),
+              onIncrease: () =>
+                update(adjustOxygenFraction(setup, OXYGEN_FRACTION_STEP)),
+              locale,
+              testId: "oxygen",
+            }),
+            stepper({
+              labelKey: "setup.tank.pressure",
+              value: formatPressure(tank.pressureBar, locale),
+              decreaseKey: "setup.tank.pressure.decrease",
+              increaseKey: "setup.tank.pressure.increase",
+              onDecrease: () =>
+                update(adjustTankPressure(setup, -TANK_PRESSURE_STEP_BAR)),
+              onIncrease: () =>
+                update(adjustTankPressure(setup, TANK_PRESSURE_STEP_BAR)),
+              locale,
+              testId: "pressure",
+            }),
+          ]),
       ...(setup.mode === "tec"
         ? [
             stepper({
@@ -357,11 +440,24 @@ function heading(locale: SupportedLocale, mode: DiveMode): HTMLElement {
   const eyebrow = element("p", "setup-eyebrow", translate(locale, "setup.eyebrow"));
   const title = element("h1", "setup-heading", translate(locale, "setup.heading"));
   title.id = "setup-heading";
-  const hint = element("p", "setup-hint", translate(locale, "setup.keyboardHint"));
-  group.append(eyebrow, title, hint);
+  group.append(eyebrow, title);
 
-  // The tec bindings exist only in tec, so listing them in rec would
-  // advertise keys that do nothing.
+  // CCR replaces the base hint rather than adding to it: that line promises
+  // 1-8 gas presets, arrow-key oxygen and Page Up/Down pressure, and CCR
+  // shows none of those controls. A hint is the one place a wrong key is
+  // invisible to every test that only presses the right ones — the tec hint
+  // went on promising Tab for a whole slice after Tab was given back to the
+  // browser.
+  if (mode === "ccr") {
+    group.append(
+      element("p", "setup-hint", translate(locale, "setup.keyboardHintCcr")),
+    );
+    return group;
+  }
+
+  group.append(
+    element("p", "setup-hint", translate(locale, "setup.keyboardHint")),
+  );
   if (mode === "tec") {
     group.append(
       element("p", "setup-hint", translate(locale, "setup.keyboardHintTec")),
@@ -567,6 +663,9 @@ function focusKeyOf(node: Element | null): string | null {
   if (setupPreset !== undefined) {
     return `[data-setup-preset="${CSS.escape(setupPreset)}"]`;
   }
+  if (node.dataset.setupDiluent !== undefined) {
+    return `[data-setup-diluent="${CSS.escape(node.dataset.setupDiluent)}"]`;
+  }
   if (node.dataset.setupTankAdd !== undefined) return "[data-setup-tank-add]";
   if (node.dataset.setupTankRemove !== undefined) {
     return "[data-setup-tank-remove]";
@@ -639,6 +738,125 @@ function tankTabs(
   list.append(add, remove);
   fieldset.append(list);
   return fieldset;
+}
+
+/**
+ * The closed-circuit cards: diluent, setpoint and the two cylinders.
+ *
+ * Returns a list rather than one wrapper so the controls sit at the same
+ * level as the open-circuit ones they replace — the stepper layout and the
+ * 44 px touch-target check both work off that structure.
+ */
+function ccrSection(
+  locale: SupportedLocale,
+  setup: DiveSetup,
+  update: (next: DiveSetup) => void,
+): readonly HTMLElement[] {
+  const { ccr } = setup;
+  return [
+    diluentGroup(locale, ccr, (index) =>
+      update(applyDiluentPreset(setup, index)),
+    ),
+    stepper({
+      labelKey: "setup.ccr.setpoint",
+      value: formatBar(ccr.setpointBar, locale),
+      decreaseKey: "setup.ccr.setpoint.decrease",
+      increaseKey: "setup.ccr.setpoint.increase",
+      onDecrease: () => update(adjustSetpoint(setup, -SETPOINT_STEP_BAR)),
+      onIncrease: () => update(adjustSetpoint(setup, SETPOINT_STEP_BAR)),
+      locale,
+      testId: "setpoint",
+    }),
+    stepper({
+      labelKey: "setup.ccr.diluentVolume",
+      value: formatLitres(ccr.diluentCylinderVolumeL, locale),
+      decreaseKey: "setup.ccr.diluentVolume.decrease",
+      increaseKey: "setup.ccr.diluentVolume.increase",
+      onDecrease: () => update(adjustDiluentVolume(setup, -CCR_VOLUME_STEP_L)),
+      onIncrease: () => update(adjustDiluentVolume(setup, CCR_VOLUME_STEP_L)),
+      locale,
+      testId: "diluent-volume",
+    }),
+    stepper({
+      labelKey: "setup.ccr.oxygenVolume",
+      value: formatLitres(ccr.oxygenCylinderVolumeL, locale),
+      decreaseKey: "setup.ccr.oxygenVolume.decrease",
+      increaseKey: "setup.ccr.oxygenVolume.increase",
+      onDecrease: () => update(adjustOxygenVolume(setup, -CCR_VOLUME_STEP_L)),
+      onIncrease: () => update(adjustOxygenVolume(setup, CCR_VOLUME_STEP_L)),
+      locale,
+      testId: "oxygen-volume",
+    }),
+    stepper({
+      labelKey: "setup.ccr.oxygenPressure",
+      value: formatPressure(ccr.oxygenCylinderPressureBar, locale),
+      decreaseKey: "setup.ccr.oxygenPressure.decrease",
+      increaseKey: "setup.ccr.oxygenPressure.increase",
+      onDecrease: () =>
+        update(adjustOxygenPressure(setup, -CCR_PRESSURE_STEP_BAR)),
+      onIncrease: () =>
+        update(adjustOxygenPressure(setup, CCR_PRESSURE_STEP_BAR)),
+      locale,
+      testId: "oxygen-pressure",
+    }),
+  ];
+}
+
+function diluentGroup(
+  locale: SupportedLocale,
+  ccr: DiveSetup["ccr"],
+  onSelect: (index: number) => void,
+): HTMLElement {
+  const fieldset = document.createElement("fieldset");
+  fieldset.className = "setup-group";
+  fieldset.dataset.setupGroup = "diluent";
+  const legend = document.createElement("legend");
+  legend.textContent = translate(locale, "setup.ccr.diluent.legend");
+  fieldset.append(legend);
+
+  const list = document.createElement("div");
+  list.className = "setup-presets";
+  const selected = matchingDiluentPreset(ccr);
+
+  CCR_DILUENT_PRESETS.forEach((preset, index) => {
+    const labelKey = DILUENT_LABEL_KEYS[preset.id];
+    if (!labelKey) return;
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "setup-preset";
+    button.dataset.setupDiluent = preset.id;
+    button.textContent = translate(locale, labelKey);
+    // Which mix the loop is actually on. Legacy prints the matching preset's
+    // name, or 'Custom'; a pressed state says the same thing to a screen
+    // reader without a second line of text.
+    button.setAttribute("aria-pressed", String(selected?.id === preset.id));
+    button.setAttribute("aria-keyshortcuts", String(index + 1));
+    button.addEventListener("click", () => onSelect(index));
+    list.append(button);
+  });
+
+  // The mix can be none of the five: a diluent configured in another mode and
+  // restored here, for instance. Saying so beats five unpressed buttons.
+  if (!selected) {
+    list.append(
+      element(
+        "small",
+        "setup-choice-reason",
+        translate(locale, "setup.ccr.diluent.custom"),
+      ),
+    );
+  }
+
+  fieldset.append(list);
+  return fieldset;
+}
+
+function formatBar(value: number, locale: SupportedLocale): string {
+  return `${new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(value)} bar`;
 }
 
 function formatLitres(value: number, locale: SupportedLocale): string {
