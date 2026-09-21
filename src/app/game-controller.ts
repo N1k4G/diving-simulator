@@ -1,5 +1,6 @@
 import {
   createInitialDiveState,
+  type InitialDiveOptions,
   freezeDiveState,
   type DiveState,
 } from "../core/dive-state";
@@ -295,8 +296,17 @@ function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
-function createWreckInitialState(): DiveState {
-  const initial = createInitialDiveState(0x57524543);
+/**
+ * The wreck slice's starting state, optionally configured by the setup screen.
+ *
+ * Exported so the composition root can build a state from a DiveSetup without
+ * duplicating the route's start depth, which is a controller constant and not
+ * the setup screen's business (#158).
+ */
+export function createWreckInitialState(
+  options: InitialDiveOptions = {},
+): DiveState {
+  const initial = createInitialDiveState(0x57524543, options);
   return freezeDiveState({
     ...initial,
     depthM: metres(START_DEPTH_M),

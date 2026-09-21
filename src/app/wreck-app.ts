@@ -17,8 +17,15 @@ import {
   formatDuration,
   formatPressure,
 } from "./i18n/formatters";
+import { renderSetupScreen } from "./setup/setup-screen";
+import {
+  toInitialDiveOptions,
+  type DiveSetup,
+  type SiteId,
+} from "./setup/dive-setup";
 import {
   GameController,
+  createWreckInitialState,
   type ContinuousControl,
   type GameFrame,
 } from "./game-controller";
@@ -83,11 +90,68 @@ export function renderWreckApplication(
 
   accept.addEventListener("click", () => {
     accept.disabled = true;
-    void startWreckSimulation(root, locale).catch((error: unknown) => {
-      console.error(error);
-      renderStartError(root, locale);
-    });
+    showSetupScreen(root, locale);
   });
+}
+
+// Gate -> setup -> dive. The setup screen owns a keyboard listener, so its
+// disposer runs before anything else is mounted; leaving it attached would
+// let `1`-`8` keep reconfiguring a dive that had already started.
+function showSetupScreen(root: HTMLElement, locale: SupportedLocale): void {
+  const dispose = renderSetupScreen(root, {
+    locale,
+    onStart: (setup) => {
+      dispose();
+      if (!isRenderableSite(setup.siteId)) {
+        renderUnavailableSite(root, locale);
+        return;
+      }
+      void startWreckSimulation(root, locale, setup).catch(
+        (error: unknown) => {
+          console.error(error);
+          renderStartError(root, locale);
+        },
+      );
+    },
+  });
+}
+
+// Which sites the renderer can draw is a composition-root fact, not the setup
+// screen's: dive-setup.ts offers all four authored sites and this decides what
+// to do with one that has no scene yet (#158). The list grows as #164-#167
+// land, and the screen needs no edit for it.
+const RENDERABLE_SITES: readonly SiteId[] = ["wreck"];
+
+function isRenderableSite(siteId: SiteId): boolean {
+  return RENDERABLE_SITES.includes(siteId);
+}
+
+function renderUnavailableSite(
+  root: HTMLElement,
+  locale: SupportedLocale,
+): void {
+  const panel = document.createElement("section");
+  panel.className = "start-error";
+  panel.dataset.unavailableSite = "true";
+  const heading = createElement(
+    "h1",
+    "",
+    translate(locale, "setup.unavailableSite.heading"),
+  );
+  const body = createElement(
+    "p",
+    "",
+    translate(locale, "setup.unavailableSite.body"),
+  );
+  const back = document.createElement("button");
+  back.type = "button";
+  back.className = "primary-action";
+  back.dataset.backToSetup = "true";
+  back.textContent = translate(locale, "setup.unavailableSite.back");
+  back.addEventListener("click", () => showSetupScreen(root, locale));
+
+  panel.append(heading, body, back);
+  root.replaceChildren(panel);
 }
 
 function createSafetyGate(locale: SupportedLocale): HTMLElement {
@@ -156,6 +220,7 @@ function createSafetyGate(locale: SupportedLocale): HTMLElement {
 async function startWreckSimulation(
   root: HTMLElement,
   locale: SupportedLocale,
+  setup: DiveSetup,
 ): Promise<void> {
   const hud = createWreckShell(locale);
   root.replaceChildren(hud.shell);
@@ -167,8 +232,14 @@ async function startWreckSimulation(
   let nextSaveAtS = 5;
   const controller = new GameController({
     renderer,
+    // A restored save still wins over the setup, which is existing resume
+    // behaviour and not this slice's to change: the configuration applies to a
+    // fresh dive. The two meeting — configure a gas, get a resumed dive — is a
+    // real gap, and it belongs with the resume UX (#67 class), not here.
     initialState:
-      loadResult.status === "loaded" ? loadResult.saveGame.state : undefined,
+      loadResult.status === "loaded"
+        ? loadResult.saveGame.state
+        : createWreckInitialState(toInitialDiveOptions(setup)),
     onAuthoritativeState: (state) => {
       if (state.elapsedTimeS >= nextSaveAtS) {
         saveState(repository, state);

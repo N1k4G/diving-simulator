@@ -1,4 +1,5 @@
 const { expect, test } = require('@playwright/test');
+const { startDive, startDiveAndWaitForCanvas } = require('./helpers/start-dive.cjs');
 
 // Mirrors smoke.spec.js's MOBILE_VIEWPORT: a hand-rolled touch viewport
 // rather than Playwright's `devices['iPhone 12']`, which forbids overriding
@@ -43,9 +44,7 @@ test('wreck slice requires the simulation-use boundary before WebGL starts', asy
 
 test('production starts the Pixi wreck shell with semantic HUD and controls', async ({ page }) => {
   await page.goto('/dist/?renderer=canvas');
-  await page
-    .getByRole('button', { name: 'I understand — start simulation' })
-    .click();
+  await startDive(page);
 
   const viewport = page.locator('[data-wreck-viewport]');
   await expect(viewport).toHaveAttribute('data-renderer', 'pixi');
@@ -99,9 +98,7 @@ test('production starts the Pixi wreck shell with semantic HUD and controls', as
   // The descent really happened, so restoration has something to prove.
   expect(savedDepthM).toBeGreaterThan(parseMetres(initialDepth));
 
-  await page
-    .getByRole('button', { name: 'I understand — start simulation' })
-    .click();
+  await startDive(page);
   const restored = page.locator('.wreck-hud dd').first();
   await expect(restored).toBeVisible();
   await expect
@@ -113,10 +110,7 @@ test('production starts the Pixi wreck shell with semantic HUD and controls', as
 
 test('persisted safety states produce visible semantic warnings', async ({ page }) => {
   await page.goto('/dist/');
-  await page
-    .getByRole('button', { name: 'I understand — start simulation' })
-    .click();
-  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  await startDiveAndWaitForCanvas(page);
   await page.reload();
 
   // Issue #138: the status chip has to say which state it is in, not just turn
@@ -126,9 +120,7 @@ test('persisted safety states produce visible semantic warnings', async ({ page 
   const chip = page.locator('.status-chip');
 
   await mutateSavedState(page, 'low-gas');
-  await page
-    .getByRole('button', { name: 'I understand — start simulation' })
-    .click();
+  await startDive(page);
   await expect(page.getByRole('alert')).toHaveText(
     'Low gas pressure — begin a controlled exit',
   );
@@ -136,9 +128,7 @@ test('persisted safety states produce visible semantic warnings', async ({ page 
   await page.reload();
 
   await mutateSavedState(page, 'oxygen');
-  await page
-    .getByRole('button', { name: 'I understand — start simulation' })
-    .click();
+  await startDive(page);
   await expect(page.getByRole('alert')).toHaveText(
     'Unsafe simulated oxygen pressure',
   );
@@ -146,9 +136,7 @@ test('persisted safety states produce visible semantic warnings', async ({ page 
   await page.reload();
 
   await mutateSavedState(page, 'failure');
-  await page
-    .getByRole('button', { name: 'I understand — start simulation' })
-    .click();
+  await startDive(page);
   await expect(page.getByRole('alert')).toHaveText(
     'Simulated dive failure — return to the surface',
   );
@@ -208,10 +196,7 @@ test.describe('mobile viewport', () => {
     page,
   }) => {
     await page.goto('/dist/');
-    await page
-      .getByRole('button', { name: 'I understand — start simulation' })
-      .click();
-    await page.locator('[data-renderer=pixi] canvas').waitFor();
+    await startDiveAndWaitForCanvas(page);
 
     // The narrow-layout media query used to hide the HUD's 4th metric, which
     // by construction order (depth/time/gas/ndl/zone) is NDL — a
@@ -274,10 +259,7 @@ test('the same input trace drives equivalent legacy and Pixi control semantics',
   const legacyAfter = await readLegacyObservation(page);
 
   await page.goto('/dist/');
-  await page
-    .getByRole('button', { name: 'I understand — start simulation' })
-    .click();
-  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  await startDiveAndWaitForCanvas(page);
   const pixiBefore = await readPixiObservation(page);
   await replayInputTrace(page, CROSS_CLIENT_TRACE);
   const pixiAfter = await readPixiObservation(page);
