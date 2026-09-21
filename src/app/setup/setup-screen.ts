@@ -13,6 +13,7 @@
 import {
   DIVE_MODES,
   GAS_PRESETS,
+  MAX_TANKS,
   OXYGEN_FRACTION_STEP,
   SITE_IDS,
   TANK_PRESSURE_STEP_BAR,
@@ -33,10 +34,32 @@ import {
   type SupportedLocale,
 } from "../i18n/catalog";
 import { formatGasFraction, formatPressure } from "../i18n/formatters";
+import {
+  AMV_STEP_LPM,
+  GRADIENT_FACTOR_STEP,
+  HELIUM_FRACTION_STEP,
+  TANK_VOLUME_STEP_L,
+  addTank,
+  adjustGradientFactorHigh,
+  adjustGradientFactorLow,
+  adjustHeliumFraction,
+  adjustSurfaceAirConsumption,
+  adjustTankVolume,
+  cycleTankTab,
+  removeTank,
+  selectTankTab,
+} from "./tec-controls";
 
 // CCR needs a loop setpoint and a diluent, and toInitialDiveOptions has no
 // way to express either yet, so offering it would start an open-circuit dive
 // under a CCR label. Disabled with a reason until its slice lands (#158 PR 3).
+// Decorative glyphs. The accessible name for each control comes from its
+// aria-label, so these carry no meaning a translator would need; naming
+// them also keeps them out of the no-literal-strings rule, which cannot
+// tell a minus sign from a sentence.
+const GLYPH_PLUS = "+";
+const GLYPH_MINUS = "−";
+
 const AVAILABLE_MODES: readonly DiveMode[] = ["rec", "tec"];
 
 const MODE_LABEL_KEYS: Record<DiveMode, MessageKey> = {
@@ -146,12 +169,59 @@ export function renderSetupScreen(
         onStart(setup);
         break;
       default:
+        if (setup.mode === "tec") handleTecKey(event);
         break;
     }
   };
 
+  // Tec-only bindings, mirroring the legacy screen (README, Gas Setup
+  // Screen): up/down helium, [ ] consumption, comma/period tank size, TAB
+  // cycles the tank tab, + and - add and remove a tank, g/G and f/F the
+  // gradient factors. Gated on the mode so rec does not silently carry
+  // controls it does not show.
+  function handleTecKey(event: KeyboardEvent): void {
+    const take = (next: DiveSetup): void => {
+      event.preventDefault();
+      update(next);
+    };
+
+    switch (event.key) {
+      case "ArrowUp":
+        return take(adjustHeliumFraction(setup, HELIUM_FRACTION_STEP));
+      case "ArrowDown":
+        return take(adjustHeliumFraction(setup, -HELIUM_FRACTION_STEP));
+      case "[":
+        return take(adjustSurfaceAirConsumption(setup, -AMV_STEP_LPM));
+      case "]":
+        return take(adjustSurfaceAirConsumption(setup, AMV_STEP_LPM));
+      case ",":
+        return take(adjustTankVolume(setup, -TANK_VOLUME_STEP_L));
+      case ".":
+        return take(adjustTankVolume(setup, TANK_VOLUME_STEP_L));
+      case "Tab":
+        return take(cycleTankTab(setup));
+      case "+":
+        return take(addTank(setup));
+      case "-":
+        return take(removeTank(setup));
+      case "g":
+        return take(adjustGradientFactorLow(setup, GRADIENT_FACTOR_STEP));
+      case "G":
+        return take(adjustGradientFactorLow(setup, -GRADIENT_FACTOR_STEP));
+      case "f":
+        return take(adjustGradientFactorHigh(setup, GRADIENT_FACTOR_STEP));
+      case "F":
+        return take(adjustGradientFactorHigh(setup, -GRADIENT_FACTOR_STEP));
+      default:
+        return;
+    }
+  }
+
   function draw(): void {
-    const tank = setup.tanks[setup.activeTankIndex];
+    // The SELECTED tab, not the active tank: the tab is the editing
+    // cursor, and showing the active tank while editing another is how a
+    // player changes a cylinder they cannot see (caught by the e2e tab test).
+    const tank = setup.tanks[setup.selectedTabIndex];
     if (!tank) throw new Error("setup has no active tank");
 
     // A full re-render replaces every control, including the focused one, so
@@ -161,7 +231,7 @@ export function renderSetupScreen(
     const focused = focusKeyOf(document.activeElement);
 
     shell.replaceChildren(
-      heading(locale),
+      heading(locale, setup.mode),
       choiceGroup({
         legendKey: "setup.mode.legend",
         name: "mode",
@@ -188,6 +258,7 @@ export function renderSetupScreen(
         locale,
       }),
       presetGroup(locale, setup, (index) => update(applyPreset(setup, index))),
+      ...(setup.mode === "tec" ? [tankTabs(locale, setup, update)] : []),
       stepper({
         labelKey: "setup.gas.oxygen",
         value: formatGasFraction(tank.gas.oxygenFraction, locale),
@@ -212,6 +283,60 @@ export function renderSetupScreen(
         locale,
         testId: "pressure",
       }),
+      ...(setup.mode === "tec"
+        ? [
+            stepper({
+              labelKey: "setup.gas.helium",
+              value: formatGasFraction(tank.gas.heliumFraction, locale),
+              decreaseKey: "setup.gas.helium.decrease",
+              increaseKey: "setup.gas.helium.increase",
+              onDecrease: () => update(adjustHeliumFraction(setup, -HELIUM_FRACTION_STEP)),
+              onIncrease: () => update(adjustHeliumFraction(setup, HELIUM_FRACTION_STEP)),
+              locale,
+              testId: "helium",
+            }),
+            stepper({
+              labelKey: "setup.tank.volume",
+              value: formatLitres(tank.volumeL, locale),
+              decreaseKey: "setup.tank.volume.decrease",
+              increaseKey: "setup.tank.volume.increase",
+              onDecrease: () => update(adjustTankVolume(setup, -TANK_VOLUME_STEP_L)),
+              onIncrease: () => update(adjustTankVolume(setup, TANK_VOLUME_STEP_L)),
+              locale,
+              testId: "volume",
+            }),
+            stepper({
+              labelKey: "setup.amv",
+              value: formatLitresPerMinute(setup.surfaceAirConsumptionLpm, locale),
+              decreaseKey: "setup.amv.decrease",
+              increaseKey: "setup.amv.increase",
+              onDecrease: () => update(adjustSurfaceAirConsumption(setup, -AMV_STEP_LPM)),
+              onIncrease: () => update(adjustSurfaceAirConsumption(setup, AMV_STEP_LPM)),
+              locale,
+              testId: "amv",
+            }),
+            stepper({
+              labelKey: "setup.gf.low",
+              value: formatPercent(setup.gradientFactorLow, locale),
+              decreaseKey: "setup.gf.low.decrease",
+              increaseKey: "setup.gf.low.increase",
+              onDecrease: () => update(adjustGradientFactorLow(setup, -GRADIENT_FACTOR_STEP)),
+              onIncrease: () => update(adjustGradientFactorLow(setup, GRADIENT_FACTOR_STEP)),
+              locale,
+              testId: "gf-low",
+            }),
+            stepper({
+              labelKey: "setup.gf.high",
+              value: formatPercent(setup.gradientFactorHigh, locale),
+              decreaseKey: "setup.gf.high.decrease",
+              increaseKey: "setup.gf.high.increase",
+              onDecrease: () => update(adjustGradientFactorHigh(setup, -GRADIENT_FACTOR_STEP)),
+              onIncrease: () => update(adjustGradientFactorHigh(setup, GRADIENT_FACTOR_STEP)),
+              locale,
+              testId: "gf-high",
+            }),
+          ]
+        : []),
       startAction(locale, () => onStart(setup)),
     );
 
@@ -225,13 +350,21 @@ export function renderSetupScreen(
   return () => document.removeEventListener("keydown", handleKeyDown);
 }
 
-function heading(locale: SupportedLocale): HTMLElement {
+function heading(locale: SupportedLocale, mode: DiveMode): HTMLElement {
   const group = document.createElement("div");
   const eyebrow = element("p", "setup-eyebrow", translate(locale, "setup.eyebrow"));
   const title = element("h1", "setup-heading", translate(locale, "setup.heading"));
   title.id = "setup-heading";
   const hint = element("p", "setup-hint", translate(locale, "setup.keyboardHint"));
   group.append(eyebrow, title, hint);
+
+  // The tec bindings exist only in tec, so listing them in rec would
+  // advertise keys that do nothing.
+  if (mode === "tec") {
+    group.append(
+      element("p", "setup-hint", translate(locale, "setup.keyboardHintTec")),
+    );
+  }
   return group;
 }
 
@@ -366,7 +499,7 @@ function stepButton(
   button.className = "setup-step";
   button.dataset.setupStep = direction;
   // The glyph is decorative; the accessible name carries the meaning.
-  button.textContent = direction === "increase" ? "+" : "−";
+  button.textContent = direction === "increase" ? GLYPH_PLUS : GLYPH_MINUS;
   button.setAttribute("aria-label", translate(locale, labelKey));
   button.addEventListener("click", onClick);
   return button;
@@ -439,4 +572,77 @@ function focusKeyOf(node: Element | null): string | null {
     return `[data-setup-stepper="${CSS.escape(stepper)}"] [data-setup-step="${CSS.escape(setupStep)}"]`;
   }
   return null;
+}
+
+/**
+ * The tank tabs and the add/remove pair. Tec only: rec has one cylinder,
+ * and the legacy screen shows no tabs for it either.
+ */
+function tankTabs(
+  locale: SupportedLocale,
+  setup: DiveSetup,
+  update: (next: DiveSetup) => void,
+): HTMLElement {
+  const fieldset = document.createElement("fieldset");
+  fieldset.className = "setup-group";
+  fieldset.dataset.setupGroup = "tanks";
+  const legend = document.createElement("legend");
+  legend.textContent = translate(locale, "setup.tanks.legend");
+  fieldset.append(legend);
+
+  const list = document.createElement("div");
+  list.className = "setup-choices";
+
+  setup.tanks.forEach((_, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "setup-preset";
+    button.dataset.setupTab = String(index);
+    // aria-pressed rather than a radio: the tab is a view cursor, not a
+    // value the dive is configured with, and a toggle reads that way.
+    button.setAttribute("aria-pressed", String(index === setup.selectedTabIndex));
+    button.textContent = translate(locale, "setup.tanks.tab").replace(
+      "{n}",
+      String(index + 1),
+    );
+    button.addEventListener("click", () => update(selectTankTab(setup, index)));
+    list.append(button);
+  });
+
+  const add = document.createElement("button");
+  add.type = "button";
+  add.className = "setup-preset";
+  add.dataset.setupTankAdd = "true";
+  add.textContent = GLYPH_PLUS;
+  add.setAttribute("aria-label", translate(locale, "setup.tanks.add"));
+  add.disabled = setup.tanks.length >= MAX_TANKS;
+  add.addEventListener("click", () => update(addTank(setup)));
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "setup-preset";
+  remove.dataset.setupTankRemove = "true";
+  remove.textContent = GLYPH_MINUS;
+  remove.setAttribute("aria-label", translate(locale, "setup.tanks.remove"));
+  remove.disabled = setup.tanks.length <= 1;
+  remove.addEventListener("click", () => update(removeTank(setup)));
+
+  list.append(add, remove);
+  fieldset.append(list);
+  return fieldset;
+}
+
+function formatLitres(value: number, locale: SupportedLocale): string {
+  return `${new Intl.NumberFormat(locale).format(value)} L`;
+}
+
+function formatLitresPerMinute(value: number, locale: SupportedLocale): string {
+  return `${new Intl.NumberFormat(locale).format(value)} L/min`;
+}
+
+function formatPercent(value: number, locale: SupportedLocale): string {
+  return new Intl.NumberFormat(locale, {
+    style: "percent",
+    maximumFractionDigits: 0,
+  }).format(value / 100);
 }

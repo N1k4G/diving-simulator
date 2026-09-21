@@ -191,6 +191,126 @@ test('open-circuit bounds match the legacy setup screen', async ({ page }) => {
   await expect(pressureValue(page)).toContainText('300');
 });
 
+
+test.describe('technical mode', () => {
+  const toTec = async (page) => {
+    await page.goto('/dist/');
+    await acceptSafetyGate(page);
+    await page.locator('[data-setup-group=mode] [data-setup-option=tec]').check();
+    await expect(page.locator('[data-setup-stepper=helium]')).toBeVisible();
+    // .check() leaves focus on the radio, and a focused radio owns the arrow
+    // keys — deliberately, so mode traversal keeps working. The global
+    // shortcuts therefore only apply when focus is not inside a radio group,
+    // which is ordinary web behaviour rather than a quirk. Blur so the
+    // shortcut tests below exercise the shortcuts and not the traversal.
+    await page.locator('[data-setup-option=tec]').evaluate((el) => el.blur());
+  };
+
+  test('rec shows none of the technical controls and tec shows all of them', async ({ page }) => {
+    await page.goto('/dist/');
+    await acceptSafetyGate(page);
+
+    for (const id of ['helium', 'volume', 'amv', 'gf-low', 'gf-high']) {
+      await expect(page.locator(`[data-setup-stepper=${id}]`)).toHaveCount(0);
+    }
+    await expect(page.locator('[data-setup-group=tanks]')).toHaveCount(0);
+
+    await page.locator('[data-setup-group=mode] [data-setup-option=tec]').check();
+    for (const id of ['helium', 'volume', 'amv', 'gf-low', 'gf-high']) {
+      await expect(page.locator(`[data-setup-stepper=${id}]`)).toBeVisible();
+    }
+    await expect(page.locator('[data-setup-group=tanks]')).toBeVisible();
+  });
+
+  test('the technical keyboard bindings match the legacy screen', async ({ page }) => {
+    // README "Gas Setup Screen": up/down helium, [ ] AMV, comma/period tank
+    // size, g/G and f/F the gradient factors.
+    await toTec(page);
+
+    await page.keyboard.press('ArrowUp');
+    await expect(page.locator('[data-setup-value=helium]')).toContainText('1');
+
+    await page.keyboard.press(']');
+    await expect(page.locator('[data-setup-value=amv]')).toContainText('16');
+
+    await page.keyboard.press('.');
+    await expect(page.locator('[data-setup-value=volume]')).toContainText('13');
+
+    await page.keyboard.press('g');
+    await expect(page.locator('[data-setup-value=gf-low]')).toContainText('40');
+
+    await page.keyboard.press('F');
+    await expect(page.locator('[data-setup-value=gf-high]')).toContainText('70');
+  });
+
+  test('gradient factors cannot cross', async ({ page }) => {
+    // src/state.js gsAdjustGFLow: after clamping, `if (gfLow > gfHigh) gfLow = gfHigh`.
+    await toTec(page);
+
+    for (let i = 0; i < 20; i += 1) await page.keyboard.press('g');
+    await expect(page.locator('[data-setup-value=gf-low]')).toContainText('75');
+    await expect(page.locator('[data-setup-value=gf-high]')).toContainText('75');
+  });
+
+  test('cylinders can be added, selected and removed', async ({ page }) => {
+    await toTec(page);
+    await expect(page.locator('[data-setup-tab]')).toHaveCount(1);
+    await expect(page.locator('[data-setup-tank-remove]')).toBeDisabled();
+
+    await page.locator('[data-setup-tank-add]').click();
+    await page.locator('[data-setup-tank-add]').click();
+    await expect(page.locator('[data-setup-tab]')).toHaveCount(3);
+
+    // Editing follows the selected tab, not the active tank.
+    await page.locator('[data-setup-tab="1"]').click();
+    await expect(page.locator('[data-setup-tab="1"]')).toHaveAttribute('aria-pressed', 'true');
+    await page.locator('[data-setup-preset=ean36]').click();
+    await expect(page.locator('[data-setup-value=oxygen]')).toContainText('36');
+
+    await page.locator('[data-setup-tab="0"]').click();
+    await expect(page.locator('[data-setup-value=oxygen]')).toContainText('21');
+
+    await page.locator('[data-setup-tank-remove]').click();
+    await expect(page.locator('[data-setup-tab]')).toHaveCount(2);
+  });
+
+  test('the add button stops at six cylinders', async ({ page }) => {
+    // src/constants.js MAX_TANKS = 6.
+    await toTec(page);
+    for (let i = 0; i < 8; i += 1) {
+      const add = page.locator('[data-setup-tank-add]');
+      if (await add.isDisabled()) break;
+      await add.click();
+    }
+    await expect(page.locator('[data-setup-tab]')).toHaveCount(6);
+    await expect(page.locator('[data-setup-tank-add]')).toBeDisabled();
+  });
+
+  test('switching mode keeps each mode its own configuration', async ({ page }) => {
+    // src/state.js switchMode: saveModeSettings then restoreModeSettings.
+    await toTec(page);
+    await page.locator('[data-setup-preset=tx21-35]').click();
+    await expect(page.locator('[data-setup-value=helium]')).toContainText('35');
+
+    await page.locator('[data-setup-group=mode] [data-setup-option=rec]').check();
+    await expect(page.locator('[data-setup-value=oxygen]')).toContainText('21');
+    await expect(page.locator('[data-setup-stepper=helium]')).toHaveCount(0);
+
+    await page.locator('[data-setup-group=mode] [data-setup-option=tec]').check();
+    await expect(page.locator('[data-setup-value=helium]')).toContainText('35');
+  });
+
+  test('a technical dive starts with the configured mix', async ({ page }) => {
+    await toTec(page);
+    await page.locator('[data-setup-preset=tx18-45]').click();
+    await page.keyboard.press('PageUp');
+    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+
+    await expect(page.locator('.wreck-hud [data-hud-metric=gas] dd')).toContainText('210');
+  });
+});
+
 test.describe('mobile viewport', () => {
   test.use(MOBILE_VIEWPORT);
 

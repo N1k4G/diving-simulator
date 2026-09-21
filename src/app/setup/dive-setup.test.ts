@@ -15,6 +15,11 @@ import {
   selectSite,
   toInitialDiveOptions,
 } from "./dive-setup";
+import {
+  addTank,
+  adjustGradientFactorLow,
+  adjustSurfaceAirConsumption,
+} from "./tec-controls";
 
 describe("dive setup defaults", () => {
   it("starts on air at the legacy tank and consumption defaults", () => {
@@ -73,12 +78,17 @@ describe("gas presets", () => {
   });
 });
 
-describe("mode selection", () => {
-  it("drops a trimix mix when leaving tec, because rec cannot express it", () => {
-    const trimix = applyPreset(selectMode(createDefaultSetup(), "tec"), 4);
-    expect(trimix.tanks[0]?.gas.heliumFraction).toBeCloseTo(0.35, 10);
+describe("mode selection keeps per-mode settings, as switchMode does", () => {
+  // src/state.js switchMode calls saveModeSettings() then
+  // restoreModeSettings(newMode). The first slice of #158 approximated this
+  // by dropping a trimix mix to air; these pin the real behaviour.
+  it("restores the mode's own configuration rather than carrying the last one over", () => {
+    const rec = createDefaultSetup();
+    const tecTrimix = applyPreset(selectMode(rec, "tec"), 4);
+    expect(tecTrimix.tanks[0]?.gas.heliumFraction).toBeCloseTo(0.35, 10);
 
-    const backToRec = selectMode(trimix, "rec");
+    // Back to rec: rec had air, and that is what rec shows again.
+    const backToRec = selectMode(tecTrimix, "rec");
     expect(backToRec.tanks[0]?.gas.heliumFraction).toBe(0);
     expect(backToRec.tanks[0]?.gas.oxygenFraction).toBeCloseTo(
       AIR_PRESET.oxygenFraction,
@@ -86,11 +96,46 @@ describe("mode selection", () => {
     );
   });
 
-  it("leaves a nitrox mix alone when leaving tec", () => {
-    const nitrox = applyPreset(selectMode(createDefaultSetup(), "tec"), 2);
-    const backToRec = selectMode(nitrox, "rec");
+  it("returns the trimix when the player goes back to tec", () => {
+    // The round trip is the point of modeSettings: losing the mix on the way
+    // out and rebuilding it on the way back is what this replaced.
+    const tecTrimix = applyPreset(selectMode(createDefaultSetup(), "tec"), 4);
+    const roundTrip = selectMode(selectMode(tecTrimix, "rec"), "tec");
 
-    expect(backToRec.tanks[0]?.gas.oxygenFraction).toBeCloseTo(0.32, 10);
+    expect(roundTrip.tanks[0]?.gas.heliumFraction).toBeCloseTo(0.35, 10);
+    expect(roundTrip.tanks[0]?.gas.oxygenFraction).toBeCloseTo(0.21, 10);
+  });
+
+  it("keeps each mode's gradient factors and consumption apart", () => {
+    const tec = adjustSurfaceAirConsumption(
+      adjustGradientFactorLow(selectMode(createDefaultSetup(), "tec"), -10),
+      5,
+    );
+    // 35 - 10 would be 25, below GF_LOW_MIN, so gsAdjustGFLow's clamp gives 30.
+    expect(tec.gradientFactorLow).toBe(30);
+    expect(tec.surfaceAirConsumptionLpm).toBe(20);
+
+    const rec = selectMode(tec, "rec");
+    expect(rec.gradientFactorLow).toBe(35);
+    expect(rec.surfaceAirConsumptionLpm).toBe(15);
+
+    expect(selectMode(rec, "tec").gradientFactorLow).toBe(tec.gradientFactorLow);
+    expect(selectMode(rec, "tec").surfaceAirConsumptionLpm).toBe(20);
+  });
+
+  it("normalises to a single tank when entering CCR", () => {
+    // src/state.js switchMode, BUG-CCR-9: CCR has no concept of multiple
+    // open-circuit tanks, so stale tank state must not leak in.
+    const tecWithTanks = addTank(addTank(selectMode(createDefaultSetup(), "tec")));
+    expect(tecWithTanks.tanks).toHaveLength(3);
+
+    const ccr = selectMode(tecWithTanks, "ccr");
+    expect(ccr.tanks).toHaveLength(1);
+    expect(ccr.selectedTabIndex).toBe(0);
+    expect(ccr.activeTankIndex).toBe(0);
+
+    // And tec still has its three when the player goes back.
+    expect(selectMode(ccr, "tec").tanks).toHaveLength(3);
   });
 
   it("returns the same object when the mode does not change", () => {
