@@ -2,10 +2,9 @@
   "schema": "issue-evidence/1",
   "issue": 175,
   "command": "npm run test:e2e",
-  "measuredCommit": "af9fdd4e77e4cf11e75e3297d33cfa5caf1e2f6a",
-  "finalCommit": "fe357978ce2d3098bef6b1107ffc2bd303f66e39",
-  "measuredTree": "9f5dab843c355bc7f7765dbde9ed9f6651d59e2f",
-  "provenanceNote": "The acceptance runs executed against a commit that was later amended to carry its real message. An amend that changes only the message leaves the tree untouched, so the measurement describes the shipped fix commit exactly. Verify with `git rev-parse <fix commit>^{tree}` and compare against `measuredTree` below \u2014 the pre-amend SHA is unreachable on the remote, so quoting it as a check would have been unverifiable for anyone but the author.",
+  "measuredCommit": "12b567e27f6657049898ddc8cb2cecfa24d46993",
+  "measuredTree": "9bd97af41ffcf013104ac2d8959e0794b842d16d",
+  "provenanceNote": "The acceptance runs below executed against the commit and tree recorded above, with a clean working tree. Any later commit on this branch adds only this evidence file. Verify with `git rev-parse <that commit>^{tree}` against measuredTree. An earlier version of this note quoted a pre-amend SHA that is unreachable on the remote, so the check it described was reproducible only for the author.",
   "recordedAt": "2026-09-21T10:35:45+00:00",
   "environment": {
     "os": "Windows 11",
@@ -46,36 +45,37 @@
   },
   "acceptanceRuns": {
     "command": "npm run test:e2e",
-    "againstCommit": "af9fdd4",
+    "againstCommit": "12b567e27f6657049898ddc8cb2cecfa24d46993",
     "workingTree": "clean",
     "runs": [
       {
         "run": 1,
         "suite": "37 passed",
-        "crossClientS": 5.3
+        "crossClientS": 4.8
       },
       {
         "run": 2,
         "suite": "37 passed",
-        "crossClientS": 4.8
+        "crossClientS": 5.8
       },
       {
         "run": 3,
         "suite": "37 passed",
-        "crossClientS": 4.4
+        "crossClientS": 5.3
       },
       {
         "run": 4,
         "suite": "37 passed",
-        "crossClientS": 6.1
+        "crossClientS": 5.0
       },
       {
         "run": 5,
         "suite": "37 passed",
-        "crossClientS": 4.8
+        "crossClientS": 5.3
       }
     ],
-    "result": "5 of 5 fully green; the target test passed in all five."
+    "result": "5 of 5 fully green; the target test passed in all five.",
+    "note": "Re-run after the release-wait was added, because that changed the helper the first five measured."
   },
   "assertionsKept": [
     "legacy response compared against the literal expectation",
