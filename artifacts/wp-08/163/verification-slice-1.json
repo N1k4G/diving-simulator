@@ -1,0 +1,81 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 163,
+  "slice": "PR 1 of n: the in-dive cylinder switch (keys 1-6 and a button per cylinder)",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npm run test:e2e",
+  "measuredCommit": "7fb0b75461d813fdd4e429fe8079f52de41698fb",
+  "measuredTree": "6d67f30aeb49413bc2a83f29375aadd711801f6e",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-09-21T21:35:50Z",
+  "runFinishedAt": "2026-09-21T21:40:20Z",
+  "timestampProvenance": "Both are the output of `date -u +%Y-%m-%dT%H:%M:%SZ` around the run, not values written by hand. #158's slice-3 evidence carried a hand-typed wall-clock reading on a UTC+2 machine labelled as UTC and was rejected in review; the timestamp is the one field a reviewer cannot recompute, so it has to be measured.",
+  "provenanceNote": "Measured against the committed tree rather than the working tree that became it. Only the commit adding this file follows the measured one.",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.8.2",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass — 17 files, no source maps, 4 markers absent",
+    "unit": "209 passed (unchanged: this slice adds no unit tests, see notTestedAndWhy)",
+    "parity": "36 passed (unchanged)",
+    "e2e": "82 passed in 2.5 min (74 on main, +8)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "10 scenes ok"
+  },
+  "whatWasMissing": {
+    "note": "The model has been able to switch cylinders since the migration began — InputIntent carries switchGasIndex and applyGasSwitchIntent implements the rules, with unit coverage in tests/unit/dive-model.test.ts. Nothing in the client ever set the field, so a two-cylinder dive could be configured on the setup screen and then stayed on the first cylinder for the whole dive.",
+    "consequence": "#158 shipped multi-cylinder configuration whose only effect in the dive was the starting gas."
+  },
+  "boundsPortedFromTheOracle": {
+    "keyBindings": "src/game-loop.js TASK-019 — `for (var i = 0; i < tankCount; i++)` over String(i + 1), so 1 to 6 and no further; MAX_TANKS is 6",
+    "refusalRules": "src/game-loop.js `i !== activeTank && tanks[i].gasRemaining > 0`, which src/core/dive-model.ts applyGasSwitchIntent already implements, plus its own refusal of any switch while ccr is set",
+    "rowVisibility": "src/ui.js and src/touch.js show cylinder slots only where the mode has more than one cylinder"
+  },
+  "deliberateDesign": {
+    "queuedNotImmediate": "The model moves in whole-second steps and `advance` with elapsedS 0 returns the state untouched, so the switch lands on the next step — up to a second later, where legacy applies it within the frame. That is the fixed-step design of this client rather than anything about gas switching: every intent it has, the ascent keys included, is sampled the same way. A press between steps is kept rather than dropped, which is what the request being cleared after a step consumes it (not when it is read) buys, and there is an e2e test for it.",
+    "rulesStayInTheModel": "The controller decides nothing about whether a switch is allowed. It passes an index; src/core/dive-model.ts refuses the active cylinder, an empty one and CCR. Duplicating those checks in the UI would have created a second place for them to drift.",
+    "emptyCylinderStaysVisible": "Disabled rather than removed, and it keeps its contrast instead of fading to the usual grey. An empty cylinder is not a broken control, and a cylinder that vanishes mid-dive is worse than one that says why it cannot be chosen.",
+    "delegatedClickHandler": "The buttons do not exist when the dive starts — the first frame builds them from the state — so the click listener sits on the container. A listener per button would have to be rebound on every rebuild.",
+    "buttonsBuiltOnce": "syncTankControls creates the buttons only when the count changes and thereafter updates attributes. Rebuilding them each frame would discard focus sixty times a second, and unlike the setup screen there is no re-render to restore it from."
+  },
+  "sliceBoundary": {
+    "issueSuggestion": "#163 proposes 'PR 1: tanks + gas info'.",
+    "deviation": "Gas info is its own PR. It is five rendered pages with their own cycling rules — src/state.js infoPageMode 0-5, skipping the tanks page below four cylinders, toggling 0<->5 in CCR, and unavailable in rec entirely — which is larger than the switch and unrelated to it. The slicing in an issue is a hint, not a contract.",
+    "stillOutstandingInThisIssue": "gas info (I), fast-forward (F), torch as a first-class intent, CCR setpoint ([ ]) and bailout (B), and the HUD additions the issue lists: active cylinder, loop PO2 vs setpoint, scrubber time, bailout state, fast-forward indicator."
+  },
+  "notTestedAndWhy": {
+    "requestClearedAfterAStep": "Clearing the queued request once a step consumes it is correct intent semantics, but it has no observable consequence today: the model treats a repeat of the active index as a no-op, so a request left set produces no extra gas-switch event and no visible difference. A test would have passed with the clearing removed. Recorded here instead of written, on the rule that a test which cannot fail proves nothing.",
+    "gasSwitchNotification": "Legacy shows a two-second 'GAS SWITCH -> T{n}' toast and resets bestGasAlerted and fastForwardActive. The toast belongs with the HUD additions and fastForwardActive with the fast-forward slice; neither exists yet, so neither is reproduced.",
+    "noUnitTests": "The behaviour added here is the controller's queue and the DOM sync, and both need a running animation frame. The node test environment has no requestAnimationFrame — tests/unit already notes this for destroy() — so the coverage is e2e, where the real loop runs, rather than a mock that would assert the mock."
+  },
+  "counterCheck": {
+    "method": "One revert at a time, with the build result read before each run.",
+    "cases": {
+      "intentWiring": "the queued index never reaches the intent — the digit, button and between-steps tests all fail",
+      "digitKeys": "1-6 unbound during the dive — the digit test fails, the button test still passes",
+      "rowVisibility": "the row no longer hides itself — the CCR test fails",
+      "emptyDisabled": "an empty cylinder no longer says so — the empty-cylinder test fails"
+    },
+    "oneRevertHadToBeFixedFirst": "Setting the intent to a bare null left #requestedTankIndex written but never read, which TS6133 rejects; the build failed and the run that followed would have been against a stale dist/. The script reported the failed build and skipped the result rather than reporting a pass. The revert was rewritten to keep reading the field so the comparison is about behaviour and not about whether it compiles."
+  },
+  "accessibility": {
+    "keyboard": "Each button carries aria-keyshortcuts with the digit that does the same thing, and aria-pressed for the active cylinder.",
+    "labels": "The accessible name gives the cylinder number, its oxygen fraction and its pressure, all from the catalogue in en and de.",
+    "touchTargets": "44 x 44 CSS px with 8 px spacing, asserted for a full six-cylinder row — the #121 rule applied to the controls this slice adds."
+  },
+  "releaseLabel": {
+    "chosen": "release:none",
+    "reasoning": "Deployed bytes change — deploy.yml runs `pages deploy src/` with no ignore file — but served behaviour does not: _redirects sends / to the legacy client and the migration client stays unreachable until the #170 cutover.",
+    "ownerCall": true,
+    "note": "The owner resolved this for #179 by setting release:none by hand over the bot's release:minor, which the feat prefix produces. The same reasoning applies here, and the same manual step will be needed."
+  }
+}
