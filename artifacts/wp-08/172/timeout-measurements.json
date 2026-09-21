@@ -1,9 +1,11 @@
 {
   "schema": "issue-evidence/1",
   "issue": 172,
-  "sourceCommit": "73a0bba9342a61b2572a86bbd425a1a6690e59e2",
-  "branch": "fix/172-collision-sweep-timeout",
-  "recordedAt": "2026-09-20T19:29:25+00:00",
+  "command": "npm run test:e2e",
+  "measuredCommit": "62ac8b8678473b29372a83dfeee98798be91f094",
+  "measuredCommitContainsFix": true,
+  "provenanceNote": "The eight exploratory runs recorded earlier named 73a0bba \u2014 the PR base, which does not contain test.slow() \u2014 because the evidence was generated before the fix was committed. Those runs are kept below as exploratory and are NOT the acceptance evidence. The three acceptance runs were executed against the committed fix above with a clean working tree. Commits after it on this branch change comment prose only; `git diff <measuredCommit> -- tests/collision.spec.js` shows no non-comment line.",
+  "recordedAt": "2026-09-21T08:41:17+00:00",
   "environment": {
     "os": "Windows 11",
     "cores": 14,
@@ -11,70 +13,57 @@
     "node": "v26.8.2",
     "npm": "11.19.1",
     "nvmrcPin": "22.23.2",
-    "note": "Windows host, 14 cores. playwright.config.js sizes workers as ceil(cores/4) capped at 4, so this host runs 4 workers and a 2-core CI runner runs 1."
+    "workerFormula": "playwright.config.js: max(1, min(4, ceil(cores/4))) -> 4 here, 1 on a 2-core runner"
   },
   "change": {
     "mechanism": "test.slow() on tests/collision.spec.js 'no buried start position'",
     "timeoutBeforeMs": 60000,
     "timeoutAfterMs": 180000,
     "verifiedBy": "a throwaway spec printing test.info().timeout with and without test.slow()",
-    "rejectedAlternative": "raising `timeout` in playwright.config.js, which would mask the #130 class across every spec"
+    "rejectedAlternative": "raising `timeout` in playwright.config.js, which would mask the #130 class across every spec",
+    "whatItDoesNotBuy": "A tight regression bound. Against an observed 36.9-66 s, 180 s is 2.7x-4.9x, so a doubling passes. The benefit is locality, not detection; a real bound wants an explicit duration assertion."
   },
-  "runs": [
-    {
-      "run": 1,
-      "suite": "37 passed",
-      "collisionS": 38.7
-    },
-    {
-      "run": 2,
-      "suite": "36 passed",
-      "collisionS": 38.3,
-      "note": "One test failed; its log was not captured. It was NOT this test, which passed at 38.3 s. Six later captured runs were clean. Most likely the game.spec.js flake seen on unmodified main during #161."
-    },
-    {
-      "run": 3,
-      "suite": "37 passed",
-      "collisionS": 40.0
-    },
-    {
-      "run": 4,
-      "suite": "37 passed",
-      "collisionS": 38.7
-    },
-    {
-      "run": 5,
-      "suite": "37 passed",
-      "collisionS": 38.1
-    },
-    {
-      "run": 6,
-      "suite": "37 passed",
-      "collisionS": 36.9
-    },
-    {
-      "run": 7,
-      "suite": "37 passed",
-      "collisionS": 38.5
-    },
-    {
-      "run": 8,
-      "suite": "37 passed",
-      "collisionS": 38.2
-    }
-  ],
-  "result": {
-    "collisionPassedInAllRuns": true,
-    "collisionRangeS": [
-      36.9,
-      40.0
+  "acceptanceRuns": {
+    "command": "npm run test:e2e",
+    "againstCommit": "62ac8b8678473b29372a83dfeee98798be91f094",
+    "workingTree": "clean",
+    "runs": [
+      {
+        "run": 1,
+        "suite": "37 passed",
+        "suiteWallS": 90,
+        "collision": "1.0m"
+      },
+      {
+        "run": 2,
+        "suite": "37 passed",
+        "suiteWallS": 77,
+        "collision": "1.1m"
+      },
+      {
+        "run": 3,
+        "suite": "37 passed",
+        "suiteWallS": 75,
+        "collision": "1.0m"
+      }
     ],
-    "budgetUsedMaxPercent": 22.2,
-    "fullyGreenRuns": "7 of 8",
-    "consecutivePassingRuns": "runs 3-5 and 6-8",
-    "vacuityGuardUnchanged": "expect(result.tested).toBeGreaterThan(400) is untouched"
+    "finding": "All three exceeded or sat exactly on the old 60 s budget (60 s, 66 s, 60 s), so all three would have failed or been borderline without test.slow(). This is the strongest evidence that the change is load-bearing rather than cosmetic."
   },
-  "caveat": "The post-change durations are tighter than the pre-change ones partly because #161 removed 2.3 MB of source maps from dist/, reducing static-server contention. The exposure is the local 4-worker full-suite run, not CI.",
+  "exploratoryRuns": {
+    "note": "Run before the fix was committed; provenance unreliable, kept for the duration spread.",
+    "collisionS": [
+      38.7,
+      38.3,
+      40.0,
+      38.7,
+      38.1,
+      36.9,
+      38.5,
+      38.2
+    ],
+    "fullyGreen": "7 of 8",
+    "run2": "One other test failed; log not captured. Not this test, which passed at 38.3 s."
+  },
   "ciRun": {
     "runId": 35532495932,
     "runner": "ubuntu-24.04",
@@ -82,6 +71,17 @@
     "workers": 1,
     "collisionS": 23.5,
     "suite": "37 passed",
-    "finding": "CI is FASTER than the 14-core host, not slower: with one worker the sweep runs without contention. Every observed timeout came from a 4-worker local full-suite run. An earlier note in this evidence claimed a 2-core runner would have less headroom; that was backwards and is corrected here and in the test comment."
+    "finding": "CI is FASTER than the 14-core host: with one worker the sweep runs without contention. Every observed timeout came from a 4-worker local run. CI is the safe case, the local full-suite run the exposed one."
+  },
+  "knownFlakeObserved": {
+    "test": "tests/wreck-slice.spec.js:253 the same input trace drives equivalent legacy and Pixi control semantics",
+    "symptom": "torchToggled expected true, got false, on the legacy side",
+    "evidence": "Failed once in CI, passed on rerun of the identical commit c8b616d; unrelated to this change.",
+    "disposition": "Reported on the PR; needs its own issue. Same class as #126."
+  },
+  "unchanged": {
+    "vacuityGuard": "expect(result.tested).toBeGreaterThan(400)",
+    "sweep": "untouched",
+    "globalTimeout": "60 s"
   }
 }

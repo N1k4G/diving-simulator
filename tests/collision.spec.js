@@ -258,9 +258,10 @@ test('no buried start position stays stuck, anywhere in any site', async ({ page
   // So: ~45% headroom alone, none under load. test.slow() triples the budget to
   // 180 s (verified: test.info().timeout goes 60000 -> 180000).
   //
-  // BE HONEST ABOUT WHAT THAT BUYS. Against the ~40 s this sweep costs under
-  // four workers, 180 s only fails at roughly a 4.5x slowdown — a doubling
-  // would pass unnoticed. So this is not a tight regression detector, and an
+  // BE HONEST ABOUT WHAT THAT BUYS. Across eleven full-suite runs on this host
+  // the sweep cost 36.9 s to 66 s depending on what else the machine was
+  // doing, so 180 s is between 2.7x and 4.9x the observed cost. A doubling
+  // would pass unnoticed. This is not a tight regression detector, and an
   // earlier version of this comment claiming a 2x regression would still fail
   // was simply wrong. The argument for test.slow() is locality: it buys the
   // headroom for the one test that genuinely needs it and leaves every other
@@ -268,6 +269,10 @@ test('no buried start position stays stuck, anywhere in any site', async ({ page
   // have bought the same headroom by masking the #130 class suite-wide, which
   // is the thing worth avoiding. If this sweep's cost ever needs a real bound,
   // that wants an explicit duration assertion, not a timeout.
+  //
+  // The upper end of that range is why this is not cosmetic: the three
+  // acceptance runs measured 60 s, 66 s and 60 s. Every one of them would have
+  // failed or sat exactly on the old 60 s limit.
   //
   // After the change, eight consecutive full-suite runs on the same host:
   // 38.7, 38.3, 40.0, 38.7, 38.1, 36.9, 38.5, 38.2 s — this test passed in all
