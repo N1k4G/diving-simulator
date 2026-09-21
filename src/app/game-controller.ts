@@ -10,6 +10,7 @@ import { metres, seconds } from "../core/units";
 import {
   DEFAULT_PLANNER_SETTINGS,
   type PlannerForecast,
+  type PlannerSettings,
 } from "../planner/dive-planner";
 import { ForecastScheduler } from "../planner/forecast-scheduler";
 import {
@@ -42,6 +43,13 @@ export interface GameControllerOptions {
   readonly onFrame: (frame: Readonly<GameFrame>) => void;
   readonly plannerClient?: PlannerWorkerClient;
   readonly initialState?: DiveState;
+  /**
+   * Gradient factors and ascent rate for the forecast. Configured on the
+   * setup screen (#158); without this the planner ran on
+   * DEFAULT_PLANNER_SETTINGS whatever the player chose, so the GF controls
+   * changed a stored number and nothing else.
+   */
+  readonly plannerSettings?: Readonly<PlannerSettings>;
   readonly onAuthoritativeState?: (state: DiveState) => void;
 }
 
@@ -50,6 +58,7 @@ export class GameController {
   readonly #onFrame: (frame: Readonly<GameFrame>) => void;
   readonly #plannerClient: PlannerWorkerClient;
   readonly #onAuthoritativeState: ((state: DiveState) => void) | null;
+  readonly #plannerSettings: Readonly<PlannerSettings>;
   readonly #forecastScheduler = new ForecastScheduler();
   readonly #pressed = new Set<ContinuousControl>();
   readonly #model: DiveModel;
@@ -73,6 +82,7 @@ export class GameController {
     this.#onFrame = options.onFrame;
     this.#onAuthoritativeState = options.onAuthoritativeState ?? null;
     this.#plannerClient = options.plannerClient ?? new PlannerWorkerClient();
+    this.#plannerSettings = options.plannerSettings ?? DEFAULT_PLANNER_SETTINGS;
     const initial = options.initialState ?? createWreckInitialState();
     this.#model = new DiveModel(initial);
     this.#diverDepthM = clamp(
@@ -80,6 +90,11 @@ export class GameController {
       MIN_DEPTH_M,
       MAX_DEPTH_M,
     );
+  }
+
+  /** What the forecast is actually requested with, as opposed to configured. */
+  get plannerSettings(): Readonly<PlannerSettings> {
+    return this.#plannerSettings;
   }
 
   get authoritativeState(): DiveState {
@@ -234,7 +249,7 @@ export class GameController {
 
     this.#plannerPending = true;
     void this.#plannerClient
-      .forecast(snapshot, DEFAULT_PLANNER_SETTINGS)
+      .forecast(snapshot, this.#plannerSettings)
       .then((forecast) => {
         if (!this.#disposed) {
           this.#planner = forecast;

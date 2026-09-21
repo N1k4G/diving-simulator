@@ -1,0 +1,124 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 158,
+  "slice": "PR 2 of 3: technical controls (helium, gradient factors, AMV, tank size, cylinders)",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npm run test:e2e",
+  "measuredCommit": "84131a5265f72bfec5cfb2f90766223b7b0a82d6",
+  "measuredTree": "a49f8acd3d0a63c776e30880dc135e45a4e58a42",
+  "workingTree": "clean before the run and still clean after it",
+  "provenanceNote": "Re-measured after the second review round rather than left at the first round's numbers. Stale evidence was itself a finding twice in WP-08. Only the commit updating this file follows the measured one.",
+  "recordedAt": "2026-09-21T16:41:00+00:00",
+  "supersedes": [
+    {
+      "measuredCommit": "a7a88a78622f164228c3e0ef4b3dfd95fc502707",
+      "why": "Predates review round 1."
+    },
+    {
+      "measuredCommit": "23ff053ef97a9b5053b83fd21394a7d36fd33fd2",
+      "why": "Predates review round 2, which found the resume defect; unit and e2e counts no longer describe the tree under review."
+    }
+  ],
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.8.2",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass — 17 files, no source maps, 4 markers absent",
+    "unit": "188 passed (150 on main, +38)",
+    "parity": "35 passed (34 on main, +1)",
+    "e2e": "61 passed in 1.0 min (48 on main, +13)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "10 scenes ok"
+  },
+  "reviewRound2": {
+    "finding": "[P2] Custom gradient factors were lost when a running dive was resumed. SaveGame carried the DiveState alone, so a reload took the dive from the save and the factors from the setup screen it had just drawn. A dive begun on 50/80 continued on 35/75: same tissues, same gas, same clock, different ceiling, NDL and TTS.",
+    "selfInflicted": "This PR created it. While the factors were decorative the resume was consistently wrong for everyone; making them drive the forecast left resume as the one path that ignores them.",
+    "notTheDocumentedGap": "The out-of-scope case recorded in slice 1 is a configured but unstarted setup losing to a restored save. This is a dive already under way, and the legacy client persists gfLow and gfHigh for exactly that reason.",
+    "fix": {
+      "format": "SAVE_GAME_VERSION 1 -> 2, adding gradientFactors.",
+      "scope": "Only the two factors. ascentRateMpm is a constant the diver cannot set; safetyStopNeeded and ndlDroppedBelowFiveMinutes are advisory flags recomputed each forecast. Persisting the whole PlannerSettings would pin a constant against future tuning and restore a stale flag. The legacy client saves exactly these two.",
+      "v1Migration": "Migrated, not rejected. A v1 save predates the factors reaching the planner at all, so its dive really did run on 35/75 and filling those in is exact rather than a guess. LocalSaveRepository rewrites it at v2 on load, so the next load needs no migration.",
+      "v2Validation": "A v2 save whose pair is missing, malformed, out of 30-100 or crossed is rejected as invalid-data. Falling back there would re-plan the dive on the defaults without saying so, which is the failure the field exists to stop.",
+      "singleBuilder": "plannerSettingsWithGradientFactors is what both the setup path and the resume path go through. Two places assembling the same settings is what let them drift.",
+      "constantMoved": "GRADIENT_FACTOR_PERCENT_RANGE moved next to PlannerSettings, because the codec bounds a restored pair with the same 30-100. tec-controls re-exports it under its existing name."
+    },
+    "secondInstanceFound": {
+      "what": "migrateLegacyV2 was dropping the legacy save's own gfLow and gfHigh.",
+      "evidence": "src/game-loop.js writes them (`gfLow: gfLow, gfHigh: gfHigh`) and restoreDiveState reads them back; docs/baseline/feature-inventory.json lists both in the save's gas field group.",
+      "now": "Carried across losslessly. A legacy save written before the fields existed, or with an unusable pair, still falls back to the defaults rather than failing the whole migration — losing a dive is worse than resuming it on 35/75."
+    },
+    "testWasPassingBecauseOfTheBug": {
+      "test": "'the configured gradient factors reach the dive'",
+      "what": "It cleared localStorage after taking its reading, while the dive was still running and still saving every few seconds, so the clear was undone and the second half resumed the first dive instead of starting fresh.",
+      "whyItWentUnnoticed": "A resumed dive took its factors from the setup screen anyway, so the configuration still applied. Honouring the save exposed it: both readings came back identical and the test failed.",
+      "fix": "The clear happens on the setup screen, before the dive starts."
+    },
+    "unexplainedFailure": {
+      "test": "'the setup keyboard bindings stop applying once the dive starts'",
+      "what": "Failed once in a full-suite run during this round. The message was not captured and the artefacts were overwritten by later runs, so the cause is unknown.",
+      "notReproduced": "6 isolated runs and 4 subsequent full-suite runs all pass.",
+      "hypothesisNotConfirmed": "The read races the first animation frame by construction — createWreckShell renders the metric as a placeholder and onFrame replaces it, while the canvas attaches earlier during mount. A 12-iteration probe on an idle machine never observed the placeholder, so this is not demonstrated to be the cause.",
+      "changeMade": "The sample now waits for a digit. Offered as correct in its own right, not as the fix for that failure: reading an asynchronously populated value without waiting is wrong regardless, and every other HUD assertion in the file already waits.",
+      "openForTheReviewer": "If it recurs in CI the cause is still open."
+    },
+    "counterCheck": {
+      "method": "One fix reverted at a time, with the build result read before each run — the procedure adopted after round 1's counter-check ran against a stale dist/.",
+      "resumeReadsSave": "Reverting the resume path to toPlannerSettings(setup) makes 'a resumed dive is planned on its save' fail. Build confirmed to succeed first.",
+      "saveWritesFactors": "Making saveState write the defaults instead of the dive's factors makes 'the save carries the factors' fail. Build confirmed to succeed first."
+    }
+  },
+  "reviewRound1": {
+    "gradientFactorsWereDecorative": "The screen stored gfLow/gfHigh and GameController asked the planner with DEFAULT_PLANNER_SETTINGS regardless. GameControllerOptions now takes plannerSettings and every forecast() call receives it.",
+    "tabWasHijacked": "handleTecKey took Tab and called preventDefault(). Removed; cycleTankTab lost its last caller and was deleted with its test, following #128. Legacy binds Tab to cycling cylinders because a canvas has no focus order to protect; this screen has one.",
+    "newCylinderSize": "addTank inherited the selected tank's volume and the unit test asserted 15. gsAddTank calls createTank(0.21, 0, 200) and createTank reads the module-level tankVolume (12); gsAdjustTankVol writes t.volume and never tankVolume. NEW_TANK_VOLUME_L = 12.",
+    "focusKeyOfNotExtended": "setupTankAdd, setupTankRemove and setupTab added, so keyboard activation keeps focus across the re-render."
+  },
+  "boundsPortedFromTheOracle": {
+    "note": "The first slice invented two bounds and the tests codified them. Every value below cites the legacy function it was read from, and each has a test naming the same function.",
+    "helium": "src/state.js gsAdjustHe — 0 to 1 minus fO2; oxygen is never moved to make room",
+    "consumption": "src/state.js gsAdjustAMV with src/constants.js AMV_MIN 8, AMV_MAX 25",
+    "tankVolume": "src/state.js gsAdjustTankVol with TANK_VOL_MIN 6, TANK_VOL_MAX 24",
+    "newTankVolume": "src/state.js createTank reading src/constants.js tankVolume 12 — not the selected tank's size",
+    "gradientFactors": "src/state.js gsAdjustGFLow and gsAdjustGFHigh — clamp to 30/100, then the pair cannot cross: low yields to high, high yields to low",
+    "gradientFactorPersistence": "src/game-loop.js saveDiveState/restoreDiveState — gfLow and gfHigh are saved and restored with the dive",
+    "addTank": "src/state.js gsAddTank — air at 200 bar, refused past MAX_TANKS 6",
+    "removeTank": "src/state.js gsRemoveTank — refused below one; tab and active index pulled back inside",
+    "tankTab": "src/game-loop.js selectedTankTab setter — clamps, does not wrap",
+    "modeSwitch": "src/state.js switchMode — saveModeSettings then restoreModeSettings; entering CCR normalises to a single cylinder per its BUG-CCR-9 comment"
+  },
+  "notPortedAndWhy": {
+    "tankSwitchDepth": "gsAddTank and gsAdjustO2 maintain a per-tank switchDepth from calculateMOD. The pure model's TankState has no such field, so it is not reproduced. It belongs with the in-dive gas switching in #163.",
+    "tabCyclesCylinders": "Deliberate, see reviewRound1.tabWasHijacked."
+  },
+  "bugFoundByATest": {
+    "what": "The screen displayed tanks[activeTankIndex] while editing tanks[selectedTabIndex].",
+    "consequence": "A player selecting cylinder 2 would edit it while reading cylinder 1.",
+    "foundBy": "the e2e test 'cylinders can be added, selected and removed', before review"
+  },
+  "keyboardSemantics": "The tec shortcuts apply only when focus is outside a radio group, because a focused radio owns the arrow keys. Tab, Enter and Space on buttons and links are likewise left to the browser. The e2e tests blur before exercising a shortcut and say why.",
+  "parityToGoldenTrace": {
+    "file": "tests/parity/dive-setup.test.ts",
+    "added": "A two-cylinder tec setup reproduces the trimix scenario's pair [[0.21, 0.35, 200], [0.5, 0, 200]] from scripts/baseline-scenarios.cjs, gasRemaining included.",
+    "ccr": "still asserted NOT covered"
+  },
+  "sliceBoundaries": {
+    "ccr": "Still offered and disabled with a stated reason; PR 3.",
+    "saveRestore": "A restored save still wins over the configuration for the dive state. That is unchanged and flagged in code. The planner settings are no longer part of it: those now come from the save too, which is the point of this round.",
+    "sites": "Unchanged: all four offered, composition root holds RENDERABLE_SITES."
+  },
+  "releaseLabel": {
+    "chosen": "release:none",
+    "reasoning": "Deployed bytes change — deploy.yml runs `pages deploy src/` with no ignore file — but served behaviour does not: _redirects sends / to the legacy client and the migration client stays unreachable until the #170 cutover.",
+    "ownerCall": true,
+    "openQuestion": "Whether release:none or release:minor is the intended semantics while the migration client ships but is unreachable is still the owner's to settle; it applies to every WP-08 slice."
+  }
+}

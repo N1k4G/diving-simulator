@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import baselineFixture from "../fixtures/traces/baseline-v1.json";
 import {
+  adjustOxygenFraction,
   applyPreset,
   createDefaultSetup,
   selectMode,
   toInitialDiveOptions,
 } from "../../src/app/setup/dive-setup";
+import { addTank, selectTankTab } from "../../src/app/setup/tec-controls";
 
 // The setup screen configures a dive; the golden trace records what the legacy
 // client was configured with when it produced those checkpoints. If the two
@@ -82,6 +84,28 @@ describe("setup configuration parity with the golden trace", () => {
     expect(tank?.gas.nitrogenFraction).toBeCloseTo(fixtureTank.fN2, 10);
     expect(tank?.volumeL).toBe(fixtureTank.volume_l);
     expect(tank?.gasRemainingL).toBe(fixtureTank.gasRemaining_l);
+  });
+
+  it("a two-tank tec setup matches the trimix scenario's cylinder pair", () => {
+    // The trimix scenario is configured with [[0.21, 0.35, 200], [0.5, 0, 200]]
+    // in scripts/baseline-scenarios.cjs, so a two-tank tec setup has to
+    // reproduce both. This is what the multi-tank slice is for.
+    const expected = surfaceCheckpoint("trimix-45m-20min");
+    expect(expected.tanks).toHaveLength(2);
+
+    let setup = addTank(applyPreset(selectMode(createDefaultSetup(), "tec"), 4));
+    setup = selectTankTab(setup, 1);
+    // 50% deco gas: no preset carries it, so it is dialled in, which is what
+    // the legacy screen does with the arrow keys too.
+    setup = adjustOxygenFraction(setup, 0.5 - 0.21);
+
+    const tanks = toInitialDiveOptions(setup).tanks;
+    expect(tanks).toHaveLength(2);
+    expect(tanks?.[0]?.gas.oxygenFraction).toBeCloseTo(expected.tanks[0]!.fO2, 10);
+    expect(tanks?.[0]?.gas.heliumFraction).toBeCloseTo(expected.tanks[0]!.fHe, 10);
+    expect(tanks?.[1]?.gas.oxygenFraction).toBeCloseTo(expected.tanks[1]!.fO2, 10);
+    expect(tanks?.[1]?.gas.heliumFraction).toBeCloseTo(expected.tanks[1]!.fHe, 10);
+    expect(tanks?.[1]?.gasRemainingL).toBe(expected.tanks[1]!.gasRemaining_l);
   });
 
   it("does not yet configure the CCR scenario, and says so", () => {

@@ -4,6 +4,8 @@ import { DiveModel } from "../../src/core/dive-model";
 import { metres, seconds } from "../../src/core/units";
 import {
   CURRENT_SAVE_GAME_VERSION,
+  DEFAULT_SAVED_GRADIENT_FACTORS,
+  FIRST_SAVE_GAME_VERSION,
   SAVE_GAME_SCHEMA,
 } from "../../src/save/save-game";
 import {
@@ -17,7 +19,11 @@ describe("LocalSaveRepository", () => {
   it("restores a save after the repository and model process are recreated", () => {
     const store = new MemoryStore();
     const originalState = createInitialDiveState(42);
-    new LocalSaveRepository(store).save(originalState, 1_735_689_600_000);
+    new LocalSaveRepository(store).save(
+      originalState,
+      { lowPercent: 45, highPercent: 85 },
+      1_735_689_600_000,
+    );
 
     const recreatedRepository = new LocalSaveRepository(store);
     const result = recreatedRepository.load();
@@ -70,6 +76,49 @@ describe("LocalSaveRepository", () => {
     expect(result.migrated).toBe(true);
     expect(store.getItem(LEGACY_SAVE_STORAGE_KEY)).toBeNull();
     expect(store.getItem(SAVE_GAME_STORAGE_KEY)).not.toBeNull();
+  });
+
+  it("carries the gradient factors back out of the store", () => {
+    // #158 review: the repository persisted the DiveState alone, so a resumed
+    // dive was re-planned on whatever the setup screen happened to show.
+    const store = new MemoryStore();
+    new LocalSaveRepository(store).save(createInitialDiveState(7), {
+      lowPercent: 50,
+      highPercent: 80,
+    });
+
+    const result = new LocalSaveRepository(store).load();
+
+    expect(result.status).toBe("loaded");
+    if (result.status !== "loaded") return;
+    expect(result.saveGame.gradientFactors).toEqual({
+      lowPercent: 50,
+      highPercent: 80,
+    });
+  });
+
+  it("upgrades a v1 save in place instead of discarding the dive", () => {
+    const v1 = JSON.stringify({
+      schema: SAVE_GAME_SCHEMA,
+      version: FIRST_SAVE_GAME_VERSION,
+      savedAtEpochMs: 1_735_689_600_000,
+      state: createInitialDiveState(7),
+    });
+    const store = new MemoryStore([[SAVE_GAME_STORAGE_KEY, v1]]);
+
+    const result = new LocalSaveRepository(store).load();
+
+    expect(result.status).toBe("loaded");
+    if (result.status !== "loaded") return;
+    expect(result.migrated).toBe(true);
+    expect(result.saveGame.gradientFactors).toEqual(
+      DEFAULT_SAVED_GRADIENT_FACTORS,
+    );
+    // Rewritten at the current version, so the next load needs no migration.
+    const rewritten = JSON.parse(
+      store.getItem(SAVE_GAME_STORAGE_KEY) ?? "null",
+    ) as { version: number };
+    expect(rewritten.version).toBe(CURRENT_SAVE_GAME_VERSION);
   });
 });
 
@@ -154,7 +203,10 @@ describe("LocalSaveRepository under a refusing store", () => {
   it("reports a refused save instead of throwing", () => {
     const repository = new LocalSaveRepository(new RefusingStore());
 
-    const result = repository.save(createInitialDiveState(1));
+    const result = repository.save(createInitialDiveState(1), {
+      lowPercent: 45,
+      highPercent: 85,
+    });
 
     expect(result.persisted).toBe(false);
     expect(result.saveGame.version).toBe(CURRENT_SAVE_GAME_VERSION);
