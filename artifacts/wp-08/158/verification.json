@@ -1,0 +1,50 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 158,
+  "slice": "PR 1 of 3: mode + site + rec parameters + presets",
+  "command": "npm run typecheck && npm run lint && npm run test:unit && npm run test:parity && npm run sites:check && npm run build && npm run dist:check && npm run test:e2e",
+  "measuredCommit": "b6ea356081c86bba6325b98b779fc098488b0bd5",
+  "measuredTree": "f86e8396db811ed91dd030d494458f89d0208272",
+  "recordedAt": "2026-09-21T12:01:50+00:00",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.8.2",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "unit": "148 passed (132 before, +16)",
+    "parity": "34 passed (31 before, +3)",
+    "sitesCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass",
+    "e2e": "45 passed (37 before, +8)"
+  },
+  "localeCoverage": {
+    "keys": 70,
+    "enMissing": 0,
+    "deMissing": 0,
+    "note": "Every new string is in both locales; German translation quality is a WP-10 review, not this slice."
+  },
+  "sliceBoundaries": {
+    "ccr": "Offered but disabled with a stated reason: toInitialDiveOptions cannot express a setpoint or diluent yet (#158 PR 3).",
+    "tec": "Enabled. All eight presets plus the rec parameters; helium, gradient factors, AMV, tank size and multiple tanks are PR 2.",
+    "sites": "All four offered by the screen. The composition root holds RENDERABLE_SITES and shows a stated panel otherwise; it grows with #164-#167.",
+    "saveRestore": "A restored save still wins over the configuration. Existing resume behaviour, unchanged, flagged in code."
+  },
+  "parityToGoldenTrace": {
+    "file": "tests/parity/dive-setup.test.ts",
+    "rec": "default setup == air-18m-30min surface tank (fO2 0.21, 12 L, 200 bar, 2400 L remaining, AMV 15)",
+    "tec": "tec + preset index 4 == trimix-45m-20min surface tank[0] (Tx 21/35)",
+    "ccr": "asserted NOT covered, so the two above are not read as full coverage"
+  },
+  "acceptance": {
+    "configuredDiveStarts": "e2e: setup screen stands between gate and dive; dive starts with the configured gas",
+    "keyboardAndPointerEquivalent": "e2e compares both paths' oxygen, pressure and in-dive gas readouts, and asserts the configured values (34%, 210 bar) rather than only that the two agree",
+    "noLiteralStrings": "lint passes with the existing no-literal-strings rule",
+    "touchTargets": "e2e at 390x844: every setup control >= 44px with >= 8px separation (#121 template)"
+  }
+}
