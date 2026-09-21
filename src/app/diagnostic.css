@@ -289,6 +289,50 @@ summary:focus-visible {
   background: #a92828;
 }
 
+/* The cylinder row (#163). Left-hand side, opposite the D-pad, so a thumb
+   reaching for a gas switch is not on top of the ascent keys. 2.75rem is
+   44px at the default root size, which is the touch-target floor the #121
+   test enforces; the 8px gap is the spacing half of the same rule. */
+.wreck-tanks {
+  position: absolute;
+  z-index: 4;
+  bottom: 1.25rem;
+  left: 1.25rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.wreck-tanks[hidden] {
+  display: none;
+}
+
+.wreck-tank {
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid rgb(168 232 242 / 55%);
+  border-radius: 0.6rem;
+  color: #e9fbff;
+  background: rgb(3 24 32 / 82%);
+  cursor: pointer;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+  touch-action: none;
+}
+
+.wreck-tank[aria-pressed="true"] {
+  color: #061923;
+  background: #83d9e7;
+}
+
+/* An empty cylinder is not a broken control, so it stays readable rather
+   than fading to the usual disabled grey — the diver still needs to see it
+   is there and why it cannot be chosen. */
+.wreck-tank:disabled {
+  border-style: dashed;
+  color: rgb(233 251 255 / 55%);
+  cursor: not-allowed;
+}
+
 .wreck-controls {
   position: absolute;
   z-index: 4;

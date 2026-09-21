@@ -71,6 +71,7 @@ export class GameController {
   #simulationAccumulatorS = 0;
   #facing: -1 | 1 = 1;
   #torchOn = true;
+  #requestedTankIndex: number | null = null;
   #lastFrameMs: number | null = null;
   #animationFrame = 0;
   #resizeObserver: ResizeObserver | null = null;
@@ -142,6 +143,29 @@ export class GameController {
     this.#publishFrame();
   }
 
+  /**
+   * Asks the model to breathe a different cylinder (#163).
+   *
+   * Queued rather than applied: the model only moves in whole-second steps,
+   * and `advance` with elapsedS 0 returns the state untouched. So the switch
+   * lands on the next simulation step, up to a second later. Legacy applies
+   * it within the frame, but that difference is the fixed-step design of this
+   * client rather than anything specific to gas switching — every intent it
+   * has, including the ascent keys, is sampled the same way.
+   *
+   * The request survives until a step consumes it, so a press between steps
+   * is not lost. Whether the switch is *allowed* is the model's call, not
+   * this one: src/core/dive-model.ts applyGasSwitchIntent refuses the active
+   * cylinder, an empty one and any switch at all in CCR, matching legacy's
+   * `i !== activeTank && tanks[i].gasRemaining > 0` (game-loop.js, TASK-019).
+   */
+  requestTankSwitch(index: number): void {
+    if (!Number.isInteger(index) || index < 0) {
+      return;
+    }
+    this.#requestedTankIndex = index;
+  }
+
   destroy(): void {
     if (this.#disposed) {
       return;
@@ -174,6 +198,11 @@ export class GameController {
         seconds(1),
         this.#createInputIntent(),
       );
+      // Consumed here, not in createInputIntent: the loop can run several
+      // steps in one frame, and a request that stayed set would switch again
+      // on each of them. Clearing only after a step also means a press
+      // between steps waits rather than being dropped.
+      this.#requestedTankIndex = null;
       this.#onAuthoritativeState?.(this.#model.snapshot);
       this.#simulationAccumulatorS -= 1;
       this.#requestForecast();
@@ -214,6 +243,7 @@ export class GameController {
       descend: this.#pressed.has("descend"),
       finLeft: this.#pressed.has("left"),
       finRight: this.#pressed.has("right"),
+      switchGasIndex: this.#requestedTankIndex,
     };
   }
 
@@ -276,6 +306,15 @@ export class GameController {
     if (event.key.toLowerCase() === "t" && !event.repeat) {
       event.preventDefault();
       this.toggleTorch();
+      return;
+    }
+    // 1-6 pick a cylinder, as game-loop.js does during the dive. Held keys
+    // are ignored: a switch is a discrete act, and autorepeat would re-issue
+    // it every few milliseconds.
+    const tankIndex = tankIndexForKey(event.key);
+    if (tankIndex !== null && !event.repeat) {
+      event.preventDefault();
+      this.requestTankSwitch(tankIndex);
     }
   };
 
@@ -286,6 +325,18 @@ export class GameController {
       this.setControl(control, false);
     }
   };
+}
+
+/**
+ * The digit keys the legacy client binds to cylinders during a dive
+ * (game-loop.js, `for (var i = 0; i < tankCount; i++)` over String(i + 1)).
+ * MAX_TANKS is six, so seven and up are not cylinder keys at all.
+ */
+function tankIndexForKey(key: string): number | null {
+  if (!/^[1-6]$/.test(key)) {
+    return null;
+  }
+  return Number.parseInt(key, 10) - 1;
 }
 
 function controlForKey(key: string): ContinuousControl | null {
