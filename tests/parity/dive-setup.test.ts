@@ -9,6 +9,10 @@ import {
   toInitialDiveOptions,
 } from "../../src/app/setup/dive-setup";
 import { addTank, selectTankTab } from "../../src/app/setup/tec-controls";
+import {
+  adjustSetpoint,
+  applyDiluentPreset,
+} from "../../src/app/setup/ccr-controls";
 
 // The setup screen configures a dive; the golden trace records what the legacy
 // client was configured with when it produced those checkpoints. If the two
@@ -30,10 +34,21 @@ interface FixtureTank {
   gasRemaining_l: number;
 }
 
+interface FixtureCcr {
+  targetPO2_bar: number;
+  actualPO2_bar: number;
+  diluent: { fO2: number; fHe: number; fN2: number };
+  o2Pressure_bar: number;
+  diluentPressure_bar: number;
+  scrubberRemaining_min: number;
+  onBailout: boolean;
+}
+
 interface FixtureCheckpoint {
   checkpointId: string;
   configuration: { amv_lpm: number };
   tanks: FixtureTank[];
+  ccr?: FixtureCcr;
 }
 
 interface FixtureScenario {
@@ -108,12 +123,46 @@ describe("setup configuration parity with the golden trace", () => {
     expect(tanks?.[1]?.gasRemainingL).toBe(expected.tanks[1]!.gasRemaining_l);
   });
 
-  it("does not yet configure the CCR scenario, and says so", () => {
-    // CCR lands in the third slice of #158. Asserting the current limit keeps
-    // this file honest about what parity has actually been established: a
-    // reader should not infer CCR coverage from the two tests above.
-    const options = toInitialDiveOptions(createDefaultSetup());
-    expect(options.ccr).toBeNull();
-    expect(surfaceCheckpoint("ccr-30m-30min").tanks).toHaveLength(1);
+  it("a CCR setup matches the closed-circuit scenario's loop and cylinders", () => {
+    // scripts/baseline-scenarios.cjs configures ccr-30m-30min with setpoint
+    // 1.3 and a Tx 15/45 diluent, which is diluent preset index 2 — the key
+    // the legacy screen labels 3.
+    const expected = surfaceCheckpoint("ccr-30m-30min");
+    const fixture = expected.ccr;
+    if (!fixture) throw new Error("ccr scenario has no ccr block");
+
+    let setup = applyDiluentPreset(selectMode(createDefaultSetup(), "ccr"), 2);
+    setup = adjustSetpoint(setup, 1.3 - 0.7);
+
+    const state = toInitialDiveOptions(setup).ccr;
+    expect(state).not.toBeNull();
+
+    expect(state?.targetPo2Bar).toBe(fixture.targetPO2_bar);
+    expect(state?.diluent.oxygenFraction).toBeCloseTo(fixture.diluent.fO2, 10);
+    expect(state?.diluent.heliumFraction).toBeCloseTo(fixture.diluent.fHe, 10);
+    expect(state?.diluent.nitrogenFraction).toBeCloseTo(fixture.diluent.fN2, 10);
+    expect(state?.oxygenCylinderPressureBar).toBe(fixture.o2Pressure_bar);
+    expect(state?.diluentCylinderPressureBar).toBe(fixture.diluentPressure_bar);
+    expect(state?.scrubberRemainingS).toBe(fixture.scrubberRemaining_min * 60);
+    expect(state?.onBailout).toBe(fixture.onBailout);
+
+    // The scenario also keeps one open-circuit cylinder, as entering CCR does.
+    expect(toInitialDiveOptions(setup).tanks).toHaveLength(expected.tanks.length);
+  });
+
+  it("does not claim parity for the loop's starting PO2", () => {
+    // The fixture records actualPO2 1.3 because the scenario script forces it
+    // after configuring, to skip the equilibration. A dive started from the
+    // screen does not: src/game-loop.js sets
+    // `actualPO2 = targetSP < ambientPressure(0) ? targetSP : 0.21`, and 1.3
+    // is not below one bar, so the loop begins at 0.21 in both clients. The
+    // two numbers disagree for a reason, and asserting equality here would
+    // have meant "fixing" the model to match a test fixture.
+    const fixture = surfaceCheckpoint("ccr-30m-30min").ccr;
+    let setup = applyDiluentPreset(selectMode(createDefaultSetup(), "ccr"), 2);
+    setup = adjustSetpoint(setup, 1.3 - 0.7);
+
+    expect(fixture?.actualPO2_bar).toBe(1.3);
+    expect(toInitialDiveOptions(setup).ccr?.actualPo2Bar).toBe(0.21);
   });
 });

@@ -15,11 +15,13 @@ import {
   type PlannerSettings,
 } from "../../planner/dive-planner";
 import {
+  createCcrState,
   createGasMix,
   createTankState,
   type GasMix,
   type InitialDiveOptions,
 } from "../../core/dive-state";
+import { bars, litres } from "../../core/units";
 
 export const DIVE_MODES = ["rec", "tec", "ccr"] as const;
 export type DiveMode = (typeof DIVE_MODES)[number];
@@ -85,8 +87,28 @@ export interface SetupTank {
 }
 
 /**
+ * The closed-circuit configuration, mirroring the fields of src/state.js
+ * `ccrState` that its setup screen can actually change.
+ *
+ * The diluent cylinder's *pressure* is deliberately absent. Legacy exposes
+ * `ccrAdjustO2Pres` but has no diluent equivalent on the setup screen or
+ * anywhere else, so the diluent starts at the 200 bar of CCR_DEFAULTS and
+ * createCcrState's own default supplies it. Adding a control here would be
+ * inventing one.
+ */
+export interface CcrSetup {
+  readonly diluent: GasMix;
+  readonly setpointBar: number;
+  readonly diluentCylinderVolumeL: number;
+  readonly oxygenCylinderVolumeL: number;
+  readonly oxygenCylinderPressureBar: number;
+}
+
+/**
  * What the legacy client keeps per mode in `modeSettings` (src/state.js), so
  * switching away and back restores the configuration instead of losing it.
+ * Legacy stores `ccrState` in the same record, so the diluent and setpoint
+ * survive a trip through rec exactly as the tanks and gradient factors do.
  */
 export interface ModeSnapshot {
   readonly tanks: readonly SetupTank[];
@@ -95,6 +117,7 @@ export interface ModeSnapshot {
   readonly surfaceAirConsumptionLpm: number;
   readonly gradientFactorLow: number;
   readonly gradientFactorHigh: number;
+  readonly ccr: CcrSetup;
 }
 
 export interface DiveSetup {
@@ -108,6 +131,13 @@ export interface DiveSetup {
   readonly surfaceAirConsumptionLpm: number;
   readonly gradientFactorLow: number;
   readonly gradientFactorHigh: number;
+  /**
+   * Carried in every mode, not only CCR, so that switching away and back does
+   * not reset it — which is what src/state.js does by keeping `ccrState` in
+   * `modeSettings`. Only CCR reads it; toInitialDiveOptions ignores it
+   * otherwise.
+   */
+  readonly ccr: CcrSetup;
   /** Per-mode memory; see ModeSnapshot. Empty until a mode is left. */
   readonly savedModes: Readonly<Partial<Record<DiveMode, ModeSnapshot>>>;
 }
@@ -126,7 +156,25 @@ export function createDefaultSetup(): DiveSetup {
     surfaceAirConsumptionLpm: 15,
     gradientFactorLow: 35,
     gradientFactorHigh: 75,
+    ccr: createDefaultCcrSetup(),
     savedModes: Object.freeze({}),
+  });
+}
+
+/**
+ * src/state.js CCR_DEFAULTS: air diluent, 0.7 bar setpoint, a 3 L diluent
+ * cylinder and a 2 L oxygen cylinder at 200 bar.
+ */
+export function createDefaultCcrSetup(): CcrSetup {
+  return Object.freeze({
+    diluent: createGasMix(
+      AIR_PRESET.oxygenFraction,
+      AIR_PRESET.heliumFraction,
+    ),
+    setpointBar: 0.7,
+    diluentCylinderVolumeL: 3,
+    oxygenCylinderVolumeL: 2,
+    oxygenCylinderPressureBar: 200,
   });
 }
 
@@ -142,8 +190,20 @@ function createSetupTank(
   });
 }
 
-/** How many presets the given mode offers. Rec hides the trimix half. */
+/**
+ * How many open-circuit presets the given mode offers. Rec hides the trimix
+ * half, and CCR offers none at all: src/ui.js sets
+ * `presetsDiv.style.display = isCcr ? 'none' : ''` and updateGasSetup returns
+ * before the preset loop, so the legacy screen has no way to apply one.
+ *
+ * Zero rather than eight matters because applyPreset gates on this number.
+ * While it returned eight, a CCR setup would accept an open-circuit preset
+ * and change the cylinder the screen deliberately hides. The screen's own
+ * CCR branch meant no player could reach it, but the pure model is the
+ * contract and it said the wrong thing (review of PR #179).
+ */
 export function presetCountFor(mode: DiveMode): number {
+  if (mode === "ccr") return 0;
   return mode === "rec" ? REC_PRESET_COUNT : GAS_PRESETS.length;
 }
 
@@ -193,6 +253,7 @@ function snapshotOf(setup: DiveSetup): ModeSnapshot {
     surfaceAirConsumptionLpm: setup.surfaceAirConsumptionLpm,
     gradientFactorLow: setup.gradientFactorLow,
     gradientFactorHigh: setup.gradientFactorHigh,
+    ccr: setup.ccr,
   });
 }
 
@@ -292,7 +353,20 @@ export function toPlannerSettings(setup: DiveSetup): Readonly<PlannerSettings> {
   );
 }
 
-/** The configuration a DiveState is built from. */
+/**
+ * The configuration a DiveState is built from.
+ *
+ * The open-circuit cylinder survives into CCR because the dive still carries
+ * one — legacy keeps `tanks[0]` when it normalises to a single cylinder on
+ * entering CCR, and its setup screen simply stops offering the controls for
+ * it. Bailout breathes the diluent, not this tank, but the model wants a tank
+ * either way.
+ *
+ * Everything createCcrState is not given comes from its own defaults, which
+ * are CCR_DEFAULTS: the diluent's 200 bar, the 6 L loop, 180 minutes of
+ * scrubber, the 0.8 L/min metabolic rate. Those have no control in the legacy
+ * setup screen, so they get none here.
+ */
 export function toInitialDiveOptions(setup: DiveSetup): InitialDiveOptions {
   return {
     tanks: setup.tanks.map((tank) =>
@@ -300,8 +374,21 @@ export function toInitialDiveOptions(setup: DiveSetup): InitialDiveOptions {
     ),
     activeTankIndex: setup.activeTankIndex,
     surfaceAirConsumptionLpm: setup.surfaceAirConsumptionLpm,
-    ccr: null,
+    ccr: setup.mode === "ccr" ? toCcrState(setup.ccr) : null,
   };
+}
+
+function toCcrState(ccr: CcrSetup) {
+  // actualPo2Bar is left to createCcrState, which starts the loop at the
+  // setpoint below 1 bar and at 0.21 otherwise. That is src/game-loop.js's
+  // `targetSP < ambientPressure(0) ? targetSP : 0.21`, and ambientPressure(0)
+  // is 1.0 — the same rule, already implemented, so it is not repeated here.
+  return createCcrState(ccr.diluent, {
+    targetPo2Bar: bars(ccr.setpointBar),
+    diluentCylinderVolumeL: litres(ccr.diluentCylinderVolumeL),
+    oxygenCylinderVolumeL: litres(ccr.oxygenCylinderVolumeL),
+    oxygenCylinderPressureBar: bars(ccr.oxygenCylinderPressureBar),
+  });
 }
 
 function replaceTank(

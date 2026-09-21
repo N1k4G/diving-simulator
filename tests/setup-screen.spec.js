@@ -1,5 +1,10 @@
 const { expect, test } = require('@playwright/test');
-const { acceptSafetyGate, startDive, startDiveAndWaitForCanvas } = require('./helpers/start-dive.cjs');
+const {
+  acceptSafetyGate,
+  startDiveAndWaitForCanvas,
+  startDiveByKeyboard,
+  startDiveByTouch,
+} = require('./helpers/start-dive.cjs');
 
 // hasTouch, unlike the other specs' mobile blocks: one test below taps
 // rather than clicks, and Playwright refuses tap without it.
@@ -87,16 +92,20 @@ test('rec hides the trimix presets and tec shows them', async ({ page }) => {
   await expect(page.locator('[data-setup-preset=tx21-35]')).toBeVisible();
 });
 
-test('CCR is offered but says why it cannot be chosen yet', async ({ page }) => {
-  // The mode exists in the model and in the legacy client, so hiding it would
-  // misrepresent the product. Disabled with a stated reason is the honest
-  // intermediate state while #158's third slice is outstanding.
+test('all three modes can be chosen, and none still says it cannot be', async ({ page }) => {
+  // CCR was offered and disabled with a stated reason through the first two
+  // slices rather than hidden. Now that it is configurable, the reason has to
+  // go with it — a stale "not configurable yet" beside a working control is
+  // the same defect as a keyboard hint naming a key that was removed.
   await page.goto('/dist/');
   await acceptSafetyGate(page);
 
-  const ccr = page.locator('[data-setup-group=mode] [data-setup-option=ccr]');
-  await expect(ccr).toBeDisabled();
-  await expect(page.locator('[data-setup-group=mode]')).toContainText(
+  for (const mode of ['rec', 'tec', 'ccr']) {
+    await expect(
+      page.locator(`[data-setup-group=mode] [data-setup-option=${mode}]`),
+    ).toBeEnabled();
+  }
+  await expect(page.locator('[data-setup-group=mode]')).not.toContainText(
     'Not configurable yet',
   );
 });
@@ -124,27 +133,36 @@ test('the setup keyboard bindings stop applying once the dive starts', async ({ 
   await page.goto('/dist/');
   await startDiveAndWaitForCanvas(page);
 
-  const gas = page.locator('.wreck-hud [data-hud-metric=gas] dd');
-  // Wait for a real reading before sampling. createWreckShell renders this
-  // metric as the unavailable placeholder and onFrame replaces it on the
-  // first animation frame, while the canvas is attached earlier, during
-  // mount — so `waitFor()` on the canvas can return with the HUD still
-  // showing the placeholder, and the comparison below would then be between
-  // a placeholder and a pressure rather than between two pressures.
+  // This compared the gas readout before and after and expected it unchanged,
+  // which is not a property the readout has: the cylinder drains while the
+  // dive runs, and the HUD prints one decimal of bar. That is what the
+  // unexplained failure in the previous slice was — the reading ticked down
+  // between the two samples. The hypothesis recorded then, a race against the
+  // first painted frame, was the wrong one.
   //
-  // The window is narrow: a 12-iteration probe on an idle machine never
-  // caught it. This test did fail once in a full-suite run during #158 and
-  // the message was not captured, so that failure stays unexplained — the
-  // wait is not offered as its fix. It is here because sampling a value that
-  // is populated asynchronously without waiting for it is wrong regardless,
-  // and every other HUD assertion in this file already waits.
+  // So assert what the leak would actually do. PageUp adds 10 bar, which is
+  // the one thing draining cannot produce: the reading may only go down.
+  // Preset 3 changes the mix, which does not drain, so it is compared exactly
+  // through the save.
+  const gas = page.locator('.wreck-hud [data-hud-metric=gas] dd');
   await expect(gas).toHaveText(/\d/);
-  const before = await gas.textContent();
+  const reading = async () =>
+    Number.parseFloat((await gas.textContent()).replace(',', '.'));
+  const before = await reading();
+
   await page.keyboard.press('PageUp');
   await page.keyboard.press('3');
   await page.waitForTimeout(150);
 
-  expect(await gas.textContent()).toBe(before);
+  expect(await reading()).toBeLessThanOrEqual(before);
+
+  const saved = await page
+    .waitForFunction(() => {
+      const raw = window.localStorage.getItem('diving-simulator.save-game');
+      return raw === null ? null : JSON.parse(raw);
+    })
+    .then((handle) => handle.jsonValue());
+  expect(saved.state.tanks[0].gas.oxygenFraction).toBeCloseTo(0.21, 10);
 });
 
 test('mode and site can be chosen with the keyboard alone', async ({ page }) => {
@@ -405,7 +423,21 @@ test.describe('technical mode', () => {
     await page.locator('[data-start-dive]').click();
     await page.locator('[data-renderer=pixi] canvas').waitFor();
 
-    await expect(page.locator('.wreck-hud [data-hud-metric=gas] dd')).toContainText('210');
+    // Bounded, not exact. The dive is running by the time the HUD first
+    // paints, and the cylinder is already draining: this asserted
+    // toContainText('210') and met "209.9 bar" under load. The configured
+    // pressure is still what is being pinned — an unconfigured dive starts at
+    // 200 bar and reads about 199.9, nowhere near this window.
+    const gas = page.locator('.wreck-hud [data-hud-metric=gas] dd');
+    await expect(gas).toHaveText(/\d/);
+    const bar = Number.parseFloat((await gas.textContent()).replace(',', '.'));
+    expect(bar).toBeGreaterThan(209);
+    expect(bar).toBeLessThanOrEqual(210);
+
+    // The mix does not drain, so it is asserted exactly. Tx 18/45.
+    const saved = await persistedSave(page);
+    expect(saved.state.tanks[0].gas.oxygenFraction).toBeCloseTo(0.18, 10);
+    expect(saved.state.tanks[0].gas.heliumFraction).toBeCloseTo(0.45, 10);
   });
 
   // The save key, from src/save/save-repository.ts SAVE_GAME_STORAGE_KEY. The
@@ -490,48 +522,351 @@ test.describe('technical mode', () => {
   });
 });
 
+
+test.describe('closed-circuit mode', () => {
+  const toCcr = async (page) => {
+    await page.goto('/dist/');
+    await page.evaluate(() => window.localStorage.clear());
+    await acceptSafetyGate(page);
+    await page.locator('[data-setup-group=mode] [data-setup-option=ccr]').check();
+    await expect(page.locator('[data-setup-stepper=setpoint]')).toBeVisible();
+    // Same reason as the tec block: .check() leaves focus on the radio, and a
+    // focused radio owns the arrow keys. Blur so the shortcut tests exercise
+    // the shortcuts rather than the group's traversal.
+    await page.locator('[data-setup-option=ccr]').evaluate((el) => el.blur());
+  };
+
+  test('CCR shows the loop controls and none of the open-circuit ones', async ({ page }) => {
+    // src/ui.js hides the presets, oxygen, pressure, tabs, helium, AMV, tank
+    // size and gradient factors behind its isCcr switches. The dive still
+    // carries a cylinder; the screen simply stops offering it.
+    await toCcr(page);
+
+    for (const stepper of ['setpoint', 'diluent-volume', 'oxygen-volume', 'oxygen-pressure']) {
+      await expect(page.locator(`[data-setup-stepper=${stepper}]`)).toBeVisible();
+    }
+    await expect(page.locator('[data-setup-group=diluent]')).toBeVisible();
+
+    for (const stepper of ['oxygen', 'pressure', 'helium', 'volume', 'amv', 'gf-low', 'gf-high']) {
+      await expect(page.locator(`[data-setup-stepper=${stepper}]`)).toHaveCount(0);
+    }
+    await expect(page.locator('[data-setup-group=preset]')).toHaveCount(0);
+    await expect(page.locator('[data-setup-group=tanks]')).toHaveCount(0);
+  });
+
+  test('the CCR keyboard bindings match the legacy screen', async ({ page }) => {
+    // src/ui.js updateGasSetup: 1-5 diluent presets, [ and ] setpoint,
+    // comma and period the diluent cylinder.
+    await toCcr(page);
+
+    await page.keyboard.press('3');
+    await expect(page.locator('[data-setup-diluent=tx15-45]')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    await page.keyboard.press(']');
+    await page.keyboard.press(']');
+    await expect(page.locator('[data-setup-value=setpoint]')).toContainText('0.9');
+    await page.keyboard.press('[');
+    await expect(page.locator('[data-setup-value=setpoint]')).toContainText('0.8');
+
+    await page.keyboard.press('.');
+    await expect(page.locator('[data-setup-value=diluent-volume]')).toContainText('4');
+    await page.keyboard.press(',');
+    await page.keyboard.press(',');
+    await expect(page.locator('[data-setup-value=diluent-volume]')).toContainText('2');
+  });
+
+  test('the digits pick a diluent, not an open-circuit gas', async ({ page }) => {
+    // Index 2 is EAN32 on the open-circuit list and Tx 15/45 as a diluent.
+    // Sharing one list would have put a 32% nitrox mix in the loop.
+    await toCcr(page);
+    await page.keyboard.press('3');
+
+    await expect(page.locator('[data-setup-diluent=tx15-45]')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    // 6-8 exist open-circuit and not here, so they must do nothing at all.
+    await page.keyboard.press('6');
+    await expect(page.locator('[data-setup-diluent=tx15-45]')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
+  test('the open-circuit keys do not edit the cylinder CCR hides', async ({ page }) => {
+    // ArrowRight and PageUp would otherwise change an oxygen fraction and a
+    // pressure the player cannot see. Legacy returns out of updateGasSetup
+    // before reaching them.
+    await toCcr(page);
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('PageUp');
+
+    // Read through the started dive, not by switching back to rec. Entering a
+    // mode restores that mode's saved snapshot, so a trip to rec hands back
+    // the cylinder as rec last left it and hides the edit either way — the
+    // first version of this test did exactly that and passed with the fix
+    // reverted. The dive carries the cylinder CCR was holding.
+    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+    const saved = await page
+      .waitForFunction(() => {
+        const raw = window.localStorage.getItem('diving-simulator.save-game');
+        return raw === null ? null : JSON.parse(raw);
+      })
+      .then((handle) => handle.jsonValue());
+
+    const tank = saved.state.tanks[0];
+    expect(tank.gas.oxygenFraction).toBeCloseTo(0.21, 10);
+    // 12 L at 200 bar. A PageUp that got through would make it 2520.
+    expect(tank.gasRemainingL).toBe(2400);
+  });
+
+  test('a CCR dive starts on the configured loop', async ({ page }) => {
+    await toCcr(page);
+    await page.keyboard.press('3');
+    for (let i = 0; i < 6; i += 1) await page.keyboard.press(']');
+    await expect(page.locator('[data-setup-value=setpoint]')).toContainText('1.3');
+
+    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+
+    const saved = await page
+      .waitForFunction(() => {
+        const raw = window.localStorage.getItem('diving-simulator.save-game');
+        return raw === null ? null : JSON.parse(raw);
+      })
+      .then((handle) => handle.jsonValue());
+
+    // The save is the only place the configured loop is observable from
+    // outside: the HUD has no CCR row yet, and that belongs with the in-dive
+    // controls rather than here.
+    expect(saved.state.ccr).not.toBeNull();
+    expect(saved.state.ccr.targetPo2Bar).toBe(1.3);
+    expect(saved.state.ccr.diluent.oxygenFraction).toBeCloseTo(0.15, 10);
+    expect(saved.state.ccr.diluent.heliumFraction).toBeCloseTo(0.45, 10);
+  });
+
+  test('keyboard and pointer configure the same loop', async ({ page }) => {
+    // #158's acceptance: both paths reach the dive with an identical model
+    // configuration. The two helpers below deliberately produce the same end
+    // state by different means, so drift between them fails here rather than
+    // quietly testing two different dives.
+    const loopAfter = async (configure) => {
+      await toCcr(page);
+      await configure(page);
+      await page.locator('[data-start-dive]').click();
+      await page.locator('[data-renderer=pixi] canvas').waitFor();
+      const saved = await page
+        .waitForFunction(() => {
+          const raw = window.localStorage.getItem('diving-simulator.save-game');
+          return raw === null ? null : JSON.parse(raw);
+        })
+        .then((handle) => handle.jsonValue());
+      return saved.state.ccr;
+    };
+
+    const byKeyboard = await loopAfter(async (p) => {
+      await p.keyboard.press('3');
+      for (let i = 0; i < 3; i += 1) await p.keyboard.press(']');
+      await p.keyboard.press('.');
+    });
+    const byPointer = await loopAfter(async (p) => {
+      await p.locator('[data-setup-diluent=tx15-45]').click();
+      for (let i = 0; i < 3; i += 1) {
+        await p.locator('[data-setup-stepper=setpoint] [data-setup-step=increase]').click();
+      }
+      await p
+        .locator('[data-setup-stepper=diluent-volume] [data-setup-step=increase]')
+        .click();
+    });
+
+    expect(byPointer).toEqual(byKeyboard);
+    // And the values are the configured ones, not merely equal: two broken
+    // paths agreeing on the defaults would satisfy the line above.
+    expect(byKeyboard.targetPo2Bar).toBe(1);
+    expect(byKeyboard.diluentCylinderVolumeL).toBe(4);
+    expect(byKeyboard.diluent.heliumFraction).toBeCloseTo(0.45, 10);
+  });
+
+  test('the keyboard hint names the keys CCR actually has', async ({ page }) => {
+    // The base hint promises 1-8 gas presets, arrow-key oxygen and Page
+    // Up/Down pressure, and CCR shows none of those. A hint is invisible to
+    // every test that only presses the right keys, which is how the tec hint
+    // went on naming Tab for a whole slice after Tab was removed.
+    await toCcr(page);
+    const hints = page.locator('.setup-hint');
+
+    await expect(hints).toHaveCount(1);
+    await expect(hints).toContainText('1-5 diluent');
+    await expect(hints).not.toContainText('1-8');
+    await expect(hints).not.toContainText('oxygen');
+  });
+
+  test('mode cycling with M reaches CCR', async ({ page }) => {
+    // src/ui.js cycles rec, tec, ccr with M in every mode. The list was two
+    // long while CCR was disabled, so M could never arrive here.
+    await page.goto('/dist/');
+    await acceptSafetyGate(page);
+    await page.locator('[data-setup-option=rec]').evaluate((el) => el.blur());
+
+    await page.keyboard.press('m');
+    await expect(page.locator('[data-setup-option=tec]')).toBeChecked();
+    await page.keyboard.press('m');
+    await expect(page.locator('[data-setup-option=ccr]')).toBeChecked();
+    await page.keyboard.press('m');
+    await expect(page.locator('[data-setup-option=rec]')).toBeChecked();
+  });
+
+  test('the configured loop survives a trip through another mode', async ({ page }) => {
+    // src/state.js keeps ccrState per mode in modeSettings, so leaving CCR
+    // and returning restores the loop rather than resetting it.
+    await toCcr(page);
+    await page.keyboard.press('4');
+    await page.keyboard.press(']');
+    await expect(page.locator('[data-setup-value=setpoint]')).toContainText('0.8');
+
+    await page.locator('[data-setup-group=mode] [data-setup-option=tec]').check();
+    await expect(page.locator('[data-setup-stepper=helium]')).toBeVisible();
+    await page.locator('[data-setup-group=mode] [data-setup-option=ccr]').check();
+
+    await expect(page.locator('[data-setup-value=setpoint]')).toContainText('0.8');
+    await expect(page.locator('[data-setup-diluent=tx10-70]')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
+  test('a diluent button keeps focus across the re-render it triggers', async ({ page }) => {
+    // The class PR #177 fixed for the steppers and PR #178 for the tank
+    // buttons; focusKeyOf has to learn each new control or keyboard
+    // activation drops focus to <body> after one press.
+    await toCcr(page);
+    const button = page.locator('[data-setup-diluent=tx21-35]');
+    await button.focus();
+    await page.keyboard.press('Enter');
+
+    await expect(button).toHaveAttribute('aria-pressed', 'true');
+    await expect(button).toBeFocused();
+  });
+});
+
 test.describe('mobile viewport', () => {
   test.use(MOBILE_VIEWPORT);
 
-  test('every setup control meets the 44px touch target with 8px spacing', async ({ page }) => {
-    // The template is the #121 test in result-screen.spec.js, which caught the
-    // legacy setup screen shipping 38-41px controls.
-    await page.goto('/dist/');
-    await acceptSafetyGate(page);
-
-    const boxes = [];
-    for (const handle of await page
-      .locator('.setup-screen button, .setup-screen label.setup-choice')
-      .all()) {
-      const box = await handle.boundingBox();
-      if (box) boxes.push(box);
-    }
-    expect(boxes.length).toBeGreaterThan(8);
-
-    for (const box of boxes) {
-      expect(Math.round(box.width), 'control width').toBeGreaterThanOrEqual(44);
-      expect(Math.round(box.height), 'control height').toBeGreaterThanOrEqual(44);
-    }
-
-    for (let i = 0; i < boxes.length; i += 1) {
-      for (let j = i + 1; j < boxes.length; j += 1) {
-        const a = boxes[i];
-        const b = boxes[j];
-        const gapX = Math.max(a.x - (b.x + b.width), b.x - (a.x + a.width));
-        const gapY = Math.max(a.y - (b.y + b.height), b.y - (a.y + a.height));
-        // Non-overlapping in at least one axis by 8px, or overlapping in both
-        // (which only happens for a label and the control nested inside it).
-        const separated = gapX >= 8 || gapY >= 8 || (gapX < 0 && gapY < 0);
-        expect(separated, `controls ${i} and ${j} are too close`).toBe(true);
+  // Measured in every mode, not only the one the screen opens on. Each mode
+  // renders a different set of controls — tec adds the tabs and four
+  // steppers, CCR replaces the lot with the diluent buttons and its own four
+  // — so measuring rec alone left two thirds of the surface unchecked, which
+  // is how tec's controls went in unmeasured in the previous slice.
+  for (const mode of ['rec', 'tec', 'ccr']) {
+    test(`every ${mode} control meets the 44px touch target with 8px spacing`, async ({ page }) => {
+      // The template is the #121 test in result-screen.spec.js, which caught
+      // the legacy setup screen shipping 38-41px controls.
+      await page.goto('/dist/');
+      await acceptSafetyGate(page);
+      if (mode !== 'rec') {
+        await page
+          .locator(`[data-setup-group=mode] [data-setup-option=${mode}]`)
+          .check();
       }
-    }
-  });
+
+      const boxes = [];
+      for (const handle of await page
+        .locator('.setup-screen button, .setup-screen label.setup-choice')
+        .all()) {
+        const box = await handle.boundingBox();
+        if (box) boxes.push(box);
+      }
+      expect(boxes.length).toBeGreaterThan(8);
+
+      for (const box of boxes) {
+        expect(Math.round(box.width), 'control width').toBeGreaterThanOrEqual(44);
+        expect(Math.round(box.height), 'control height').toBeGreaterThanOrEqual(44);
+      }
+
+      for (let i = 0; i < boxes.length; i += 1) {
+        for (let j = i + 1; j < boxes.length; j += 1) {
+          const a = boxes[i];
+          const b = boxes[j];
+          const gapX = Math.max(a.x - (b.x + b.width), b.x - (a.x + a.width));
+          const gapY = Math.max(a.y - (b.y + b.height), b.y - (a.y + a.height));
+          // Non-overlapping in at least one axis by 8px, or overlapping in
+          // both (which only happens for a label and the control nested
+          // inside it).
+          const separated = gapX >= 8 || gapY >= 8 || (gapX < 0 && gapY < 0);
+          expect(separated, `controls ${i} and ${j} are too close`).toBe(true);
+        }
+      }
+    });
+  }
 
   test('the dive can be started by touch alone', async ({ page }) => {
+    // Every step taps, including the gate and the start button. This used to
+    // call startDive(), which clicks both, so the only touch in the "touch
+    // alone" test was a single preset (caught in review of PR #179).
     await page.goto('/dist/');
-    await startDive(page, async (target) => {
+    await startDiveByTouch(page, async (target) => {
       await target.locator('[data-setup-preset=ean32]').tap();
     });
     await expect(page.locator('[data-renderer=pixi] canvas')).toBeVisible();
+  });
+
+  test('a closed-circuit dive reaches the same model by touch alone as by keyboard alone', async ({ page }) => {
+    // #158's acceptance, taken literally: both modalities reach the dive and
+    // produce an identical configuration. Every step below is a tap on one
+    // side and a key on the other — safety gate, mode, diluent, setpoint,
+    // cylinder, start — so a control reachable only with a mouse fails here.
+    const loopFrom = async (drive) => {
+      await page.goto('/dist/');
+      await page.evaluate(() => window.localStorage.clear());
+      await drive(page);
+      await page.locator('[data-renderer=pixi] canvas').waitFor();
+      const saved = await page
+        .waitForFunction(() => {
+          const raw = window.localStorage.getItem('diving-simulator.save-game');
+          return raw === null ? null : JSON.parse(raw);
+        })
+        .then((handle) => handle.jsonValue());
+      return saved.state.ccr;
+    };
+
+    const byTouch = await loopFrom(async (p) => {
+      await startDiveByTouch(p, async (target) => {
+        await target
+          .locator('[data-setup-group=mode] [data-setup-option=ccr]')
+          .tap();
+        await target.locator('[data-setup-stepper=setpoint]').waitFor();
+        await target.locator('[data-setup-diluent=tx15-45]').tap();
+        for (let i = 0; i < 3; i += 1) {
+          await target
+            .locator('[data-setup-stepper=setpoint] [data-setup-step=increase]')
+            .tap();
+        }
+        await target
+          .locator('[data-setup-stepper=diluent-volume] [data-setup-step=increase]')
+          .tap();
+      });
+    });
+
+    const byKeyboard = await loopFrom(async (p) => {
+      await startDiveByKeyboard(p, async (target) => {
+        await target.keyboard.press('m'); // rec -> tec
+        await target.keyboard.press('m'); // tec -> ccr
+        await target.locator('[data-setup-stepper=setpoint]').waitFor();
+        await target.keyboard.press('3');
+        for (let i = 0; i < 3; i += 1) await target.keyboard.press(']');
+        await target.keyboard.press('.');
+      });
+    });
+
+    expect(byTouch).toEqual(byKeyboard);
+    // And the configured values, not merely equal ones: two broken paths
+    // agreeing on the defaults would satisfy the line above.
+    expect(byTouch.targetPo2Bar).toBe(1);
+    expect(byTouch.diluentCylinderVolumeL).toBe(4);
+    expect(byTouch.diluent.heliumFraction).toBeCloseTo(0.45, 10);
   });
 });
