@@ -5,7 +5,7 @@
   "measuredCommit": "af9fdd4e77e4cf11e75e3297d33cfa5caf1e2f6a",
   "finalCommit": "fe357978ce2d3098bef6b1107ffc2bd303f66e39",
   "measuredTree": "9f5dab843c355bc7f7765dbde9ed9f6651d59e2f",
-  "provenanceNote": "The acceptance runs executed against af9fdd4, which was then amended to carry its real commit message. An amend that changes only the message leaves the tree untouched, so the measurement describes the shipped fix commit fe35797 exactly: both af9fdd4 and fe35797 have tree 9f5dab843c355bc7f7765dbde9ed9f6651d59e2f. The tree hash is recorded because it identifies content, which is what was measured, where a commit SHA also encodes history. Verify with: git rev-parse af9fdd4^{tree} fe35797^{tree}",
+  "provenanceNote": "The acceptance runs executed against a commit that was later amended to carry its real message. An amend that changes only the message leaves the tree untouched, so the measurement describes the shipped fix commit exactly. Verify with `git rev-parse <fix commit>^{tree}` and compare against `measuredTree` below \u2014 the pre-amend SHA is unreachable on the remote, so quoting it as a check would have been unverifiable for anyone but the author.",
   "recordedAt": "2026-09-21T10:35:45+00:00",
   "environment": {
     "os": "Windows 11",
@@ -37,7 +37,12 @@
     "where": "tests/wreck-slice.spec.js replayInputTrace",
     "mechanism": "keyboard.down -> wait for 2 requestAnimationFrame callbacks via page.evaluate -> keyboard.up",
     "whyNotAFixedDelay": "A millisecond count is a guess a loaded machine can beat; a frame having elapsed is the actual precondition.",
-    "clientsChanged": "none"
+    "clientsChanged": "none",
+    "releaseAlsoWaitsForAFrame": {
+      "measured": "Two consecutive presses toggle twice with or without it: the CDP round trips between keyboard.up and the next keyboard.down already leave room for a frame.",
+      "whyKeptAnyway": "The edge detector needs tDown to read false during a frame before it can see the next rising edge. Without the wait that holds only by incidental timing, which is the same class of accident that produced this bug. The wait makes it an explicit guarantee for whoever extends the trace.",
+      "notAFixFor": "any observed failure"
+    }
   },
   "acceptanceRuns": {
     "command": "npm run test:e2e",

@@ -346,9 +346,22 @@ async function replayInputTrace(page, trace) {
       // loaded machine can still beat, while a frame having elapsed is the
       // actual precondition. rAF is the browser's, not either client's, so the
       // trace stays client-agnostic.
+      //
+      // The release waits for a frame too. Measured, so as not to oversell it:
+      // two consecutive presses toggle twice either way, because the CDP round
+      // trips between keyboard.up and the next keyboard.down already leave
+      // room for a frame. So this is not fixing an observed defect.
+      //
+      // It is here because the edge detector also needs tDown to read false
+      // during a frame before it can see the NEXT rising edge, and without
+      // this line that only holds by incidental timing — which is exactly the
+      // kind of accident that produced the bug above. Making the release an
+      // explicit guarantee costs one frame and removes the trap from whoever
+      // extends this trace later.
       await page.keyboard.down(step.key);
       await waitForAnimationFrames(page, 2);
       await page.keyboard.up(step.key);
+      await waitForAnimationFrames(page, 2);
     }
   }
   await page.waitForTimeout(150);
