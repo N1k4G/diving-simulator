@@ -11,7 +11,7 @@
 // AMV and gradient-factor defaults) and src/state.js (diveMode, modeSettings).
 // The values here are those values; where this file diverges it says so.
 import {
-  DEFAULT_PLANNER_SETTINGS,
+  plannerSettingsWithGradientFactors,
   type PlannerSettings,
 } from "../../planner/dive-planner";
 import {
@@ -281,13 +281,15 @@ export function adjustTankPressure(
  * dive state: DiveState has no GF field. Without this the screen changed a
  * stored number and the planner kept using DEFAULT_PLANNER_SETTINGS (#158
  * review), so the control was decorative.
+ *
+ * This is the fresh-dive path only. A resumed dive takes its factors from the
+ * save, through the same builder — see wreck-app.ts.
  */
-export function toPlannerSettings(setup: DiveSetup): PlannerSettings {
-  return {
-    ...DEFAULT_PLANNER_SETTINGS,
-    gfLowPercent: setup.gradientFactorLow,
-    gfHighPercent: setup.gradientFactorHigh,
-  };
+export function toPlannerSettings(setup: DiveSetup): Readonly<PlannerSettings> {
+  return plannerSettingsWithGradientFactors(
+    setup.gradientFactorLow,
+    setup.gradientFactorHigh,
+  );
 }
 
 /** The configuration a DiveState is built from. */

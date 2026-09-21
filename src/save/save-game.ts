@@ -7,26 +7,59 @@ import {
   type GasMix,
   type TankState,
 } from "../core/dive-state";
+import {
+  DEFAULT_GF_HIGH_PERCENT,
+  DEFAULT_GF_LOW_PERCENT,
+  GRADIENT_FACTOR_PERCENT_RANGE,
+} from "../planner/dive-planner";
 
 export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
-// These two counters are unrelated despite the misleading ordering. The new
-// format starts its own sequence at 1; LEGACY_SAVE_STATE_VERSION is the last
-// version the pre-migration client wrote under its own scheme, so a 2 here is
-// older than a 1 above, not newer.
-export const CURRENT_SAVE_GAME_VERSION = 1;
+// These counters are unrelated despite the overlapping numbers.
+// CURRENT_SAVE_GAME_VERSION is the new format's own sequence;
+// LEGACY_SAVE_STATE_VERSION is the last version the pre-migration client wrote
+// under its own scheme, so the 2 below is not the 2 above.
+//
+// v2 adds gradientFactors. A v1 save is migrated rather than rejected: it was
+// written before the configured factors reached the planner at all, so its
+// dive really was planned on the defaults and filling them in is exact, not a
+// guess.
+export const CURRENT_SAVE_GAME_VERSION = 2;
+export const FIRST_SAVE_GAME_VERSION = 1;
 export const LEGACY_SAVE_STATE_VERSION = 2;
 
 const TISSUE_COMPARTMENT_COUNT = 16;
 const MAX_RANDOM_STATE = 0xffff_ffff;
+
+/**
+ * The decompression configuration a dive was started with.
+ *
+ * Only the two gradient factors, not the whole PlannerSettings. The other
+ * fields there are not the diver's to set: ascentRateMpm is a constant, and
+ * safetyStopNeeded and ndlDroppedBelowFiveMinutes are advisory flags derived
+ * each forecast. Persisting them would pin a constant against future tuning
+ * and restore a stale flag. The legacy client saves exactly these two as well
+ * (src/game-loop.js, `gfLow: gfLow, gfHigh: gfHigh`).
+ */
+export interface SavedGradientFactors {
+  readonly lowPercent: number;
+  readonly highPercent: number;
+}
 
 export interface SaveGame {
   readonly schema: typeof SAVE_GAME_SCHEMA;
   readonly version: typeof CURRENT_SAVE_GAME_VERSION;
   readonly savedAtEpochMs: number;
   readonly state: DiveState;
+  /**
+   * Without this a dive begun on 50/80 resumed on 35/75: the state came back
+   * from the save while the factors came from the setup screen the reload had
+   * just rendered. Tissues, gas and time continued; ceiling, NDL and TTS
+   * jumped (#158 review).
+   */
+  readonly gradientFactors: SavedGradientFactors;
 }
 
-export type SaveGameMigration = "legacy-v2" | null;
+export type SaveGameMigration = "legacy-v2" | "save-game-v1" | null;
 
 export type SaveGameDecodeResult =
   | {
@@ -45,6 +78,7 @@ export type SaveGameDecodeResult =
 
 export function createSaveGame(
   state: DiveState,
+  gradientFactors: SavedGradientFactors,
   savedAtEpochMs = Date.now(),
 ): SaveGame {
   if (!isPositiveFinite(savedAtEpochMs)) {
@@ -55,14 +89,30 @@ export function createSaveGame(
   if (!isDiveState(frozenState)) {
     throw new TypeError("cannot serialize an invalid DiveState");
   }
+  if (!isSavedGradientFactors(gradientFactors)) {
+    throw new RangeError(
+      "gradient factors must be within 30-100 with low no greater than high",
+    );
+  }
 
   return Object.freeze({
     schema: SAVE_GAME_SCHEMA,
     version: CURRENT_SAVE_GAME_VERSION,
     savedAtEpochMs,
     state: frozenState,
+    gradientFactors: Object.freeze({
+      lowPercent: gradientFactors.lowPercent,
+      highPercent: gradientFactors.highPercent,
+    }),
   });
 }
+
+/** The pair a v1 save is migrated with — see CURRENT_SAVE_GAME_VERSION. */
+export const DEFAULT_SAVED_GRADIENT_FACTORS: SavedGradientFactors =
+  Object.freeze({
+    lowPercent: DEFAULT_GF_LOW_PERCENT,
+    highPercent: DEFAULT_GF_HIGH_PERCENT,
+  });
 
 export function encodeSaveGame(saveGame: SaveGame): string {
   return JSON.stringify(saveGame);
@@ -85,10 +135,9 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
   }
 
   if (candidate.schema === SAVE_GAME_SCHEMA) {
-    if (
-      !Number.isInteger(candidate.version) ||
-      candidate.version !== CURRENT_SAVE_GAME_VERSION
-    ) {
+    const isCurrent = candidate.version === CURRENT_SAVE_GAME_VERSION;
+    const isFirst = candidate.version === FIRST_SAVE_GAME_VERSION;
+    if (!Number.isInteger(candidate.version) || (!isCurrent && !isFirst)) {
       return { ok: false, reason: "unsupported-version" };
     }
     if (
@@ -97,11 +146,25 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     ) {
       return { ok: false, reason: "invalid-data" };
     }
+    // A v1 payload has no gradientFactors and is filled with the defaults; a
+    // v2 payload must carry a valid pair rather than fall back to them, or a
+    // corrupted field would silently re-plan the dive on 35/75 — the very
+    // failure this version exists to stop.
+    if (isCurrent && !isSavedGradientFactors(candidate.gradientFactors)) {
+      return { ok: false, reason: "invalid-data" };
+    }
+    const gradientFactors = isCurrent
+      ? (candidate.gradientFactors as SavedGradientFactors)
+      : DEFAULT_SAVED_GRADIENT_FACTORS;
 
     return {
       ok: true,
-      saveGame: createSaveGame(candidate.state, candidate.savedAtEpochMs),
-      migratedFrom: null,
+      saveGame: createSaveGame(
+        candidate.state,
+        gradientFactors,
+        candidate.savedAtEpochMs,
+      ),
+      migratedFrom: isCurrent ? null : "save-game-v1",
     };
   }
 
@@ -185,11 +248,48 @@ function migrateLegacyV2(candidate: Record<string, unknown>): SaveGame | null {
     events: [],
   };
 
+  // The legacy save carries the pair too (src/game-loop.js writes `gfLow` and
+  // `gfHigh`, restoreDiveState reads them back), so this migration is lossless
+  // rather than a default. Saves written before the field existed, or with a
+  // pair outside the bounds, fall back to the defaults instead of failing the
+  // whole migration: losing a dive is worse than resuming it on 35/75.
+  const gradientFactors = readLegacyGradientFactors(candidate);
+
   try {
-    return createSaveGame(state, candidate.savedAt);
+    return createSaveGame(state, gradientFactors, candidate.savedAt);
   } catch {
     return null;
   }
+}
+
+function readLegacyGradientFactors(
+  candidate: Record<string, unknown>,
+): SavedGradientFactors {
+  const pair = { lowPercent: candidate.gfLow, highPercent: candidate.gfHigh };
+  return isSavedGradientFactors(pair) ? pair : DEFAULT_SAVED_GRADIENT_FACTORS;
+}
+
+function isSavedGradientFactors(
+  candidate: unknown,
+): candidate is SavedGradientFactors {
+  if (!isRecord(candidate)) {
+    return false;
+  }
+  const { lowPercent, highPercent } = candidate;
+  return (
+    isWithinGradientFactorRange(lowPercent) &&
+    isWithinGradientFactorRange(highPercent) &&
+    (lowPercent as number) <= (highPercent as number)
+  );
+}
+
+function isWithinGradientFactorRange(candidate: unknown): boolean {
+  return (
+    typeof candidate === "number" &&
+    Number.isFinite(candidate) &&
+    candidate >= GRADIENT_FACTOR_PERCENT_RANGE.min &&
+    candidate <= GRADIENT_FACTOR_PERCENT_RANGE.max
+  );
 }
 
 function migrateLegacyTank(candidate: unknown): TankState | null {

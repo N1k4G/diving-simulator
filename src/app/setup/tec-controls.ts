@@ -9,6 +9,7 @@
 // Kept beside dive-setup.ts rather than inside it because that file is already
 // the rec surface; this is the part the rec screen never shows.
 import { createGasMix } from "../../core/dive-state";
+import { GRADIENT_FACTOR_PERCENT_RANGE } from "../../planner/dive-planner";
 import {
   AIR_PRESET,
   MAX_TANKS,
@@ -23,7 +24,10 @@ export const AMV_RANGE_LPM = Object.freeze({ min: 8, max: 25 });
 export const AMV_STEP_LPM = 1;
 export const TANK_VOLUME_RANGE_L = Object.freeze({ min: 6, max: 24 });
 export const TANK_VOLUME_STEP_L = 1;
-export const GRADIENT_FACTOR_RANGE = Object.freeze({ min: 30, max: 100 });
+// Re-exported under the name the controls use. The range itself moved next to
+// PlannerSettings once the save codec had to bound a restored pair with the
+// same numbers; two copies of a decompression bound is one too many.
+export const GRADIENT_FACTOR_RANGE = GRADIENT_FACTOR_PERCENT_RANGE;
 export const GRADIENT_FACTOR_STEP = 5;
 
 /**

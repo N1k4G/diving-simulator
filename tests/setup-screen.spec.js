@@ -125,6 +125,20 @@ test('the setup keyboard bindings stop applying once the dive starts', async ({ 
   await startDiveAndWaitForCanvas(page);
 
   const gas = page.locator('.wreck-hud [data-hud-metric=gas] dd');
+  // Wait for a real reading before sampling. createWreckShell renders this
+  // metric as the unavailable placeholder and onFrame replaces it on the
+  // first animation frame, while the canvas is attached earlier, during
+  // mount — so `waitFor()` on the canvas can return with the HUD still
+  // showing the placeholder, and the comparison below would then be between
+  // a placeholder and a pressure rather than between two pressures.
+  //
+  // The window is narrow: a 12-iteration probe on an idle machine never
+  // caught it. This test did fail once in a full-suite run during #158 and
+  // the message was not captured, so that failure stays unexplained — the
+  // wait is not offered as its fix. It is here because sampling a value that
+  // is populated asynchronously without waiting for it is wrong regardless,
+  // and every other HUD assertion in this file already waits.
+  await expect(gas).toHaveText(/\d/);
   const before = await gas.textContent();
   await page.keyboard.press('PageUp');
   await page.keyboard.press('3');
@@ -361,14 +375,20 @@ test.describe('technical mode', () => {
     // the readout they move.
     const ndlFor = async (presses, key) => {
       await toTec(page);
+      // Cleared here, on the setup screen, rather than after the reading. The
+      // previous dive went on saving for as long as it ran, so a clear issued
+      // while it was still on screen was undone within seconds and this call
+      // resumed that dive instead of starting a fresh one. It went unnoticed
+      // while a resumed dive took its factors from the setup screen anyway;
+      // once the resume started honouring the save (#158 review), the second
+      // reading came back as the first one's and this test caught it.
+      await page.evaluate(() => window.localStorage.clear());
       for (let i = 0; i < presses; i += 1) await page.keyboard.press(key);
       await page.locator('[data-start-dive]').click();
       await page.locator('[data-renderer=pixi] canvas').waitFor();
       const ndl = page.locator('.wreck-hud [data-hud-metric=ndl] dd');
       await expect(ndl).toHaveText(/\d/);
-      const text = await ndl.textContent();
-      await page.evaluate(() => window.localStorage.clear());
-      return text;
+      return ndl.textContent();
     };
 
     // G lowers GF low, F lowers GF high: the conservative end.
@@ -386,6 +406,87 @@ test.describe('technical mode', () => {
     await page.locator('[data-renderer=pixi] canvas').waitFor();
 
     await expect(page.locator('.wreck-hud [data-hud-metric=gas] dd')).toContainText('210');
+  });
+
+  // The save key, from src/save/save-repository.ts SAVE_GAME_STORAGE_KEY. The
+  // spec is CommonJS and the constant is TypeScript, so it is spelled out
+  // here; the two tests below fail loudly if it ever stops matching.
+  const SAVE_KEY = 'diving-simulator.save-game';
+
+  const persistedSave = (page) =>
+    page
+      .waitForFunction((key) => {
+        const raw = window.localStorage.getItem(key);
+        return raw === null ? null : JSON.parse(raw);
+      }, SAVE_KEY)
+      .then((handle) => handle.jsonValue());
+
+  test('the save carries the factors the dive is being planned with', async ({ page }) => {
+    // #158 review: SaveGame held the DiveState alone. Half of the resume fix —
+    // the factors have to be written down before anything can read them back.
+    await toTec(page);
+    await page.keyboard.press('g');
+    await page.keyboard.press('g');
+    await page.keyboard.press('g');
+    await page.keyboard.press('f');
+    await expect(page.locator('[data-setup-value=gf-low]')).toContainText('50');
+    await expect(page.locator('[data-setup-value=gf-high]')).toContainText('80');
+
+    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+
+    const saved = await persistedSave(page);
+    expect(saved.gradientFactors).toEqual({ lowPercent: 50, highPercent: 80 });
+  });
+
+  test('a resumed dive is planned on its save, not on the setup screen behind it', async ({ page }) => {
+    // The other half. Before the fix the state came from the save while the
+    // factors came from the setup screen the reload had just drawn, so a
+    // 50/80 dive continued on 35/75: same tissues, same gas, same clock,
+    // different ceiling.
+    //
+    // Both resumes below start from the identical saved dive and differ only
+    // in the persisted factors. Running the dive twice instead would have
+    // compared two different amounts of elapsed time, and the NDLs would
+    // differ whether or not the factors survived — a test that passes for the
+    // wrong reason.
+    await toTec(page);
+    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+    const save = await persistedSave(page);
+
+    const resumedNdl = async (lowPercent, highPercent) => {
+      // Leave the dive before writing. A running dive saves every few seconds,
+      // so injecting underneath one overwrites the factors again before
+      // anything reads them — which is how this test first passed the buggy
+      // build and the fixed one alike.
+      await page.goto('/dist/');
+      await page.evaluate(
+        ([key, value]) => {
+          window.localStorage.setItem(key, value);
+        },
+        [
+          SAVE_KEY,
+          JSON.stringify({
+            ...save,
+            gradientFactors: { lowPercent, highPercent },
+          }),
+        ],
+      );
+      // The save is read when the dive starts, not when the page loads, so
+      // this is the point the injected factors take effect. Started without
+      // touching a control, so the setup screen is offering the defaults: if
+      // they win, both calls return the same number.
+      await startDiveAndWaitForCanvas(page);
+      const ndl = page.locator('.wreck-hud [data-hud-metric=ndl] dd');
+      await expect(ndl).toHaveText(/\d/);
+      return ndl.textContent();
+    };
+
+    const conservative = await resumedNdl(30, 30);
+    const liberal = await resumedNdl(100, 100);
+
+    expect(conservative).not.toBe(liberal);
   });
 });
 

@@ -3,6 +3,10 @@ import { WebAudioService } from "../audio/audio-service";
 import type { DiveState } from "../core/dive-state";
 import { LocalSaveRepository } from "../save/save-repository";
 import {
+  plannerSettingsWithGradientFactors,
+  type PlannerSettings,
+} from "../planner/dive-planner";
+import {
   createSelectedRenderer,
   type WreckZone,
 } from "../render/renderer";
@@ -230,6 +234,17 @@ async function startWreckSimulation(
   const renderer = await createSelectedRenderer();
   const repository = new LocalSaveRepository(window.localStorage);
   const loadResult = repository.load();
+  const resumed = loadResult.status === "loaded" ? loadResult.saveGame : null;
+  // The dive and the factors it is planned with have to come from the same
+  // place. Taking the state from the save and the factors from the setup
+  // screen the reload had just drawn continued a 50/80 dive on 35/75: same
+  // tissues, same gas, same clock, different ceiling (#158 review).
+  const plannerSettings = resumed
+    ? plannerSettingsWithGradientFactors(
+        resumed.gradientFactors.lowPercent,
+        resumed.gradientFactors.highPercent,
+      )
+    : toPlannerSettings(setup);
   let nextSaveAtS = 5;
   const controller = new GameController({
     renderer,
@@ -238,15 +253,13 @@ async function startWreckSimulation(
     // fresh dive. The two meeting — configure a gas, get a resumed dive — is a
     // real gap, and it belongs with the resume UX (#67 class), not here.
     initialState:
-      loadResult.status === "loaded"
-        ? loadResult.saveGame.state
-        : createWreckInitialState(toInitialDiveOptions(setup)),
+      resumed?.state ?? createWreckInitialState(toInitialDiveOptions(setup)),
     // The configured gradient factors, or the planner keeps using its
     // defaults and the GF controls change a number nobody reads (#158 review).
-    plannerSettings: toPlannerSettings(setup),
+    plannerSettings,
     onAuthoritativeState: (state) => {
       if (state.elapsedTimeS >= nextSaveAtS) {
-        saveState(repository, state);
+        saveState(repository, state, plannerSettings);
         nextSaveAtS = state.elapsedTimeS + 5;
       }
     },
@@ -272,7 +285,7 @@ async function startWreckSimulation(
   document.addEventListener("visibilitychange", handleVisibility);
   window.addEventListener("pagehide", () => {
     document.removeEventListener("visibilitychange", handleVisibility);
-    saveState(repository, controller.authoritativeState);
+    saveState(repository, controller.authoritativeState, plannerSettings);
     controller.destroy();
     audio.destroy();
   }, {
@@ -291,9 +304,13 @@ async function startWreckSimulation(
 function saveState(
   repository: LocalSaveRepository,
   state: DiveState,
+  settings: Readonly<PlannerSettings>,
 ): void {
   try {
-    repository.save(state);
+    repository.save(state, {
+      lowPercent: settings.gfLowPercent,
+      highPercent: settings.gfHighPercent,
+    });
   } catch (error) {
     console.error(error);
   }

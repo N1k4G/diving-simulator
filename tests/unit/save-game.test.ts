@@ -10,6 +10,8 @@ import {
 import { bars, litres, seconds } from "../../src/core/units";
 import {
   CURRENT_SAVE_GAME_VERSION,
+  DEFAULT_SAVED_GRADIENT_FACTORS,
+  FIRST_SAVE_GAME_VERSION,
   SAVE_GAME_SCHEMA,
   createSaveGame,
   decodeSaveGame,
@@ -19,7 +21,7 @@ import {
 describe("SaveGame", () => {
   it("round-trips every authoritative DiveState field", () => {
     const state = representativeState();
-    const encoded = encodeSaveGame(createSaveGame(state, 1_735_689_600_000));
+    const encoded = encodeSaveGame(createSaveGame(state, CONSERVATIVE_FACTORS, 1_735_689_600_000));
     const decoded = decodeSaveGame(encoded);
 
     expect(decoded.ok).toBe(true);
@@ -100,6 +102,128 @@ describe("SaveGame", () => {
   });
 });
 
+// #158 review: the save carried the DiveState and nothing else, so a dive
+// begun on 50/80 came back planned on 35/75 — the state from the save, the
+// factors from the setup screen the reload had just drawn. Tissues, gas and
+// the clock continued while ceiling, NDL and TTS jumped.
+
+describe("SaveGame gradient factors", () => {
+  it("round-trips the pair the dive was planned with", () => {
+    const encoded = encodeSaveGame(
+      createSaveGame(representativeState(), CONSERVATIVE_FACTORS, 1_735_689_600_000),
+    );
+    const decoded = decodeSaveGame(encoded);
+
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) return;
+    expect(decoded.saveGame.gradientFactors).toEqual(CONSERVATIVE_FACTORS);
+    expect(Object.isFrozen(decoded.saveGame.gradientFactors)).toBe(true);
+    // Not the defaults, or the assertion above would pass on a save that
+    // dropped the field and fell back.
+    expect(decoded.saveGame.gradientFactors).not.toEqual(
+      DEFAULT_SAVED_GRADIENT_FACTORS,
+    );
+  });
+
+  it("migrates a v1 save by filling in the defaults it was planned on", () => {
+    // A v1 save predates the factors reaching the planner at all, so 35/75 is
+    // what that dive actually ran on. Filling them in is exact, not a guess.
+    const v1 = JSON.parse(
+      encodeSaveGame(
+        createSaveGame(representativeState(), CONSERVATIVE_FACTORS, 1_735_689_600_000),
+      ),
+    ) as Record<string, unknown>;
+    v1.version = FIRST_SAVE_GAME_VERSION;
+    delete v1.gradientFactors;
+
+    const result = decodeSaveGame(JSON.stringify(v1));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.migratedFrom).toBe("save-game-v1");
+    expect(result.saveGame.version).toBe(CURRENT_SAVE_GAME_VERSION);
+    expect(result.saveGame.gradientFactors).toEqual(DEFAULT_SAVED_GRADIENT_FACTORS);
+    // The dive itself survives the migration untouched.
+    expect(result.saveGame.state).toEqual(representativeState());
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["not an object", 50],
+    ["half a pair", { lowPercent: 50 }],
+    ["below the floor", { lowPercent: 20, highPercent: 80 }],
+    ["above the ceiling", { lowPercent: 50, highPercent: 140 }],
+    ["crossed", { lowPercent: 80, highPercent: 50 }],
+    ["not a number", { lowPercent: "50", highPercent: "80" }],
+    ["not finite", { lowPercent: 50, highPercent: Number.POSITIVE_INFINITY }],
+  ])(
+    "rejects a current save whose factors are %s rather than silently defaulting",
+    (_name, factors) => {
+      // Falling back here would re-plan the dive on 35/75 without saying so —
+      // the exact failure this field exists to stop, hidden behind a save that
+      // still loads.
+      const save = JSON.parse(
+        encodeSaveGame(
+          createSaveGame(representativeState(), CONSERVATIVE_FACTORS, 1_735_689_600_000),
+        ),
+      ) as Record<string, unknown>;
+      if (factors === undefined) {
+        delete save.gradientFactors;
+      } else {
+        save.gradientFactors = factors;
+      }
+
+      expect(decodeSaveGame(JSON.stringify(save))).toEqual({
+        ok: false,
+        reason: "invalid-data",
+      });
+    },
+  );
+
+  it("refuses to write a pair outside the bounds", () => {
+    expect(() =>
+      createSaveGame(representativeState(), { lowPercent: 80, highPercent: 50 }),
+    ).toThrow(RangeError);
+  });
+
+  it("carries the legacy client's own gfLow and gfHigh across", () => {
+    // src/game-loop.js writes `gfLow` and `gfHigh` into the browser save and
+    // restoreDiveState reads them back, so this migration is lossless. It used
+    // to drop them: the same defect as the resume path, one format earlier.
+    const legacy = { ...legacyV2Save(), gfLow: 45, gfHigh: 85 };
+
+    const result = decodeSaveGame(JSON.stringify(legacy));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.saveGame.gradientFactors).toEqual({
+      lowPercent: 45,
+      highPercent: 85,
+    });
+  });
+
+  it.each([
+    ["written before the field existed", {}],
+    ["out of bounds", { gfLow: 0, gfHigh: 200 }],
+  ])("resumes a legacy save whose factors are %s on the defaults", (_name, overrides) => {
+    // Losing a dive is worse than resuming it on 35/75, so an unusable legacy
+    // pair falls back rather than failing the whole migration. A current-format
+    // save gets the opposite treatment above, because it has no excuse.
+    const result = decodeSaveGame(
+      JSON.stringify({ ...legacyV2Save(), ...overrides }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.saveGame.gradientFactors).toEqual(DEFAULT_SAVED_GRADIENT_FACTORS);
+  });
+});
+
+const CONSERVATIVE_FACTORS = Object.freeze({
+  lowPercent: 50,
+  highPercent: 80,
+});
+
 function representativeState(): DiveState {
   const air = createTankState(createGasMix(0.21, 0), 12, 180);
   const nitrox = createTankState(createGasMix(0.5, 0), 7, 160);
@@ -149,7 +273,13 @@ interface MutableEncodedState {
 
 function corruptState(mutator: (state: MutableEncodedState) => void): string {
   const save = JSON.parse(
-    encodeSaveGame(createSaveGame(representativeState(), 1_735_689_600_000)),
+    encodeSaveGame(
+      createSaveGame(
+        representativeState(),
+        CONSERVATIVE_FACTORS,
+        1_735_689_600_000,
+      ),
+    ),
   ) as { state: MutableEncodedState };
   mutator(save.state);
   return JSON.stringify(save);

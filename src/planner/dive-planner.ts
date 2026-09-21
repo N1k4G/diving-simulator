@@ -67,6 +67,37 @@ export const DEFAULT_PLANNER_SETTINGS: Readonly<PlannerSettings> =
     ndlDroppedBelowFiveMinutes: false,
   });
 
+/**
+ * The bounds a gradient factor may take, from src/constants.js GF_LOW_MIN,
+ * GF_LOW_MAX, GF_HIGH_MIN and GF_HIGH_MAX — all 30 and 100.
+ *
+ * They live beside PlannerSettings rather than with the configuration
+ * controls because the save codec has to bound a restored pair too, and a
+ * decompression setting read back off disk is exactly the input worth
+ * checking: a gfLow of 0 plans a dive that no ceiling ever stops.
+ */
+export const GRADIENT_FACTOR_PERCENT_RANGE = Object.freeze({
+  min: 30,
+  max: 100,
+});
+
+/**
+ * Settings that differ from the defaults only in the gradient factors — the
+ * two values a diver configures and the two a save carries. One builder for
+ * the setup path and the resume path, so they cannot drift apart: that drift
+ * is precisely what let a resumed dive silently fall back to 35/75.
+ */
+export function plannerSettingsWithGradientFactors(
+  gfLowPercent: number,
+  gfHighPercent: number,
+): Readonly<PlannerSettings> {
+  return Object.freeze({
+    ...DEFAULT_PLANNER_SETTINGS,
+    gfLowPercent,
+    gfHighPercent,
+  });
+}
+
 export class DivePlanner {
   forecast(
     authoritativeState: DiveState,
