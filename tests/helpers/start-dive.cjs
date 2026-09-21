@@ -39,9 +39,56 @@ async function startDiveAndWaitForCanvas(page, configure) {
   await page.locator('[data-renderer=pixi] canvas').waitFor();
 }
 
+// The same flow driven by a single input modality, end to end.
+//
+// #158's acceptance is that keyboard-only and touch-only both reach the dive
+// with an identical model configuration. The helpers above cannot show that:
+// they click, so a "touch" test that tapped one preset still passed through
+// the gate and the start button with a mouse, and the claim was never tested
+// (caught in review of PR #179). These take the whole flow, so a control that
+// only responds to a mouse fails here rather than hiding behind a click.
+//
+// .tap() requires hasTouch on the browser context, so the touch pair only
+// works in a spec that sets it.
+
+async function acceptSafetyGateByTouch(page) {
+  await page.getByRole('button', { name: SAFETY_ACCEPT }).tap();
+  await page.locator('.setup-screen').waitFor();
+}
+
+async function startDiveByTouch(page, configure) {
+  await acceptSafetyGateByTouch(page);
+  if (configure) {
+    await configure(page);
+  }
+  await page.locator('[data-start-dive]').tap();
+}
+
+async function acceptSafetyGateByKeyboard(page) {
+  // Focus and Enter rather than a synthetic click: Enter on a focused button
+  // is what a keyboard user actually does, and the screen's document-level
+  // handler deliberately yields it to the button.
+  await page.getByRole('button', { name: SAFETY_ACCEPT }).focus();
+  await page.keyboard.press('Enter');
+  await page.locator('.setup-screen').waitFor();
+}
+
+async function startDiveByKeyboard(page, configure) {
+  await acceptSafetyGateByKeyboard(page);
+  if (configure) {
+    await configure(page);
+  }
+  await page.locator('[data-start-dive]').focus();
+  await page.keyboard.press('Enter');
+}
+
 module.exports = {
   SAFETY_ACCEPT,
   acceptSafetyGate,
+  acceptSafetyGateByKeyboard,
+  acceptSafetyGateByTouch,
   startDive,
   startDiveAndWaitForCanvas,
+  startDiveByKeyboard,
+  startDiveByTouch,
 };

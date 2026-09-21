@@ -21,7 +21,11 @@ import {
   applyDiluentPreset,
   matchingDiluentPreset,
 } from "./ccr-controls";
-import { adjustOxygenFraction, applyPreset } from "./dive-setup";
+import {
+  adjustOxygenFraction,
+  applyPreset,
+  presetCountFor,
+} from "./dive-setup";
 import { createGasMix } from "../../core/dive-state";
 
 const ccr = (): DiveSetup => selectMode(createDefaultSetup(), "ccr");
@@ -66,6 +70,20 @@ describe("the diluent, from ccrApplyDilPreset", () => {
     expect(applyDiluentPreset(setup, 5)).toBe(setup);
     expect(applyDiluentPreset(setup, -1)).toBe(setup);
     expect(applyDiluentPreset(setup, 1.5)).toBe(setup);
+  });
+
+  it("leaves the open-circuit presets unreachable in CCR", () => {
+    // src/ui.js hides presetsDiv in CCR and updateGasSetup returns before the
+    // preset loop, so the legacy screen cannot apply one. presetCountFor
+    // returned GAS_PRESETS.length here, which let applyPreset change the
+    // cylinder CCR deliberately hides — no player could reach it through the
+    // screen, but the pure model is the contract and it said otherwise.
+    expect(presetCountFor("ccr")).toBe(0);
+
+    const setup = ccr();
+    for (let index = 0; index < 8; index += 1) {
+      expect(applyPreset(setup, index)).toBe(setup);
+    }
   });
 
   it("is not the open-circuit preset list", () => {

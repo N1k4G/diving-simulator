@@ -190,8 +190,20 @@ function createSetupTank(
   });
 }
 
-/** How many presets the given mode offers. Rec hides the trimix half. */
+/**
+ * How many open-circuit presets the given mode offers. Rec hides the trimix
+ * half, and CCR offers none at all: src/ui.js sets
+ * `presetsDiv.style.display = isCcr ? 'none' : ''` and updateGasSetup returns
+ * before the preset loop, so the legacy screen has no way to apply one.
+ *
+ * Zero rather than eight matters because applyPreset gates on this number.
+ * While it returned eight, a CCR setup would accept an open-circuit preset
+ * and change the cylinder the screen deliberately hides. The screen's own
+ * CCR branch meant no player could reach it, but the pure model is the
+ * contract and it said the wrong thing (review of PR #179).
+ */
 export function presetCountFor(mode: DiveMode): number {
+  if (mode === "ccr") return 0;
   return mode === "rec" ? REC_PRESET_COUNT : GAS_PRESETS.length;
 }
 

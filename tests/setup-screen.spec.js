@@ -1,5 +1,10 @@
 const { expect, test } = require('@playwright/test');
-const { acceptSafetyGate, startDive, startDiveAndWaitForCanvas } = require('./helpers/start-dive.cjs');
+const {
+  acceptSafetyGate,
+  startDiveAndWaitForCanvas,
+  startDiveByKeyboard,
+  startDiveByTouch,
+} = require('./helpers/start-dive.cjs');
 
 // hasTouch, unlike the other specs' mobile blocks: one test below taps
 // rather than clicks, and Playwright refuses tap without it.
@@ -799,10 +804,69 @@ test.describe('mobile viewport', () => {
   }
 
   test('the dive can be started by touch alone', async ({ page }) => {
+    // Every step taps, including the gate and the start button. This used to
+    // call startDive(), which clicks both, so the only touch in the "touch
+    // alone" test was a single preset (caught in review of PR #179).
     await page.goto('/dist/');
-    await startDive(page, async (target) => {
+    await startDiveByTouch(page, async (target) => {
       await target.locator('[data-setup-preset=ean32]').tap();
     });
     await expect(page.locator('[data-renderer=pixi] canvas')).toBeVisible();
+  });
+
+  test('a closed-circuit dive reaches the same model by touch alone as by keyboard alone', async ({ page }) => {
+    // #158's acceptance, taken literally: both modalities reach the dive and
+    // produce an identical configuration. Every step below is a tap on one
+    // side and a key on the other — safety gate, mode, diluent, setpoint,
+    // cylinder, start — so a control reachable only with a mouse fails here.
+    const loopFrom = async (drive) => {
+      await page.goto('/dist/');
+      await page.evaluate(() => window.localStorage.clear());
+      await drive(page);
+      await page.locator('[data-renderer=pixi] canvas').waitFor();
+      const saved = await page
+        .waitForFunction(() => {
+          const raw = window.localStorage.getItem('diving-simulator.save-game');
+          return raw === null ? null : JSON.parse(raw);
+        })
+        .then((handle) => handle.jsonValue());
+      return saved.state.ccr;
+    };
+
+    const byTouch = await loopFrom(async (p) => {
+      await startDiveByTouch(p, async (target) => {
+        await target
+          .locator('[data-setup-group=mode] [data-setup-option=ccr]')
+          .tap();
+        await target.locator('[data-setup-stepper=setpoint]').waitFor();
+        await target.locator('[data-setup-diluent=tx15-45]').tap();
+        for (let i = 0; i < 3; i += 1) {
+          await target
+            .locator('[data-setup-stepper=setpoint] [data-setup-step=increase]')
+            .tap();
+        }
+        await target
+          .locator('[data-setup-stepper=diluent-volume] [data-setup-step=increase]')
+          .tap();
+      });
+    });
+
+    const byKeyboard = await loopFrom(async (p) => {
+      await startDiveByKeyboard(p, async (target) => {
+        await target.keyboard.press('m'); // rec -> tec
+        await target.keyboard.press('m'); // tec -> ccr
+        await target.locator('[data-setup-stepper=setpoint]').waitFor();
+        await target.keyboard.press('3');
+        for (let i = 0; i < 3; i += 1) await target.keyboard.press(']');
+        await target.keyboard.press('.');
+      });
+    });
+
+    expect(byTouch).toEqual(byKeyboard);
+    // And the configured values, not merely equal ones: two broken paths
+    // agreeing on the defaults would satisfy the line above.
+    expect(byTouch.targetPo2Bar).toBe(1);
+    expect(byTouch.diluentCylinderVolumeL).toBe(4);
+    expect(byTouch.diluent.heliumFraction).toBeCloseTo(0.45, 10);
   });
 });
