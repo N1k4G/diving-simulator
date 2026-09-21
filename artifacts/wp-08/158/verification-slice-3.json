@@ -102,8 +102,9 @@
   "issueCompletion": {
     "modes": "All three offered and configurable; M cycles through all three.",
     "sites": "Unchanged: all four offered, the composition root holds RENDERABLE_SITES.",
-    "acceptance": "Keyboard-only and pointer-only paths are asserted to reach an identical CCR configuration, mirroring the rec/tec test from slice 1.",
-    "remaining": "None for #158. In-dive CCR controls (setpoint during the dive, bailout) and a CCR HUD row are separate issues — the save is the only place the configured loop is observable from outside today, which is what the e2e tests read."
+    "acceptance": "Touch-only and keyboard-only paths are asserted to reach an identical CCR configuration. Every step is a tap on one side and a key on the other, safety gate and start button included, so the comparison is between two modalities rather than between a keyboard and a mouse. The rec/tec test from slice 1 remains a keyboard-versus-pointer comparison and is named as such.",
+    "remaining": "None for #158. In-dive CCR controls (setpoint during the dive, bailout) and a CCR HUD row are separate issues — the save is the only place the configured loop is observable from outside today, which is what the e2e tests read.",
+    "staleTextCorrected": "This field said 'keyboard-only and pointer-only' after the touch work landed, which described the version the review had just rejected. Caught in re-review of PR #179. Prose only: no src, tests or scripts changed, so measuredCommit stays 115c33f and the run above still describes this tree — `git diff 115c33f..HEAD -- src tests scripts` is empty, which is checkable rather than asserted."
   },
   "releaseLabel": {
     "chosen": "release:none",
