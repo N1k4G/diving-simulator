@@ -1,0 +1,59 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 158,
+  "slice": "PR 1 of 3: mode + site + rec parameters + presets",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npm run test:e2e",
+  "measuredCommit": "10043a10ea4124112b3b654b19bc66ab3a630cdc",
+  "measuredTree": "c2b6b3c50de4aaece6bf30c0a53bb572fc104b8c",
+  "recordedAt": "2026-09-21T13:26:01+00:00",
+  "provenanceNote": "Re-recorded against the head that carries the review fixes. The first version of this file named b6ea356 with 148 unit and 45 e2e \u2014 a commit that still contained both bugs review found (invented open-circuit bounds, and document-level shortcuts swallowing radio arrow keys). Evidence that validates a superseded commit asserts nothing about what merges, so it was regenerated rather than patched. Runs were made against a clean working tree at the commit above; only the commit adding this file follows it.",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.8.2",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass",
+    "unit": "150 passed",
+    "parity": "34 passed",
+    "e2e": "48 passed",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "10 scenes ok"
+  },
+  "reviewFixesCovered": {
+    "openCircuitBounds": "Ported from src/state.js: gsAdjustO2 gives 0 to 1-He, gsAdjustPressure gives 200-300 bar. The earlier 0.05 and 50 were invented, and the unit tests had codified them. Two tests now assert the bounds against the named legacy functions.",
+    "keyboardOwnership": "The document-level handler declines any key the focused control owns: arrows on a radio, Enter and Space on a button. Focus is also restored after the re-render, which it was not before.",
+    "regressionTestsVerifiedAgainstUnfixedCode": "With the guard disabled, 'mode and site can be chosen with the keyboard alone' and 'a focused control survives the re-render' both fail; with it, both pass."
+  },
+  "localeCoverage": {
+    "keys": 70,
+    "enMissing": 0,
+    "deMissing": 0
+  },
+  "releaseLabel": {
+    "chosen": "release:none",
+    "supersededReasoning": "'nothing under src/ changes' \u2014 false: deploy.yml runs `pages deploy src/` with no ignore file, and this PR changes seven files under src/app/.",
+    "actualReasoning": "Deployed bytes do change, but no served behaviour does. src/_redirects sends / to diving-simulator.html, so a visitor gets the legacy client; the migration client is uploaded and not reachable until the #170 cutover. Cutting a minor release for a feature no user can run would version the repository rather than the product.",
+    "ownerCall": true
+  },
+  "sliceBoundaries": {
+    "ccr": "Offered but disabled with a stated reason (#158 PR 3).",
+    "tec": "Enabled; helium, gradient factors, AMV, tank size and multiple tanks are PR 2.",
+    "sites": "All four offered; the composition root holds RENDERABLE_SITES and shows a stated panel otherwise.",
+    "saveRestore": "A restored save still wins over the configuration. Existing resume behaviour, unchanged."
+  },
+  "parityToGoldenTrace": {
+    "file": "tests/parity/dive-setup.test.ts",
+    "rec": "default setup == air-18m-30min surface tank",
+    "tec": "tec + preset 4 == trimix-45m-20min surface tank[0]",
+    "ccr": "asserted NOT covered"
+  }
+}

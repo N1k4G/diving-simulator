@@ -125,6 +125,10 @@ try {
     });
     const rendererStartedAtMs = await page.evaluate(() => performance.now());
     await page.locator('[data-accept-safety]').click();
+    // #158: the setup screen now stands between the gate and the dive.
+    // Performance captures take the default configuration, so this starts
+    // without configuring anything.
+    await page.locator('[data-start-dive]').click();
     await page.locator('[data-renderer=pixi] canvas').waitFor();
     const rendererReadyMs =
       (await page.evaluate(() => performance.now())) - rendererStartedAtMs;

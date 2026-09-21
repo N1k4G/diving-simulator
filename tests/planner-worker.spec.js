@@ -1,4 +1,5 @@
 const { expect, test } = require('@playwright/test');
+const { startDive } = require('./helpers/start-dive.cjs');
 
 // WHAT THIS GUARDS. The planner has to run off the main thread, from a
 // same-origin module URL. `worker-src 'self'` in src/_headers blocks a blob:
@@ -23,9 +24,7 @@ test('planner Worker runs off-main-thread from a same-origin module', async ({ p
   });
 
   await page.goto('/dist/');
-  await page
-    .getByRole('button', { name: 'I understand — start simulation' })
-    .click();
+  await startDive(page);
 
   const url = await workerUrl;
 
