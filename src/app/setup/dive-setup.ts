@@ -60,8 +60,17 @@ export const GAS_PRESETS: readonly GasPreset[] = Object.freeze([
 // same way (`presetsBasic` vs `presetsAdv1`/`presetsAdv2` in src/constants.js).
 export const REC_PRESET_COUNT = 4;
 
-export const OXYGEN_FRACTION_RANGE = Object.freeze({ min: 0.05, max: 1 });
-export const TANK_PRESSURE_RANGE_BAR = Object.freeze({ min: 50, max: 300 });
+// Ported from the legacy oracle, not chosen. src/state.js gsAdjustO2 clamps
+// with Math.max(0.0, ...) on the way down and Math.min(1.0 - fHe, ...) on the
+// way up, so oxygen runs 0 to whatever helium leaves; gsAdjustPressure clamps
+// with Math.max(200, Math.min(300, ...)), so an open-circuit cylinder is
+// 200-300 bar and nothing else. An earlier version of this file invented
+// 0.05 and 50 instead, which let the new client configure a 190 bar dive the
+// legacy screen cannot and refused the 0% mix it allows — and the unit tests
+// below had already written that deviation down as if it were the contract.
+// 50 bar belongs to the CCR cylinder configuration, which is a later slice.
+export const OXYGEN_FRACTION_RANGE = Object.freeze({ min: 0, max: 1 });
+export const TANK_PRESSURE_RANGE_BAR = Object.freeze({ min: 200, max: 300 });
 export const OXYGEN_FRACTION_STEP = 0.01;
 export const TANK_PRESSURE_STEP_BAR = 10;
 

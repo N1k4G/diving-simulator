@@ -133,6 +133,64 @@ test('the setup keyboard bindings stop applying once the dive starts', async ({ 
   expect(await gas.textContent()).toBe(before);
 });
 
+test('mode and site can be chosen with the keyboard alone', async ({ page }) => {
+  // The document-level O2 shortcuts used to swallow ArrowLeft/Right everywhere
+  // and preventDefault() them, which cancelled the radio groups' native
+  // traversal and silently changed the gas instead. Radios are radios exactly
+  // for this traversal, so it is asserted rather than assumed.
+  await page.goto('/dist/');
+  await acceptSafetyGate(page);
+
+  const oxygenBefore = await oxygenValue(page).textContent();
+
+  const rec = page.locator('[data-setup-group=mode] [data-setup-option=rec]');
+  await rec.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(
+    page.locator('[data-setup-group=mode] [data-setup-option=tec]'),
+  ).toBeChecked();
+
+  // And the gas did not move while the radio group was being traversed.
+  expect(await oxygenValue(page).textContent()).toBe(oxygenBefore);
+
+  const wreck = page.locator('[data-setup-group=site] [data-setup-option=wreck]');
+  await wreck.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(
+    page.locator('[data-setup-group=site] [data-setup-option=cave]'),
+  ).toBeChecked();
+  expect(await oxygenValue(page).textContent()).toBe(oxygenBefore);
+});
+
+test('a focused control survives the re-render a change triggers', async ({ page }) => {
+  // Every change redraws the whole screen. Without restoring focus the first
+  // keypress on a stepper would be the last one that worked.
+  await page.goto('/dist/');
+  await acceptSafetyGate(page);
+
+  const increase = stepButton(page, 'pressure', 'increase');
+  await increase.focus();
+  await page.keyboard.press('Enter');
+  await expect(pressureValue(page)).toContainText('210');
+
+  await expect(increase).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(pressureValue(page)).toContainText('220');
+});
+
+test('open-circuit bounds match the legacy setup screen', async ({ page }) => {
+  // src/state.js gsAdjustPressure clamps to 200-300, so 190 must be
+  // unreachable here too; an earlier version of this screen allowed it.
+  await page.goto('/dist/');
+  await acceptSafetyGate(page);
+
+  await page.keyboard.press('PageDown');
+  await expect(pressureValue(page)).toContainText('200');
+
+  for (let i = 0; i < 12; i += 1) await page.keyboard.press('PageUp');
+  await expect(pressureValue(page)).toContainText('300');
+});
+
 test.describe('mobile viewport', () => {
   test.use(MOBILE_VIEWPORT);
 

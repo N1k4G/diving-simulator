@@ -98,6 +98,12 @@ export function renderSetupScreen(
   // equivalent authoritative actions, not merely comparable ones.
   const handleKeyDown = (event: KeyboardEvent): void => {
     if (event.defaultPrevented || event.metaKey || event.ctrlKey) return;
+    // Do not take a key the focused control already owns. A radio group's
+    // arrow-key traversal is the reason mode and site are radios at all, and
+    // a document-level ArrowLeft that calls preventDefault() cancels it and
+    // silently changes the gas instead. Same for Enter on a focused button,
+    // which would otherwise both press the button and start the dive.
+    if (nativelyHandles(event.target, event.key)) return;
 
     const presetIndex = Number.parseInt(event.key, 10) - 1;
     if (
@@ -147,6 +153,12 @@ export function renderSetupScreen(
   function draw(): void {
     const tank = setup.tanks[setup.activeTankIndex];
     if (!tank) throw new Error("setup has no active tank");
+
+    // A full re-render replaces every control, including the focused one, so
+    // keyboard operation would end after a single change: press the stepper's
+    // + once and focus falls to <body>. Restore it by the data attribute the
+    // control already carries.
+    const focused = focusKeyOf(document.activeElement);
 
     shell.replaceChildren(
       heading(locale),
@@ -202,6 +214,10 @@ export function renderSetupScreen(
       }),
       startAction(locale, () => onStart(setup)),
     );
+
+    if (focused) {
+      shell.querySelector<HTMLElement>(focused)?.focus();
+    }
   }
 
   draw();
@@ -378,4 +394,49 @@ function element<K extends keyof HTMLElementTagNameMap>(
   node.className = className;
   node.textContent = text;
   return node;
+}
+
+/**
+ * Whether the focused control already handles this key itself.
+ *
+ * Radios own the arrow keys — that traversal is why mode and site are radio
+ * groups — and buttons own Enter and Space. Taking either at the document
+ * level breaks the control and, worse, does something else instead.
+ */
+function nativelyHandles(target: EventTarget | null, key: string): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+
+  if (target instanceof HTMLInputElement && target.type === "radio") {
+    return key.startsWith("Arrow");
+  }
+  if (target instanceof HTMLButtonElement || target instanceof HTMLAnchorElement) {
+    return key === "Enter" || key === " " || key === "Spacebar";
+  }
+  return false;
+}
+
+/**
+ * A selector that finds the same control again after a re-render, built from
+ * the data attributes the controls already carry for testing.
+ */
+function focusKeyOf(node: Element | null): string | null {
+  if (!(node instanceof HTMLElement)) return null;
+
+  const { setupOption, setupPreset, setupStep, startDive, backToSetup } =
+    node.dataset;
+  if (startDive !== undefined) return "[data-start-dive]";
+  if (backToSetup !== undefined) return "[data-back-to-setup]";
+  if (setupOption !== undefined) {
+    return `[data-setup-option="${CSS.escape(setupOption)}"]`;
+  }
+  if (setupPreset !== undefined) {
+    return `[data-setup-preset="${CSS.escape(setupPreset)}"]`;
+  }
+  if (setupStep !== undefined) {
+    const stepper = node.closest<HTMLElement>("[data-setup-stepper]")?.dataset
+      .setupStepper;
+    if (!stepper) return null;
+    return `[data-setup-stepper="${CSS.escape(stepper)}"] [data-setup-step="${CSS.escape(setupStep)}"]`;
+  }
+  return null;
 }

@@ -133,6 +133,32 @@ describe("oxygen fraction", () => {
   });
 });
 
+describe("bounds ported from the legacy oracle", () => {
+  // These are not design choices, so they are asserted against the legacy
+  // source rather than against a number that looked reasonable. An earlier
+  // version of this file used 0.05 and 50, which the legacy screen cannot
+  // produce, and wrote them down here as if they were the contract.
+  it("oxygen runs 0 to 1 minus helium, as gsAdjustO2 clamps it", () => {
+    // src/state.js: Math.max(0.0, ...) down, Math.min(1.0 - fHe, ...) up.
+    expect(OXYGEN_FRACTION_RANGE.min).toBe(0);
+
+    const empty = adjustOxygenFraction(createDefaultSetup(), -1);
+    expect(empty.tanks[0]?.gas.oxygenFraction).toBe(0);
+    expect(empty.tanks[0]?.gas.nitrogenFraction).toBeCloseTo(1, 10);
+  });
+
+  it("open-circuit pressure runs 200 to 300, as gsAdjustPressure clamps it", () => {
+    // src/state.js: Math.max(200, Math.min(300, ...)). 50 bar belongs to the
+    // CCR cylinder configuration, which is a later slice.
+    expect(TANK_PRESSURE_RANGE_BAR.min).toBe(200);
+    expect(TANK_PRESSURE_RANGE_BAR.max).toBe(300);
+
+    // The legacy screen cannot reach 190, so neither can this one.
+    const down = adjustTankPressure(createDefaultSetup(), -10);
+    expect(down.tanks[0]?.pressureBar).toBe(200);
+  });
+});
+
 describe("tank pressure", () => {
   it("steps by ten bar and clamps to the authored range", () => {
     const up = adjustTankPressure(createDefaultSetup(), 10);
@@ -148,17 +174,14 @@ describe("tank pressure", () => {
 
 describe("conversion to initial dive options", () => {
   it("carries gas, volume and pressure into the model's tank state", () => {
-    const setup = adjustTankPressure(
-      applyPreset(createDefaultSetup(), 2),
-      -10,
-    );
+    const setup = adjustTankPressure(applyPreset(createDefaultSetup(), 2), 10);
     const options = toInitialDiveOptions(setup);
 
     expect(options.tanks).toHaveLength(1);
     expect(options.tanks?.[0]?.gas.oxygenFraction).toBeCloseTo(0.32, 10);
     expect(options.tanks?.[0]?.volumeL).toBe(12);
     // gasRemainingL is volume x pressure, which is how the model stores it.
-    expect(options.tanks?.[0]?.gasRemainingL).toBe(12 * 190);
+    expect(options.tanks?.[0]?.gasRemainingL).toBe(12 * 210);
     expect(options.activeTankIndex).toBe(0);
     expect(options.surfaceAirConsumptionLpm).toBe(15);
     expect(options.ccr).toBeNull();
