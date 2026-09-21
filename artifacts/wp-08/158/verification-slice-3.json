@@ -1,0 +1,114 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 158,
+  "slice": "PR 3 of 3: closed-circuit controls (diluent presets, setpoint, diluent and oxygen cylinders)",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npm run test:e2e",
+  "measuredCommit": "fbea4106d354c1c4c0d2b27bd1871e5f342eb276",
+  "measuredTree": "1a880f16960bbce23356c2b318d514addd184c53",
+  "workingTree": "clean before the run and still clean after it",
+  "provenanceNote": "Measured against the committed tree rather than the working tree that became it. Only the commit adding this file follows the measured one.",
+  "recordedAt": "2026-09-21T19:52:00+00:00",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.8.2",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass — 17 files, no source maps, 4 markers absent",
+    "unit": "208 passed (188 on main, +20)",
+    "parity": "36 passed (35 on main, +1 net: the CCR placeholder became two real tests)",
+    "e2e": "73 passed in 1.6 min (61 on main, +12)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "10 scenes ok",
+    "fullSuiteRepeats": "the e2e suite was run three further times end to end, all green, after the two sampling defects below were fixed"
+  },
+  "scope": {
+    "ported": "The five diluent presets, the loop setpoint, the diluent cylinder's volume, and the oxygen cylinder's volume and pressure — everything the legacy CCR setup section can change.",
+    "beyondTheIssueText": "The issue's scope line names presets, setpoint and diluent volume. The oxygen cylinder's volume and pressure are included because the acceptance asks for every legacy-equivalent parameter and src/ui.js offers both as buttons; leaving them out would mean a CCR dive cannot be configured as it can in the legacy client."
+  },
+  "boundsPortedFromTheOracle": {
+    "note": "Every value cites the legacy function it was read from, and each has a test naming the same function.",
+    "diluentPresets": "src/state.js CCR_DIL_PRESETS — air, Tx 21/35, Tx 15/45, Tx 10/70, Hx 10/90, in that order, because the screen binds them to keys 1-5 by index",
+    "setpoint": "src/state.js ccrAdjustSP with src/constants.js CCR_SP_MIN 0.5, CCR_SP_MAX 1.6, CCR_SP_STEP 0.1",
+    "diluentVolume": "src/state.js ccrAdjustDilVol with CCR_DIL_VOL_MIN 2, CCR_DIL_VOL_MAX 12",
+    "oxygenVolume": "src/state.js ccrAdjustO2Vol (the BUG-CCR-4 fix) with CCR_O2_VOL_MIN 2, CCR_O2_VOL_MAX 5",
+    "oxygenPressure": "src/state.js ccrAdjustO2Pres with CCR_O2_PRES_MIN 50, CCR_O2_PRES_MAX 300, step 10 — a wider range than the open-circuit 200-300 of gsAdjustPressure",
+    "defaults": "src/state.js CCR_DEFAULTS — air diluent, 0.7 bar, 3 L diluent and 2 L oxygen at 200 bar",
+    "keyBindings": "src/ui.js updateGasSetup — 1-5 diluent, [ and ] setpoint, comma and period diluent cylinder",
+    "hiddenControls": "src/ui.js, the isCcr display switches — CCR hides the presets, oxygen, pressure, tank tabs, helium, AMV, tank size and the gradient factors",
+    "modeMemory": "src/state.js saveModeSettings and restoreModeSettings keep ccrState per mode alongside the tanks and gradient factors",
+    "startingLoopPo2": "src/game-loop.js `actualPO2 = targetSP < ambientPressure(0) ? targetSP : 0.21`, and ambientPressure(0) is 1.0 — already implemented by createCcrState, so it is not reimplemented"
+  },
+  "notPortedAndWhy": {
+    "diluentCylinderPressure": "ccrAdjustO2Pres has no diluent counterpart anywhere in the legacy client. The diluent starts at the 200 bar of CCR_DEFAULTS and createCcrState's own default supplies it. A control here would be invented, not ported.",
+    "loopVolumeScrubberMetabolicRate": "No control in the legacy setup screen either; createCcrState's defaults carry them, and a test pins all three so a silent change is caught.",
+    "openCircuitCylinderInCcr": "Legacy shows no open-circuit cylinder in CCR at all. The dive still carries one — entering CCR normalises to tanks[0] — but the screen offers nothing for it, so neither does this one. A read-only line was drafted and then dropped for the same reason.",
+    "oxygenCylinderShortcuts": "Legacy gives the oxygen cylinder no keyboard binding; it is button-only there too. Reachable by Tab and Enter like every other control, which is what giving Tab back to the browser in slice 2 bought."
+  },
+  "deliberateDesign": {
+    "separateDiluentList": "Three of the five diluent mixes appear nowhere in GAS_PRESETS, and the two that share a name sit at different indices — index 2 is EAN32 open-circuit and Tx 15/45 as a diluent. Reusing the open-circuit list would have put a 32% nitrox mix in the loop. The digit handler branches on mode, as updateGasSetup does by returning before the preset loop.",
+    "keyIsolation": "CCR does not fall through to the open-circuit keys. Its screen shows no oxygen or pressure control, so ArrowRight would silently edit a cylinder the player cannot see. Mode and start are the only bindings all three modes share.",
+    "labelsKeyedById": "The diluent labels are keyed by preset id rather than by position, because a positional array would silently label Tx 15/45 as EAN32 if either list ever moved."
+  },
+  "defectsFoundWhileReading": {
+    "note": "Both are the same shape — a label promising something that is no longer true, which no test that presses only the right keys can see.",
+    "staleTabHint": "setup.keyboardHintTec still said 'Tab switches cylinder' in both locales, a slice after Tab was given back to the browser in #178. Corrected, and a test now reads the hint text.",
+    "baseHintWrongInCcr": "setup.keyboardHint promises 1-8 gas presets, arrow-key oxygen and Page Up/Down pressure. CCR has none of those, so it replaces that line rather than adding to it.",
+    "staleDisabledReason": "The CCR radio's 'Not configurable yet' had to go with the disabling; a test asserts no mode still carries it."
+  },
+  "previouslyUnexplainedFailureNowExplained": {
+    "what": "The evidence for slice 2 recorded a single full-suite failure of 'the setup keyboard bindings stop applying once the dive starts' as unexplained, and recorded a first-painted-frame race as a hypothesis that a 12-iteration probe had failed to confirm.",
+    "actualCause": "The test compared the gas readout before and after two keypresses and expected it unchanged. That is not a property the readout has: the cylinder drains while the dive runs and the HUD prints one decimal of bar, so the reading ticks down on its own.",
+    "howTheEvidenceArrived": "A different test failed the same way this round with its message intact — 'a technical dive starts with the configured mix' expected 210 and received '209.8 bar', the retry log showing 209.9 five times and then 209.8.",
+    "correction": "The hypothesis recorded in slice 2 was wrong, and the probe that failed to reproduce it was probing the wrong thing. The wait-for-a-digit added then is harmless and still correct on its own terms, but it was never the fix.",
+    "fix": "Both tests now assert something depletion cannot fake. The keyboard one asserts the reading may only go down — PageUp adds 10 bar, which draining cannot produce — and compares the mix exactly through the save. The other bounds the pressure to (209, 210] and adds an exact assertion on the mix.",
+    "onRelaxingAnAssertion": "Bounding a value that was previously matched exactly is a relaxation, so the reason is stated rather than assumed: the original assertion was ill-posed, not failing. It demanded exact equality of a quantity that changes with time, and nothing about the configured 210 bar regressed. An unconfigured dive starts at 200 bar and reads about 199.9, so the window still catches what the test exists for."
+  },
+  "counterCheck": {
+    "method": "One revert at a time, with the build result read before every run — a failed build leaves the previous dist/ in place and the tests then pass against a bundle that still has the fix in it.",
+    "cases": {
+      "diluentDigits": "digits fall back to the open-circuit list — 'the digits pick a diluent' fails",
+      "ccrKeyIsolation": "CCR also runs the open-circuit keys — 'the open-circuit keys do not edit the cylinder CCR hides' fails",
+      "loopReachesDive": "the configured loop never reaches the model — 'a CCR dive starts on the configured loop' fails",
+      "diluentFocus": "focusKeyOf forgets the diluent buttons — 'a diluent button keeps focus' fails",
+      "ccrHint": "CCR keeps the base hint — 'the keyboard hint names the keys CCR actually has' fails",
+      "modeMemory": "the per-mode CCR snapshot is dropped — 'the configured loop survives a trip' fails"
+    },
+    "oneTestProvedNothingAtFirst": {
+      "test": "'the open-circuit keys do not edit the cylinder CCR hides'",
+      "what": "It read the cylinder by switching back to rec. Entering a mode restores that mode's saved snapshot, so rec handed back its own copy and the edit was invisible whether or not the fix was present — it passed with the fix reverted.",
+      "fix": "It now reads the cylinder through the started dive, and fails correctly when reverted.",
+      "secondTimeThisSlice": "The same per-mode restore had already turned up a wrong expectation in the unit tests, where a test asserted the diluent survives a trip to rec unchanged. Legacy resets it to rec's own copy while in rec and restores the configured one on returning; the test was corrected to state that, because it looks like a bug until you know it is the oracle."
+    }
+  },
+  "parityToGoldenTrace": {
+    "file": "tests/parity/dive-setup.test.ts",
+    "added": "The ccr-30m-30min scenario — setpoint 1.3 with a Tx 15/45 diluent — is reproduced from the screen: target PO2, all three diluent fractions, both cylinder pressures, the scrubber and the bailout flag.",
+    "deliberatelyNotAsserted": "actualPO2. The fixture records 1.3 because scripts/baseline-scenarios.cjs forces it after configuring, to skip equilibration. A dive started from either screen begins at 0.21, since 1.3 is not below ambientPressure(0). Asserting equality would have meant changing the model to match a fixture, so a test states the disagreement and its reason instead.",
+    "previousPlaceholder": "The 'does not yet configure the CCR scenario, and says so' test has been replaced by these two."
+  },
+  "touchTargets": {
+    "what": "The 44 x 44 px and 8 px spacing check now runs in all three modes.",
+    "gapClosed": "It measured only rec before, which is how tec's controls went in unmeasured in slice 2. No CSS change was needed — all three modes already pass."
+  },
+  "issueCompletion": {
+    "modes": "All three offered and configurable; M cycles through all three.",
+    "sites": "Unchanged: all four offered, the composition root holds RENDERABLE_SITES.",
+    "acceptance": "Keyboard-only and pointer-only paths are asserted to reach an identical CCR configuration, mirroring the rec/tec test from slice 1.",
+    "remaining": "None for #158. In-dive CCR controls (setpoint during the dive, bailout) and a CCR HUD row are separate issues — the save is the only place the configured loop is observable from outside today, which is what the e2e tests read."
+  },
+  "releaseLabel": {
+    "chosen": "release:none",
+    "reasoning": "Deployed bytes change — deploy.yml runs `pages deploy src/` with no ignore file — but served behaviour does not: _redirects sends / to the legacy client and the migration client stays unreachable until the #170 cutover.",
+    "ownerCall": true,
+    "openQuestion": "Whether release:none or release:minor is the intended semantics while the migration client ships but is unreachable is still the owner's to settle; it applies to every WP-08 slice."
+  }
+}
