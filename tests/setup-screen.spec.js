@@ -128,27 +128,36 @@ test('the setup keyboard bindings stop applying once the dive starts', async ({ 
   await page.goto('/dist/');
   await startDiveAndWaitForCanvas(page);
 
-  const gas = page.locator('.wreck-hud [data-hud-metric=gas] dd');
-  // Wait for a real reading before sampling. createWreckShell renders this
-  // metric as the unavailable placeholder and onFrame replaces it on the
-  // first animation frame, while the canvas is attached earlier, during
-  // mount — so `waitFor()` on the canvas can return with the HUD still
-  // showing the placeholder, and the comparison below would then be between
-  // a placeholder and a pressure rather than between two pressures.
+  // This compared the gas readout before and after and expected it unchanged,
+  // which is not a property the readout has: the cylinder drains while the
+  // dive runs, and the HUD prints one decimal of bar. That is what the
+  // unexplained failure in the previous slice was — the reading ticked down
+  // between the two samples. The hypothesis recorded then, a race against the
+  // first painted frame, was the wrong one.
   //
-  // The window is narrow: a 12-iteration probe on an idle machine never
-  // caught it. This test did fail once in a full-suite run during #158 and
-  // the message was not captured, so that failure stays unexplained — the
-  // wait is not offered as its fix. It is here because sampling a value that
-  // is populated asynchronously without waiting for it is wrong regardless,
-  // and every other HUD assertion in this file already waits.
+  // So assert what the leak would actually do. PageUp adds 10 bar, which is
+  // the one thing draining cannot produce: the reading may only go down.
+  // Preset 3 changes the mix, which does not drain, so it is compared exactly
+  // through the save.
+  const gas = page.locator('.wreck-hud [data-hud-metric=gas] dd');
   await expect(gas).toHaveText(/\d/);
-  const before = await gas.textContent();
+  const reading = async () =>
+    Number.parseFloat((await gas.textContent()).replace(',', '.'));
+  const before = await reading();
+
   await page.keyboard.press('PageUp');
   await page.keyboard.press('3');
   await page.waitForTimeout(150);
 
-  expect(await gas.textContent()).toBe(before);
+  expect(await reading()).toBeLessThanOrEqual(before);
+
+  const saved = await page
+    .waitForFunction(() => {
+      const raw = window.localStorage.getItem('diving-simulator.save-game');
+      return raw === null ? null : JSON.parse(raw);
+    })
+    .then((handle) => handle.jsonValue());
+  expect(saved.state.tanks[0].gas.oxygenFraction).toBeCloseTo(0.21, 10);
 });
 
 test('mode and site can be chosen with the keyboard alone', async ({ page }) => {
@@ -409,7 +418,21 @@ test.describe('technical mode', () => {
     await page.locator('[data-start-dive]').click();
     await page.locator('[data-renderer=pixi] canvas').waitFor();
 
-    await expect(page.locator('.wreck-hud [data-hud-metric=gas] dd')).toContainText('210');
+    // Bounded, not exact. The dive is running by the time the HUD first
+    // paints, and the cylinder is already draining: this asserted
+    // toContainText('210') and met "209.9 bar" under load. The configured
+    // pressure is still what is being pinned — an unconfigured dive starts at
+    // 200 bar and reads about 199.9, nowhere near this window.
+    const gas = page.locator('.wreck-hud [data-hud-metric=gas] dd');
+    await expect(gas).toHaveText(/\d/);
+    const bar = Number.parseFloat((await gas.textContent()).replace(',', '.'));
+    expect(bar).toBeGreaterThan(209);
+    expect(bar).toBeLessThanOrEqual(210);
+
+    // The mix does not drain, so it is asserted exactly. Tx 18/45.
+    const saved = await persistedSave(page);
+    expect(saved.state.tanks[0].gas.oxygenFraction).toBeCloseTo(0.18, 10);
+    expect(saved.state.tanks[0].gas.heliumFraction).toBeCloseTo(0.45, 10);
   });
 
   // The save key, from src/save/save-repository.ts SAVE_GAME_STORAGE_KEY. The
@@ -576,10 +599,24 @@ test.describe('closed-circuit mode', () => {
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('PageUp');
 
-    // Leaving CCR the way in came: the open-circuit cylinder must be untouched.
-    await page.locator('[data-setup-group=mode] [data-setup-option=rec]').check();
-    await expect(page.locator('[data-setup-value=oxygen]')).toContainText('21');
-    await expect(page.locator('[data-setup-value=pressure]')).toContainText('200');
+    // Read through the started dive, not by switching back to rec. Entering a
+    // mode restores that mode's saved snapshot, so a trip to rec hands back
+    // the cylinder as rec last left it and hides the edit either way — the
+    // first version of this test did exactly that and passed with the fix
+    // reverted. The dive carries the cylinder CCR was holding.
+    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+    const saved = await page
+      .waitForFunction(() => {
+        const raw = window.localStorage.getItem('diving-simulator.save-game');
+        return raw === null ? null : JSON.parse(raw);
+      })
+      .then((handle) => handle.jsonValue());
+
+    const tank = saved.state.tanks[0];
+    expect(tank.gas.oxygenFraction).toBeCloseTo(0.21, 10);
+    // 12 L at 200 bar. A PageUp that got through would make it 2520.
+    expect(tank.gasRemainingL).toBe(2400);
   });
 
   test('a CCR dive starts on the configured loop', async ({ page }) => {
