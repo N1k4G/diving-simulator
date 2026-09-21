@@ -3,11 +3,11 @@
   "issue": 158,
   "slice": "PR 3 of 3: closed-circuit controls (diluent presets, setpoint, diluent and oxygen cylinders)",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npm run test:e2e",
-  "measuredCommit": "fbea4106d354c1c4c0d2b27bd1871e5f342eb276",
-  "measuredTree": "1a880f16960bbce23356c2b318d514addd184c53",
+  "measuredCommit": "115c33f353655beac74247371c83c4ca11e1768e",
+  "measuredTree": "2d634fcc2578489974ff15340cd98805b4ed1db9",
   "workingTree": "clean before the run and still clean after it",
   "provenanceNote": "Measured against the committed tree rather than the working tree that became it. Only the commit adding this file follows the measured one.",
-  "recordedAt": "2026-09-21T19:52:00+00:00",
+  "recordedAt": "2026-09-21T17:21:53Z",
   "environment": {
     "os": "Windows 11",
     "node": "v26.8.2",
@@ -23,12 +23,12 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass — 17 files, no source maps, 4 markers absent",
-    "unit": "208 passed (188 on main, +20)",
+    "unit": "209 passed (188 on main, +21)",
     "parity": "36 passed (35 on main, +1 net: the CCR placeholder became two real tests)",
-    "e2e": "73 passed in 1.6 min (61 on main, +12)",
+    "e2e": "74 passed in 1.7 min (61 on main, +13)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "10 scenes ok",
-    "fullSuiteRepeats": "the e2e suite was run three further times end to end, all green, after the two sampling defects below were fixed"
+    "fullSuiteRepeats": "the e2e suite was run three further times end to end before this revision, all green, after the two sampling defects were fixed"
   },
   "scope": {
     "ported": "The five diluent presets, the loop setpoint, the diluent cylinder's volume, and the oxygen cylinder's volume and pressure — everything the legacy CCR setup section can change.",
@@ -110,5 +110,27 @@
     "reasoning": "Deployed bytes change — deploy.yml runs `pages deploy src/` with no ignore file — but served behaviour does not: _redirects sends / to the legacy client and the migration client stays unreachable until the #170 cutover.",
     "ownerCall": true,
     "openQuestion": "Whether release:none or release:minor is the intended semantics while the migration client ships but is unreachable is still the owner's to settle; it applies to every WP-08 slice."
+  },
+  "runFinishedAt": "2026-09-21T17:25:15Z",
+  "timestampProvenance": "recordedAt and runFinishedAt are the output of `date -u +%Y-%m-%dT%H:%M:%SZ` around the run, not a value written by hand. The first version of this file carried 2026-09-21T19:52:00+00:00, which was a hand-typed wall-clock reading on a UTC+2 machine labelled as UTC: it claimed a measurement almost three hours after the commit that checks it in (e7166b8, 17:07:28Z). Caught in review of PR #179. The tree and commit hashes were correct; the timestamp was the one field nobody can recompute, which is exactly why it has to be measured.",
+  "supersedes": [
+    {
+      "measuredCommit": "fbea4106d354c1c4c0d2b27bd1871e5f342eb276",
+      "why": "Predates the review of PR #179. Its numbers no longer describe the tree under review, and its recordedAt was not measured."
+    }
+  ],
+  "reviewRound1": {
+    "touchAcceptanceWasNotMet": {
+      "finding": "The issue asks for keyboard-only AND touch-only to reach the dive with an identical model configuration. The test named 'the dive can be started by touch alone' tapped one preset and went through the safety gate and the start button with startDive(), which clicks both. The CCR comparison added in this PR compared keyboard against .click() — a pointer, not a touchscreen. So no genuine touch-only path existed and the acceptance was unmet.",
+      "fix": "tests/helpers/start-dive.cjs gained a touch pair and a keyboard pair that carry the whole flow, gate and start included. A new test configures a CCR dive end to end with nothing but .tap() — gate, mode, diluent, setpoint, diluent cylinder, start — runs the same configuration with nothing but keys, and compares the saved CCR state.",
+      "counterCheck": "Reverting the CCR digit handler makes the touch-versus-keyboard comparison fail: the keyboard path stops applying the diluent while the touch path still taps it. Build result read first."
+    },
+    "presetCountForLiedAboutCcr": {
+      "finding": "presetCountFor('ccr') still returned GAS_PRESETS.length, so applyPreset accepted an open-circuit preset in CCR and changed the cylinder the screen hides. Not reachable by a player — the screen's digit handler branches on mode — but the pure model is the contract.",
+      "oracle": "src/ui.js sets presetsDiv.style.display = isCcr ? 'none' : '' and updateGasSetup returns before the preset loop, so the legacy screen offers zero open-circuit presets in CCR.",
+      "fix": "presetCountFor returns 0 for CCR; applyPreset already gates on it.",
+      "counterCheck": "Restoring the old return value makes the new unit test fail."
+    },
+    "evidenceTimestamp": "See timestampProvenance."
   }
 }
