@@ -1,0 +1,85 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 175,
+  "command": "npm run test:e2e",
+  "measuredCommit": "12b567e27f6657049898ddc8cb2cecfa24d46993",
+  "measuredTree": "9bd97af41ffcf013104ac2d8959e0794b842d16d",
+  "provenanceNote": "The acceptance runs below executed against the commit and tree recorded above, with a clean working tree. Any later commit on this branch adds only this evidence file. Verify with `git rev-parse <that commit>^{tree}` against measuredTree. An earlier version of this note quoted a pre-amend SHA that is unreachable on the remote, so the check it described was reproducible only for the author.",
+  "recordedAt": "2026-09-21T10:35:45+00:00",
+  "environment": {
+    "os": "Windows 11",
+    "cores": 14,
+    "playwrightWorkers": 4,
+    "node": "v26.8.2",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "note": "4 workers is the exposed configuration; CI gets 1 worker on 2 cores (see #172)."
+  },
+  "rootCause": {
+    "legacy": "src/game-loop.js:402 polls keys['t'] in the frame loop; the key must be down during a frame",
+    "pixi": "src/app/game-controller.ts:260 handles keydown directly; any press works however brief",
+    "defect": "replayInputTrace sent page.keyboard.press('t'), default 0 ms between keydown and keyup, so the trace used an input only the Pixi client could reliably observe. The test failed on an asymmetry it created itself."
+  },
+  "deterministicProof": {
+    "method": "Legacy client, torch on, two dispatches differing only in whether an animation frame elapsed.",
+    "A_noFrameBetween": {
+      "torchOnAfter": true,
+      "toggled": false,
+      "note": "reproduces the exact failure signature"
+    },
+    "B_twoFramesBetween": {
+      "torchOnAfter": false,
+      "toggled": true
+    }
+  },
+  "fix": {
+    "where": "tests/wreck-slice.spec.js replayInputTrace",
+    "mechanism": "keyboard.down -> wait for 2 requestAnimationFrame callbacks via page.evaluate -> keyboard.up",
+    "whyNotAFixedDelay": "A millisecond count is a guess a loaded machine can beat; a frame having elapsed is the actual precondition.",
+    "clientsChanged": "none",
+    "releaseAlsoWaitsForAFrame": {
+      "measured": "Two consecutive presses toggle twice with or without it: the CDP round trips between keyboard.up and the next keyboard.down already leave room for a frame.",
+      "whyKeptAnyway": "The edge detector needs tDown to read false during a frame before it can see the next rising edge. Without the wait that holds only by incidental timing, which is the same class of accident that produced this bug. The wait makes it an explicit guarantee for whoever extends the trace.",
+      "notAFixFor": "any observed failure"
+    }
+  },
+  "acceptanceRuns": {
+    "command": "npm run test:e2e",
+    "againstCommit": "12b567e27f6657049898ddc8cb2cecfa24d46993",
+    "workingTree": "clean",
+    "runs": [
+      {
+        "run": 1,
+        "suite": "37 passed",
+        "crossClientS": 4.8
+      },
+      {
+        "run": 2,
+        "suite": "37 passed",
+        "crossClientS": 5.8
+      },
+      {
+        "run": 3,
+        "suite": "37 passed",
+        "crossClientS": 5.3
+      },
+      {
+        "run": 4,
+        "suite": "37 passed",
+        "crossClientS": 5.0
+      },
+      {
+        "run": 5,
+        "suite": "37 passed",
+        "crossClientS": 5.3
+      }
+    ],
+    "result": "5 of 5 fully green; the target test passed in all five.",
+    "note": "Re-run after the release-wait was added, because that changed the helper the first five measured."
+  },
+  "assertionsKept": [
+    "legacy response compared against the literal expectation",
+    "legacy response compared against the Pixi response",
+    "no change to either client"
+  ]
+}

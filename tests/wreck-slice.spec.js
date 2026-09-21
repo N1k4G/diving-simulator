@@ -324,10 +324,63 @@ async function replayInputTrace(page, trace) {
       await page.waitForTimeout(step.durationMs);
       await page.keyboard.up(step.key);
     } else {
-      await page.keyboard.press(step.key);
+      // #175. This used to be page.keyboard.press(), whose default delay
+      // between keydown and keyup is 0 ms — and the two clients do not read a
+      // key the same way:
+      //
+      //   legacy  game-loop.js:402  polls keys['t'] in the frame loop, so the
+      //                             key has to be down DURING a frame
+      //   pixi    game-controller.ts:260  handles keydown directly, so any
+      //                             press works however brief
+      //
+      // A zero-length press is therefore an input only one of the two clients
+      // can observe, which made this comparison fail whenever no frame
+      // happened to run between the two events. Measured on the legacy client,
+      // torch on, differing only in whether a frame elapsed:
+      //
+      //   keydown + keyup in one evaluate()   -> torchOn stayed true  (missed)
+      //   the same with two rAFs between      -> torchOn became false (seen)
+      //
+      // So hold the key across a frame. Waiting for rAF rather than for a
+      // millisecond count is deliberate: a fixed delay is a guess that a
+      // loaded machine can still beat, while a frame having elapsed is the
+      // actual precondition. rAF is the browser's, not either client's, so the
+      // trace stays client-agnostic.
+      //
+      // The release waits for a frame too. Measured, so as not to oversell it:
+      // two consecutive presses toggle twice either way, because the CDP round
+      // trips between keyboard.up and the next keyboard.down already leave
+      // room for a frame. So this is not fixing an observed defect.
+      //
+      // It is here because the edge detector also needs tDown to read false
+      // during a frame before it can see the NEXT rising edge, and without
+      // this line that only holds by incidental timing — which is exactly the
+      // kind of accident that produced the bug above. Making the release an
+      // explicit guarantee costs one frame and removes the trap from whoever
+      // extends this trace later.
+      await page.keyboard.down(step.key);
+      await waitForAnimationFrames(page, 2);
+      await page.keyboard.up(step.key);
+      await waitForAnimationFrames(page, 2);
     }
   }
   await page.waitForTimeout(150);
+}
+
+function waitForAnimationFrames(page, count) {
+  return page.evaluate(
+    (frames) =>
+      new Promise((resolve) => {
+        let remaining = frames;
+        const tick = () => {
+          remaining -= 1;
+          if (remaining <= 0) resolve();
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+    count,
+  );
 }
 
 async function readLegacyObservation(page) {
