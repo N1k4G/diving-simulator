@@ -142,6 +142,36 @@ export class GameController {
     this.#publishFrame();
   }
 
+  /**
+   * Breathes a different cylinder (#163).
+   *
+   * Applied at once, as legacy does in the frame it reads the key
+   * (game-loop.js TASK-019). An earlier revision queued it for the next
+   * whole-second step in a single slot, which lost a valid switch whenever a
+   * second press arrived first — 2 then an out-of-range 6 left nothing at all
+   * (#163 review). A discrete act does not belong in a latest-value slot
+   * beside the continuous controls.
+   *
+   * Whether the switch is allowed stays the model's call:
+   * src/core/dive-model.ts refuses the active cylinder, an empty one, any
+   * switch while CCR is set, and a dive that has already failed.
+   */
+  requestTankSwitch(index: number): void {
+    if (!Number.isInteger(index) || index < 0) {
+      return;
+    }
+    const before = this.#model.snapshot;
+    const after = this.#model.switchGas(index);
+    if (after === before) {
+      return;
+    }
+    // The save and the forecast both describe the breathed gas, so neither
+    // may wait for the next step to hear about it.
+    this.#onAuthoritativeState?.(after);
+    this.#requestForecast(true);
+    this.#publishFrame();
+  }
+
   destroy(): void {
     if (this.#disposed) {
       return;
@@ -214,6 +244,7 @@ export class GameController {
       descend: this.#pressed.has("descend"),
       finLeft: this.#pressed.has("left"),
       finRight: this.#pressed.has("right"),
+      switchGasIndex: null,
     };
   }
 
@@ -276,8 +307,33 @@ export class GameController {
     if (event.key.toLowerCase() === "t" && !event.repeat) {
       event.preventDefault();
       this.toggleTorch();
+      return;
+    }
+    // 1-6 pick a cylinder, as game-loop.js does during the dive. Held keys
+    // are ignored: a switch is a discrete act, and autorepeat would re-issue
+    // it every few milliseconds.
+    // Only as many digits as there are cylinders, because legacy iterates to
+    // tankCount rather than to six. With one cylinder, `2` is not a dive key
+    // at all and should reach whatever else might want it.
+    const tankIndex = tankIndexForKey(event.key);
+    if (tankIndex !== null && !event.repeat && this.#canSwitchTank(tankIndex)) {
+      event.preventDefault();
+      this.requestTankSwitch(tankIndex);
     }
   };
+
+  /**
+   * Whether this digit is a cylinder key right now.
+   *
+   * Claiming a key means calling preventDefault() on it, so it has to be a
+   * key that does something. It is not one past the cylinder count — legacy
+   * iterates to tankCount — and it is not one on a dive that has already
+   * failed, where switchGas refuses anyway (#163 review).
+   */
+  #canSwitchTank(tankIndex: number): boolean {
+    const state = this.#model.snapshot;
+    return state.failure.reason === null && tankIndex < state.tanks.length;
+  }
 
   readonly #handleKeyUp = (event: KeyboardEvent): void => {
     const control = controlForKey(event.key);
@@ -286,6 +342,19 @@ export class GameController {
       this.setControl(control, false);
     }
   };
+}
+
+/**
+ * The digit keys that can name a cylinder. MAX_TANKS is six, so seven and up
+ * are never cylinder keys; the caller narrows this further to the cylinders
+ * the dive actually has, which is what legacy's
+ * `for (var i = 0; i < tankCount; i++)` does.
+ */
+function tankIndexForKey(key: string): number | null {
+  if (!/^[1-6]$/.test(key)) {
+    return null;
+  }
+  return Number.parseInt(key, 10) - 1;
 }
 
 function controlForKey(key: string): ContinuousControl | null {

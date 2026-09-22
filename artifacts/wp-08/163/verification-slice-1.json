@@ -1,0 +1,132 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 163,
+  "slice": "PR 1 of n: the in-dive cylinder switch (keys 1-6 and a button per cylinder)",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npm run test:e2e",
+  "measuredCommit": "897b11fac0591133f1a736e530346a826dbe45c3",
+  "measuredTree": "9aead0ccd9b3c829b41991851d73b625323fcf7a",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-09-22T08:24:27Z",
+  "runFinishedAt": "2026-09-22T08:28:58Z",
+  "timestampProvenance": "Both are the output of `date -u +%Y-%m-%dT%H:%M:%SZ` around the run, not values written by hand. #158's slice-3 evidence carried a hand-typed wall-clock reading on a UTC+2 machine labelled as UTC and was rejected in review; the timestamp is the one field a reviewer cannot recompute, so it has to be measured.",
+  "provenanceNote": "Measured against the committed tree rather than the working tree that became it. Only the commit adding this file follows the measured one.",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.8.2",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass — 17 files, no source maps, 4 markers absent",
+    "unit": "209 passed (unchanged: this slice adds no unit tests, see notTestedAndWhy)",
+    "parity": "36 passed (unchanged)",
+    "e2e": "87 passed in 2.7 min (74 on main, +13)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "10 scenes ok"
+  },
+  "whatWasMissing": {
+    "note": "The model has been able to switch cylinders since the migration began — InputIntent carries switchGasIndex and applyGasSwitchIntent implements the rules, with unit coverage in tests/unit/dive-model.test.ts. Nothing in the client ever set the field, so a two-cylinder dive could be configured on the setup screen and then stayed on the first cylinder for the whole dive.",
+    "consequence": "#158 shipped multi-cylinder configuration whose only effect in the dive was the starting gas."
+  },
+  "boundsPortedFromTheOracle": {
+    "keyBindings": "src/game-loop.js TASK-019 — `for (var i = 0; i < tankCount; i++)` over String(i + 1), so 1 to 6 and no further; MAX_TANKS is 6",
+    "refusalRules": "src/game-loop.js `i !== activeTank && tanks[i].gasRemaining > 0`, which src/core/dive-model.ts applyGasSwitchIntent already implements, plus its own refusal of any switch while ccr is set",
+    "rowVisibility": "src/ui.js and src/touch.js show cylinder slots only where the mode has more than one cylinder"
+  },
+  "deliberateDesign": {
+    "rulesStayInTheModel": "The controller decides nothing about whether a switch is allowed. It passes an index; src/core/dive-model.ts refuses the active cylinder, an empty one and CCR. Duplicating those checks in the UI would have created a second place for them to drift.",
+    "emptyCylinderStaysVisible": "Disabled rather than removed, and it keeps its contrast instead of fading to the usual grey. An empty cylinder is not a broken control, and a cylinder that vanishes mid-dive is worse than one that says why it cannot be chosen.",
+    "delegatedClickHandler": "The buttons do not exist when the dive starts — the first frame builds them from the state — so the click listener sits on the container. A listener per button would have to be rebound on every rebuild.",
+    "buttonsBuiltOnce": "syncTankControls creates the buttons only when the count changes and thereafter updates attributes. Rebuilding them each frame would discard focus sixty times a second, and unlike the setup screen there is no re-render to restore it from.",
+    "appliedAtOnce": "The switch is applied when pressed, not sampled at the next step. See reviewRound1.queueWasALatestValueSlot for why the alternatives were rejected."
+  },
+  "sliceBoundary": {
+    "issueSuggestion": "#163 proposes 'PR 1: tanks + gas info'.",
+    "deviation": "Gas info is its own PR. It is five rendered pages with their own cycling rules — src/state.js infoPageMode 0-5, skipping the tanks page below four cylinders, toggling 0<->5 in CCR, and unavailable in rec entirely — which is larger than the switch and unrelated to it. The slicing in an issue is a hint, not a contract.",
+    "stillOutstandingInThisIssue": "gas info (I), fast-forward (F), torch as a first-class intent, CCR setpoint ([ ]) and bailout (B), and the HUD additions the issue lists: active cylinder, loop PO2 vs setpoint, scrubber time, bailout state, fast-forward indicator."
+  },
+  "notTestedAndWhy": {
+    "gasSwitchNotification": "Legacy shows a two-second 'GAS SWITCH -> T{n}' toast and resets bestGasAlerted and fastForwardActive. The toast belongs with the HUD additions and fastForwardActive with the fast-forward slice; neither exists yet, so neither is reproduced.",
+    "noUnitTests": "What this slice adds is the immediate switch path and the DOM sync, and both need a running animation frame. The node test environment has no requestAnimationFrame — tests/unit already notes this for destroy() — so the coverage is e2e, where the real loop runs, rather than a mock that would assert the mock. The model half, DiveModel.switchGas, is reachable without a frame and its rules are already covered by tests/unit/dive-model.test.ts through applyGasSwitchIntent."
+  },
+  "counterCheck": {
+    "method": "One revert at a time, restoring the actual previous design rather than breaking the code conveniently, with the build result read before each run.",
+    "cases": {
+      "immediateSwitch": "the single-slot design restored in full — the swallowed-switch test fails",
+      "rowWrapping": "the width cap removed — the overlap tests fail",
+      "dockStacking": "the hint anchored absolutely again — the desktop overlap test fails"
+    },
+    "oneTestProvedNothingAtFirst": "The swallowed-switch test used the review's own example, 2 then an out-of-range 6. The new tankCount gate stops 6 in the controller, so the slot was never overwritten and the test passed with the old design restored — the P3 fix had masked the P2 scenario. Rewritten on three cylinders with 2 then 3, asserting both switches are recorded in order, which is the general case the review also named.",
+    "aContrivedRevertWasDiscarded": "The first attempt at the immediate-switch revert simply made index 1 a no-op. That would have shown the test can fail, not that it tests the fix, so it was replaced by a faithful restoration of the slot design across all four of its edits."
+  },
+  "accessibility": {
+    "keyboard": "Each button carries aria-keyshortcuts with the digit that does the same thing, and aria-pressed for the active cylinder.",
+    "labels": "The accessible name gives the cylinder number, its oxygen fraction and its pressure, all from the catalogue in en and de.",
+    "touchTargets": "44 x 44 CSS px with 8 px spacing, asserted for a full six-cylinder row — the #121 rule applied to the controls this slice adds."
+  },
+  "releaseLabel": {
+    "chosen": "release:none",
+    "reasoning": "Deployed bytes change — deploy.yml runs `pages deploy src/` with no ignore file — but served behaviour does not: _redirects sends / to the legacy client and the migration client stays unreachable until the #170 cutover.",
+    "ownerCall": true,
+    "note": "The owner resolved this for #179 by setting release:none by hand over the bot's release:minor, which the feat prefix produces. The same reasoning applies here, and the same manual step will be needed."
+  },
+  "durableProvenance": {
+    "why": "measuredCommit is a branch commit, and every PR here is squash-merged with the branch deleted, so it becomes unreachable from main the moment this lands. Checked across the repository: all six evidence artifacts record a measuredCommit that origin/main cannot reach, so the usual `git rev-parse <measuredCommit>^{tree}` recipe is reproducible only for whoever still has the branch. Raised as a P3 on PR #176 for one artifact; it turned out to be structural.",
+    "check": "Subtree hashes survive the squash, because the squash commit carries the same content. After this merges, run `git rev-parse <squash-merge-commit>:src <squash-merge-commit>:tests <squash-merge-commit>:scripts` and compare with the three below. Verified on two already-merged PRs: #179 (115c33f vs 3340d60) and #176 (12b567e vs 00c709c), all three subtrees identical in both.",
+    "caveat": "This holds because the only commit after the measured one adds this artifact, which touches nothing under src, tests or scripts. If a later commit on the branch changes any of them, these hashes stop matching and the measurement no longer describes what shipped — which is the point of recording them.",
+    "srcTree": "b32ffa704dd261bd26f645cd985a6160eebdce91",
+    "testsTree": "8e97e15030590994bcb12f1284bdf8f0ccfa80fb",
+    "scriptsTree": "52e3852fe9906142a846f72ea929c1f546e9d74c"
+  },
+  "supersedes": [
+    {
+      "measuredCommit": "7fb0b75461d813fdd4e429fe8079f52de41698fb",
+      "why": "Predates the review, which rejected the queued switch and the control overlap."
+    },
+    {
+      "measuredCommit": "6d047b7393a62a19c5fb84f507b985610aca22d4",
+      "why": "Predates review round 2, which found the cylinder controls still offered after a dive failure."
+    }
+  ],
+  "reviewRound1": {
+    "queueWasALatestValueSlot": {
+      "finding": "#requestedTankIndex held one index until the next whole-second step, so a second press inside that second overwrote the first and the intermediate switch never happened. The PR text claimed a press between steps 'is not lost', which held only for a single press.",
+      "fix": "DiveModel.switchGas() applies the switch when pressed, as legacy does in the frame it reads the key (game-loop.js TASK-019). Nothing is held, so nothing can be overwritten.",
+      "queueRejected": "A FIFO queue was the other option. It keeps both presses but emits two gas-switch events a second apart for something the diver did at once, and it leaves the up-to-one-second latency this PR had to explain away. Applying at once removes both.",
+      "unchanged": "applyGasSwitchIntent still decides whether a switch is allowed; switchGas adds only the guard that a failed dive does not switch, which advanceDiveStep applies too."
+    },
+    "rowRanUnderTheDpad": {
+      "finding": "Measured at 390px: five overlapping pairs, cylinders 4-6 beneath the left, descend and right buttons, both at z-index 4 with the D-pad painting over them. The keyboard hint shared the same bottom-left offsets, so at desktop width it was drawn across the row.",
+      "whyCiStayedGreen": "The touch-target test compared the cylinder buttons with each other and with nothing else. Same shape of mistake as measuring only rec for touch targets in #158: the check looked exactly where the author was already looking.",
+      "fix": "The row wraps within a width cap that keeps it clear of the controls, and the hint and the row are stacked in one dock instead of both being anchored absolutely — a column cannot overlap itself, which beats tuning two sets of offsets against each other. A new test asserts no cylinder button overlaps any other control, at 390px and at desktop width.",
+      "staleCommentRemoved": "A CSS comment claimed the row sat 'opposite the D-pad, so a thumb is not on top of the ascent keys'. That was the sentence the measurement disproved."
+    },
+    "p3s": {
+      "helperComment": "The two-cylinder helper's doc comment described a 50% mix it never configured; both cylinders are air and only the pressure differs.",
+      "keyBinding": "The controller bound 1-6 regardless of how many cylinders existed. Legacy iterates to tankCount, so a digit past the cylinder count is now not a dive key at all and the client leaves it alone rather than claiming and discarding it."
+    },
+    "switchDepth": "The reviewer agreed this does not block the slice and belongs with the deferred gas-info path. Unchanged, still noted on #163."
+  },
+  "reviewRound2": {
+    "controlsOfferedAfterFailure": {
+      "finding": "switchGas refuses a switch while failure.reason is set, but syncTankControls hid the row only for CCR or a single cylinder, so a failed multi-cylinder dive kept enabled buttons, and the digit keys were still claimed with preventDefault(). An action offered that could not happen.",
+      "oracle": "Legacy shows its touch UI only while gameState === 'diving' and takes it away at gameover. #163's scope says controls appear only when the dive state allows them.",
+      "fix": "The row hides on presentation.status === 'failed'. The digit keys are not claimed there either: claiming a key means calling preventDefault() on it, so it has to be a key that does something. The same predicate covers digits past the cylinder count.",
+      "testOracleHadToChange": "Asserting the model is unchanged proves nothing about the keys — switchGas refuses either way, so that assertion passes whether or not the key was claimed, and the counter-check said so before the test was believed. The test now reads defaultPrevented from a listener registered after the controller's, which is the only thing that distinguishes the two.",
+      "counterCheck": "Both halves fail with their own fix reverted: the row stops hiding, and the key is claimed again. Build result read first."
+    },
+    "staleDocumentation": "The PR body and one evidence field still described the queued design that round 1 replaced. Both corrected; notTestedAndWhy.noUnitTests no longer speaks of a queue."
+  },
+  "unrelatedFailureObserved": {
+    "what": "tests/game.spec.js, the legacy in-browser harness, failed once in one of four full-suite runs during this round.",
+    "notThisBranch": "Checkable rather than asserted: `git diff --name-only main...HEAD` lists only src/app, src/core, tests/in-dive-controls.spec.js and this artifact — no legacy file. game.spec.js loads /src/diving-simulator-tests.html, which exercises the legacy client alone.",
+    "status": "Passes alone in 15.5s and passed the other three full runs. The message was not captured. Recorded as observed and unexplained rather than dismissed; it has a 150s internal wait inside a 180s test timeout, so machine load is the obvious suspect, but that is a suspicion and not a measurement."
+  }
+}

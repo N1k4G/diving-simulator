@@ -289,6 +289,73 @@ summary:focus-visible {
   background: #a92828;
 }
 
+/* One column in the bottom-left corner: the keyboard hint above, the
+   cylinder row below. Both used to be anchored there absolutely with the
+   same offsets, so the hint was drawn across the row at desktop widths
+   (#163 review). Stacking them means they cannot overlap each other at all,
+   rather than being tuned not to.
+
+   The width cap is what keeps the pair clear of the D-pad on the right: its
+   grid is 3*3.2rem + 2*0.4rem = 10.4rem, plus a 1.25rem gutter and a gap.
+   Six cylinders are 6*44 + 5*8 = 304px, so at 390px they wrap to three per
+   row instead of running underneath the movement buttons — measured, five
+   overlapping pairs, and invisible to a check that only compared the
+   cylinder buttons with each other.
+
+   tests/in-dive-controls.spec.js asserts no cylinder button overlaps any
+   other control, at 390px and at desktop width, so this stays honest if
+   either side changes size. */
+.wreck-dock {
+  position: absolute;
+  z-index: 4;
+  bottom: 1.25rem;
+  left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: calc(100% - 12rem);
+}
+
+.wreck-tanks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.wreck-tanks[hidden] {
+  display: none;
+}
+
+/* 2.75rem is 44px at the default root size, the touch-target floor the
+   #121 test enforces; the 0.5rem gap is the spacing half of the same
+   rule. */
+.wreck-tank {
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid rgb(168 232 242 / 55%);
+  border-radius: 0.6rem;
+  color: #e9fbff;
+  background: rgb(3 24 32 / 82%);
+  cursor: pointer;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+  touch-action: none;
+}
+
+.wreck-tank[aria-pressed="true"] {
+  color: #061923;
+  background: #83d9e7;
+}
+
+/* An empty cylinder is not a broken control, so it stays readable rather
+   than fading to the usual disabled grey — the diver still needs to see it
+   is there and why it cannot be chosen. */
+.wreck-tank:disabled {
+  border-style: dashed;
+  color: rgb(233 251 255 / 55%);
+  cursor: not-allowed;
+}
+
 .wreck-controls {
   position: absolute;
   z-index: 4;
@@ -342,10 +409,6 @@ summary:focus-visible {
 }
 
 .controls-hint {
-  position: absolute;
-  z-index: 4;
-  bottom: 1.25rem;
-  left: 1.25rem;
   max-width: 26rem;
   margin: 0;
   color: #9dc8cf;

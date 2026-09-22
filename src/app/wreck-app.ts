@@ -19,6 +19,7 @@ import {
 import {
   formatDepth,
   formatDuration,
+  formatGasFraction,
   formatPressure,
 } from "./i18n/formatters";
 import { renderSetupScreen } from "./setup/setup-screen";
@@ -45,6 +46,7 @@ interface HudElements {
   readonly zone: HTMLElement;
   readonly status: HTMLElement;
   readonly warning: HTMLElement;
+  readonly tanks: HTMLElement;
   readonly torch: HTMLButtonElement;
   readonly mute: HTMLButtonElement;
 }
@@ -273,6 +275,7 @@ async function startWreckSimulation(
   });
 
   bindContinuousControl(hud.shell, controller);
+  bindTankControls(hud.tanks, controller);
   hud.torch.addEventListener("click", () => controller.toggleTorch());
   hud.mute.addEventListener("click", () => {
     audio.setMuted(!audio.muted);
@@ -375,6 +378,15 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   warning.setAttribute("role", "alert");
   warning.setAttribute("aria-live", "assertive");
 
+  // Filled by updateHud from the dive state, because the number of
+  // cylinders is not known here and the shell is built once. Empty and
+  // hidden until there is something to switch between.
+  const tanks = document.createElement("div");
+  tanks.className = "wreck-tanks";
+  tanks.dataset.wreckTanks = "true";
+  tanks.hidden = true;
+  tanks.setAttribute("aria-label", translate(locale, "wreck.tanks.heading"));
+
   const controls = document.createElement("div");
   controls.className = "wreck-controls";
   controls.setAttribute("aria-label", translate(locale, "wreck.controls.heading"));
@@ -406,7 +418,16 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     translate(locale, "wreck.controls.hint"),
   );
 
-  shell.append(topbar, viewport, hud, warning, controls, hint);
+  // The cylinder row and the hint share the bottom-left corner, so they are
+  // stacked in one dock rather than both anchored there absolutely — which
+  // is how the hint ended up drawn across the row at desktop widths (#163
+  // review). A column cannot overlap itself; the dock's own width cap is
+  // what keeps the pair clear of the D-pad on the right.
+  const dock = document.createElement("div");
+  dock.className = "wreck-dock";
+  dock.append(hint, tanks);
+
+  shell.append(topbar, viewport, hud, warning, dock, controls);
   return {
     shell,
     viewport,
@@ -417,6 +438,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     zone,
     status,
     warning,
+    tanks,
     torch,
     mute,
   };
@@ -439,6 +461,7 @@ function updateHud(
     : translate(locale, "wreck.value.unavailable");
   hud.zone.textContent = translate(locale, zoneMessageKeys[scene.zone]);
   hud.torch.setAttribute("aria-pressed", String(scene.torchOn));
+  syncTankControls(hud.tanks, presentation, locale);
 
   const severity = selectWarning(presentation);
   const alertText = severity ? translate(locale, warningAlertKeys[severity]) : "";
@@ -483,6 +506,89 @@ function selectWarning(
     return "lowGas";
   }
   return null;
+}
+
+/**
+ * The cylinder buttons, kept in step with the dive state (#163).
+ *
+ * Shown only when a switch is something the model would accept, which is what
+ * the issue means by "controls appear only when the dive state allows them,
+ * as in legacy": CCR breathes a loop and src/core/dive-model.ts refuses a gas
+ * switch outright, and a single-cylinder dive has nothing to switch to.
+ *
+ * The buttons are created once and thereafter only have their attributes
+ * updated. Rebuilding them every frame would throw away focus sixty times a
+ * second, which is the same defect the setup screen's focusKeyOf exists to
+ * avoid — and here there would be no re-render to restore it from.
+ */
+function syncTankControls(
+  container: HTMLElement,
+  presentation: Readonly<PresentationState>,
+  locale: SupportedLocale,
+): void {
+  const { tanks, ccr, status } = presentation;
+  // Gone once the dive has failed, as legacy takes its touch UI away outside
+  // `gameState === 'diving'`. DiveModel.switchGas refuses a switch on a
+  // failed dive, so leaving the buttons enabled offered an action that could
+  // not happen (#163 review) — the issue's "controls appear only when the
+  // dive state allows them" covers this as much as it covers CCR.
+  container.hidden = status === "failed" || ccr !== null || tanks.length <= 1;
+  if (container.hidden) {
+    return;
+  }
+
+  if (container.childElementCount !== tanks.length) {
+    container.replaceChildren(
+      ...tanks.map((tank) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "wreck-tank";
+        button.dataset.tank = String(tank.index);
+        // The digit is the key that does the same thing, so the two read as
+        // one control rather than two ways in that happen to agree.
+        button.textContent = String(tank.index + 1);
+        button.setAttribute("aria-keyshortcuts", String(tank.index + 1));
+        return button;
+      }),
+    );
+  }
+
+  tanks.forEach((tank, position) => {
+    const button = container.children[position];
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+    button.setAttribute("aria-pressed", String(tank.active));
+    // Empty cylinders only. The active one stays enabled: the model treats a
+    // switch to it as a no-op, and disabling it would read as "broken"
+    // rather than "already breathing this".
+    button.disabled = tank.gasRemainingL <= 0;
+    button.setAttribute(
+      "aria-label",
+      translate(locale, "wreck.tanks.select")
+        .replace("{n}", String(tank.index + 1))
+        .replace("{gas}", formatGasFraction(tank.gas.oxygenFraction, locale))
+        .replace("{pressure}", formatPressure(tank.pressureBar, locale)),
+    );
+  });
+}
+
+function bindTankControls(
+  container: HTMLElement,
+  controller: GameController,
+): void {
+  // Delegated, because the buttons do not exist when this runs — the first
+  // frame builds them. A listener per button would have to be rebound.
+  container.addEventListener("click", (event) => {
+    const button = (event.target as Element | null)?.closest<HTMLElement>(
+      "[data-tank]",
+    );
+    const index = button?.dataset.tank;
+    if (index === undefined) {
+      return;
+    }
+    controller.requestTankSwitch(Number.parseInt(index, 10));
+  });
 }
 
 function bindContinuousControl(
