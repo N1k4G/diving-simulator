@@ -526,8 +526,13 @@ function syncTankControls(
   presentation: Readonly<PresentationState>,
   locale: SupportedLocale,
 ): void {
-  const { tanks, ccr } = presentation;
-  container.hidden = ccr !== null || tanks.length <= 1;
+  const { tanks, ccr, status } = presentation;
+  // Gone once the dive has failed, as legacy takes its touch UI away outside
+  // `gameState === 'diving'`. DiveModel.switchGas refuses a switch on a
+  // failed dive, so leaving the buttons enabled offered an action that could
+  // not happen (#163 review) — the issue's "controls appear only when the
+  // dive state allows them" covers this as much as it covers CCR.
+  container.hidden = status === "failed" || ccr !== null || tanks.length <= 1;
   if (container.hidden) {
     return;
   }

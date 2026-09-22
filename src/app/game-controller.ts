@@ -316,15 +316,24 @@ export class GameController {
     // tankCount rather than to six. With one cylinder, `2` is not a dive key
     // at all and should reach whatever else might want it.
     const tankIndex = tankIndexForKey(event.key);
-    if (
-      tankIndex !== null &&
-      tankIndex < this.#model.snapshot.tanks.length &&
-      !event.repeat
-    ) {
+    if (tankIndex !== null && !event.repeat && this.#canSwitchTank(tankIndex)) {
       event.preventDefault();
       this.requestTankSwitch(tankIndex);
     }
   };
+
+  /**
+   * Whether this digit is a cylinder key right now.
+   *
+   * Claiming a key means calling preventDefault() on it, so it has to be a
+   * key that does something. It is not one past the cylinder count — legacy
+   * iterates to tankCount — and it is not one on a dive that has already
+   * failed, where switchGas refuses anyway (#163 review).
+   */
+  #canSwitchTank(tankIndex: number): boolean {
+    const state = this.#model.snapshot;
+    return state.failure.reason === null && tankIndex < state.tanks.length;
+  }
 
   readonly #handleKeyUp = (event: KeyboardEvent): void => {
     const control = controlForKey(event.key);

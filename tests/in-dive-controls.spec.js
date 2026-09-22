@@ -173,6 +173,53 @@ test('an empty cylinder is offered but cannot be breathed', async ({ page }) => 
   await expect(page.locator('[data-tank="0"]')).toHaveAttribute('aria-pressed', 'true');
 });
 
+test('a failed dive offers no cylinder controls at all', async ({ page }) => {
+  // DiveModel.switchGas refuses a switch once failure.reason is set, so
+  // leaving the buttons enabled offered an action that could not happen, and
+  // the digit keys were still claimed with preventDefault (#163 review).
+  // Legacy takes its touch UI away outside `gameState === 'diving'`.
+  await startTwoCylinderDive(page);
+  const saved = await persistedSave(page);
+
+  // A failed state the codec will accept: isEventHistory wants exactly one
+  // failure event, last in the list, with the same reason as failure.reason.
+  saved.state.failure.reason = 'out-of-gas';
+  saved.state.events.push({
+    type: 'failure',
+    elapsedTimeS: saved.state.elapsedTimeS,
+    failureReason: 'out-of-gas',
+  });
+
+  await page.goto('/dist/');
+  await page.evaluate(
+    ([key, value]) => window.localStorage.setItem(key, value),
+    [SAVE_KEY, JSON.stringify(saved)],
+  );
+  await acceptSafetyGate(page);
+  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+
+  await expect(page.locator('[data-wreck-tanks]')).toBeHidden();
+
+  // And the key is released rather than swallowed. Asserting the model is
+  // unchanged would prove nothing here — switchGas refuses on a failed dive
+  // either way, so that assertion passes whether or not the key was claimed.
+  // What distinguishes the two is preventDefault(), so that is what is read:
+  // this listener is registered after the controller's, so it sees the flag
+  // the controller would have set.
+  await page.evaluate(() => {
+    window.__tankKeyClaimed = null;
+    window.addEventListener('keydown', (event) => {
+      if (event.key === '2') window.__tankKeyClaimed = event.defaultPrevented;
+    });
+  });
+  await page.keyboard.press('2');
+
+  expect(await page.evaluate(() => window.__tankKeyClaimed)).toBe(false);
+  const after = await persistedSave(page);
+  expect(after.state.activeTankIndex).toBe(saved.state.activeTankIndex);
+});
+
 test('a single-cylinder dive shows no cylinder row', async ({ page }) => {
   // Nothing to switch between. Legacy shows the slots only where the mode
   // has more than one cylinder.
