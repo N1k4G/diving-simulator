@@ -77,5 +77,13 @@
     "reasoning": "Deployed bytes change — deploy.yml runs `pages deploy src/` with no ignore file — but served behaviour does not: _redirects sends / to the legacy client and the migration client stays unreachable until the #170 cutover.",
     "ownerCall": true,
     "note": "The owner resolved this for #179 by setting release:none by hand over the bot's release:minor, which the feat prefix produces. The same reasoning applies here, and the same manual step will be needed."
+  },
+  "durableProvenance": {
+    "why": "measuredCommit is a branch commit, and every PR here is squash-merged with the branch deleted, so it becomes unreachable from main the moment this lands. Checked across the repository: all six evidence artifacts record a measuredCommit that origin/main cannot reach, so the usual `git rev-parse <measuredCommit>^{tree}` recipe is reproducible only for whoever still has the branch. Raised as a P3 on PR #176 for one artifact; it turned out to be structural.",
+    "check": "Subtree hashes survive the squash, because the squash commit carries the same content. After this merges, run `git rev-parse <squash-merge-commit>:src <squash-merge-commit>:tests <squash-merge-commit>:scripts` and compare with the three below. Verified on two already-merged PRs: #179 (115c33f vs 3340d60) and #176 (12b567e vs 00c709c), all three subtrees identical in both.",
+    "caveat": "This holds because the only commit after the measured one adds this artifact, which touches nothing under src, tests or scripts. If a later commit on the branch changes any of them, these hashes stop matching and the measurement no longer describes what shipped — which is the point of recording them.",
+    "srcTree": "5b83d423716905f282680bad1f0d0a2359670e26",
+    "testsTree": "81e8d42031930afef9c5d1496c2a38868d88d467",
+    "scriptsTree": "52e3852fe9906142a846f72ea929c1f546e9d74c"
   }
 }
