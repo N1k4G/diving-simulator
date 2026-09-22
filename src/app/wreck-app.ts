@@ -418,7 +418,16 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     translate(locale, "wreck.controls.hint"),
   );
 
-  shell.append(topbar, viewport, hud, warning, tanks, controls, hint);
+  // The cylinder row and the hint share the bottom-left corner, so they are
+  // stacked in one dock rather than both anchored there absolutely — which
+  // is how the hint ended up drawn across the row at desktop widths (#163
+  // review). A column cannot overlap itself; the dock's own width cap is
+  // what keeps the pair clear of the D-pad on the right.
+  const dock = document.createElement("div");
+  dock.className = "wreck-dock";
+  dock.append(hint, tanks);
+
+  shell.append(topbar, viewport, hud, warning, dock, controls);
   return {
     shell,
     viewport,

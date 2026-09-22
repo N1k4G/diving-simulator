@@ -24,9 +24,11 @@ const persistedSave = (page) =>
     .then((handle) => handle.jsonValue());
 
 /**
- * A two-cylinder technical dive: air on 1, 50% on 2. Both have gas, so both
- * are switchable, and their pressures differ so the HUD readout distinguishes
- * them without needing an active-cylinder display.
+ * A two-cylinder technical dive. Both cylinders are air — the comment here
+ * used to claim the second was 50%, which the helper never configured
+ * (#163 review). What it does configure is 250 bar on the second, so the two
+ * are distinguishable by the gas readout without an active-cylinder display.
+ * Both have gas, so both are switchable.
  */
 async function configureTwoCylinderTec(page) {
   await page.locator('[data-setup-group=mode] [data-setup-option=tec]').check();
@@ -46,6 +48,19 @@ async function startTwoCylinderDive(page) {
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
   await expect(page.locator('[data-wreck-tanks] button')).toHaveCount(2);
+}
+
+async function startThreeCylinderDive(page) {
+  await page.goto('/dist/');
+  await page.evaluate(() => window.localStorage.clear());
+  await acceptSafetyGate(page);
+  await page.locator('[data-setup-group=mode] [data-setup-option=tec]').check();
+  await page.locator('[data-setup-option=tec]').evaluate((el) => el.blur());
+  await page.locator('[data-setup-tank-add]').click();
+  await page.locator('[data-setup-tank-add]').click();
+  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  await expect(page.locator('[data-wreck-tanks] button')).toHaveCount(3);
 }
 
 test('a cylinder can be chosen with its digit key', async ({ page }) => {
@@ -79,16 +94,52 @@ test('a cylinder can be chosen with its button, reaching the same state', async 
   expect(saved.state.events.filter((e) => e.type === 'gas-switch')).toHaveLength(1);
 });
 
-test('the switch survives being pressed between simulation steps', async ({ page }) => {
-  // The model moves in whole seconds and ignores an advance of zero, so the
-  // request is queued rather than applied. Queued must mean kept: a press
-  // that lands between two steps has to take effect on the next one, not be
-  // dropped. Pressing immediately after the canvas appears is exactly that
-  // case — the first step has not run yet.
+test('the switch applies before the next simulation step', async ({ page }) => {
+  // Pressing immediately after the canvas appears: the first whole-second
+  // step has not run yet. The switch has to be visible anyway, because it is
+  // applied when pressed rather than sampled at the next step.
   await startTwoCylinderDive(page);
   await page.keyboard.press('2');
 
   await expect(page.locator('[data-tank="1"]')).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('a second press in the same second does not swallow the first switch', async ({ page }) => {
+  // #163 review. The request used to sit in a single latest-value slot until
+  // the next whole-second step, so a second press inside that second
+  // overwrote the first and the intermediate switch never happened at all —
+  // one event where the diver made two decisions.
+  //
+  // Three cylinders, because the review's own example (2 then an
+  // out-of-range 6) can no longer reach the slot: the controller now binds
+  // only as many digits as there are cylinders, so 6 is not a dive key on a
+  // two-cylinder dive. The general case it named is the one still worth
+  // pinning, and it is the one that survives that gate.
+  await startThreeCylinderDive(page);
+
+  await page.keyboard.press('2');
+  await page.keyboard.press('3');
+
+  await expect(page.locator('[data-tank="2"]')).toHaveAttribute('aria-pressed', 'true');
+  const saved = await persistedSave(page);
+  expect(saved.state.activeTankIndex).toBe(2);
+
+  // Both decisions are recorded, in order. The old design produced only the
+  // second, because the first was overwritten before any step read it.
+  const switches = saved.state.events.filter((e) => e.type === 'gas-switch');
+  expect(switches.map((e) => e.tankIndex)).toEqual([1, 2]);
+});
+
+test('a digit beyond the cylinder count is not a dive key', async ({ page }) => {
+  // Legacy iterates to tankCount, not to six (game-loop.js TASK-019), so on
+  // a two-cylinder dive `3` names nothing and the client leaves the key
+  // alone rather than claiming and discarding it.
+  await startTwoCylinderDive(page);
+  await page.keyboard.press('3');
+
+  await expect(page.locator('[data-tank="0"]')).toHaveAttribute('aria-pressed', 'true');
+  const saved = await persistedSave(page);
+  expect(saved.state.events.filter((e) => e.type === 'gas-switch')).toHaveLength(0);
 });
 
 test('an empty cylinder is offered but cannot be breathed', async ({ page }) => {
@@ -148,6 +199,63 @@ test('a closed-circuit dive shows no cylinder row', async ({ page }) => {
   await expect(page.locator('[data-wreck-tanks]')).toBeHidden();
 });
 
+/**
+ * Every button a diver can press during the dive, other than the cylinders.
+ * Kept as one list so a control added later is covered by the overlap check
+ * without anyone remembering to extend it.
+ */
+async function otherControlBoxes(page) {
+  const boxes = [];
+  for (const handle of await page
+    .locator('.wreck-controls button, .controls-hint, .wreck-warning:not([hidden])')
+    .all()) {
+    const box = await handle.boundingBox();
+    if (box && box.width > 0 && box.height > 0) boxes.push(box);
+  }
+  return boxes;
+}
+
+async function expectNoOverlapWithOtherControls(page) {
+  const others = await otherControlBoxes(page);
+  expect(others.length).toBeGreaterThan(0);
+
+  for (const handle of await page.locator('[data-wreck-tanks] button').all()) {
+    const tank = await handle.boundingBox();
+    const label = await handle.getAttribute('data-tank');
+    if (!tank) continue;
+    for (const other of others) {
+      const dx = Math.min(tank.x + tank.width, other.x + other.width) -
+        Math.max(tank.x, other.x);
+      const dy = Math.min(tank.y + tank.height, other.y + other.height) -
+        Math.max(tank.y, other.y);
+      expect(
+        dx <= 0 || dy <= 0,
+        `cylinder ${Number(label) + 1} overlaps another control by ${Math.round(dx)}x${Math.round(dy)}px`,
+      ).toBe(true);
+    }
+  }
+}
+
+async function startSixCylinderDive(page) {
+  await page.goto('/dist/');
+  await page.evaluate(() => window.localStorage.clear());
+  await acceptSafetyGate(page);
+  await page.locator('[data-setup-group=mode] [data-setup-option=tec]').check();
+  for (let i = 0; i < 5; i += 1) {
+    await page.locator('[data-setup-tank-add]').click();
+  }
+  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  await expect(page.locator('[data-wreck-tanks] button')).toHaveCount(6);
+}
+
+test('no cylinder button overlaps another control at desktop width', async ({ page }) => {
+  // The narrow case is the one that broke, but the row is laid out by the
+  // same rule at both widths, so both are asserted.
+  await startSixCylinderDive(page);
+  await expectNoOverlapWithOtherControls(page);
+});
+
 test.describe('mobile viewport', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
 
@@ -167,18 +275,19 @@ test.describe('mobile viewport', () => {
     expect(saved.state.activeTankIndex).toBe(1);
   });
 
+  test('no cylinder button overlaps another control', async ({ page }) => {
+    // The gap check below measures the cylinder row against itself, which is
+    // why it stayed green while cylinders 4-6 sat underneath the D-pad at
+    // 390px — five overlapping pairs, both at z-index 4, with the D-pad
+    // painting over them because it comes later in the DOM (#163 review).
+    // A control you cannot press is worse than one that is slightly small.
+    await startSixCylinderDive(page);
+    await expectNoOverlapWithOtherControls(page);
+  });
+
   test('every cylinder button meets the 44px touch target with 8px spacing', async ({ page }) => {
     // The #121 rule, applied to the controls this slice adds.
-    await page.goto('/dist/');
-    await page.evaluate(() => window.localStorage.clear());
-    await startDiveByTouch(page, async (target) => {
-      await target.locator('[data-setup-group=mode] [data-setup-option=tec]').tap();
-      for (let i = 0; i < 5; i += 1) {
-        await target.locator('[data-setup-tank-add]').tap();
-      }
-    });
-    await page.locator('[data-renderer=pixi] canvas').waitFor();
-    await expect(page.locator('[data-wreck-tanks] button')).toHaveCount(6);
+    await startSixCylinderDive(page);
 
     const boxes = [];
     for (const handle of await page.locator('[data-wreck-tanks] button').all()) {
@@ -191,9 +300,21 @@ test.describe('mobile viewport', () => {
       expect(Math.round(box.width), 'button width').toBeGreaterThanOrEqual(44);
       expect(Math.round(box.height), 'button height').toBeGreaterThanOrEqual(44);
     }
-    for (let i = 1; i < boxes.length; i += 1) {
-      const gap = boxes[i].x - (boxes[i - 1].x + boxes[i - 1].width);
-      expect(Math.round(gap), `gap before button ${i + 1}`).toBeGreaterThanOrEqual(8);
+    // Pairwise, not just along one row: the row wraps at this width, so
+    // comparing each button with the previous one in document order would
+    // measure a negative "gap" at every line break and prove nothing about
+    // the buttons that sit above each other.
+    for (let i = 0; i < boxes.length; i += 1) {
+      for (let j = i + 1; j < boxes.length; j += 1) {
+        const a = boxes[i];
+        const b = boxes[j];
+        const gapX = Math.max(a.x - (b.x + b.width), b.x - (a.x + a.width));
+        const gapY = Math.max(a.y - (b.y + b.height), b.y - (a.y + a.height));
+        expect(
+          Math.round(Math.max(gapX, gapY)),
+          `spacing between cylinders ${i + 1} and ${j + 1}`,
+        ).toBeGreaterThanOrEqual(8);
+      }
     }
   });
 });

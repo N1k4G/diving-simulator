@@ -75,6 +75,31 @@ export class DiveModel {
 
     return this.#state;
   }
+
+  /**
+   * Switches the breathed cylinder now, outside the time step (#163 review).
+   *
+   * A gas switch is a discrete act, not a level to sample. Carrying it in the
+   * intent meant holding it somewhere until the next whole-second step, and
+   * the client held it in a single slot — so a second press before that step
+   * overwrote the first, and pressing 2 and then an out-of-range 6 lost the
+   * valid switch entirely. A queue would have kept both, but then two presses
+   * inside one second would emit two gas-switch events where legacy produces
+   * one transition.
+   *
+   * Legacy applies the switch in the frame the key is read
+   * (src/game-loop.js TASK-019), so this does too and nothing is held
+   * anywhere. The refusal rules are untouched: applyGasSwitchIntent still
+   * decides, and a dive that has already failed does not switch at all, as
+   * advanceDiveStep would also refuse.
+   */
+  switchGas(requestedIndex: number): DiveState {
+    if (this.#state.failure.reason !== null) {
+      return this.#state;
+    }
+    this.#state = applyGasSwitchIntent(this.#state, requestedIndex);
+    return this.#state;
+  }
 }
 
 export function advanceTissues(
