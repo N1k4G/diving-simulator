@@ -3,11 +3,11 @@
   "issue": 163,
   "slice": "PR 1 of n: the in-dive cylinder switch (keys 1-6 and a button per cylinder)",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npm run test:e2e",
-  "measuredCommit": "6d047b7393a62a19c5fb84f507b985610aca22d4",
-  "measuredTree": "0925664ea08c41feb0ec7492c02adcfc4fca28ad",
+  "measuredCommit": "897b11fac0591133f1a736e530346a826dbe45c3",
+  "measuredTree": "9aead0ccd9b3c829b41991851d73b625323fcf7a",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-09-22T07:48:16Z",
-  "runFinishedAt": "2026-09-22T07:52:51Z",
+  "recordedAt": "2026-09-22T08:24:27Z",
+  "runFinishedAt": "2026-09-22T08:28:58Z",
   "timestampProvenance": "Both are the output of `date -u +%Y-%m-%dT%H:%M:%SZ` around the run, not values written by hand. #158's slice-3 evidence carried a hand-typed wall-clock reading on a UTC+2 machine labelled as UTC and was rejected in review; the timestamp is the one field a reviewer cannot recompute, so it has to be measured.",
   "provenanceNote": "Measured against the committed tree rather than the working tree that became it. Only the commit adding this file follows the measured one.",
   "environment": {
@@ -27,7 +27,7 @@
     "distCheck": "pass — 17 files, no source maps, 4 markers absent",
     "unit": "209 passed (unchanged: this slice adds no unit tests, see notTestedAndWhy)",
     "parity": "36 passed (unchanged)",
-    "e2e": "86 passed in 2.5 min (74 on main, +12)",
+    "e2e": "87 passed in 2.7 min (74 on main, +13)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "10 scenes ok"
   },
@@ -54,7 +54,7 @@
   },
   "notTestedAndWhy": {
     "gasSwitchNotification": "Legacy shows a two-second 'GAS SWITCH -> T{n}' toast and resets bestGasAlerted and fastForwardActive. The toast belongs with the HUD additions and fastForwardActive with the fast-forward slice; neither exists yet, so neither is reproduced.",
-    "noUnitTests": "The behaviour added here is the controller's queue and the DOM sync, and both need a running animation frame. The node test environment has no requestAnimationFrame — tests/unit already notes this for destroy() — so the coverage is e2e, where the real loop runs, rather than a mock that would assert the mock."
+    "noUnitTests": "What this slice adds is the immediate switch path and the DOM sync, and both need a running animation frame. The node test environment has no requestAnimationFrame — tests/unit already notes this for destroy() — so the coverage is e2e, where the real loop runs, rather than a mock that would assert the mock. The model half, DiveModel.switchGas, is reachable without a frame and its rules are already covered by tests/unit/dive-model.test.ts through applyGasSwitchIntent."
   },
   "counterCheck": {
     "method": "One revert at a time, restoring the actual previous design rather than breaking the code conveniently, with the build result read before each run.",
@@ -81,14 +81,18 @@
     "why": "measuredCommit is a branch commit, and every PR here is squash-merged with the branch deleted, so it becomes unreachable from main the moment this lands. Checked across the repository: all six evidence artifacts record a measuredCommit that origin/main cannot reach, so the usual `git rev-parse <measuredCommit>^{tree}` recipe is reproducible only for whoever still has the branch. Raised as a P3 on PR #176 for one artifact; it turned out to be structural.",
     "check": "Subtree hashes survive the squash, because the squash commit carries the same content. After this merges, run `git rev-parse <squash-merge-commit>:src <squash-merge-commit>:tests <squash-merge-commit>:scripts` and compare with the three below. Verified on two already-merged PRs: #179 (115c33f vs 3340d60) and #176 (12b567e vs 00c709c), all three subtrees identical in both.",
     "caveat": "This holds because the only commit after the measured one adds this artifact, which touches nothing under src, tests or scripts. If a later commit on the branch changes any of them, these hashes stop matching and the measurement no longer describes what shipped — which is the point of recording them.",
-    "srcTree": "800bf4f889eb08bd302699d8e982f8172fc3446a",
-    "testsTree": "d8ccd75738f690462ea83387b80bfe074d374630",
+    "srcTree": "b32ffa704dd261bd26f645cd985a6160eebdce91",
+    "testsTree": "8e97e15030590994bcb12f1284bdf8f0ccfa80fb",
     "scriptsTree": "52e3852fe9906142a846f72ea929c1f546e9d74c"
   },
   "supersedes": [
     {
       "measuredCommit": "7fb0b75461d813fdd4e429fe8079f52de41698fb",
       "why": "Predates the review, which rejected the queued switch and the control overlap."
+    },
+    {
+      "measuredCommit": "6d047b7393a62a19c5fb84f507b985610aca22d4",
+      "why": "Predates review round 2, which found the cylinder controls still offered after a dive failure."
     }
   ],
   "reviewRound1": {
@@ -109,5 +113,20 @@
       "keyBinding": "The controller bound 1-6 regardless of how many cylinders existed. Legacy iterates to tankCount, so a digit past the cylinder count is now not a dive key at all and the client leaves it alone rather than claiming and discarding it."
     },
     "switchDepth": "The reviewer agreed this does not block the slice and belongs with the deferred gas-info path. Unchanged, still noted on #163."
+  },
+  "reviewRound2": {
+    "controlsOfferedAfterFailure": {
+      "finding": "switchGas refuses a switch while failure.reason is set, but syncTankControls hid the row only for CCR or a single cylinder, so a failed multi-cylinder dive kept enabled buttons, and the digit keys were still claimed with preventDefault(). An action offered that could not happen.",
+      "oracle": "Legacy shows its touch UI only while gameState === 'diving' and takes it away at gameover. #163's scope says controls appear only when the dive state allows them.",
+      "fix": "The row hides on presentation.status === 'failed'. The digit keys are not claimed there either: claiming a key means calling preventDefault() on it, so it has to be a key that does something. The same predicate covers digits past the cylinder count.",
+      "testOracleHadToChange": "Asserting the model is unchanged proves nothing about the keys — switchGas refuses either way, so that assertion passes whether or not the key was claimed, and the counter-check said so before the test was believed. The test now reads defaultPrevented from a listener registered after the controller's, which is the only thing that distinguishes the two.",
+      "counterCheck": "Both halves fail with their own fix reverted: the row stops hiding, and the key is claimed again. Build result read first."
+    },
+    "staleDocumentation": "The PR body and one evidence field still described the queued design that round 1 replaced. Both corrected; notTestedAndWhy.noUnitTests no longer speaks of a queue."
+  },
+  "unrelatedFailureObserved": {
+    "what": "tests/game.spec.js, the legacy in-browser harness, failed once in one of four full-suite runs during this round.",
+    "notThisBranch": "Checkable rather than asserted: `git diff --name-only main...HEAD` lists only src/app, src/core, tests/in-dive-controls.spec.js and this artifact — no legacy file. game.spec.js loads /src/diving-simulator-tests.html, which exercises the legacy client alone.",
+    "status": "Passes alone in 15.5s and passed the other three full runs. The message was not captured. Recorded as observed and unexplained rather than dismissed; it has a 150s internal wait inside a 180s test timeout, so machine load is the obvious suspect, but that is a suspicion and not a measurement."
   }
 }
