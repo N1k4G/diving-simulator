@@ -1,0 +1,199 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 163,
+  "slice": "PR 3 of n: the rebreather controls — setpoint ([ ] and buttons), bailout (B and a button), the loop's HUD rows, and the loop warnings",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "a69158dd3abdadd1bb579723dea50145617bef46",
+  "measuredTree": "bef927fb2b4e63ef96803a4a5ffaf03147a536fb",
+  "workingTree": "clean before the run and still clean after it (git status --porcelain empty at both ends, checked by the same shell invocation that ran the command)",
+  "recordedAt": "2026-09-25T10:17:49Z",
+  "runFinishedAt": "2026-09-25T10:23:37Z",
+  "timestampProvenance": "Both are the output of `date -u +%Y-%m-%dT%H:%M:%SZ` printed by the shell immediately before and after the command, not values written by hand.",
+  "provenanceNote": "Measured against the committed tree rather than the working tree that became it. Only the commit adding this file follows the measured one.",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass — 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "245 passed (222 on main, +23: 14 in tests/unit/ccr-in-dive.test.ts, 5 in tests/unit/game-controller-ccr.test.ts, 4 in tests/unit/game-controller-forecast.test.ts)",
+    "parity": "36 passed (unchanged)",
+    "e2e": "120 passed in 4.4 min (97 on main, +23 in tests/in-dive-controls.spec.js)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels, max delta 0",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "whatWasMissing": {
+    "note": "The model could bail out (applyBailoutIntent, via InputIntent.bailout) but had no setpoint operation, and the client set neither: a CCR dive started at the configured setpoint and stayed there, and the only way to bail out was a save edited by hand. Nothing in the HUD showed the loop — setpoint, PO₂, cylinders, scrubber — so #158's e2e tests read localStorage to learn what a CCR dive had started with, and the gas row showed tanks[0], the codec's placeholder cylinder.",
+    "consequence": "The rebreather was configurable and simulated but not operable, and its state was observable only through the save."
+  },
+  "boundsPortedFromTheOracle": {
+    "setpoint": "src/state.js ccrAdjustSP / src/game-loop.js updateDiving: `Math.max(CCR_SP_MIN, Math.min(CCR_SP_MAX, +(targetSP ± CCR_SP_STEP).toFixed(1)))` with CCR_SP_MIN 0.5, CCR_SP_MAX 1.6, CCR_SP_STEP 0.1 (src/constants.js), gated on `diveMode === 'ccr' && !ccrState.onBailout`. The three constants move into src/core/dive-state.ts as CCR_SETPOINT_*; src/app/setup/ccr-controls.ts now reads them instead of carrying its own copy.",
+    "bailout": "src/game-loop.js TASK-032F: `if (keys['b']) { ccrState.onBailout = true }` under the same gate. DiveModel.bailOut() applies the existing applyBailoutIntent, which also zeroes co2BuildupS and records the one bailout event.",
+    "keys": "`[` and `]` for the setpoint, B for bailout — src/game-loop.js; the same pair the setup screen binds, so the two screens agree.",
+    "controlVisibility": "src/touch.js updateCcrDiveButtonVisibility: bailout, SP+ and SP− shown while `diveMode === 'ccr' && gameState === 'diving' && !ccrState.onBailout`; the DOM row here follows that plus the failed-dive rule.",
+    "hudRows": "src/renderer.js drawDiveComputer, CCR branch of infoPageMode 0: mode, SP, PO2, O2, DIL, SCR. The five value rows are ported with legacy's row danger rules — PO2 outside 0.18..1.6, O2 and DIL under 30 bar and SCR under 10 minutes, the last three on the rounded value legacy displays — marked with the ⚠ glyph (hudDangerPrefix) and a danger tone. The scrubber reads in whole minutes as legacy draws it. The mode word is carried by the cylinder row from slice 2.",
+    "warnings": "src/renderer.js TASK-032E: LOW PO2 below 0.18 bar, HIGH PO2 above 1.5, CO2! once scrubberFailed, SCR LOW under 10 minutes, all only while not on bailout. Thresholds and effective precedence are both the oracle's: the banner assigns PO2, then CO2!, then SCR LOW (guarded by !scrubberFailed), so the last assignment wins and the order is SCR LOW > CO2! > PO2."
+  },
+  "deliberateDesign": {
+    "operationsAreTheModels": "The controller passes a delta or a request; DiveModel decides. No rebreather, on bailout, failed, at a bound, or a non-finite delta all return the same state reference, and the controller then publishes nothing and saves nothing — the same silence as a refused gas switch. There is one place for each rule.",
+    "irreversibleByConstruction": "No operation clears onBailout. A second bailOut() returns the same reference and adds no event; the intent path through advance() already behaved this way and is untouched. Confirmed by state rather than by a dialog (#67): the row that held the button is gone, the cylinder row names the diluent, and the keys stop being claimed.",
+    "keysClaimedOnlyWhenOnOffer": "`[` `]` and B call preventDefault() only under #loopControlsOffered(), the same rule as the digits and F: a key that does nothing is left to whoever else wants it.",
+    "rowsSwap": "On a CCR dive the five loop rows show and the open-circuit gas row hides, rather than both showing. The gas row on a CCR dive would read tanks[0]'s pressure, a cylinder nobody draws down; showing it beside the O₂ and diluent rows would be a third pressure with no meaning.",
+    "twoDecimalsForPo2": "formatPartialPressure gives two decimals for setpoint and loop PO₂ (legacy: toFixed(1) for SP, toFixed(2) for PO2). A loop at 1.28 and one at 1.32 are different readings; a cylinder to the tenth of a bar is already more than anyone reads.",
+    "warningPrecedence": "failure > scrubberLow > co2 > oxygen > lowGas. The first four follow the legacy banner's effective order (see boundsPortedFromTheOracle.warnings). lowGas, either rebreather cylinder under 30 bar, comes last because legacy's banner does not carry it at all: legacy marks the row only. The first cut ranked PO₂ above the scrubber; review round 1 held that the legacy harness is the behavioural oracle, and the oracle's order stands until a committed decision says otherwise.",
+    "lowGasOnTheBreathedCylinder": "On a rebreather, low gas fires when either CCR cylinder is under legacy's 30 bar row threshold (rounded), the oxygen cylinder only while the loop is breathed, and never on tanks[0], the placeholder. That promotes a legacy row marker to the alert and audio path, which the definition of done asks of every warning. The open-circuit migration already did the same for its 50 bar gas row. It replaces an invented ≤50 bar diluent threshold after bailout that the first cut carried.",
+    "bailoutNameCarriesTheConsequence": "The bailout button's accessible name is 'Bail out to open circuit — cannot be undone'. It cannot ask for confirmation (#67), so its irreversibility has to be knowable before the press rather than discovered after it.",
+    "hiddenRowsNeedCss": "`.wreck-hud div` sets display: flex, which beats the user agent's [hidden] rule; `.wreck-hud div[hidden] { display: none }` was added so the loop rows actually vanish on open circuit. Asserted by the e2e that checks the rows hidden.",
+    "forcedForecastSurvivesAFlight": "A forced forecast (gas switch, setpoint, bailout) that arrives while a request is in flight is remembered; the in-flight answer, computed for the gas the diver has left, is not published, and one replacement goes out from the latest state when it settles. Several forces during one flight collapse into that one replacement.",
+    "forecastInvalidatedOnGasChange": "A cylinder switch, a setpoint change and a bailout clear the forecast before publishing (#invalidateForecast), so the HUD never pairs the new breathing gas with the previous NDL; it shows its unavailable mark until the new forecast lands.",
+    "shortScreenLayout": "Screens up to 600 px tall lay the HUD out in two columns. Measured before the fix: the ten-row CCR panel's padding ran 8 px into the keyboard hint at 844x390 and 3 px into the setpoint button at 667x375, and no readout was covered. The whole-minute scrubber alone clears both, because it stops the row wrapping. The two-column rule adds margin for rows still to come."
+  },
+  "sliceBoundary": {
+    "issueSuggestion": "#163 proposes 'PR 3: CCR setpoint + bailout'. This is that PR, plus the HUD rows and warnings the issue lists under 'HUD additions the controls need' for the loop, because a setpoint control without a setpoint readout cannot be tested through the HUD.",
+    "stillOutstandingInThisIssue": "gas info (I); the parity trace with a tank switch, a setpoint change and a bailout — the baseline fixture has a tank switch (trimix-45m-20min) and a bailout (ccr-bailout-30m) but no setpoint change, so a scenario has to be recorded from the legacy client and the fixture regenerated additively; the switchDepth decision carried over from #158; bailout as a status-chip state (legacy's BAIL mode word in danger tone) if the cylinder row is judged insufficient."
+  },
+  "notTestedAndWhy": {
+    "audioCue": "Each new severity drives audio.update({ warningActive: true }), the same path the three existing severities use, which plays alert.warning at priority 100 through WebAudioService. The node test environment has no AudioContext and the e2e cannot hear; the mapping is one boolean derived from the same selectWarning() the alert text comes from, so the visual assertion covers the branch.",
+    "loopPo2Warning": "LOW PO2 / HIGH PO2 on the loop: reaching 0.18 or 1.5 bar takes a starved or runaway loop that the save codec accepts but that fails the dive within 30 s of resuming, so an e2e would race the failure. The branch is the same `oxygen` severity the open-circuit path already asserts (tests/wreck-slice.spec.js 'persisted safety states'), with the thresholds substituted.",
+    "saveThrottle": "The app writes a save every five simulated seconds, so the e2e reads that follow a second press wait for a save that reflects it (savedStateWhere) rather than asserting the first save they find. That is an ordering in the app, not a defect; a save on every discrete act would be a separate decision."
+  },
+  "counterCheck": {
+    "method": "One revert at a time, restoring the actual previous behaviour rather than breaking the code conveniently, with the build result read before each e2e run so a stale dist/ can never pass as a result. Script kept outside the repository; the tree was restored and rebuilt after the last case.",
+    "cases": {
+      "setpointClampRemoved": "adjustSetpoint no longer clamps to 0.5..1.6 — 2 of 19 unit tests fail",
+      "setpointRoundingRemoved": "the tenth-snapping removed, so 0.7 + 0.1 stays 0.7999999999999999 — 2 of 19 unit tests fail",
+      "secondBailoutAccepted": "applyBailoutIntent no longer refuses when onBailout is already set — 2 of 19 unit tests fail (a second event is recorded)",
+      "setpointMovableAfterBailout": "the onBailout guard removed from the setpoint — 2 of 19 unit tests fail",
+      "loopKeysClaimedUnconditionally": "`[` `]` and B call preventDefault() on open circuit too — build pass, the open-circuit e2e fails on defaultPrevented",
+      "controlRowKeptAfterBailout": "the row no longer hides on onBailout — build pass, the bailout e2e fails",
+      "co2WarningRemoved": "the co2 severity never selected — build pass, the failed-scrubber e2e fails",
+      "forcedForceDropped": "the pending guard no longer records a force — 2 of 3 forecast unit tests fail",
+      "staleAnswerPublished": "the superseded in-flight answer is published — 1 of 3 forecast unit tests fails",
+      "forecastNotCleared": "#invalidateForecast() without the clearing — 1 of 4 forecast unit tests fails",
+      "lowCylinderRuleDisabled": "isCcrCylinderLow() always false — build pass, the under-30-bar e2e fails",
+      "shortScreenLayoutReverted": "the two-column rule removed AND the scrubber back on formatDuration, the full pre-fix layout — build pass, 2 of 8 layout e2e fail: panel into the hint by 240x8 px at 844x390, panel into the setpoint button by 59x3 px at 667x375",
+      "setpointRepeatFiltered": "the repeat filter restored on [ and ] — build pass, the held-key e2e fails",
+      "cylinderDisplayUnrounded": "the O₂ row back on the unrounded pressure — build pass, the whole-bar e2e fails"
+    },
+    "oneRevertDidNotCompileAtFirst": "Removing the #loopControlsOffered() call from the key handler left the method unread, and the build failed on TS6133 before any e2e ran; the script reported the failed build instead of a pass. The revert was rewritten to keep reading the method (`|| true`) and rerun.",
+    "rerunAfterRound1": "All seven original cases were run again against b9038f0 with the same outcomes; the two forecast cases were added in that round.",
+    "layoutGuardNote": "Removing only the two-column rule leaves the guard green, because the whole-minute scrubber alone clears the overlap. Removing both reproduces the measured defect. Two earlier attempts proved nothing and are recorded rather than redone quietly. The first guard compared rows only, and the rows never overlapped, only the panel did, so it now includes the panel. One revert did not compile (TS2774) and would have run against a stale dist/; it was rewritten and rerun with the build result read first.",
+    "rerunAfterRound2": "The seven original cases were run again against 874565a with the same outcomes.",
+    "workingTreeIncident": "While running the layout counter-check, `git checkout --` was used to restore two files that also held uncommitted round-2 edits. Those edits were discarded, spotted from the tool's change notice, re-applied, and checked with `git diff --stat` and a type-check before anything was committed. Later counter-checks restored from copies taken beforehand. The measurement above is of the committed tree."
+  },
+  "accessibility": {
+    "keyboard": "SP − / SP + carry aria-keyshortcuts '[' and ']', bailout 'B'. The keyboard hint names all three in en and de.",
+    "labels": "'Lower the setpoint' / 'Raise the setpoint' / 'Bail out to open circuit — cannot be undone', the five row labels, two chip labels and two alert sentences, all from the catalogue in en and de.",
+    "touchTargets": "Three buttons at ≥44 CSS px with ≥8 px spacing, measured at 390 px, and asserted not to overlap any other control.",
+    "warnings": "Each new severity has alert text (role=alert, assertive, written once per transition) and a chip label with the ⚠ glyph, so neither colour nor sound carries the meaning alone."
+  },
+  "releaseLabel": {
+    "chosen": "release:none",
+    "reasoning": "Deployed bytes change — deploy.yml runs `pages deploy src/` with no ignore file — but served behaviour does not: _redirects sends / to the legacy client and the migration client stays unreachable until the #170 cutover.",
+    "ownerCall": true
+  },
+  "durableProvenance": {
+    "why": "measuredCommit is a branch commit and becomes unreachable once this is squash-merged; the subtree hashes survive the squash because the squash commit carries the same content.",
+    "check": "After the merge, `git rev-parse <squash-merge-commit>:src <squash-merge-commit>:tests <squash-merge-commit>:scripts` should equal the three below.",
+    "caveat": "Holds only while the sole commit after the measured one adds this artifact and touches nothing under src, tests or scripts.",
+    "srcTree": "648a7d1592e3f4d2389b58d11772647b4aa7b89a",
+    "testsTree": "340a281dc6ff5de033bcbacdb04412cb35c8537b",
+    "scriptsTree": "52e3852fe9906142a846f72ea929c1f546e9d74c"
+  },
+  "reviewRound1": {
+    "findings": 3,
+    "bailoutForecastGas": {
+      "finding": "major bug — after a bailout, bestForecastGas() scans state.tanks for ascent steps and stops and can pick tanks[0], the codec's placeholder cylinder, which the diver cannot breathe.",
+      "assessment": "Disputed as a finding against this PR. It is the oracle's behaviour: src/physics.js calculateDecoSchedule uses activeGas() (the diluent on bailout) for the current segment but bestGasForDepth(d) for every ascent step and stop, and outside tec mode that returns tanks[activeTank] — the placeholder. The migration planner reproduces it, and it predates this PR, which adds bailOut() and calls the same forced forecast a gas switch already called.",
+      "disposition": "Tracked as #183: a normative decision, the planner change, and a baseline scenario whose diluent differs from the placeholder cylinder (ccr-bailout-30m uses air for both and cannot tell them apart). Answered on the PR."
+    },
+    "forcedForecastDropped": {
+      "finding": "minor bug — #requestForecast(true) returned at the pending guard, so a force during a periodic request was lost and the stale answer was published.",
+      "assessment": "Confirmed.",
+      "fix": "#forcedForecastQueued: the stale answer is dropped and a replacement issued from the latest state on settle. Three unit tests in tests/unit/game-controller-forecast.test.ts drive the worker client by hand."
+    },
+    "warningPrecedence": {
+      "finding": "major contract-violation — PO₂ ranked above SCR LOW, diverging from the legacy banner without a committed decision.",
+      "assessment": "Accepted.",
+      "fix": "selectWarning() now follows SCR LOW > CO2! > PO2."
+    }
+  },
+  "supersedes": [
+    {
+      "measuredCommit": "f44cc318c4175faca6837d022e75c258f5eaf76b",
+      "why": "Predates review round 1."
+    },
+    {
+      "measuredCommit": "b9038f0ade1c9d2397f5d2d44e19c5af76a19913",
+      "why": "Predates review round 2, which found the stale forecast after a gas change, the landscape overlap and the missing low-cylinder warnings."
+    },
+    {
+      "measuredCommit": "874565af83adac2138b309b87e5b297e4c5455b7",
+      "why": "Predates review round 3, which found held setpoint keys not repeating."
+    },
+    {
+      "measuredCommit": "3e05bf804ba7caf5f529bfb511c395ad76c8c711",
+      "why": "Predates review round 4, which found the cylinder display and the danger rule disagreeing at 30 bar."
+    }
+  ],
+  "reviewRound2": {
+    "findings": 4,
+    "bailoutForecastGas": {
+      "finding": "Re-reported from round 1.",
+      "disposition": "Still disputed as a finding against this PR and tracked as #183, because the correction needs a normative decision and a fixture change, which are the owner's to make. Answered on the PR."
+    },
+    "staleForecastVisible": {
+      "finding": "minor bug — a completed forecast stayed on screen after a gas-changing act until the worker answered.",
+      "assessment": "Confirmed.",
+      "fix": "#invalidateForecast() clears it before publishing. One unit test was added, and it fails with the clearing removed."
+    },
+    "landscapeOverlap": {
+      "finding": "major contract-violation — the CCR HUD overlapped the dock in mobile landscape; the finding said it painted over NDL and zone.",
+      "assessment": "Confirmed with a correction: the HUD panel's padding overlapped, by 8 px at 844x390 and 3 px at 667x375, and no readout was covered.",
+      "fix": "Whole-minute scrubber plus a two-column HUD up to 600 px tall. An e2e checks the panel and every row against every control at 844x390, 667x375, 390x844 and 1280x720 in both modes."
+    },
+    "lowCylinderWarnings": {
+      "finding": "major contract-violation — the O₂ and diluent rows dropped legacy's under-30-bar danger marking, and the state produced no warning at all.",
+      "assessment": "Confirmed.",
+      "fix": "Legacy's row danger rules with the ⚠ glyph on all four loop rows, and the low-gas warning for either cylinder under 30 bar."
+    }
+  },
+  "reviewRound3": {
+    "findings": 2,
+    "bailoutForecastGas": {
+      "finding": "Re-reported from rounds 1 and 2.",
+      "disposition": "Still disputed as a finding against this PR and tracked as #183. The review prompt carries earlier findings but not the replies to them, so this finding will be re-reported until the code changes or the owner decides."
+    },
+    "heldSetpointKey": {
+      "finding": "minor contract-violation — a held [ or ] adjusted once, where legacy repeats with keyboard autorepeat.",
+      "assessment": "Confirmed. src/state.js's keydown listener sets keys[k] on every event with no repeat filter, and updateDiving consumes one step per set.",
+      "fix": "The setpoint keys accept repeated keydowns; B stays edge-triggered. An e2e holds ] for three keydowns and asserts 1.00 bar."
+    }
+  },
+  "unrelatedFailureObserved": {
+    "what": "The first full run on 3e05bf8 (2026-09-25T09:57:46Z to 10:03:25Z) failed one test: tests/reload-resume.spec.js 'free-flow overlay save survives a real reload', a 30 s timeout waiting for window.gameAPI after page.reload().",
+    "notThisBranch": "Checkable: `git diff --name-only main...HEAD` lists no src/*.js or src/*.html file, window.gameAPI exists only in the legacy client, and the spec loads only the legacy page.",
+    "status": "Passed alone three times in a row (5 passed, about 4.2 s each), and the full run recorded above passed all 119. playwright.config.js already names this spec as one that timed out intermittently under parallel load (#130). Recorded as observed and not diagnosed further."
+  },
+  "reviewRound4": {
+    "findings": 2,
+    "bailoutForecastGas": {
+      "finding": "Re-reported from rounds 1 to 3.",
+      "disposition": "Still disputed as a finding against this PR and tracked as #183."
+    },
+    "cylinderRoundingMismatch": {
+      "finding": "minor bug — the cylinder rows showed one decimal while the danger rule read the rounded value, so 29.6 bar showed unmarked.",
+      "assessment": "Confirmed. Legacy rounds both the display and the rule input.",
+      "fix": "Both cylinder rows show whole bar. An e2e at 29.6 and 29.4 bar asserts \"30 bar\" unmarked and \"⚠ 29 bar\" marked."
+    }
+  }
+}

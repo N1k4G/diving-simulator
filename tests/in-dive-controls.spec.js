@@ -262,13 +262,17 @@ async function otherControlBoxes(page) {
   return boxes;
 }
 
-async function expectNoOverlapWithOtherControls(page) {
+async function expectNoOverlapWithOtherControls(
+  page,
+  selector = '[data-wreck-tanks] button',
+) {
   const others = await otherControlBoxes(page);
   expect(others.length).toBeGreaterThan(0);
 
-  for (const handle of await page.locator('[data-wreck-tanks] button').all()) {
+  for (const handle of await page.locator(selector).all()) {
     const tank = await handle.boundingBox();
-    const label = await handle.getAttribute('data-tank');
+    const label =
+      (await handle.getAttribute('data-tank')) ?? (await handle.getAttribute('aria-label'));
     if (!tank) continue;
     for (const other of others) {
       const dx = Math.min(tank.x + tank.width, other.x + other.width) -
@@ -277,7 +281,7 @@ async function expectNoOverlapWithOtherControls(page) {
         Math.max(tank.y, other.y);
       expect(
         dx <= 0 || dy <= 0,
-        `cylinder ${Number(label) + 1} overlaps another control by ${Math.round(dx)}x${Math.round(dy)}px`,
+        `control ${label} overlaps another control by ${Math.round(dx)}x${Math.round(dy)}px`,
       ).toBe(true);
     }
   }
@@ -613,6 +617,380 @@ test.describe('fast-forward', () => {
       await fastForwardButton(page).tap();
       await expect(fastForwardButton(page)).toHaveAttribute('aria-pressed', 'true');
       await expect(fastForwardIndicator(page)).toBeVisible();
+    });
+  });
+});
+
+// The rebreather controls (#163): [ and ] move the setpoint, B bails out,
+// mirroring src/game-loop.js updateDiving and src/touch.js
+// updateCcrDiveButtonVisibility; and the loop's HUD rows and warnings, from
+// the CCR gas box and warning banner in src/renderer.js.
+
+async function startCcrDive(page) {
+  await page.goto('/dist/');
+  await page.evaluate(() => window.localStorage.clear());
+  await acceptSafetyGate(page);
+  await page.locator('[data-setup-group=mode] [data-setup-option=ccr]').check();
+  await expect(page.locator('[data-setup-stepper=setpoint]')).toBeVisible();
+  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  await expect(page.locator('[data-wreck-ccr]')).toBeVisible();
+}
+
+/** Starts a CCR dive, edits its save with `mutate`, and resumes it. */
+async function resumeCcrDiveWith(page, mutate) {
+  await startCcrDive(page);
+  const saved = await persistedSave(page);
+  mutate(saved.state);
+  await page.goto('/dist/');
+  await page.evaluate(
+    ([key, value]) => window.localStorage.setItem(key, value),
+    [SAVE_KEY, JSON.stringify(saved)],
+  );
+  await acceptSafetyGate(page);
+  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+}
+
+/**
+ * The save once it satisfies `predicate`, or the latest one after
+ * `timeoutMs` so the caller's own expect reports the mismatch.
+ *
+ * persistedSave() waits only for a save to exist. The app writes one every
+ * five simulated seconds, so a read right after a second key press can
+ * return the save made before it — a real ordering in the app, not a bug in
+ * it, and one the HUD assertion just before does not cover because the HUD
+ * is fed by the frame, not the save.
+ */
+async function savedStateWhere(page, predicate, timeoutMs = 15_000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const saved = await persistedSave(page);
+    if (predicate(saved.state) || Date.now() > deadline) return saved;
+    await page.waitForTimeout(250);
+  }
+}
+
+/**
+ * The HUD panel and every visible HUD row against every visible control and
+ * the hint. The panel itself is included, not only its rows: at 844x390 the
+ * rows stopped short of the dock while the panel's padding and background ran
+ * 9px into it, and a control drawn over the panel's edge is still a control
+ * drawn over the HUD.
+ */
+async function expectHudClearOfControls(page) {
+  const boxesOf = (selector) =>
+    page.evaluate((sel) => {
+      return [...document.querySelectorAll(sel)]
+        .filter((el) => el.getClientRects().length > 0)
+        .map((el) => {
+          const r = el.getBoundingClientRect();
+          return {
+            label: el.dataset.hudMetric || el.getAttribute('aria-label') || el.className,
+            x: r.x,
+            y: r.y,
+            width: r.width,
+            height: r.height,
+          };
+        });
+    }, selector);
+  const rows = await boxesOf('.wreck-hud, .wreck-hud > div');
+  const controls = await boxesOf(
+    '.wreck-controls button, .wreck-dock button, .controls-hint',
+  );
+  expect(rows.length).toBeGreaterThan(0);
+  expect(controls.length).toBeGreaterThan(0);
+  for (const row of rows) {
+    for (const control of controls) {
+      const dx = Math.min(row.x + row.width, control.x + control.width) - Math.max(row.x, control.x);
+      const dy = Math.min(row.y + row.height, control.y + control.height) - Math.max(row.y, control.y);
+      expect(
+        dx <= 0 || dy <= 0,
+        `HUD row ${row.label} meets ${control.label} by ${Math.round(dx)}x${Math.round(dy)}px`,
+      ).toBe(true);
+    }
+  }
+}
+
+const hudRow = (page, name) => page.locator(`.wreck-hud [data-hud-metric="${name}"]`);
+const hudValue = (page, name) => hudRow(page, name).locator('dd');
+const LOOP_ROWS = ['setpoint', 'loopPo2', 'oxygenCylinder', 'diluentCylinder', 'scrubber'];
+
+/** Whether the controller claimed `key` on the next press, read via defaultPrevented. */
+async function pressAndReadClaim(page, key) {
+  await page.evaluate((k) => {
+    window.__keyClaimed = null;
+    window.addEventListener(
+      'keydown',
+      (event) => {
+        if (event.key === k) window.__keyClaimed = event.defaultPrevented;
+      },
+      { once: true },
+    );
+  }, key);
+  await page.keyboard.press(key);
+  return page.evaluate(() => window.__keyClaimed);
+}
+
+test.describe('rebreather controls', () => {
+  test('the loop rows replace the gas row on a closed-circuit dive', async ({ page }) => {
+    // src/renderer.js draws SP, PO2, O2, DIL and SCR where the open-circuit
+    // gas box would be. The gas row here would otherwise show tanks[0], the
+    // codec's placeholder cylinder, at a pressure nobody draws down.
+    await startCcrDive(page);
+
+    for (const name of LOOP_ROWS) {
+      await expect(hudRow(page, name), `${name} row`).toBeVisible();
+    }
+    await expect(hudRow(page, 'gas')).toBeHidden();
+    await expect(hudValue(page, 'setpoint')).toHaveText('0.70 bar');
+    await expect(hudValue(page, 'loopPo2')).not.toHaveText('—');
+    await expect(hudValue(page, 'oxygenCylinder')).toHaveText('200 bar');
+    await expect(hudValue(page, 'diluentCylinder')).toHaveText('200 bar');
+    await expect(hudValue(page, 'scrubber')).not.toHaveText('—');
+  });
+
+  test('open circuit shows neither the rows nor the controls, and leaves the keys alone', async ({ page }) => {
+    await page.goto('/dist/');
+    await page.evaluate(() => window.localStorage.clear());
+    await startDiveByKeyboard(page);
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+
+    for (const name of LOOP_ROWS) {
+      await expect(hudRow(page, name), `${name} row`).toBeHidden();
+    }
+    await expect(hudRow(page, 'gas')).toBeVisible();
+    await expect(page.locator('[data-wreck-ccr]')).toBeHidden();
+
+    // Legacy gates the keys on `diveMode === 'ccr'`; here they are left to
+    // whoever else wants them rather than claimed and discarded.
+    expect(await pressAndReadClaim(page, ']')).toBe(false);
+    expect(await pressAndReadClaim(page, 'b')).toBe(false);
+    const saved = await persistedSave(page);
+    expect(saved.state.ccr).toBeNull();
+  });
+
+  test('] raises the setpoint by a tenth and [ lowers it', async ({ page }) => {
+    await startCcrDive(page);
+
+    await page.keyboard.press(']');
+    await expect(hudValue(page, 'setpoint')).toHaveText('0.80 bar');
+    let saved = await savedStateWhere(page, (s) => s.ccr.targetPo2Bar === 0.8);
+    expect(saved.state.ccr.targetPo2Bar).toBe(0.8);
+
+    await page.keyboard.press('[');
+    await expect(hudValue(page, 'setpoint')).toHaveText('0.70 bar');
+    saved = await savedStateWhere(page, (s) => s.ccr.targetPo2Bar === 0.7);
+    expect(saved.state.ccr.targetPo2Bar).toBe(0.7);
+  });
+
+  test('holding ] keeps raising the setpoint, as legacy does', async ({ page }) => {
+    // Legacy's keydown listener sets keys[']'] on every event, autorepeat
+    // included, and updateDiving consumes one step per set (#163 review
+    // round 3 on PR #182). Playwright marks every keyboard.down() after the
+    // first as a repeat until the key is released, which is what a held key
+    // sends.
+    await startCcrDive(page);
+
+    await page.keyboard.down(']');
+    await page.keyboard.down(']');
+    await page.keyboard.down(']');
+    await page.keyboard.up(']');
+
+    await expect(hudValue(page, 'setpoint')).toHaveText('1.00 bar');
+    const saved = await savedStateWhere(page, (s) => s.ccr.targetPo2Bar === 1);
+    expect(saved.state.ccr.targetPo2Bar).toBe(1);
+  });
+
+  test('the setpoint buttons reach the same state as the keys', async ({ page }) => {
+    await startCcrDive(page);
+
+    await page.locator('[data-setpoint="increase"]').click();
+    await expect(hudValue(page, 'setpoint')).toHaveText('0.80 bar');
+    // Mixed: up by button, down by key. One control, two ways in.
+    await page.keyboard.press('[');
+    await expect(hudValue(page, 'setpoint')).toHaveText('0.70 bar');
+    await page.locator('[data-setpoint="decrease"]').click();
+    await expect(hudValue(page, 'setpoint')).toHaveText('0.60 bar');
+
+    const saved = await savedStateWhere(page, (s) => s.ccr.targetPo2Bar === 0.6);
+    expect(saved.state.ccr.targetPo2Bar).toBe(0.6);
+  });
+
+  test('B bails out to open circuit, and nothing can undo it', async ({ page }) => {
+    // src/game-loop.js TASK-032F. Confirmed by state, not by a dialog (#67):
+    // the row that held the button is gone, the cylinder row names the
+    // diluent, and the model refuses a second bailout and any setpoint move.
+    await startCcrDive(page);
+
+    await page.keyboard.press('b');
+
+    await expect(hudValue(page, 'cylinder')).toHaveText('Bailout · diluent cylinder');
+    await expect(page.locator('[data-wreck-ccr]')).toBeHidden();
+    let saved = await savedStateWhere(page, (s) => s.ccr.onBailout);
+    expect(saved.state.ccr.onBailout).toBe(true);
+    expect(saved.state.events.filter((e) => e.type === 'bailout')).toHaveLength(1);
+
+    // The keys are no longer claimed, and change nothing. Waiting for a
+    // save newer than the one above, so the assertion reads state written
+    // after the presses rather than the save that preceded them.
+    expect(await pressAndReadClaim(page, 'b')).toBe(false);
+    expect(await pressAndReadClaim(page, ']')).toBe(false);
+    const savedAtS = saved.state.elapsedTimeS;
+    saved = await savedStateWhere(page, (s) => s.elapsedTimeS > savedAtS);
+    expect(saved.state.elapsedTimeS).toBeGreaterThan(savedAtS);
+    expect(saved.state.ccr.onBailout).toBe(true);
+    expect(saved.state.ccr.targetPo2Bar).toBe(0.7);
+    expect(saved.state.events.filter((e) => e.type === 'bailout')).toHaveLength(1);
+  });
+
+  test('the bailout button reaches the same state as the key', async ({ page }) => {
+    await startCcrDive(page);
+
+    await page.locator('[data-bailout]').click();
+
+    await expect(hudValue(page, 'cylinder')).toHaveText('Bailout · diluent cylinder');
+    await expect(page.locator('[data-wreck-ccr]')).toBeHidden();
+    const saved = await savedStateWhere(page, (s) => s.ccr.onBailout);
+    expect(saved.state.ccr.onBailout).toBe(true);
+    expect(saved.state.events.filter((e) => e.type === 'bailout')).toHaveLength(1);
+  });
+
+  test('a nearly spent scrubber warns, in words', async ({ page }) => {
+    // src/renderer.js TASK-032E: SCR LOW under ten minutes.
+    await resumeCcrDiveWith(page, (state) => {
+      state.ccr.scrubberRemainingS = 5 * 60;
+    });
+
+    await expect(page.locator('[role="alert"]')).toHaveText('Scrubber nearly spent — end the dive');
+    await expect(page.locator('.status-chip')).toContainText('Scrubber low');
+  });
+
+  test('a failed scrubber warns of CO₂ buildup', async ({ page }) => {
+    // src/renderer.js TASK-032E: CO2! once scrubberFailed.
+    await resumeCcrDiveWith(page, (state) => {
+      state.ccr.scrubberRemainingS = 0;
+      state.ccr.scrubberFailed = true;
+    });
+
+    await expect(page.locator('[role="alert"]')).toHaveText(
+      'Scrubber failed — simulated CO₂ buildup, bail out',
+    );
+    await expect(page.locator('.status-chip')).toContainText('CO₂ buildup');
+  });
+
+  test('a rebreather cylinder under 30 bar is marked and warns', async ({ page }) => {
+    // src/renderer.js marks the O2 and DIL rows in danger tone with the ⚠
+    // prefix under 30 bar (#163 review round 2 on PR #182). Here that is the
+    // glyph in the row and the low-gas warning in words.
+    await resumeCcrDiveWith(page, (state) => {
+      state.ccr.oxygenCylinderPressureBar = 25;
+    });
+
+    await expect(hudValue(page, 'oxygenCylinder')).toHaveText('⚠ 25 bar');
+    await expect(hudRow(page, 'oxygenCylinder')).toHaveAttribute('data-danger', '');
+    await expect(hudValue(page, 'diluentCylinder')).toHaveText('200 bar');
+    await expect(page.locator('[role="alert"]')).toHaveText(
+      'Low gas pressure — begin a controlled exit',
+    );
+    await expect(page.locator('.status-chip')).toContainText('Low gas');
+  });
+
+  test('the cylinder rows show whole bar, so the reading and the mark agree at 30', async ({ page }) => {
+    // #163 review round 4 on PR #182. The rule reads the rounded pressure, as
+    // legacy's does; the row used to show one decimal, so 29.6 bar appeared
+    // under the threshold with no mark. Legacy rounds the display too.
+    await resumeCcrDiveWith(page, (state) => {
+      state.ccr.oxygenCylinderPressureBar = 29.6;
+      state.ccr.diluentCylinderPressureBar = 29.4;
+    });
+
+    await expect(hudValue(page, 'oxygenCylinder')).toHaveText('30 bar');
+    await expect(hudRow(page, 'oxygenCylinder')).not.toHaveAttribute('data-danger', '');
+    await expect(hudValue(page, 'diluentCylinder')).toHaveText('⚠ 29 bar');
+    await expect(hudRow(page, 'diluentCylinder')).toHaveAttribute('data-danger', '');
+  });
+
+  test('the scrubber reads in whole minutes, as legacy draws it', async ({ page }) => {
+    await resumeCcrDiveWith(page, (state) => {
+      state.ccr.scrubberRemainingS = 150 * 60 + 20;
+    });
+    await expect(hudValue(page, 'scrubber')).toHaveText(/^150 min$/);
+  });
+
+  test('a failed dive offers no rebreather controls', async ({ page }) => {
+    await resumeCcrDiveWith(page, (state) => {
+      state.failure.reason = 'ccr-hypoxia';
+      state.events.push({
+        type: 'failure',
+        elapsedTimeS: state.elapsedTimeS,
+        failureReason: 'ccr-hypoxia',
+      });
+    });
+
+    await expect(page.locator('[data-wreck-ccr]')).toBeHidden();
+    expect(await pressAndReadClaim(page, ']')).toBe(false);
+  });
+
+  // The HUD against every control, at the sizes a phone takes. The CCR HUD
+  // has ten rows; in one column they ran into the dock at short heights
+  // (#163 review round 2 on PR #182). Checked for both modes, since the
+  // open-circuit HUD shares the layout.
+  for (const [width, height] of [[844, 390], [667, 375], [390, 844], [1280, 720]]) {
+    test.describe(`${width}x${height}`, () => {
+      test.use({ viewport: { width, height } });
+
+      test('no HUD row meets a control on a rebreather dive', async ({ page }) => {
+        await startCcrDive(page);
+        await expectHudClearOfControls(page);
+      });
+
+      test('no HUD row meets a control on a six-cylinder dive', async ({ page }) => {
+        await startSixCylinderDive(page);
+        await expectHudClearOfControls(page);
+      });
+    });
+  }
+
+  test.describe('mobile viewport', () => {
+    test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+    test('the rebreather buttons meet the 44px target with 8px spacing and overlap nothing', async ({ page }) => {
+      await startCcrDive(page);
+
+      const boxes = [];
+      for (const handle of await page.locator('[data-wreck-ccr] button').all()) {
+        const box = await handle.boundingBox();
+        if (box) boxes.push(box);
+      }
+      expect(boxes).toHaveLength(3);
+      for (const box of boxes) {
+        expect(Math.round(box.width), 'button width').toBeGreaterThanOrEqual(44);
+        expect(Math.round(box.height), 'button height').toBeGreaterThanOrEqual(44);
+      }
+      for (let i = 0; i < boxes.length; i += 1) {
+        for (let j = i + 1; j < boxes.length; j += 1) {
+          const a = boxes[i];
+          const b = boxes[j];
+          const gapX = Math.max(a.x - (b.x + b.width), b.x - (a.x + a.width));
+          const gapY = Math.max(a.y - (b.y + b.height), b.y - (a.y + a.height));
+          expect(Math.round(Math.max(gapX, gapY)), `spacing ${i}-${j}`).toBeGreaterThanOrEqual(8);
+        }
+      }
+      await expectNoOverlapWithOtherControls(page, '[data-wreck-ccr] button');
+    });
+
+    test('the setpoint and the bailout can be driven by touch alone', async ({ page }) => {
+      await startCcrDive(page);
+
+      await page.locator('[data-setpoint="increase"]').tap();
+      await expect(hudValue(page, 'setpoint')).toHaveText('0.80 bar');
+
+      await page.locator('[data-bailout]').tap();
+      await expect(hudValue(page, 'cylinder')).toHaveText('Bailout · diluent cylinder');
+      const saved = await savedStateWhere(page, (s) => s.ccr.onBailout);
+      expect(saved.state.ccr.targetPo2Bar).toBe(0.8);
+      expect(saved.state.ccr.onBailout).toBe(true);
     });
   });
 });

@@ -261,6 +261,20 @@ summary:focus-visible {
   text-align: right;
 }
 
+/* `.wreck-hud div` sets display: flex, which beats the user agent's
+   [hidden] { display: none }. Without this the rebreather rows (#163) would
+   stay visible on an open-circuit dive with their `hidden` attribute set. */
+.wreck-hud div[hidden] {
+  display: none;
+}
+
+/* A loop reading past legacy's row limit (#163). The ⚠ in the value is what
+   carries the meaning; the colour repeats it for the reader who can see
+   it, as #39 did in the legacy client. */
+.wreck-hud div[data-danger] dd {
+  color: #ff9b9b;
+}
+
 .wreck-warning {
   position: absolute;
   z-index: 5;
@@ -378,6 +392,42 @@ summary:focus-visible {
   cursor: not-allowed;
 }
 
+/* The rebreather row (#163): setpoint down, setpoint up, bailout. Sits where
+   the cylinder row sits on an open-circuit dive — the two are never shown
+   together, since the model refuses a gas switch while the loop is breathed
+   — and follows the same 44px / 8px rule. */
+.wreck-ccr {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.wreck-ccr[hidden] {
+  display: none;
+}
+
+.wreck-ccr button {
+  min-width: 2.75rem;
+  height: 2.75rem;
+  padding: 0 0.75rem;
+  border: 1px solid rgb(168 232 242 / 55%);
+  border-radius: 0.6rem;
+  color: #e9fbff;
+  background: rgb(3 24 32 / 82%);
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  touch-action: none;
+}
+
+/* Bailout is the one control on the screen that cannot be undone. The
+   border marks it apart; the accessible name says so in words. */
+.wreck-ccr [data-bailout] {
+  border-color: rgb(246 219 114 / 75%);
+  color: #f6db72;
+}
+
 .wreck-controls {
   position: absolute;
   z-index: 4;
@@ -492,6 +542,22 @@ summary:focus-visible {
 
   .controls-hint {
     display: none;
+  }
+}
+
+/* Short screens: phones in landscape (#163 review round 2 on PR #182).
+   A rebreather dive shows ten HUD rows, and in one column the panel ran
+   into the bottom dock — its padding measured 9px into the keyboard hint
+   at 844x390 and 3px into the rebreather buttons at 667x375, with the dock
+   painting over it because it comes later in the DOM. Two columns halve
+   the height. Placed after the width query so its width wins at 667x375,
+   where both apply. tests/in-dive-controls.spec.js asserts neither the
+   panel nor a row meets a control at these sizes. */
+@media (height <= 600px) {
+  .wreck-hud {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 1rem;
+    width: min(32rem, calc(100% - 2.5rem));
   }
 }
 

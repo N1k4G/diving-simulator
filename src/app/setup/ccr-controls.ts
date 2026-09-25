@@ -9,7 +9,12 @@
 // Kept apart from dive-setup.ts because that file is the open-circuit surface
 // and this is the part no open-circuit mode shows. The dependency runs one
 // way, as it does for tec-controls.
-import { createGasMix } from "../../core/dive-state";
+import {
+  CCR_SETPOINT_MAX_BAR,
+  CCR_SETPOINT_MIN_BAR,
+  CCR_SETPOINT_STEP_BAR,
+  createGasMix,
+} from "../../core/dive-state";
 import type { CcrSetup, DiveSetup, GasPreset } from "./dive-setup";
 
 /**
@@ -28,11 +33,16 @@ export const CCR_DILUENT_PRESETS: readonly GasPreset[] = Object.freeze([
   Object.freeze({ id: "hx10-90", oxygenFraction: 0.1, heliumFraction: 0.9 }),
 ]);
 
-// src/constants.js: CCR_SP_MIN 0.5, CCR_SP_MAX 1.6, CCR_SP_STEP 0.1;
-// CCR_DIL_VOL_MIN 2, CCR_DIL_VOL_MAX 12; CCR_O2_VOL_MIN 2, CCR_O2_VOL_MAX 5;
-// CCR_O2_PRES_MIN 50, CCR_O2_PRES_MAX 300, CCR_O2_PRES_STEP 10.
-export const SETPOINT_RANGE_BAR = Object.freeze({ min: 0.5, max: 1.6 });
-export const SETPOINT_STEP_BAR = 0.1;
+// src/constants.js: CCR_SP_MIN 0.5, CCR_SP_MAX 1.6, CCR_SP_STEP 0.1 — held in
+// the core since #163, because the in-dive adjustment is a model operation
+// and the same three numbers must bound both; CCR_DIL_VOL_MIN 2,
+// CCR_DIL_VOL_MAX 12; CCR_O2_VOL_MIN 2, CCR_O2_VOL_MAX 5; CCR_O2_PRES_MIN 50,
+// CCR_O2_PRES_MAX 300, CCR_O2_PRES_STEP 10.
+export const SETPOINT_RANGE_BAR = Object.freeze({
+  min: CCR_SETPOINT_MIN_BAR,
+  max: CCR_SETPOINT_MAX_BAR,
+});
+export const SETPOINT_STEP_BAR = CCR_SETPOINT_STEP_BAR;
 export const DILUENT_VOLUME_RANGE_L = Object.freeze({ min: 2, max: 12 });
 export const OXYGEN_VOLUME_RANGE_L = Object.freeze({ min: 2, max: 5 });
 export const CCR_VOLUME_STEP_L = 1;

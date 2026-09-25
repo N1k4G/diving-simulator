@@ -1,4 +1,5 @@
 import {
+  CCR_SETPOINT_STEP_BAR,
   createInitialDiveState,
   type InitialDiveOptions,
   freezeDiveState,
@@ -88,6 +89,14 @@ export class GameController {
 
   #planner: PlannerForecast | null = null;
   #plannerPending = false;
+  /**
+   * A forced refresh arrived while a request was in flight (#163 review
+   * round 1 on PR #182). The in-flight answer describes a breathing gas the
+   * diver has since left — a gas switch, a setpoint, a bailout — so it is
+   * dropped when it lands, and a fresh request goes out then with the
+   * latest state instead of waiting for the next whole-second step.
+   */
+  #forcedForecastQueued = false;
   #routePositionM = START_ROUTE_POSITION_M;
   #diverDepthM = START_DEPTH_M;
   #elapsedRealS = 0;
@@ -226,7 +235,44 @@ export class GameController {
     // The save and the forecast both describe the breathed gas, so neither
     // may wait for the next step to hear about it.
     this.#onAuthoritativeState?.(after);
-    this.#requestForecast(true);
+    this.#invalidateForecast();
+    this.#publishFrame();
+  }
+
+  /**
+   * Moves the loop setpoint by a signed number of bar (#163).
+   *
+   * Whether it is allowed is the model's call — no rebreather, on bailout,
+   * failed, or already at the bound all leave the state as it was, and then
+   * nothing is published. The forecast is re-requested because the planner
+   * breathes the loop at the *target* PO₂ (currentForecastGas), so a new
+   * setpoint is a new forecast gas.
+   */
+  adjustSetpoint(deltaBar: number): void {
+    const before = this.#model.snapshot;
+    const after = this.#model.adjustSetpoint(deltaBar);
+    if (after === before) {
+      return;
+    }
+    this.#onAuthoritativeState?.(after);
+    this.#invalidateForecast();
+    this.#publishFrame();
+  }
+
+  /**
+   * Bails out to open circuit (#163). Irreversible, and confirmed by the
+   * state rather than a dialog (#67): once onBailout is set the controls
+   * that could be pressed again are gone, and DiveModel.bailOut refuses a
+   * second one anyway. The forecast changes with the breathed gas.
+   */
+  bailOut(): void {
+    const before = this.#model.snapshot;
+    const after = this.#model.bailOut();
+    if (after === before) {
+      return;
+    }
+    this.#onAuthoritativeState?.(after);
+    this.#invalidateForecast();
     this.#publishFrame();
   }
 
@@ -365,8 +411,29 @@ export class GameController {
     this.#onFrame(Object.freeze({ presentation, scene, fastForward }));
   }
 
+  /**
+   * Drops the forecast on screen and asks for a new one (#163 review round
+   * 2 on PR #182). Called by the acts that change the breathed gas — a
+   * cylinder switch, a setpoint, a bailout — because the forecast already
+   * shown was computed for the gas the diver has just left: keeping it
+   * until the worker answers paired the new breathing state with the old
+   * NDL for as long as the worker took, up to its timeout. The HUD shows
+   * its unavailable mark instead until the new forecast lands, which is
+   * the same thing it shows before the first one.
+   */
+  #invalidateForecast(): void {
+    this.#planner = null;
+    this.#requestForecast(true);
+  }
+
   #requestForecast(force = false): void {
-    if (this.#plannerPending || this.#disposed) {
+    if (this.#disposed) {
+      return;
+    }
+    if (this.#plannerPending) {
+      if (force) {
+        this.#forcedForecastQueued = true;
+      }
       return;
     }
     const snapshot = this.#forecastScheduler.takeSnapshotIfDue(
@@ -382,7 +449,11 @@ export class GameController {
     void this.#plannerClient
       .forecast(snapshot, this.#plannerSettings)
       .then((forecast) => {
-        if (!this.#disposed) {
+        // Superseded while in flight: the state it was computed from no
+        // longer describes the breathed gas, so it must not become the
+        // forecast on screen even for the moment until the replacement
+        // lands.
+        if (!this.#disposed && !this.#forcedForecastQueued) {
           this.#planner = forecast;
           this.#publishFrame();
         }
@@ -394,6 +465,10 @@ export class GameController {
       })
       .finally(() => {
         this.#plannerPending = false;
+        if (this.#forcedForecastQueued && !this.#disposed) {
+          this.#forcedForecastQueued = false;
+          this.#requestForecast(true);
+        }
       });
   }
 
@@ -422,6 +497,30 @@ export class GameController {
       this.toggleFastForward();
       return;
     }
+    // [ and ] move the setpoint and B bails out, as src/game-loop.js binds
+    // them during a CCR dive, claimed only while the loop is being
+    // breathed: on open circuit or after a bailout these keys do nothing,
+    // so they are left to whoever else wants them.
+    //
+    // The setpoint keys repeat while held, as legacy's do: its keydown
+    // listener sets keys[k] on every event, autorepeat included, and
+    // updateDiving consumes one step per set (#163 review round 3 on
+    // PR #182). The bound stops the climb, not the key. B stays
+    // edge-triggered — after the first press there is nothing left to bail
+    // out of, and the model refuses a second one either way.
+    if (this.#loopControlsOffered()) {
+      const setpointStep = setpointStepForKey(event.key);
+      if (setpointStep !== null) {
+        event.preventDefault();
+        this.adjustSetpoint(setpointStep);
+        return;
+      }
+      if (event.key.toLowerCase() === "b" && !event.repeat) {
+        event.preventDefault();
+        this.bailOut();
+        return;
+      }
+    }
     // 1-6 pick a cylinder, as game-loop.js does during the dive. Held keys
     // are ignored: a switch is a discrete act, and autorepeat would re-issue
     // it every few milliseconds.
@@ -448,6 +547,20 @@ export class GameController {
     return state.failure.reason === null && tankIndex < state.tanks.length;
   }
 
+  /**
+   * Legacy's `diveMode === 'ccr' && !ccrState.onBailout` gate for the
+   * setpoint keys and B, plus the failed-dive rule every in-dive control
+   * follows. The DOM row in wreck-app.ts hides itself on the same condition.
+   */
+  #loopControlsOffered(): boolean {
+    const state = this.#model.snapshot;
+    return (
+      state.failure.reason === null &&
+      state.ccr !== null &&
+      !state.ccr.onBailout
+    );
+  }
+
   readonly #handleKeyUp = (event: KeyboardEvent): void => {
     const control = controlForKey(event.key);
     if (control) {
@@ -468,6 +581,21 @@ function tankIndexForKey(key: string): number | null {
     return null;
   }
   return Number.parseInt(key, 10) - 1;
+}
+
+/**
+ * `[` lowers and `]` raises, by one CCR_SP_STEP — src/game-loop.js, and the
+ * same pair the setup screen binds so the two screens agree.
+ */
+function setpointStepForKey(key: string): number | null {
+  switch (key) {
+    case "[":
+      return -CCR_SETPOINT_STEP_BAR;
+    case "]":
+      return CCR_SETPOINT_STEP_BAR;
+    default:
+      return null;
+  }
 }
 
 function controlForKey(key: string): ContinuousControl | null {

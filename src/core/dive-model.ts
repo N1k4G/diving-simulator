@@ -7,6 +7,8 @@ import {
   asTissuePressure,
 } from "./buhlmann-constants";
 import {
+  CCR_SETPOINT_MAX_BAR,
+  CCR_SETPOINT_MIN_BAR,
   freezeDiveState,
   type BreathingSource,
   type CcrState,
@@ -98,6 +100,42 @@ export class DiveModel {
       return this.#state;
     }
     this.#state = applyGasSwitchIntent(this.#state, requestedIndex);
+    return this.#state;
+  }
+
+  /**
+   * Moves the loop setpoint, now, outside the time step (#163).
+   *
+   * src/game-loop.js updateDiving: `ccrState.targetSP = Math.max(CCR_SP_MIN,
+   * +(ccrState.targetSP - CCR_SP_STEP).toFixed(1))` and the mirror for `]`,
+   * both only while `diveMode === 'ccr' && !ccrState.onBailout`. A discrete
+   * act, applied when pressed for the same reason switchGas is. The setpoint
+   * is not an event: legacy records none, and the parity trace compares the
+   * ccr.targetPO2_bar field at checkpoints instead.
+   */
+  adjustSetpoint(deltaBar: number): DiveState {
+    if (this.#state.failure.reason !== null) {
+      return this.#state;
+    }
+    this.#state = applySetpointAdjustment(this.#state, deltaBar);
+    return this.#state;
+  }
+
+  /**
+   * Bails out to open circuit, now, outside the time step (#163).
+   *
+   * src/game-loop.js TASK-032F: `if (keys['b']) { ccrState.onBailout = true }`
+   * while `diveMode === 'ccr' && !ccrState.onBailout`. Irreversible by
+   * construction — there is no operation that clears onBailout — and
+   * confirmed by the state rather than by a dialog (#67). Same rules as the
+   * intent path through advance(), which stays for traces that carry the
+   * intent; a second call is a no-op and adds no second event.
+   */
+  bailOut(): DiveState {
+    if (this.#state.failure.reason !== null) {
+      return this.#state;
+    }
+    this.#state = applyBailoutIntent(this.#state, true);
     return this.#state;
   }
 }
@@ -231,6 +269,35 @@ function applyGasSwitchIntent(
       tankIndex: requestedIndex,
     },
   );
+}
+
+function applySetpointAdjustment(
+  state: DiveState,
+  deltaBar: number,
+): DiveState {
+  if (
+    !state.ccr ||
+    state.ccr.onBailout ||
+    !Number.isFinite(deltaBar) ||
+    deltaBar === 0
+  ) {
+    return state;
+  }
+  // Legacy's `+(x).toFixed(1)` snaps to a tenth so that 0.7 + 0.1 reads as
+  // 0.8 and not 0.7999999999999999; rounding to a tenth does the same
+  // without the string round trip.
+  const requestedBar = Math.round((state.ccr.targetPo2Bar + deltaBar) * 10) / 10;
+  const nextBar = Math.max(
+    CCR_SETPOINT_MIN_BAR,
+    Math.min(CCR_SETPOINT_MAX_BAR, requestedBar),
+  );
+  if (nextBar === state.ccr.targetPo2Bar) {
+    return state;
+  }
+  return freezeDiveState({
+    ...state,
+    ccr: { ...state.ccr, targetPo2Bar: bars(nextBar) },
+  });
 }
 
 function applyBailoutIntent(state: DiveState, bailout: boolean): DiveState {
