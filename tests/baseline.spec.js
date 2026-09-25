@@ -129,11 +129,17 @@ test('baseline: generated contracts are complete and internally consistent', asy
   expect(traces.schemaVersion).toBe(1);
   expect(traces.referenceCommit).toMatch(/^[0-9a-f]{40}$/);
   expect(tests.referenceCommit).toBe(traces.referenceCommit);
+  // Pinned so a scenario cannot vanish from a regeneration unnoticed. Grows
+  // only with an intended, additive recording: ccr-setpoint-bailout-30m was
+  // added for #163's acceptance (an in-dive setpoint change and bailout),
+  // with the four earlier scenarios checked byte-identical across the
+  // regeneration.
   expect(traces.scenarios.map(scenario => scenario.scenarioId)).toEqual([
     'air-18m-30min',
     'trimix-45m-20min',
     'ccr-30m-30min',
-    'ccr-bailout-30m'
+    'ccr-bailout-30m',
+    'ccr-setpoint-bailout-30m'
   ]);
   for (const scenario of traces.scenarios) {
     expect(scenario.checkpoints.length).toBeGreaterThan(0);
