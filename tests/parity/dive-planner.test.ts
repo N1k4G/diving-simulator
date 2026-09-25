@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import baselineFixture from "../fixtures/traces/baseline-v1.json";
 import { diveStateFromLegacyCheckpoint } from "../../src/app/legacy-dive-adapter";
+import { freezeDiveState, type DiveState } from "../../src/core/dive-state";
+import { litres } from "../../src/core/units";
 import {
   DivePlanner,
   type PlannerSettings,
@@ -61,9 +63,84 @@ const scenarios = baselineFixture.scenarios as GoldenScenario[];
 const ceilingTolerance =
   baselineFixture.tolerances.absoluteEpsilon["planner.ceiling_m"];
 
+/**
+ * Checkpoints where the migration planner deliberately differs from the
+ * legacy oracle, each with its decision (docs/decisions.md, "Deliberate
+ * departures from the legacy client"). The fixture stays the legacy record.
+ * These checkpoints are not skipped: the values the decision leaves alone
+ * are still compared with legacy, and the ones it changes are compared with
+ * an independent reference and required to differ from legacy, so the list
+ * cannot outlive the departure unnoticed.
+ */
+const DEPARTURES: Readonly<Record<string, string>> = {
+  // #183: a bailed-out forecast breathes the diluent, not the setup cylinder.
+  // Legacy's bestGasForDepth() plans the ascent on tanks[activeTank], here
+  // air, while the diver breathes Tx 15/45.
+  "ccr-setpoint-bailout-30m/bailed-out": "#183",
+  "ccr-setpoint-bailout-30m/bailout-ascent-21m": "#183",
+};
+
+/**
+ * The #183 reference: the same dive as open circuit, with the diluent as the
+ * only cylinder and its remaining gas. A bailed-out diver is exactly that.
+ */
+function diluentOnlyOpenCircuit(state: DiveState): DiveState {
+  const ccr = state.ccr;
+  if (!ccr?.onBailout) {
+    throw new Error("the #183 reference needs a bailed-out CCR state");
+  }
+  return freezeDiveState({
+    ...state,
+    ccr: null,
+    activeTankIndex: 0,
+    tanks: [
+      {
+        gas: ccr.diluent,
+        volumeL: ccr.diluentCylinderVolumeL,
+        gasRemainingL: litres(
+          ccr.diluentCylinderPressureBar * ccr.diluentCylinderVolumeL,
+        ),
+      },
+    ],
+  });
+}
+
 describe("DivePlanner canonical parity", () => {
   for (const scenario of scenarios) {
     for (const checkpoint of scenario.checkpoints) {
+      const departure = DEPARTURES[`${scenario.scenarioId}/${checkpoint.checkpointId}`];
+      if (departure) {
+        it(`departs from legacy at ${scenario.scenarioId}/${checkpoint.checkpointId} (${departure})`, () => {
+          const state = diveStateFromLegacyCheckpoint(checkpoint, 200);
+          const settings: PlannerSettings = {
+            gfLowPercent: checkpoint.configuration.gfLow_percent,
+            gfHighPercent: checkpoint.configuration.gfHigh_percent,
+            ascentRateMpm: 9,
+            safetyStopNeeded: checkpoint.state.safetyStop.needed,
+            ndlDroppedBelowFiveMinutes: checkpoint.state.ndlDroppedBelow5,
+          };
+          const planner = new DivePlanner();
+          const forecast = planner.forecast(state, settings);
+          const reference = planner.forecast(diluentOnlyOpenCircuit(state), settings);
+
+          // Untouched by the decision: the ceiling depends on the tissues
+          // only, and the NDL on the gas breathed now, which is the diluent
+          // in both clients. These still match legacy exactly.
+          expect(
+            Math.abs(forecast.ceilingM - checkpoint.planner.ceiling_m),
+          ).toBeLessThanOrEqual(ceilingTolerance);
+          expect(forecast.ndlMin).toBe(checkpoint.planner.ndl_min);
+
+          // Changed by the decision: the ascent is planned on the diluent,
+          // exactly as an open-circuit dive with the diluent alone...
+          expect(forecast.ttsMin).toBe(reference.ttsMin);
+          expect(forecast.schedule).toEqual(reference.schedule);
+          // ...and that is not what legacy recorded. If it ever were, the
+          // departure would be gone and this entry should be removed.
+          expect(forecast.ttsMin).not.toBe(checkpoint.planner.tts_min);
+        });
+        continue;
+      }
       it(`matches ${scenario.scenarioId}/${checkpoint.checkpointId}`, () => {
         const state = diveStateFromLegacyCheckpoint(checkpoint, 200);
         const stateBeforeForecast = JSON.stringify(state);

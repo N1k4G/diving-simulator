@@ -234,6 +234,18 @@ incrementally into Vitest and parity fixtures during the core, planner, and save
 work packages. The harness may be retired only when every retained behavior has
 an owned replacement test or an explicitly reviewed disposition.
 
+### Deliberate departures from the legacy client
+
+The legacy client is the behavioural oracle. The migration client departs
+from it only where a decision is recorded here. Each departure keeps the
+legacy client and its fixture unchanged. A parity test names the checkpoints
+it affects, compares everything else there with legacy, and asserts that the
+departing values differ from legacy and match an independent reference.
+
+| Decision | Legacy behaviour | Migration behaviour | Evidence |
+| --- | --- | --- | --- |
+| #183, owner, 2026-09-26 | After a CCR bailout, the decompression forecast plans every ascent step and stop on `tanks[activeTank]`, because `bestGasForDepth()` outside tec mode ignores the diluent. On a CCR dive that cylinder is the setup placeholder, which the diver cannot breathe. | The forecast breathes the diluent while its cylinder has gas, and is out of gas when it is empty. | `tests/parity/dive-planner.test.ts` (`DEPARTURES`, on `ccr-setpoint-bailout-30m`), `tests/unit/bailout-forecast.test.ts` |
+
 ## External gates
 
 | Gate | Current state | Blocks |
