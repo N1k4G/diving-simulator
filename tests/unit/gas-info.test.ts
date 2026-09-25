@@ -4,7 +4,14 @@ import {
   cylinderIndicesForPage,
   gasInfoAvailable,
   gasInfoPageStillValid,
+  displayedNdlMinutes,
   gasInfoPages,
+  po2Severity,
+  cylinderSeverity,
+  mValueRatioSeverity,
+  gradientFactorSeverity,
+  ndlSeverity,
+  scrubberSeverity,
   nextGasInfoPage,
 } from "../../src/app/gas-info-pages";
 import {
@@ -25,7 +32,7 @@ import {
   maximumOperatingDepthM,
 } from "../../src/planner/dive-planner";
 import { createPresentationState } from "../../src/presentation/presentation-state";
-import { isLoopPagePo2Danger, selectLoopRowDanger } from "../../src/app/loop-danger";
+import { selectLoopRowDanger } from "../../src/app/loop-danger";
 
 // Gas information (#163): the page rules from src/state.js, and the figures
 // from src/renderer.js drawDiveComputer infoPageMode 1-5.
@@ -149,15 +156,60 @@ describe("the loop's danger limits, page and HUD", () => {
 
   it("0.17 bar: marked on the HUD row, not on the page", () => {
     expect(selectLoopRowDanger(ccrAt(0.17)).loopPo2).toBe(true);
-    expect(isLoopPagePo2Danger(0.17)).toBe(false);
+    expect(po2Severity(0.17)).toBe("normal");
   });
 
   it("below 0.16 or above 1.6: marked on both", () => {
-    expect(isLoopPagePo2Danger(0.15)).toBe(true);
+    expect(po2Severity(0.15)).toBe("danger");
     expect(selectLoopRowDanger(ccrAt(0.15)).loopPo2).toBe(true);
-    expect(isLoopPagePo2Danger(1.61)).toBe(true);
+    expect(po2Severity(1.61)).toBe("danger");
     expect(selectLoopRowDanger(ccrAt(1.61)).loopPo2).toBe(true);
-    expect(isLoopPagePo2Danger(1.6)).toBe(false);
+    expect(po2Severity(1.6)).toBe("warning");
+  });
+});
+
+describe("legacy's colour tiers and display rules (#185 review round 2)", () => {
+  it("no pages at the surface: legacy's gate is gameState === 'diving'", () => {
+    const atSurface = freezeDiveState({ ...ocDive(2), depthM: metres(0) });
+    expect(view(atSurface).status).toBe("surface");
+    expect(gasInfoAvailable(view(atSurface), "tec")).toBe(false);
+  });
+
+  it("PO2 follows po2Color: caution above 1.0, warning above 1.4, danger outside 0.16..1.6", () => {
+    expect(po2Severity(1.0)).toBe("normal");
+    expect(po2Severity(1.01)).toBe("caution");
+    expect(po2Severity(1.41)).toBe("warning");
+    expect(po2Severity(0.159)).toBe("danger");
+  });
+
+  it("cylinders: caution from 100 bar down to 50, danger under 50", () => {
+    expect(cylinderSeverity(101)).toBe("normal");
+    expect(cylinderSeverity(100)).toBe("caution");
+    expect(cylinderSeverity(50)).toBe("caution");
+    expect(cylinderSeverity(49)).toBe("danger");
+  });
+
+  it("tissues, gradient factors, NDL and scrubber use legacy's bands", () => {
+    expect(mValueRatioSeverity(0.79)).toBe("normal");
+    expect(mValueRatioSeverity(0.8)).toBe("caution");
+    expect(mValueRatioSeverity(1)).toBe("danger");
+    expect(gradientFactorSeverity(79)).toBe("normal");
+    expect(gradientFactorSeverity(80)).toBe("caution");
+    expect(gradientFactorSeverity(100)).toBe("danger");
+    expect(ndlSeverity(15)).toBe("normal");
+    expect(ndlSeverity(14)).toBe("caution");
+    expect(ndlSeverity(4)).toBe("danger");
+    expect(scrubberSeverity(30)).toBe("normal");
+    expect(scrubberSeverity(29)).toBe("caution");
+    expect(scrubberSeverity(9)).toBe("danger");
+  });
+
+  it("NDL shows at most 99 minutes, and nothing for the 999 sentinel", () => {
+    // Legacy: `ndl >= 999 ? '---' : (ndl > 99 ? '99' : ndl) + ' min'`.
+    expect(displayedNdlMinutes(120)).toBe(99);
+    expect(displayedNdlMinutes(99)).toBe(99);
+    expect(displayedNdlMinutes(12)).toBe(12);
+    expect(displayedNdlMinutes(999)).toBeNull();
   });
 });
 

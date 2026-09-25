@@ -40,10 +40,74 @@ export function gasInfoAvailable(
   presentation: Readonly<PresentationState>,
   diveMode: DiveMode,
 ): boolean {
-  if (presentation.status === "failed") {
+  // "diving" and nothing else: legacy's gate is gameState === 'diving', so
+  // neither a failed dive nor one at the surface has the pages (#185 review).
+  if (presentation.status !== "diving") {
     return false;
   }
   return diveMode === "tec" || diveMode === "ccr";
+}
+
+/**
+ * Legacy's colour tiers on the gas-information pages (src/renderer.js,
+ * hudColor 'caution' / 'warn' / 'danger'). Only danger carries legacy's ⚠
+ * prefix, there and here; the lower tiers are a tint over a value that is
+ * already legible as text, plus a hidden word for assistive technology.
+ */
+export type Severity = "normal" | "caution" | "warning" | "danger";
+
+// src/constants.js PO2_HYPOXIA 0.16, PO2_SAFE 1.0, PO2_ELEVATED 1.4,
+// PO2_HIGH 1.6; src/physics.js po2Color().
+export function po2Severity(po2Bar: number): Severity {
+  if (po2Bar < 0.16 || po2Bar > 1.6) return "danger";
+  if (po2Bar > 1.4) return "warning";
+  if (po2Bar > 1.0) return "caution";
+  return "normal";
+}
+
+/** Cylinder page, on the rounded pressure: tkBar > 100 ok, >= 50 caution, else danger. */
+export function cylinderSeverity(roundedBar: number): Severity {
+  if (roundedBar < 50) return "danger";
+  if (roundedBar <= 100) return "caution";
+  return "normal";
+}
+
+/** Tissue bar: ratio >= 1.0 danger, >= 0.8 caution, else ok. */
+export function mValueRatioSeverity(ratio: number): Severity {
+  if (ratio >= 1) return "danger";
+  if (ratio >= 0.8) return "caution";
+  return "normal";
+}
+
+/** GF99 and SrfGF: danger at 100 or more, caution at 80 or more. */
+export function gradientFactorSeverity(percent: number): Severity {
+  if (percent >= 100) return "danger";
+  if (percent >= 80) return "caution";
+  return "normal";
+}
+
+/** NDL: danger under 5 minutes, caution under 15. */
+export function ndlSeverity(ndlMin: number): Severity {
+  if (ndlMin < 5) return "danger";
+  if (ndlMin < 15) return "caution";
+  return "normal";
+}
+
+/** Scrubber on the loop page, rounded minutes: danger under 10, caution under 30. */
+export function scrubberSeverity(roundedMinutes: number): Severity {
+  if (roundedMinutes < 10) return "danger";
+  if (roundedMinutes < 30) return "caution";
+  return "normal";
+}
+
+/**
+ * The NDL the decompression page shows: none for the 999 "no limit"
+ * sentinel, and at most 99 minutes otherwise, as legacy draws
+ * `(ndl > 99 ? '99' : ndl) + ' min'` (#185 review).
+ */
+export function displayedNdlMinutes(ndlMin: number): number | null {
+  if (ndlMin >= 999) return null;
+  return Math.min(99, ndlMin);
 }
 
 /** The pages `I` cycles through on this dive, in order. */

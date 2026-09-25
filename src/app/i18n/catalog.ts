@@ -175,6 +175,8 @@ const englishMessages = {
   "wreck.gasInfo.loop.diluentMix": "Diluent mix",
   "wreck.gasInfo.loop.oxygenVolume": "O₂ cylinder size",
   "wreck.gasInfo.loop.diluentVolume": "Diluent cylinder size",
+  "wreck.gasInfo.severity.caution": "(caution)",
+  "wreck.gasInfo.severity.warning": "(warning)",
 } as const;
 
 export type MessageKey = keyof typeof englishMessages;
@@ -352,6 +354,8 @@ const catalog: Record<SupportedLocale, Record<MessageKey, string>> = {
     "wreck.gasInfo.loop.diluentMix": "Diluent-Gemisch",
     "wreck.gasInfo.loop.oxygenVolume": "Größe O₂-Flasche",
     "wreck.gasInfo.loop.diluentVolume": "Größe Diluentflasche",
+    "wreck.gasInfo.severity.caution": "(Vorsicht)",
+    "wreck.gasInfo.severity.warning": "(Warnung)",
   },
 };
 

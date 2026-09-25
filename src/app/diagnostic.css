@@ -657,7 +657,18 @@ summary:focus-visible {
   text-align: right;
 }
 
-.gas-info [data-danger] dd {
+/* Legacy's hudColor tiers on the pages (#163). Danger also carries the ⚠
+   glyph in its text; caution and warning are a tint over a value that is
+   already legible, plus a hidden word for assistive technology. */
+.gas-info dd[data-severity="caution"] {
+  color: #f6db72;
+}
+
+.gas-info dd[data-severity="warning"] {
+  color: #ffb36b;
+}
+
+.gas-info dd[data-severity="danger"] {
   color: #ff9b9b;
 }
 
@@ -692,7 +703,11 @@ summary:focus-visible {
   background: #74efbc;
 }
 
-.gas-info-bars li[data-danger] .gas-info-bar {
+.gas-info-bars li[data-severity="caution"] .gas-info-bar {
+  background: #f6db72;
+}
+
+.gas-info-bars li[data-severity="danger"] .gas-info-bar {
   background: #ff6b6b;
 }
 

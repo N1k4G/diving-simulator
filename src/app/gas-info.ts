@@ -13,7 +13,6 @@ import type {
 import { translate, type MessageKey, type SupportedLocale } from "./i18n/catalog";
 import {
   formatDepth,
-  formatDuration,
   formatGasFraction,
   formatPartialPressure,
   formatPercent,
@@ -21,8 +20,19 @@ import {
   formatVolume,
   formatWholeMinutes,
 } from "./i18n/formatters";
-import { cylinderIndicesForPage, type GasInfoPage } from "./gas-info-pages";
-import { isLoopPagePo2Danger, selectLoopRowDanger } from "./loop-danger";
+import {
+  cylinderIndicesForPage,
+  cylinderSeverity,
+  displayedNdlMinutes,
+  gradientFactorSeverity,
+  mValueRatioSeverity,
+  ndlSeverity,
+  po2Severity,
+  scrubberSeverity,
+  type GasInfoPage,
+  type Severity,
+} from "./gas-info-pages";
+import { selectLoopRowDanger } from "./loop-danger";
 
 export interface GasInfoElements {
   readonly panel: HTMLElement;
@@ -67,7 +77,7 @@ export function createGasInfo(locale: SupportedLocale): GasInfoElements {
 interface Row {
   readonly label: string;
   readonly value: string;
-  readonly danger?: boolean;
+  readonly severity?: Severity;
 }
 
 type Block =
@@ -77,7 +87,7 @@ type Block =
 interface TissueBar {
   readonly ratio: number;
   readonly label: string;
-  readonly danger: boolean;
+  readonly severity: Severity;
   readonly marker: string;
 }
 
@@ -162,7 +172,7 @@ function buildBlocks(
           bars: presentation.saturation.mValueRatios.map((ratio, index) => ({
             // Legacy clamps the bar to 0..1.2 and colours it danger at 1.0.
             ratio: Math.max(0, Math.min(1.2, ratio)),
-            danger: ratio >= 1,
+            severity: mValueRatioSeverity(ratio),
             label: t("wreck.gasInfo.tissues.compartment")
               .replace("{n}", String(index + 1))
               .replace("{ratio}", formatPercent(Math.max(0, ratio), locale)),
@@ -181,16 +191,18 @@ function buildBlocks(
             {
               label: t("wreck.gasInfo.deco.gf99"),
               value: formatPercent(saturation.gf99Percent / 100, locale),
-              danger: saturation.gf99Percent >= 100,
+              severity: gradientFactorSeverity(saturation.gf99Percent),
             },
             {
               label: t("wreck.gasInfo.deco.surfaceGf"),
               value: formatPercent(saturation.surfaceGfPercent / 100, locale),
-              danger: saturation.surfaceGfPercent >= 100,
+              severity: gradientFactorSeverity(saturation.surfaceGfPercent),
             },
             {
               label: t("wreck.gasInfo.deco.ceiling"),
               value: planner ? formatDepth(planner.ceilingM, locale) : unavailable,
+              // Legacy draws a ceiling above the surface in its warn tone.
+              severity: planner && planner.ceilingM > 0 ? "warning" : "normal",
             },
             {
               label: t("wreck.gasInfo.deco.gfLow"),
@@ -203,20 +215,20 @@ function buildBlocks(
             {
               label: t("wreck.gasInfo.deco.tts"),
               value: planner ? formatWholeMinutes(planner.ttsMin * 60, locale) : unavailable,
+              severity: planner && planner.ttsMin > 0 ? "warning" : "normal",
             },
             {
               label: t("wreck.gasInfo.deco.ndl"),
-              // Legacy shows '---' for its 999 "no limit" sentinel.
-              value:
-                planner && planner.ndlMin < 999
-                  ? formatDuration(planner.ndlMin * 60, locale)
-                  : unavailable,
-              danger: planner !== null && planner.ndlMin < 5,
+              value: ndlText(planner?.ndlMin ?? null, locale, unavailable),
+              severity:
+                planner && displayedNdlMinutes(planner.ndlMin) !== null
+                  ? ndlSeverity(planner.ndlMin)
+                  : "normal",
             },
             {
               label: t("wreck.gasInfo.deco.po2"),
               value: formatPartialPressure(po2, locale),
-              danger: po2 < 0.16 || po2 > 1.6,
+              severity: po2Severity(po2),
             },
           ],
         },
@@ -236,18 +248,20 @@ function buildBlocks(
             {
               label: t("wreck.hud.loopPo2"),
               value: formatPartialPressure(ccr.actualPo2Bar, locale),
-              danger: isLoopPagePo2Danger(ccr.actualPo2Bar),
+              // Legacy's page uses po2Color's bands for this row, danger
+              // outside 0.16..1.6, not the HUD row's 0.18.
+              severity: po2Severity(ccr.actualPo2Bar),
             },
             {
               label: t("wreck.gasInfo.loop.mode"),
               value: t(ccr.onBailout ? "wreck.gasInfo.loop.onBailout" : "wreck.gasInfo.loop.onLoop"),
               // Legacy draws BAIL in its danger tone.
-              danger: ccr.onBailout,
+              severity: ccr.onBailout ? "danger" : "normal",
             },
             {
               label: t("wreck.hud.oxygenCylinder"),
               value: formatPressure(Math.round(ccr.oxygenCylinderPressureBar), locale),
-              danger: danger.oxygenCylinder,
+              severity: danger.oxygenCylinder ? "danger" : "normal",
             },
             {
               label: t("wreck.gasInfo.loop.oxygenVolume"),
@@ -256,7 +270,7 @@ function buildBlocks(
             {
               label: t("wreck.hud.diluentCylinder"),
               value: formatPressure(Math.round(ccr.diluentCylinderPressureBar), locale),
-              danger: danger.diluentCylinder,
+              severity: danger.diluentCylinder ? "danger" : "normal",
             },
             {
               label: t("wreck.gasInfo.loop.diluentVolume"),
@@ -266,7 +280,7 @@ function buildBlocks(
             {
               label: t("wreck.hud.scrubber"),
               value: formatWholeMinutes(ccr.scrubberRemainingS, locale),
-              danger: danger.scrubber,
+              severity: scrubberSeverity(Math.round(ccr.scrubberRemainingS / 60)),
             },
           ],
         },
@@ -287,8 +301,7 @@ function cylinderBlock(tank: PresentationTank, locale: SupportedLocale): Block {
       {
         label: t("wreck.gasInfo.cylinder.pressure"),
         value: formatPressure(pressureBar, locale),
-        // Legacy: `tkIsDanger = tkBar < 50` on the rounded pressure.
-        danger: pressureBar < 50,
+        severity: cylinderSeverity(pressureBar),
       },
       {
         label: t("wreck.gasInfo.cylinder.mod"),
@@ -299,6 +312,46 @@ function cylinderBlock(tank: PresentationTank, locale: SupportedLocale): Block {
       },
     ],
   };
+}
+
+function ndlText(
+  ndlMin: number | null,
+  locale: SupportedLocale,
+  unavailable: string,
+): string {
+  const shown = ndlMin === null ? null : displayedNdlMinutes(ndlMin);
+  return shown === null ? unavailable : formatWholeMinutes(shown * 60, locale);
+}
+
+/**
+ * The value as displayed: the ⚠ prefix for danger, as legacy's
+ * hudDangerPrefix(); for caution and warning a hidden word, so assistive
+ * technology hears what the tint shows.
+ */
+function appendValue(
+  target: HTMLElement,
+  text: string,
+  severity: Severity,
+  locale: SupportedLocale,
+): void {
+  if (severity === "normal") {
+    target.textContent = text;
+    return;
+  }
+  target.dataset.severity = severity;
+  if (severity === "danger") {
+    target.textContent = `${translate(locale, "wreck.symbol.warning")} ${text}`;
+    return;
+  }
+  const word = document.createElement("span");
+  word.className = "visually-hidden";
+  word.textContent = translate(
+    locale,
+    severity === "warning"
+      ? "wreck.gasInfo.severity.warning"
+      : "wreck.gasInfo.severity.caution",
+  );
+  target.append(document.createTextNode(text), word);
 }
 
 function mixText(
@@ -322,7 +375,9 @@ function renderBlock(block: Block, locale: SupportedLocale): HTMLElement {
     list.className = "gas-info-bars";
     for (const bar of block.bars) {
       const item = document.createElement("li");
-      item.toggleAttribute("data-danger", bar.danger);
+      if (bar.severity !== "normal") {
+        item.dataset.severity = bar.severity;
+      }
       item.style.setProperty("--ratio", String(bar.ratio / 1.2));
       const fill = document.createElement("span");
       fill.className = "gas-info-bar";
@@ -335,7 +390,8 @@ function renderBlock(block: Block, locale: SupportedLocale): HTMLElement {
       // the colour; ⚠ on a compartment past its M-value.
       const text = document.createElement("span");
       text.className = "visually-hidden";
-      text.textContent = bar.danger ? `${warning} ${bar.label}` : bar.label;
+      text.textContent =
+        bar.severity === "danger" ? `${warning} ${bar.label}` : bar.label;
       item.append(fill, marker, text);
       list.append(item);
     }
@@ -359,11 +415,10 @@ function renderBlock(block: Block, locale: SupportedLocale): HTMLElement {
   const list = document.createElement("dl");
   for (const row of block.rows) {
     const group = document.createElement("div");
-    group.toggleAttribute("data-danger", row.danger === true);
     const term = document.createElement("dt");
     term.textContent = row.label;
     const value = document.createElement("dd");
-    value.textContent = row.danger ? `${warning} ${row.value}` : row.value;
+    appendValue(value, row.value, row.severity ?? "normal", locale);
     group.append(term, value);
     list.append(group);
   }
