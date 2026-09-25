@@ -3,13 +3,13 @@
   "issue": 163,
   "slice": "PR 4 of n: the acceptance parity — a recorded legacy tank switch, setpoint change and bailout replayed through the migration client's operations",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "f1ffc52be00ea7ac0316605be292be33a85a745a",
-  "measuredTree": "d0ad98d405130c878062aedc2fa83bd3155ddaa8",
+  "measuredCommit": "27b664651f5b2a90bf23129a7ddef58d41d3963f",
+  "measuredTree": "b3c74abfec35986508bf40c5047bf907b054177e",
   "workingTree": "clean before the run and still clean after it (git status --porcelain empty at both ends, checked by the same shell invocation that ran the command)",
-  "recordedAt": "2026-09-25T10:42:22Z",
-  "runFinishedAt": "2026-09-25T10:48:18Z",
+  "recordedAt": "2026-09-25T12:50:18Z",
+  "runFinishedAt": "2026-09-25T12:55:10Z",
   "timestampProvenance": "Both are the output of `date -u +%Y-%m-%dT%H:%M:%SZ` printed by the shell immediately before and after the command.",
-  "provenanceNote": "Measured against the committed tree. Only the commit adding this file follows the measured one.",
+  "provenanceNote": "Measured against the committed tree, first full run on it. Only the commit adding this update follows the measured one.",
   "stackedOn": "feat/163-ccr-controls (PR #182), because the replays call DiveModel.adjustSetpoint() and bailOut(), which that PR adds. The branch changes no application code: `git diff --name-only feat/163-ccr-controls...HEAD` lists only the fixture, the inventory, the scenario script and two test files, and its src tree hash (648a7d1) is identical to PR #182's last measurement.",
   "environment": {
     "os": "Windows 11",
@@ -27,47 +27,44 @@
     "build": "pass",
     "distCheck": "pass — 17 files scanned, no source maps, 4 diagnostic markers absent",
     "unit": "245 passed (unchanged from PR #182)",
-    "parity": "47 passed (36 on PR #182, +11: 5 replays in tests/parity/in-dive-controls.test.ts, and 6 more planner checkpoints that tests/parity/dive-planner.test.ts covers automatically)",
-    "e2e": "120 passed in 4.4 min (unchanged count; tests/baseline.spec.js pins one more scenario id)",
+    "parity": "49 passed (36 on PR #182, +13: 2 replays in tests/parity/in-dive-controls.test.ts, and 11 more planner checkpoints that tests/parity/dive-planner.test.ts covers automatically)",
+    "e2e": "120 passed in 3.7 min (unchanged count; tests/baseline.spec.js pins two more scenario ids)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, max delta 0",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
   "fixtureRegeneration": {
     "command": "npm run baseline:generate",
-    "referenceCommit": "76b4d3b — the commit that adds the scenario to scripts/baseline-scenarios.cjs, committed before generating so the fixture names the code that produced it",
-    "additive": "Checked by comparison, not assumed (docs/decisions.md, \"Trace contract limits\"): the four existing scenarios are byte-identical before and after; the fixture header differs only in referenceCommit; docs/baseline/test-inventory.json differs only in referenceCommit.",
-    "newScenario": {
-      "id": "ccr-setpoint-bailout-30m",
-      "recipe": "CCR, setpoint 1.2 bar, diluent Tx 15/45, setup cylinder air; 10 min at 30 m; ] for one 0.025 min tick; 5 min at 30 m; B for one tick; ascent to 21 m at 9 m/min.",
-      "checkpoints": "surface, bottom-10min, setpoint-raised (SP 1.3, loop still 1.2), bottom-15min (loop 1.3, ceiling 1.39 m), bailed-out (onBailout true), bailout-ascent-21m (diluent 182.39 bar)",
-      "whyTheDiluentDiffers": "ccr-bailout-30m uses air for both the diluent and the setup cylinder, so no checkpoint could tell which gas a bailout forecast breathes. Here they differ, so the fixture now records legacy's behaviour of forecasting a bailout ascent on the setup cylinder, which is the question #183 raises. The planner parity passes on it because the migration planner reproduces that behaviour."
-    },
-    "contractTest": "tests/baseline.spec.js pins the scenario list so none can vanish from a regeneration unnoticed. It failed on the first full run with exactly the added id, and the id was added to the list with the reason written beside it. This is an intended recording, and none of the test's per-checkpoint or schema assertions changed."
+    "referenceCommit": "01ecd04 — the commit that changes scripts/baseline-scenarios.cjs, committed before generating",
+    "additive": "Checked against the fixture on main, not assumed: the four original scenarios are byte-identical; the header and docs/baseline/test-inventory.json differ only in referenceCommit.",
+    "contractTest": "tests/baseline.spec.js pins the scenario list so none can vanish from a regeneration unnoticed. The two added ids were appended with the reason written beside them. No schema or per-checkpoint assertion changed.",
+    "newScenarios": {
+      "ccr-setpoint-bailout-30m": "CCR, setpoint 1.2 bar, Tx 15/45 diluent, air setup cylinder. 10 min at 30 m in 6 s ticks; ] in a zero-length tick; 5 min at 30 m in 1 s ticks; B in a zero-length tick; ascent to 21 m at 9 m/min. Checkpoints: bottom-10min, setpoint-raised, bottom-15min, bailed-out, bailout-ascent-21m.",
+      "tec-switch-21m": "Trimix 21/35 plus a 50% cylinder. 15 min at 30 m; ascent to 21 m; key 2 in a zero-length tick; 3 min at 21 m. Checkpoints: bottom-15min, ascent-21m, switched, deco-gas-3min.",
+      "whyZeroLengthTicks": "Legacy's updateDiving() reads the keys after integrating the tissues and billing the gas, so a key read inside an ordinary tick splits that tick. For a switch, the tick integrates the old gas and bills the new one. The migration client acts between whole-second steps, where that split does not exist. A zero-length tick puts the key on a tick boundary, where both clients mean the same thing.",
+      "whyOneSecondTicks": "After ], the loop climbs to the new setpoint within a few seconds. A 6 s legacy tick integrates that climb differently from six 1 s model steps, so the segment is recorded at the model's fixed step.",
+      "whyTheDiluentDiffers": "As before: the diluent differs from the setup cylinder so the fixture records which gas a bailout forecast breathes (#183)."
+    }
   },
   "acceptanceMapping": {
-    "tankSwitch": "trimix-45m-20min: ascent-21m to deco-gas-21m. switchGas(1) after the tick: activeTankIndex 1, one gas-switch event to tankIndex 1, tissues within 1e-9.",
-    "setpointChange": "ccr-setpoint-bailout-30m: bottom-10min to setpoint-raised. adjustSetpoint(+0.1) after the tick gives targetPo2Bar 1.3 exactly, with no event (legacy records none) and tissues within 1e-9. The following five minutes, replayed at the raised setpoint, match bottom-15min within 1e-9.",
-    "bailout": "ccr-setpoint-bailout-30m: bottom-15min to bailed-out. bailOut() after the tick: onBailout true, one bailout event, tissues within 1e-9; a second bailOut() returns the same state. The ascent to 21 m, replayed on the model's own breathing source, matches the tissues within 1e-9 and the diluent pressure within 1e-6.",
-    "oneDiveNotPossible": "The acceptance reads as one dive, but no single legacy dive can hold all three acts: a CCR dive has one open-circuit cylinder in legacy too (TASK-019 loops to tankCount), so a switch is only possible on open circuit and a setpoint or bailout only on CCR. The two recorded dives together cover the three."
+    "tankSwitch": "tec-switch-21m: one DiveModel from ascent-21m. switchGas(1) at the zero-length tick gives activeTankIndex 1 and one gas-switch event to cylinder 2, with tissues and both cylinders unchanged. Three minutes follow on the model's own breathing and billing, with tissues within 1e-9 and both cylinders within 1e-6 L.",
+    "setpointAndBailout": "ccr-setpoint-bailout-30m: one DiveModel from bottom-10min, carried through every later checkpoint. adjustSetpoint(+0.1) gives setpoint 1.3 exactly and no event. In the five minutes after it, the model's own loop climbs to 1.3 and matches loop PO2 (1e-9), tissues (1e-9), O2 and diluent pressure (1e-6) and scrubber time (1e-6 min). bailOut() gives one bailout event, and a second call changes nothing. The ascent on the diluent matches tissues and diluent pressure.",
+    "oneDiveNotPossible": "No single legacy dive holds all three acts: a CCR dive has one open-circuit cylinder in legacy too (TASK-019 loops to tankCount)."
   },
-  "orderWithinTheTick": "Legacy's updateDiving() runs updateTissues(), then the tank keys (TASK-019), then gas use or updateCCRLoop, then the setpoint keys, then B (TASK-032F). The tick that reads a key therefore breathes the old gas. Each replay advances that tick, then applies the act, which is how the migration client applies an act between whole-second steps. For the five minutes after ], the first tick still breathes 1.2 bar, because legacy raises the loop inside that tick after the tissues.",
   "notComparedAndWhy": {
-    "switchTickGasBilling": "Legacy switches before it bills the tick in which the key is read, so that 1.5 s is drawn from the new cylinder; the migration client bills the step before the press to the old one. That is at most one tick of gas. It is not asserted, and the tissue comparison is unaffected.",
-    "ccrSegmentsUseAnOverride": "Before the bailout, the replays pass the loop PO2 explicitly, as tests/parity/tissue-model.test.ts does, because DiveModel subdivides a 6 s legacy tick into 1 s steps and the loop moves inside the tick. After the bailout no override is needed: the breathed gas is constant, so the subdivision is exact, and the gas billing runs too."
+    "nothingOverridden": "Nothing is injected: no breathing source, no loop PO2. Every field a checkpoint records for these segments is compared."
   },
   "counterCheck": {
-    "method": "One revert at a time, restoring from a copy taken beforehand, each run against the parity replay file.",
+    "method": "One revert at a time in src/core/dive-model.ts, restoring from a copy taken beforehand, run against the replay file.",
     "cases": {
-      "placeholderBreathedAfterBailout": "breathingSourceForState() returns tanks[active] on bailout instead of the diluent — the ascent replay fails (1 of 5)",
-      "setpointNeverTakesEffect": "the five minutes after ] replayed at 1.2 bar throughout — that replay fails (1 of 5), so the 1e-9 comparison detects the setpoint's effect",
-      "switchTickOnNewGas": "the switch tick replayed on the 50% deco gas — the switch replay fails (1 of 5), so the order within the tick is observable",
-      "bailoutTickOpenCircuit": "the B tick replayed open-circuit on the diluent — the bailout replay fails (1 of 5)"
+      "loopIgnoresSetpoint": "the loop injects toward a fixed 1.2 bar instead of the target — the CCR replay fails",
+      "gasBilledToFirstCylinder": "open-circuit billing always charges cylinder 1 — the switch replay fails, off by 139.5 L",
+      "placeholderAfterBailout": "breathingSourceForState() returns tanks[active] on bailout — the CCR replay fails"
     },
-    "oneRevertDidNotApplyAtFirst": "The first attempt at the placeholder revert used a multi-line match, which did not find the CRLF source. The script reported 'no unique match' rather than a pass. The revert was rewritten as a single-line match and rerun."
+    "oneRevertDidNotApplyAtFirst": "The billing revert first used a multi-line match that missed the CRLF source. The script said so, and the 'passed' it printed ran against unmodified code. It was rewritten as a single-line match and rerun, and then failed as expected.",
+    "history": "The four counter-checks recorded against the first revision tested the injected-breathing design that review round 1 rejected. They are superseded by these three."
   },
   "unrelatedFailuresObserved": {
-    "runs": "Three full runs on this branch. The first, on f9f2974, failed tests/baseline.spec.js (see fixtureRegeneration.contractTest), which was this branch's own doing and was fixed. The second, on f1ffc52, failed one test: tests/setup-screen.spec.js 'a closed-circuit dive reaches the same model by touch alone as by keyboard alone', a 60 s timeout waiting for the Pixi canvas. The third, on f1ffc52, is the run recorded above, with all tests passing.",
-    "notThisBranch": "No application code differs from PR #182, whose five full runs never failed this test. It passed alone three times in a row (1 passed, about 11.9 s each). playwright.config.js records intermittent timeouts of WebGL-heavy specs under parallel load. Recorded as observed and not diagnosed further."
+    "status": "The measured run above was the first on this commit, and it passed. The earlier revision's notes are superseded along with its measurement."
   },
   "releaseLabel": {
     "chosen": "release:none",
@@ -77,7 +74,26 @@
     "check": "After the merge, `git rev-parse <squash-merge-commit>:src <squash-merge-commit>:tests <squash-merge-commit>:scripts` should equal the three below.",
     "caveat": "Holds only while the sole commit after the measured one adds this artifact.",
     "srcTree": "648a7d1592e3f4d2389b58d11772647b4aa7b89a",
-    "testsTree": "fd1b8be3ea12c9c51771bc0ddfb2d612619d27f8",
-    "scriptsTree": "e109e3c1fe67e222819643683ca523195c080e2a"
-  }
+    "testsTree": "8aa686e32a5d2b2861948d218c121c9ac87073cb",
+    "scriptsTree": "842ae2b75fb9d44a8a67a6b4da81b84928cd8c87"
+  },
+  "reviewRound1": {
+    "findings": 2,
+    "switchBillingSkipped": {
+      "finding": "major contract-violation — the switch replay injected breathing, which skipped gas billing, and asserted no cylinder.",
+      "assessment": "Confirmed.",
+      "fix": "Zero-length key tick in a new tec-switch-21m scenario; replay on the model's own billing; both cylinders asserted."
+    },
+    "setpointEffectInjected": {
+      "finding": "major contract-violation — the five-minute replay supplied the loop PO2 itself and asserted the fixture's value, so a loop that ignored the setpoint would still pass.",
+      "assessment": "Confirmed.",
+      "fix": "One continuing model with its own loop, over a segment recorded in 1 s ticks; loop PO2, O2, diluent and scrubber asserted."
+    }
+  },
+  "supersedes": [
+    {
+      "measuredCommit": "f1ffc52be00ea7ac0316605be292be33a85a745a",
+      "why": "The injected-breathing replays that review round 1 rejected."
+    }
+  ]
 }
