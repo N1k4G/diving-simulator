@@ -1,0 +1,98 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 163,
+  "slice": "PR 3 of n: the rebreather controls — setpoint ([ ] and buttons), bailout (B and a button), the loop's HUD rows, and the loop warnings",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "f44cc318c4175faca6837d022e75c258f5eaf76b",
+  "measuredTree": "654972fd871bf16b592c198ad48649d09ea582e9",
+  "workingTree": "clean before the run and still clean after it (git status --porcelain empty at both ends, checked by the same shell invocation that ran the command)",
+  "recordedAt": "2026-09-25T08:58:55Z",
+  "runFinishedAt": "2026-09-25T09:03:27Z",
+  "timestampProvenance": "Both are the output of `date -u +%Y-%m-%dT%H:%M:%SZ` printed by the shell immediately before and after the command, not values written by hand.",
+  "provenanceNote": "Measured against the committed tree rather than the working tree that became it. Only the commit adding this file follows the measured one.",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass — 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "241 passed (222 on main, +19: 14 in tests/unit/ccr-in-dive.test.ts, 5 in tests/unit/game-controller-ccr.test.ts)",
+    "parity": "36 passed (unchanged)",
+    "e2e": "108 passed in 3.3 min (97 on main, +11 in tests/in-dive-controls.spec.js)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels, max delta 0",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "whatWasMissing": {
+    "note": "The model could bail out (applyBailoutIntent, via InputIntent.bailout) but had no setpoint operation, and the client set neither: a CCR dive started at the configured setpoint and stayed there, and the only way to bail out was a save edited by hand. Nothing in the HUD showed the loop — setpoint, PO₂, cylinders, scrubber — so #158's e2e tests read localStorage to learn what a CCR dive had started with, and the gas row showed tanks[0], the codec's placeholder cylinder.",
+    "consequence": "The rebreather was configurable and simulated but not operable, and its state was observable only through the save."
+  },
+  "boundsPortedFromTheOracle": {
+    "setpoint": "src/state.js ccrAdjustSP / src/game-loop.js updateDiving: `Math.max(CCR_SP_MIN, Math.min(CCR_SP_MAX, +(targetSP ± CCR_SP_STEP).toFixed(1)))` with CCR_SP_MIN 0.5, CCR_SP_MAX 1.6, CCR_SP_STEP 0.1 (src/constants.js), gated on `diveMode === 'ccr' && !ccrState.onBailout`. The three constants move into src/core/dive-state.ts as CCR_SETPOINT_*; src/app/setup/ccr-controls.ts now reads them instead of carrying its own copy.",
+    "bailout": "src/game-loop.js TASK-032F: `if (keys['b']) { ccrState.onBailout = true }` under the same gate. DiveModel.bailOut() applies the existing applyBailoutIntent, which also zeroes co2BuildupS and records the one bailout event.",
+    "keys": "`[` and `]` for the setpoint, B for bailout — src/game-loop.js; the same pair the setup screen binds, so the two screens agree.",
+    "controlVisibility": "src/touch.js updateCcrDiveButtonVisibility: bailout, SP+ and SP− shown while `diveMode === 'ccr' && gameState === 'diving' && !ccrState.onBailout`; the DOM row here follows that plus the failed-dive rule.",
+    "hudRows": "src/renderer.js drawDiveComputer, CCR branch of infoPageMode 0: mode, SP, PO2, O2, DIL, SCR. The five value rows are ported; the mode word is carried by the cylinder row ('Rebreather loop' / 'Bailout · diluent cylinder') from slice 2.",
+    "warnings": "src/renderer.js TASK-032E: LOW PO2 below 0.18 bar, HIGH PO2 above 1.5, CO2! once scrubberFailed, SCR LOW under 10 minutes, all only while not on bailout. The thresholds are ported; the precedence is not (see deliberateDesign.warningPrecedence)."
+  },
+  "deliberateDesign": {
+    "operationsAreTheModels": "The controller passes a delta or a request; DiveModel decides. No rebreather, on bailout, failed, at a bound, or a non-finite delta all return the same state reference, and the controller then publishes nothing and saves nothing — the same silence as a refused gas switch. There is one place for each rule.",
+    "irreversibleByConstruction": "No operation clears onBailout. A second bailOut() returns the same reference and adds no event; the intent path through advance() already behaved this way and is untouched. Confirmed by state rather than by a dialog (#67): the row that held the button is gone, the cylinder row names the diluent, and the keys stop being claimed.",
+    "keysClaimedOnlyWhenOnOffer": "`[` `]` and B call preventDefault() only under #loopControlsOffered(), the same rule as the digits and F: a key that does nothing is left to whoever else wants it.",
+    "rowsSwap": "On a CCR dive the five loop rows show and the open-circuit gas row hides, rather than both showing. The gas row on a CCR dive would read tanks[0]'s pressure, a cylinder nobody draws down; showing it beside the O₂ and diluent rows would be a third pressure with no meaning.",
+    "twoDecimalsForPo2": "formatPartialPressure gives two decimals for setpoint and loop PO₂ (legacy: toFixed(1) for SP, toFixed(2) for PO2). A loop at 1.28 and one at 1.32 are different readings; a cylinder to the tenth of a bar is already more than anyone reads.",
+    "warningPrecedence": "failure > co2 > oxygen (loop 0.18..1.5, or open-circuit 0.16..1.6 after bailout) > scrubberLow > lowGas. Legacy assigns LOW/HIGH PO2, then CO2!, then SCR LOW in sequence, so a caution (SCR LOW) overwrites a danger (HIGH PO2) — an artefact of assignment order, not a ranking. A hyperoxic loop outranks nine minutes of scrubber, and a failed scrubber outranks both because CO₂ ends the dive in three minutes. Recorded here as a deviation in ordering only; every legacy warning still has a visual and an audio equivalent.",
+    "lowGasOnTheBreathedCylinder": "Low gas fires on the active cylinder for open circuit, on the diluent after a bailout, and never on the loop — the loop is not a cylinder, and tanks[0] there is the placeholder. Before this slice the rule read tanks[0] on a CCR dive too; at 200 bar it never fired, so nothing observable changes, but the rule now says what it means.",
+    "bailoutNameCarriesTheConsequence": "The bailout button's accessible name is 'Bail out to open circuit — cannot be undone'. It cannot ask for confirmation (#67), so its irreversibility has to be knowable before the press rather than discovered after it.",
+    "hiddenRowsNeedCss": "`.wreck-hud div` sets display: flex, which beats the user agent's [hidden] rule; `.wreck-hud div[hidden] { display: none }` was added so the loop rows actually vanish on open circuit. Asserted by the e2e that checks the rows hidden."
+  },
+  "sliceBoundary": {
+    "issueSuggestion": "#163 proposes 'PR 3: CCR setpoint + bailout'. This is that PR, plus the HUD rows and warnings the issue lists under 'HUD additions the controls need' for the loop, because a setpoint control without a setpoint readout cannot be tested through the HUD.",
+    "stillOutstandingInThisIssue": "gas info (I); the parity trace with a tank switch, a setpoint change and a bailout — the baseline fixture has a tank switch (trimix-45m-20min) and a bailout (ccr-bailout-30m) but no setpoint change, so a scenario has to be recorded from the legacy client and the fixture regenerated additively; the switchDepth decision carried over from #158; bailout as a status-chip state (legacy's BAIL mode word in danger tone) if the cylinder row is judged insufficient."
+  },
+  "notTestedAndWhy": {
+    "audioCue": "Each new severity drives audio.update({ warningActive: true }), the same path the three existing severities use, which plays alert.warning at priority 100 through WebAudioService. The node test environment has no AudioContext and the e2e cannot hear; the mapping is one boolean derived from the same selectWarning() the alert text comes from, so the visual assertion covers the branch.",
+    "loopPo2Warning": "LOW PO2 / HIGH PO2 on the loop: reaching 0.18 or 1.5 bar takes a starved or runaway loop that the save codec accepts but that fails the dive within 30 s of resuming, so an e2e would race the failure. The branch is the same `oxygen` severity the open-circuit path already asserts (tests/wreck-slice.spec.js 'persisted safety states'), with the thresholds substituted.",
+    "saveThrottle": "The app writes a save every five simulated seconds, so the e2e reads that follow a second press wait for a save that reflects it (savedStateWhere) rather than asserting the first save they find. That is an ordering in the app, not a defect; a save on every discrete act would be a separate decision."
+  },
+  "counterCheck": {
+    "method": "One revert at a time, restoring the actual previous behaviour rather than breaking the code conveniently, with the build result read before each e2e run so a stale dist/ can never pass as a result. Script kept outside the repository; the tree was restored and rebuilt after the last case.",
+    "cases": {
+      "setpointClampRemoved": "adjustSetpoint no longer clamps to 0.5..1.6 — 2 of 19 unit tests fail",
+      "setpointRoundingRemoved": "the tenth-snapping removed, so 0.7 + 0.1 stays 0.7999999999999999 — 2 of 19 unit tests fail",
+      "secondBailoutAccepted": "applyBailoutIntent no longer refuses when onBailout is already set — 2 of 19 unit tests fail (a second event is recorded)",
+      "setpointMovableAfterBailout": "the onBailout guard removed from the setpoint — 2 of 19 unit tests fail",
+      "loopKeysClaimedUnconditionally": "`[` `]` and B call preventDefault() on open circuit too — build pass, the open-circuit e2e fails on defaultPrevented",
+      "controlRowKeptAfterBailout": "the row no longer hides on onBailout — build pass, the bailout e2e fails",
+      "co2WarningRemoved": "the co2 severity never selected — build pass, the failed-scrubber e2e fails"
+    },
+    "oneRevertDidNotCompileAtFirst": "Removing the #loopControlsOffered() call from the key handler left the method unread, and the build failed on TS6133 before any e2e ran; the script reported the failed build instead of a pass. The revert was rewritten to keep reading the method (`|| true`) and rerun."
+  },
+  "accessibility": {
+    "keyboard": "SP − / SP + carry aria-keyshortcuts '[' and ']', bailout 'B'. The keyboard hint names all three in en and de.",
+    "labels": "'Lower the setpoint' / 'Raise the setpoint' / 'Bail out to open circuit — cannot be undone', the five row labels, two chip labels and two alert sentences, all from the catalogue in en and de.",
+    "touchTargets": "Three buttons at ≥44 CSS px with ≥8 px spacing, measured at 390 px, and asserted not to overlap any other control.",
+    "warnings": "Each new severity has alert text (role=alert, assertive, written once per transition) and a chip label with the ⚠ glyph, so neither colour nor sound carries the meaning alone."
+  },
+  "releaseLabel": {
+    "chosen": "release:none",
+    "reasoning": "Deployed bytes change — deploy.yml runs `pages deploy src/` with no ignore file — but served behaviour does not: _redirects sends / to the legacy client and the migration client stays unreachable until the #170 cutover.",
+    "ownerCall": true
+  },
+  "durableProvenance": {
+    "why": "measuredCommit is a branch commit and becomes unreachable once this is squash-merged; the subtree hashes survive the squash because the squash commit carries the same content.",
+    "check": "After the merge, `git rev-parse <squash-merge-commit>:src <squash-merge-commit>:tests <squash-merge-commit>:scripts` should equal the three below.",
+    "caveat": "Holds only while the sole commit after the measured one adds this artifact and touches nothing under src, tests or scripts.",
+    "srcTree": "5c391fdfbf729427b2aad0863aaa22f667be1262",
+    "testsTree": "1b3fc5d8a637ba182cd2ddc2c62553c0bce64fbb",
+    "scriptsTree": "52e3852fe9906142a846f72ea929c1f546e9d74c"
+  }
+}
