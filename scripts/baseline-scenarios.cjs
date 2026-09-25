@@ -174,6 +174,47 @@ function runBaselineScenarios() {
     bailout.checkpoints.push(checkpoint('ccr-bailout-30m', 'bailout-ascent-18m'));
     scenarios.push(bailout);
 
+    // #163 acceptance: an in-dive setpoint change and a bailout, driven by
+    // the keys a diver presses ([ ] and B), so the migration client's
+    // DiveModel.adjustSetpoint() and bailOut() can be replayed against them.
+    // The tank switch the acceptance also names is `deco-gas-21m` above: a
+    // CCR dive has one open-circuit cylinder in legacy too (TASK-019 loops to
+    // tankCount), so no single legacy dive carries all three.
+    //
+    // The diluent is Tx 15/45 while the setup cylinder stays air, on purpose.
+    // `ccr-bailout-30m` uses air for both, so no checkpoint could tell which
+    // one a bailout forecast breathes; this one can (#183).
+    //
+    // Each key is read inside updateDiving() after updateTissues() and the
+    // loop update, so the tick that reads it integrates at the old setpoint
+    // or on the loop, and the change applies from the next tick.
+    setup('ccr', 'shore', [[0.21, 0, 200]]);
+    api.ccrState.targetSP = 1.2;
+    api.ccrState.actualPO2 = 1.2;
+    api.ccrState.dilFO2 = 0.15;
+    api.ccrState.dilFHe = 0.45;
+    api.ccrState.dilFN2 = 0.4;
+    const inDive = {
+      scenarioId: 'ccr-setpoint-bailout-30m',
+      description: 'CCR at 1.2 bar with Tx 15/45 diluent at 30 m; ] raises the setpoint to 1.3 after 10 min, B bails out after 15 min, then an ascent to 21 m on the diluent',
+      checkpoints: [checkpoint('ccr-setpoint-bailout-30m', 'surface')]
+    };
+    holdDepth(30, 10);
+    inDive.checkpoints.push(checkpoint('ccr-setpoint-bailout-30m', 'bottom-10min'));
+    api.setKeys({ ']': true });
+    updateAtDepth(30, 0.025, 0);
+    api.clearKeys();
+    inDive.checkpoints.push(checkpoint('ccr-setpoint-bailout-30m', 'setpoint-raised'));
+    holdDepth(30, 5);
+    inDive.checkpoints.push(checkpoint('ccr-setpoint-bailout-30m', 'bottom-15min'));
+    api.setKeys({ b: true });
+    updateAtDepth(30, 0.025, 0);
+    api.clearKeys();
+    inDive.checkpoints.push(checkpoint('ccr-setpoint-bailout-30m', 'bailed-out'));
+    ascend(30, 21, 9);
+    inDive.checkpoints.push(checkpoint('ccr-setpoint-bailout-30m', 'bailout-ascent-21m'));
+    scenarios.push(inDive);
+
     return scenarios;
   } finally {
     Math.random = originalRandom;
