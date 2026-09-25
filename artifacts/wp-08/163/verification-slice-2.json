@@ -1,0 +1,95 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 163,
+  "slice": "PR 2 of n: fast-forward at a decompression stop (F and a button), the fast-forward indicator, and the active-cylinder HUD row",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "c220da0699ab84555aa420a5448512cbc1c3db04",
+  "measuredTree": "16c51f4cfe3c2d764ab194480116bfdf47dff9bd",
+  "workingTree": "clean before the run and still clean after it (git status --porcelain empty at both ends, checked by the same shell invocation that ran the command)",
+  "recordedAt": "2026-09-25T08:04:00Z",
+  "runFinishedAt": "2026-09-25T08:08:11Z",
+  "timestampProvenance": "Both are the output of `date -u +%Y-%m-%dT%H:%M:%SZ` printed by the shell immediately before and after the command, not values written by hand (the slice-1 artifact records why this matters).",
+  "provenanceNote": "Measured against the committed tree rather than the working tree that became it. Only the commit adding this file follows the measured one.",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass — 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "221 passed (209 on main, +12: 7 in tests/unit/game-controller-fast-forward.test.ts, 5 in tests/unit/deco-stop-band.test.ts)",
+    "parity": "36 passed (unchanged)",
+    "e2e": "96 passed in 2.6 min (87 on main, +9 in tests/in-dive-controls.spec.js)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels, max delta 0",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "whatWasMissing": {
+    "note": "The migration client ran the dive clock at real time with no way to wait out a stop. Legacy has fastForwardActive (src/game-loop.js updateDiving), toggled by F and by a touch button, offered only while the diver holds a stop with no vertical key down. Nothing in the client exposed it, and nothing in the HUD said which cylinder was being breathed — the slice-1 e2e tests read the save to learn the active index.",
+    "consequence": "A decompression stop of twenty minutes took twenty real minutes, and a gas switch was visible only as the pressure readout changing."
+  },
+  "boundsPortedFromTheOracle": {
+    "eligibility": "src/game-loop.js: `var decoStopD = decoStop(frameCalc.ceiling); var atDecoStop = decoStopD > 0 && Math.abs(depth - decoStopD) <= 1.5;` — isAtDecoStop() in src/planner/dive-planner.ts is that expression on the forecast's ceilingM, with DECO_STOP_BAND_M = 1.5. decoStop() itself was already ported as decoStopDepth().",
+    "verticalKeys": "src/game-loop.js: `if (canFastForward && !keys['w'] && !keys['arrowup'] && !keys['s'] && !keys['arrowdown'])` else `fastForwardActive = false` — the controller's #fastForwardAvailable() adds `!#pressed.has('ascend') && !#pressed.has('descend')`, and both setControl() and #tick clear the flag.",
+    "multiplier": "src/constants.js FAST_FORWARD_MULTIPLIER = 10, applied in legacy as `TIME_ACCELERATION * FAST_FORWARD_MULTIPLIER` over a 3x base. This client's dive clock runs at real time, so the 10x stands alone; in both clients the stop passes ten times faster than normal play.",
+    "gasSwitchCancels": "src/game-loop.js TASK-019 sets `fastForwardActive = false` in the same block that changes activeTank.",
+    "buttonVisibility": "src/touch.js touchUpdateUI shows touch-fast-forward only while `(atDecoFF || atSafetyFF) && isStationary`; the button here is hidden unless the same availability holds.",
+    "keyBinding": "F, as src/game-loop.js binds it (T took the torch because F was taken)."
+  },
+  "deliberateDesign": {
+    "onlyTheClockChanges": "The multiplier scales the simulation accumulator, so DiveModel.advance() is still called with whole-second steps through the same path; there are ten steps per real second instead of one. Nothing about the simulation is skipped or approximated, and the save and forecast paths see every step as before.",
+    "availabilityIsAuthoritativeState": "#fastForwardAvailable() reads the model's depthM — the depth the tissues were last integrated at — and the forecast's ceilingM, plus the held controls. Not the sprite's view depth, so the decision is a function of authoritative state and input rather than of where the diver is drawn between steps.",
+    "clearedOnPressNotOnlyOnTick": "setControl() clears the flag when a vertical control is pressed, in addition to the per-frame re-check in #tick, so no published frame can report active=true with available=false — the HUD would otherwise show the chip for one frame after the button had hidden.",
+    "keyClaimedOnlyWhenOnOffer": "F calls preventDefault() only while #fastForwardAvailable(), the rule the #163 review established for the digit keys: claiming a key that does nothing takes it from whatever else wanted it.",
+    "indicatorIsText": "A topbar chip reads 'Fast-forward ×10' while active. docs/decisions.md rules out meaning carried by colour alone, and a clock running ten times faster is exactly the kind of state a diver has to be told about. The button's aria-pressed says the same to assistive technology. The chip is not a live region: a change of clock speed is the diver's own act, not a warning to announce over it.",
+    "cylinderRowHidesThePlaceholderOnCcr": "tanks[0] exists on a CCR dive only because the codec requires at least one cylinder; it is not breathed. The row reads 'Rebreather loop' there rather than naming a cylinder nobody is using. The loop's own rows are the CCR slice."
+  },
+  "sliceBoundary": {
+    "issueSuggestion": "#163 proposes 'PR 2: torch + fast-forward'.",
+    "torch": "The torch already had a key and a button that call the same controller method, so there was no intent to add. What the DoD asks — keyboard and pointer reaching the same state — had no test for the keyboard path; one is added. Legacy shows the torch button only on overhead sites; the wreck is one, so the visibility rule has no observable case yet and is left to the sites that need it (#164-#167).",
+    "notMigratedSafetyStop": "Legacy also offers fast-forward in the safety-stop band (2.4-8.3 m while safetyStopCountdownStarted && !safetyStopComplete). No module of this client owns a safety-stop countdown, and the wreck route floors at 18 m (game-controller.ts MIN_DEPTH_M), so the band cannot be reached in the only site that renders. Implementing the depth half without the countdown would offer fast-forward indefinitely in the band after the stop was complete — wrong behaviour that no test could reach. isAtDecoStop()'s doc comment names the place the safety-stop band joins when the mechanic lands.",
+    "stillOutstandingInThisIssue": "gas info (I), CCR setpoint ([ ]) and bailout (B), the CCR HUD rows (loop PO2 vs setpoint, scrubber time, bailout state) and their warnings, the parity trace with a tank switch, a setpoint change and a bailout, and the switchDepth decision carried over from #158."
+  },
+  "notTestedAndWhy": {
+    "clockSpeedExactly10x": "The e2e asserts twenty dive seconds pass within six real ones — at least 3.3x, where normal speed would need twenty. An exact 10x cannot be measured through a 5-second save cadence on a loaded machine without becoming flaky; the multiplier's value is a named constant read in one place, and the counter-check below shows the test fails when it is neutralised.",
+    "autoCancelOnLeavingTheBand": "Leaving the band means the ceiling clearing to 15 m or the diver moving 1.6 m, and the route floor at 18 m plus the fixture's 2.5 m ceiling margin make neither reachable inside a test's lifetime. The rule itself — isAtDecoStop() false once the stop moves — is unit-tested; that #tick applies it every frame is the same code path as the vertical-key cancel, which is tested end to end.",
+    "gasSwitchToast": "Legacy's two-second 'GAS SWITCH → T{n}' notice is still not reproduced; the cylinder row now shows the switch persistently, which the issue's HUD list asks for, and a transient toast remains a possible addition rather than a gap in the row."
+  },
+  "counterCheck": {
+    "method": "One revert at a time, restoring the actual previous behaviour rather than breaking the code conveniently, with the build result read before each e2e run so a stale dist/ can never pass as a result. Script kept outside the repository; the tree was restored and rebuilt after the last case (git status --porcelain empty).",
+    "cases": {
+      "multiplierRemoved": "the accumulator advanced at 1x regardless of the flag — build pass, the wall-clock e2e fails",
+      "verticalKeyCancelRemoved": "neither setControl() nor #tick clears the flag — 1 of 7 controller unit tests fails, build pass, the vertical-key e2e fails",
+      "gasSwitchCancelRemoved": "requestTankSwitch() leaves the flag set — 1 of 7 controller unit tests fails, build pass, the gas-switch e2e fails",
+      "keyClaimedUnconditionally": "F calls preventDefault() whether or not a stop is held — build pass, the not-offered e2e fails on defaultPrevented",
+      "bandIgnored": "isAtDecoStop() accepts any depth once a stop exists — 3 of 12 unit tests fail across both new files"
+    }
+  },
+  "accessibility": {
+    "keyboard": "The fast-forward button carries aria-keyshortcuts='F' and aria-pressed for the active state; the torch pair is now asserted equivalent.",
+    "labels": "'Fast-forward at the stop' / 'Am Stopp vorspulen', 'Fast-forward ×10' / 'Vorspulen ×10', 'Cylinder' / 'Flasche', 'Rebreather loop' / 'Kreislauf', all from the catalogue in en and de; the keyboard hint names F in both.",
+    "touchTargets": "The button sits in the 3.2rem D-pad grid, measured at ≥44 CSS px at 390px in the mobile e2e; it occupies the grid cell the D-pad left empty, so no existing control moves.",
+    "narrowLayout": "The HUD gains a sixth row. The #137 A15 e2e still passes: depth, time, gas and NDL visible, zone hidden, at 390px."
+  },
+  "releaseLabel": {
+    "chosen": "release:none",
+    "reasoning": "Deployed bytes change — deploy.yml runs `pages deploy src/` with no ignore file — but served behaviour does not: _redirects sends / to the legacy client and the migration client stays unreachable until the #170 cutover.",
+    "ownerCall": true,
+    "note": "The feat prefix makes the bot apply release:minor; the same manual correction made on #179 and #180 is needed."
+  },
+  "durableProvenance": {
+    "why": "measuredCommit is a branch commit and becomes unreachable once this is squash-merged; the subtree hashes survive the squash because the squash commit carries the same content (see the slice-1 artifact for the check on two merged PRs).",
+    "check": "After the merge, `git rev-parse <squash-merge-commit>:src <squash-merge-commit>:tests <squash-merge-commit>:scripts` should equal the three below.",
+    "caveat": "Holds only while the sole commit after the measured one adds this artifact and touches nothing under src, tests or scripts.",
+    "srcTree": "39da9e0812a768d44c0a5c7847922bd0db77d139",
+    "testsTree": "40bdc58e59aee76bbd99d0d9e5311a395dafcbe1",
+    "scriptsTree": "52e3852fe9906142a846f72ea929c1f546e9d74c"
+  }
+}
