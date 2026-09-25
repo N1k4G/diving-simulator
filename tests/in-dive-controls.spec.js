@@ -896,6 +896,21 @@ test.describe('rebreather controls', () => {
     await expect(page.locator('.status-chip')).toContainText('Low gas');
   });
 
+  test('the cylinder rows show whole bar, so the reading and the mark agree at 30', async ({ page }) => {
+    // #163 review round 4 on PR #182. The rule reads the rounded pressure, as
+    // legacy's does; the row used to show one decimal, so 29.6 bar appeared
+    // under the threshold with no mark. Legacy rounds the display too.
+    await resumeCcrDiveWith(page, (state) => {
+      state.ccr.oxygenCylinderPressureBar = 29.6;
+      state.ccr.diluentCylinderPressureBar = 29.4;
+    });
+
+    await expect(hudValue(page, 'oxygenCylinder')).toHaveText('30 bar');
+    await expect(hudRow(page, 'oxygenCylinder')).not.toHaveAttribute('data-danger', '');
+    await expect(hudValue(page, 'diluentCylinder')).toHaveText('⚠ 29 bar');
+    await expect(hudRow(page, 'diluentCylinder')).toHaveAttribute('data-danger', '');
+  });
+
   test('the scrubber reads in whole minutes, as legacy draws it', async ({ page }) => {
     await resumeCcrDiveWith(page, (state) => {
       state.ccr.scrubberRemainingS = 150 * 60 + 20;

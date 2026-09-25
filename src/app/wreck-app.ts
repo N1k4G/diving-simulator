@@ -691,6 +691,11 @@ function syncLoopRows(
   // (src/renderer.js drawDiveComputer, CCR branch — hudDangerPrefix()), so a
   // reading past its limit says so in the glyph and not only in colour
   // (#163 review round 2 on PR #182).
+  // The two cylinder rows show whole bar, as legacy draws them
+  // (`Math.round(ccrState.o2CylPressure) + ' bar'`), because the danger
+  // rule reads the rounded value: showing 29.6 bar beside a rule that
+  // counts it as 30 put an unmarked reading under the threshold on screen
+  // (#163 review round 4 on PR #182).
   const danger = selectLoopRowDanger(ccr);
   writeLoopRow(
     hud.loopPo2,
@@ -700,13 +705,13 @@ function syncLoopRows(
   );
   writeLoopRow(
     hud.oxygenCylinder,
-    formatPressure(ccr.oxygenCylinderPressureBar, locale),
+    formatPressure(Math.round(ccr.oxygenCylinderPressureBar), locale),
     danger.oxygenCylinder,
     locale,
   );
   writeLoopRow(
     hud.diluentCylinder,
-    formatPressure(ccr.diluentCylinderPressureBar, locale),
+    formatPressure(Math.round(ccr.diluentCylinderPressureBar), locale),
     danger.diluentCylinder,
     locale,
   );
