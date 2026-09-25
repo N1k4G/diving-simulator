@@ -54,7 +54,7 @@
     "rebuildOnlyOnChange": "The panel body is rebuilt only when its content changes, roughly once a second as the tissues move. It holds nothing focusable that a rebuild could discard."
   },
   "notPortedAndWhy": {
-    "cns": "The legacy decompression page shows CNS %. The migration model does not track CNS yet (#10), so the row is left out rather than shown with a placeholder.",
+    "cns": "PARTIAL PAGE. Legacy infoPageMode 4 shows CNS %, rounded, caution at 50 and danger at 80. The migration model does not track CNS yet, so the row is left out rather than shown with a placeholder. The decompression page is therefore not claimed complete: CNS in the core model, its parity against the cns_percent every fixture checkpoint already records, the save field and this row are tracked as #186. The code marks the omission at the page.",
     "zeroOxygenMod": "Legacy would draw a 0% oxygen mix's MOD as Infinity m. Here the MOD is null and the page shows the unavailable mark."
   },
   "regressionCaughtBeforeCommit": "The first build gave the toggle the mute button's .audio-control class to reuse its sizing. tests/wreck-slice.spec.js locates the mute button by that class and failed on two matches. The toggle now has its own class, and the size rule lists both selectors.",
@@ -142,6 +142,14 @@
       "finding": "minor contract-violation: finite NDL not capped at 99 minutes as legacy draws it.",
       "assessment": "Confirmed.",
       "fix": "displayedNdlMinutes caps at 99 and returns null for the 999 sentinel. The page shows whole minutes."
+    }
+  },
+  "reviewRound3": {
+    "findings": 1,
+    "cnsRow": {
+      "finding": "minor contract-violation: the decompression page omits legacy CNS row while the PR claims the legacy page.",
+      "assessment": "Confirmed that the row is missing. Porting it means migrating an authoritative mechanic (state, per-step accumulation, save field, parity), which #163 scopes out as new core work. The finding offers deferral with the claim withdrawn.",
+      "disposition": "Deferred to #186. The page is marked partial in the code, this evidence and the PR description."
     }
   }
 }

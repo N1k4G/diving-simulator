@@ -182,6 +182,10 @@ function buildBlocks(
         },
       ];
     case "deco": {
+      // PARTIAL. Legacy's page 4 also shows CNS %, rounded, caution at 50,
+      // danger at 80. The migration model does not track CNS yet, so there
+      // is no authoritative value to show. The row is left out rather than
+      // filled with a placeholder, and lands with #186.
       const { planner, saturation } = presentation;
       const po2 = presentation.breathingPo2Bar;
       return [
