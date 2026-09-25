@@ -1,13 +1,13 @@
 {
   "schema": "issue-evidence/1",
   "issue": 163,
-  "slice": "PR 5 of n: gas information, I and a button walking legacy info pages (cylinders, tissues, decompression without CNS pending #186, rebreather); the switch-depth decision from #158; save format v3 with the dive mode",
+  "slice": "PR 5 of n: gas information, I and a button walking legacy info pages for cylinders, tissues and the rebreather (the decompression page deferred to #186 with CNS); the switch-depth decision from #158; save format v3 with the dive mode",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "4c5c0dec7d78d6a8ab452f7bea9b30b0c8d4fdd0",
-  "measuredTree": "7679aed460cf4f2e54a062aef8e7590064b981fb",
+  "measuredCommit": "fb062e3de1c5cb47d73da1d589d84c521b12a9ca",
+  "measuredTree": "18c2867cce622413ac39ac35b126b5d9ef4e8032",
   "workingTree": "clean before the run and still clean after it (git status --porcelain empty at both ends, checked by the same shell invocation that ran the command)",
-  "recordedAt": "2026-09-25T13:43:48Z",
-  "runFinishedAt": "2026-09-25T13:49:19Z",
+  "recordedAt": "2026-09-25T13:55:51Z",
+  "runFinishedAt": "2026-09-25T14:01:34Z",
   "timestampProvenance": "Both are the output of `date -u +%Y-%m-%dT%H:%M:%SZ` printed by the shell immediately before and after the command.",
   "provenanceNote": "Measured against the committed tree. Only the commit adding this file follows the measured one. The first full run on this commit is the one recorded; no run was repeated.",
   "stackedOn": "feat/163-ccr-controls (PR #182): the loop page reads the rebreather HUD's strings and the danger thresholds this PR moves out of wreck-app.ts. Sibling of #184, which it does not depend on.",
@@ -26,18 +26,17 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass — 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "271 passed (245 on PR #182, +26: 21 in tests/unit/gas-info.test.ts, 5 in tests/unit/save-game.test.ts)",
+    "unit": "270 passed (245 on PR #182, +25: 20 in tests/unit/gas-info.test.ts, 5 in tests/unit/save-game.test.ts)",
     "parity": "36 passed (unchanged; this branch does not carry #184's fixture)",
-    "e2e": "133 passed in 4.4 min (120 on PR #182, +13 in tests/in-dive-controls.spec.js)",
+    "e2e": "133 passed in 4.6 min (120 on PR #182, +13 in tests/in-dive-controls.spec.js)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, max delta 0",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
   "boundsPortedFromTheOracle": {
     "availability": "src/state.js: `(isAdvanced() || diveMode === 'ccr') && gameState === 'diving'`, decided by the dive mode itself. The mode is carried in the save from v3 on.",
-    "cycle": "src/state.js: CCR toggles 0 and 5; open circuit steps 1 to 4, skipping 2 when tankCount <= 3, and wraps to 0. Escape returns to 0.",
+    "cycle": "src/state.js: CCR toggles 0 and 5. Open circuit steps through 1, 2 (only with more than three cylinders) and 3, then closes. Page 4, decompression, is deferred to #186. Escape returns to 0.",
     "cylinderPage": "src/renderer.js infoPageMode 1 and 2, three cylinders per page: label, mix, pressure `Math.round(gasRemaining / volume)` marked danger under 50 bar, MOD `Math.floor(((PO2_HIGH / fO2) - 1) * 10)`, and the ACTIVE marker.",
     "tissuePage": "infoPageMode 3: per compartment `(pN2 + pHe) / (a + pAmb / b)` with combined N2/He coefficients, clamped to 0..1.2, danger at 1.0, with markers under compartments 1, 4, 8, 12 and 16.",
-    "decoPage": "infoPageMode 4: GF99 and SrfGF as `Math.max(0, Math.round(max((pt - p) / (M(p) - p) * 100)))` at the current ambient pressure and at 1.0 bar, each danger at 100 or more; ceiling; GF low and high; TTS; NDL, shown as '---' at the 999 sentinel and danger under 5; PO2.",
     "loopPage": "infoPageMode 5: loop PO2, marked outside 0.16..1.6 bar (PO2_HYPOXIA, PO2_HIGH), which differs from the HUD row's 0.18; setpoint; mode, with BAIL in the danger tone; O2 cylinder pressure and volume; diluent pressure, volume and mix; scrubber minutes. The cylinder and scrubber limits (30 bar, 10 min, rounded) are shared with the HUD through src/app/loop-danger.ts."
   },
   "switchDepthDecision": {
@@ -54,7 +53,7 @@
     "rebuildOnlyOnChange": "The panel body is rebuilt only when its content changes, roughly once a second as the tissues move. It holds nothing focusable that a rebuild could discard."
   },
   "notPortedAndWhy": {
-    "cns": "PARTIAL PAGE. Legacy infoPageMode 4 shows CNS %, rounded, caution at 50 and danger at 80. The migration model does not track CNS yet, so the row is left out rather than shown with a placeholder. The decompression page is therefore not claimed complete: CNS in the core model, its parity against the cns_percent every fixture checkpoint already records, the save field and this row are tracked as #186. The code marks the omission at the page.",
+    "cns": "The decompression page (infoPageMode 4) is deferred whole to #186. It shows CNS %, which the migration model does not track. Review rounds 3 and 4 held that it should not ship with that row missing, and CNS in the core (state, save field, parity against the recorded cns_percent) is #186 scope. Its GF99, surface GF, ceiling, gradient factors, TTS, NDL and PO2 rows, with their tiers and the 99-minute NDL cap, were removed with it. The planner functions they used stay, tested.",
     "zeroOxygenMod": "Legacy would draw a 0% oxygen mix's MOD as Infinity m. Here the MOD is null and the page shows the unavailable mark."
   },
   "regressionCaughtBeforeCommit": "The first build gave the toggle the mute button's .audio-control class to reuse its sizing. tests/wreck-slice.spec.js locates the mute button by that class and failed on two matches. The toggle now has its own class, and the size rule lists both selectors.",
@@ -83,8 +82,8 @@
   "durableProvenance": {
     "check": "After the merge, `git rev-parse <squash-merge-commit>:src <squash-merge-commit>:tests <squash-merge-commit>:scripts` should equal the three below.",
     "caveat": "Holds only while the sole commit after the measured one adds this artifact.",
-    "srcTree": "41c675f5b54d7e2ca527a347816f7d59572bb67f",
-    "testsTree": "03228bd37ace61e6068da9ac9e1b0b90ae5b6111",
+    "srcTree": "c4e8442cd55db28a1869304b0e82eebf86a90dce",
+    "testsTree": "dddb49b879373903a9d8592a9485ac945d70b269",
     "scriptsTree": "52e3852fe9906142a846f72ea929c1f546e9d74c"
   },
   "saveFormatV3": {
@@ -128,6 +127,10 @@
     {
       "measuredCommit": "d2b02eff45e32a8015bb7971b927c02c7bcc61aa",
       "why": "Predates the round-3 partial-page note; source differs by a comment only."
+    },
+    {
+      "measuredCommit": "4c5c0dec7d78d6a8ab452f7bea9b30b0c8d4fdd0",
+      "why": "Still shipped the partial decompression page."
     }
   ],
   "reviewRound2": {
@@ -154,6 +157,13 @@
       "finding": "minor contract-violation: the decompression page omits legacy CNS row while the PR claims the legacy page.",
       "assessment": "Confirmed that the row is missing. Porting it means migrating an authoritative mechanic (state, per-step accumulation, save field, parity), which #163 scopes out as new core work. The finding offers deferral with the claim withdrawn.",
       "disposition": "Deferred to #186. The page is marked partial in the code, this evidence and the PR description."
+    }
+  },
+  "reviewRound4": {
+    "findings": 1,
+    "cnsRow": {
+      "finding": "Round 3 CNS finding re-reported, with the option to defer the decompression page itself until #186.",
+      "disposition": "Deferred: the page is out of the cycle and lands complete with CNS in #186."
     }
   }
 }
