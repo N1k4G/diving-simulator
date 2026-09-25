@@ -3,11 +3,11 @@
   "issue": 163,
   "slice": "PR 3 of n: the rebreather controls — setpoint ([ ] and buttons), bailout (B and a button), the loop's HUD rows, and the loop warnings",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "3e05bf804ba7caf5f529bfb511c395ad76c8c711",
-  "measuredTree": "aa67d6146dce208a403aba5286365f1efb366b83",
+  "measuredCommit": "a69158dd3abdadd1bb579723dea50145617bef46",
+  "measuredTree": "bef927fb2b4e63ef96803a4a5ffaf03147a536fb",
   "workingTree": "clean before the run and still clean after it (git status --porcelain empty at both ends, checked by the same shell invocation that ran the command)",
-  "recordedAt": "2026-09-25T10:04:04Z",
-  "runFinishedAt": "2026-09-25T10:09:52Z",
+  "recordedAt": "2026-09-25T10:17:49Z",
+  "runFinishedAt": "2026-09-25T10:23:37Z",
   "timestampProvenance": "Both are the output of `date -u +%Y-%m-%dT%H:%M:%SZ` printed by the shell immediately before and after the command, not values written by hand.",
   "provenanceNote": "Measured against the committed tree rather than the working tree that became it. Only the commit adding this file follows the measured one.",
   "environment": {
@@ -27,7 +27,7 @@
     "distCheck": "pass — 17 files scanned, no source maps, 4 diagnostic markers absent",
     "unit": "245 passed (222 on main, +23: 14 in tests/unit/ccr-in-dive.test.ts, 5 in tests/unit/game-controller-ccr.test.ts, 4 in tests/unit/game-controller-forecast.test.ts)",
     "parity": "36 passed (unchanged)",
-    "e2e": "119 passed in 4.3 min (97 on main, +22 in tests/in-dive-controls.spec.js)",
+    "e2e": "120 passed in 4.4 min (97 on main, +23 in tests/in-dive-controls.spec.js)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, max delta 0",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -81,7 +81,8 @@
       "forecastNotCleared": "#invalidateForecast() without the clearing — 1 of 4 forecast unit tests fails",
       "lowCylinderRuleDisabled": "isCcrCylinderLow() always false — build pass, the under-30-bar e2e fails",
       "shortScreenLayoutReverted": "the two-column rule removed AND the scrubber back on formatDuration, the full pre-fix layout — build pass, 2 of 8 layout e2e fail: panel into the hint by 240x8 px at 844x390, panel into the setpoint button by 59x3 px at 667x375",
-      "setpointRepeatFiltered": "the repeat filter restored on [ and ] — build pass, the held-key e2e fails"
+      "setpointRepeatFiltered": "the repeat filter restored on [ and ] — build pass, the held-key e2e fails",
+      "cylinderDisplayUnrounded": "the O₂ row back on the unrounded pressure — build pass, the whole-bar e2e fails"
     },
     "oneRevertDidNotCompileAtFirst": "Removing the #loopControlsOffered() call from the key handler left the method unread, and the build failed on TS6133 before any e2e ran; the script reported the failed build instead of a pass. The revert was rewritten to keep reading the method (`|| true`) and rerun.",
     "rerunAfterRound1": "All seven original cases were run again against b9038f0 with the same outcomes; the two forecast cases were added in that round.",
@@ -104,8 +105,8 @@
     "why": "measuredCommit is a branch commit and becomes unreachable once this is squash-merged; the subtree hashes survive the squash because the squash commit carries the same content.",
     "check": "After the merge, `git rev-parse <squash-merge-commit>:src <squash-merge-commit>:tests <squash-merge-commit>:scripts` should equal the three below.",
     "caveat": "Holds only while the sole commit after the measured one adds this artifact and touches nothing under src, tests or scripts.",
-    "srcTree": "0e427e2e73c794bd825084d7508833edb0130935",
-    "testsTree": "fa034bb8e851511bb9c40195bad3878527402798",
+    "srcTree": "648a7d1592e3f4d2389b58d11772647b4aa7b89a",
+    "testsTree": "340a281dc6ff5de033bcbacdb04412cb35c8537b",
     "scriptsTree": "52e3852fe9906142a846f72ea929c1f546e9d74c"
   },
   "reviewRound1": {
@@ -138,6 +139,10 @@
     {
       "measuredCommit": "874565af83adac2138b309b87e5b297e4c5455b7",
       "why": "Predates review round 3, which found held setpoint keys not repeating."
+    },
+    {
+      "measuredCommit": "3e05bf804ba7caf5f529bfb511c395ad76c8c711",
+      "why": "Predates review round 4, which found the cylinder display and the danger rule disagreeing at 30 bar."
     }
   ],
   "reviewRound2": {
@@ -178,5 +183,17 @@
     "what": "The first full run on 3e05bf8 (2026-09-25T09:57:46Z to 10:03:25Z) failed one test: tests/reload-resume.spec.js 'free-flow overlay save survives a real reload', a 30 s timeout waiting for window.gameAPI after page.reload().",
     "notThisBranch": "Checkable: `git diff --name-only main...HEAD` lists no src/*.js or src/*.html file, window.gameAPI exists only in the legacy client, and the spec loads only the legacy page.",
     "status": "Passed alone three times in a row (5 passed, about 4.2 s each), and the full run recorded above passed all 119. playwright.config.js already names this spec as one that timed out intermittently under parallel load (#130). Recorded as observed and not diagnosed further."
+  },
+  "reviewRound4": {
+    "findings": 2,
+    "bailoutForecastGas": {
+      "finding": "Re-reported from rounds 1 to 3.",
+      "disposition": "Still disputed as a finding against this PR and tracked as #183."
+    },
+    "cylinderRoundingMismatch": {
+      "finding": "minor bug — the cylinder rows showed one decimal while the danger rule read the rounded value, so 29.6 bar showed unmarked.",
+      "assessment": "Confirmed. Legacy rounds both the display and the rule input.",
+      "fix": "Both cylinder rows show whole bar. An e2e at 29.6 and 29.4 bar asserts \"30 bar\" unmarked and \"⚠ 29 bar\" marked."
+    }
   }
 }
