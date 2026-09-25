@@ -42,12 +42,15 @@ interface HudElements {
   readonly depth: HTMLElement;
   readonly time: HTMLElement;
   readonly gas: HTMLElement;
+  readonly cylinder: HTMLElement;
   readonly ndl: HTMLElement;
   readonly zone: HTMLElement;
   readonly status: HTMLElement;
+  readonly speed: HTMLElement;
   readonly warning: HTMLElement;
   readonly tanks: HTMLElement;
   readonly torch: HTMLButtonElement;
+  readonly fastForward: HTMLButtonElement;
   readonly mute: HTMLButtonElement;
 }
 
@@ -277,6 +280,9 @@ async function startWreckSimulation(
   bindContinuousControl(hud.shell, controller);
   bindTankControls(hud.tanks, controller);
   hud.torch.addEventListener("click", () => controller.toggleTorch());
+  hud.fastForward.addEventListener("click", () =>
+    controller.toggleFastForward(),
+  );
   hud.mute.addEventListener("click", () => {
     audio.setMuted(!audio.muted);
     hud.mute.setAttribute("aria-pressed", String(audio.muted));
@@ -350,13 +356,24 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   // in document order without a name.
   const topbarActions = document.createElement("div");
   topbarActions.className = "topbar-actions";
+  // Says in words that the dive clock is running ten times faster (#163).
+  // Hidden rather than empty when it is not, so the topbar does not reserve
+  // a blank pill; and not a live region — a change of clock speed is the
+  // diver's own doing, not a warning to announce over their action.
+  const speed = createElement(
+    "p",
+    "speed-chip",
+    translate(locale, "wreck.hud.fastForward"),
+  );
+  speed.dataset.fastForwardIndicator = "true";
+  speed.hidden = true;
   const mute = document.createElement("button");
   mute.type = "button";
   mute.className = "audio-control";
   mute.setAttribute("aria-label", translate(locale, "wreck.controls.mute"));
   mute.setAttribute("aria-pressed", "false");
   mute.textContent = translate(locale, "wreck.symbol.audio");
-  topbarActions.append(status, mute);
+  topbarActions.append(speed, status, mute);
   topbar.append(identity, topbarActions);
 
   const viewport = document.createElement("div");
@@ -369,6 +386,15 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   const depth = appendMetric(hud, "depth", translate(locale, "wreck.hud.depth"), unavailable);
   const time = appendMetric(hud, "time", translate(locale, "wreck.hud.time"), unavailable);
   const gas = appendMetric(hud, "gas", translate(locale, "wreck.hud.gas"), unavailable);
+  // Which cylinder is being breathed (#163). Until this row existed the only
+  // trace of a switch was the gas pressure changing, so the tests read the
+  // save to learn the active index — the HUD half the issue asks for.
+  const cylinder = appendMetric(
+    hud,
+    "cylinder",
+    translate(locale, "wreck.hud.cylinder"),
+    unavailable,
+  );
   const ndl = appendMetric(hud, "ndl", translate(locale, "wreck.hud.ndl"), unavailable);
   const zone = appendMetric(hud, "zone", translate(locale, "wreck.hud.zone"), unavailable);
 
@@ -411,6 +437,21 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   torch.setAttribute("aria-pressed", "true");
   torch.textContent = translate(locale, "wreck.symbol.torch");
   controls.append(torch);
+  // The F key's button. Offered only while a stop is held, as legacy shows
+  // its touch-fast-forward button only then; updateHud keeps that in step.
+  const fastForward = document.createElement("button");
+  fastForward.type = "button";
+  fastForward.className = "fast-forward-control";
+  fastForward.dataset.fastForward = "true";
+  fastForward.hidden = true;
+  fastForward.setAttribute(
+    "aria-label",
+    translate(locale, "wreck.controls.fastForward"),
+  );
+  fastForward.setAttribute("aria-keyshortcuts", "F");
+  fastForward.setAttribute("aria-pressed", "false");
+  fastForward.textContent = translate(locale, "wreck.symbol.fastForward");
+  controls.append(fastForward);
 
   const hint = createElement(
     "p",
@@ -434,12 +475,15 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     depth,
     time,
     gas,
+    cylinder,
     ndl,
     zone,
     status,
+    speed,
     warning,
     tanks,
     torch,
+    fastForward,
     mute,
   };
 }
@@ -449,13 +493,19 @@ function updateHud(
   frame: Readonly<GameFrame>,
   locale: SupportedLocale,
 ): void {
-  const { presentation, scene } = frame;
+  const { presentation, scene, fastForward } = frame;
   const activeTank = presentation.tanks[presentation.activeTankIndex];
   hud.depth.textContent = formatDepth(presentation.depthM, locale);
   hud.time.textContent = formatDuration(presentation.elapsedTimeS, locale);
   hud.gas.textContent = activeTank
     ? formatPressure(activeTank.pressureBar, locale)
     : translate(locale, "wreck.value.unavailable");
+  hud.cylinder.textContent = selectCylinderText(presentation, locale);
+  // The control appears only while it would do something and reads as
+  // pressed while the clock is sped up; the chip says the same in words.
+  hud.fastForward.hidden = !fastForward.available;
+  hud.fastForward.setAttribute("aria-pressed", String(fastForward.active));
+  hud.speed.hidden = !fastForward.active;
   hud.ndl.textContent = presentation.planner
     ? formatDuration(presentation.planner.ndlMin * 60, locale)
     : translate(locale, "wreck.value.unavailable");
@@ -485,6 +535,38 @@ function updateHud(
   if (hud.status.textContent !== statusText) {
     hud.status.textContent = statusText;
   }
+}
+
+/**
+ * The cylinder row's text (#163): which cylinder, and what is in it.
+ *
+ * A closed-circuit dive breathes the loop, not a cylinder, and `tanks[0]`
+ * on such a dive is only the codec's required placeholder — showing it as
+ * "1 · 21 % O₂" would name a cylinder nobody is breathing. After a bailout
+ * the model breathes the diluent cylinder open-circuit
+ * (breathingSourceForState), and a save can resume in that state, so the
+ * row says so rather than still naming the loop (#163 review round 1). The
+ * loop's own rows (setpoint, loop PO₂, scrubber) are the CCR slice of #163.
+ */
+function selectCylinderText(
+  presentation: Readonly<PresentationState>,
+  locale: SupportedLocale,
+): string {
+  if (presentation.ccr) {
+    return translate(
+      locale,
+      presentation.ccr.onBailout
+        ? "wreck.hud.cylinder.bailout"
+        : "wreck.hud.cylinder.loop",
+    );
+  }
+  const activeTank = presentation.tanks[presentation.activeTankIndex];
+  if (!activeTank) {
+    return translate(locale, "wreck.value.unavailable");
+  }
+  return translate(locale, "wreck.hud.cylinder.value")
+    .replace("{n}", String(activeTank.index + 1))
+    .replace("{gas}", formatGasFraction(activeTank.gas.oxygenFraction, locale));
 }
 
 // Returns the severity rather than a message, so callers cannot pick one
@@ -618,7 +700,7 @@ function bindContinuousControl(
 // today's order but keeps the fragility: reorder the metrics and the media
 // query silently hides whichever one now sits fifth. The CSS names the metric
 // it means instead, so the rule cannot drift away from its intent.
-type HudMetric = "depth" | "time" | "gas" | "ndl" | "zone";
+type HudMetric = "depth" | "time" | "gas" | "cylinder" | "ndl" | "zone";
 
 function appendMetric(
   list: HTMLDListElement,
