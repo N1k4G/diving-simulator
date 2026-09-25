@@ -320,6 +320,7 @@ async function startWreckSimulation(
         gasInfoPage,
         gasInfoAvailable(frame.presentation, diveMode),
         frame.presentation,
+        plannerSettings,
         locale,
       );
       audio.update({
@@ -349,6 +350,7 @@ async function startWreckSimulation(
       gasInfoPage,
       gasInfoAvailable(lastPresentation, diveMode),
       lastPresentation,
+      plannerSettings,
       locale,
     );
   };
@@ -375,6 +377,7 @@ async function startWreckSimulation(
         null,
         gasInfoAvailable(lastPresentation, diveMode),
         lastPresentation,
+        plannerSettings,
         locale,
       );
     }

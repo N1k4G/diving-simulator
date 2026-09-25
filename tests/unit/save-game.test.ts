@@ -150,6 +150,62 @@ describe("SaveGame gradient factors", () => {
   // v3 carries the dive mode (#163, #185 review): a technical dive starts
   // with one cylinder, so its state alone looks recreational, and the mode
   // decides whether gas information is offered after a resume.
+  // v4 carries the dive's CNS exposure (#186).
+  describe("CNS exposure", () => {
+    const withCns = (cnsPercent: number) =>
+      freezeDiveState({ ...createInitialDiveState(84), cnsPercent });
+
+    it("round-trips in a v4 save", () => {
+      const decoded = decodeSaveGame(
+        encodeSaveGame(createSaveGame(withCns(17.92), CONSERVATIVE_FACTORS, 1_735_689_600_000)),
+      );
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      expect(decoded.migratedFrom).toBeNull();
+      expect(decoded.saveGame.version).toBe(4);
+      expect(decoded.saveGame.state.cnsPercent).toBe(17.92);
+    });
+
+    it("migrates a v3 save to 0, keeping its mode", () => {
+      // A v3 save was written by a client that did not track CNS.
+      const v3 = JSON.parse(
+        encodeSaveGame(createSaveGame(withCns(0), CONSERVATIVE_FACTORS, 1_735_689_600_000, "rec")),
+      ) as { version: number; diveMode: string; state: Record<string, unknown> };
+      v3.version = 3;
+      delete v3.state.cnsPercent;
+
+      const result = decodeSaveGame(JSON.stringify(v3));
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.migratedFrom).toBe("save-game-v3");
+      expect(result.saveGame.state.cnsPercent).toBe(0);
+      expect(result.saveGame.diveMode).toBe("rec");
+    });
+
+    it("rejects a v4 save without a valid CNS", () => {
+      for (const bad of [undefined, -1, "12", Number.NaN]) {
+        const v4 = JSON.parse(
+          encodeSaveGame(createSaveGame(withCns(5), CONSERVATIVE_FACTORS, 1_735_689_600_000)),
+        ) as { state: Record<string, unknown> };
+        if (bad === undefined) delete v4.state.cnsPercent;
+        else v4.state.cnsPercent = bad;
+        expect(decodeSaveGame(JSON.stringify(v4)).ok).toBe(false);
+      }
+    });
+
+    it("carries legacy's cnsPercent over, and defaults a missing one to 0", () => {
+      const legacy = { ...legacyV2Save(), cnsPercent: 23.5 };
+      const carried = decodeSaveGame(JSON.stringify(legacy));
+      expect(carried.ok && carried.saveGame.state.cnsPercent).toBe(23.5);
+
+      const withoutCns: Record<string, unknown> = { ...legacyV2Save() };
+      delete withoutCns.cnsPercent;
+      const defaulted = decodeSaveGame(JSON.stringify(withoutCns));
+      expect(defaulted.ok && defaulted.saveGame.state.cnsPercent).toBe(0);
+    });
+  });
+
   describe("the dive mode", () => {
     const singleCylinder = () =>
       createInitialDiveState(81, {
@@ -164,7 +220,7 @@ describe("SaveGame gradient factors", () => {
       expect(decoded.ok).toBe(true);
       if (!decoded.ok) return;
       expect(decoded.migratedFrom).toBeNull();
-      expect(decoded.saveGame.version).toBe(3);
+      expect(decoded.saveGame.version).toBe(CURRENT_SAVE_GAME_VERSION);
       expect(decoded.saveGame.diveMode).toBe("tec");
     });
 
@@ -195,7 +251,7 @@ describe("SaveGame gradient factors", () => {
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.migratedFrom).toBe("save-game-v2");
-      expect(result.saveGame.version).toBe(3);
+      expect(result.saveGame.version).toBe(CURRENT_SAVE_GAME_VERSION);
       // The best a save that never recorded the mode allows.
       expect(result.saveGame.diveMode).toBe("rec");
       expect(result.saveGame.gradientFactors).toEqual(CONSERVATIVE_FACTORS);

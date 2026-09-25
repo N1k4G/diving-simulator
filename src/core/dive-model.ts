@@ -218,6 +218,7 @@ export function advanceDiveStep(
     { ...environment, breathing },
     elapsedS,
   );
+  nextState = accumulateCns(nextState, breathing, environment.depthM, elapsedS);
   nextState = updateLifeSupport(
     nextState,
     environment,
@@ -246,6 +247,54 @@ export function breathingSourceForState(state: DiveState): BreathingSource {
     throw new RangeError("active tank index is outside the tank list");
   }
   return openCircuit(tank.gas);
+}
+
+/**
+ * NOAA CNS exposure rate in % per minute for an inspired PO2, from legacy's
+ * updateCNS() (src/physics.js, WP-038). Each band's upper bound is
+ * inclusive, as legacy's chain of `po2 <= x` comparisons.
+ */
+export function cnsRatePercentPerMinute(po2Bar: number): number {
+  if (po2Bar <= 0.5) return 0;
+  if (po2Bar <= 0.6) return 0.14;
+  if (po2Bar <= 0.7) return 0.19;
+  if (po2Bar <= 0.8) return 0.28;
+  if (po2Bar <= 0.9) return 0.33;
+  if (po2Bar <= 1.1) return 0.42;
+  if (po2Bar <= 1.3) return 0.56;
+  if (po2Bar <= 1.5) return 0.83;
+  if (po2Bar <= 1.6) return 2.22;
+  return 10;
+}
+
+/**
+ * Adds one step's CNS exposure (#186).
+ *
+ * Legacy calls updateCNS() right after updateTissues() in the same tick,
+ * on calculatePO2(): the loop PO2 on an active rebreather, otherwise the
+ * breathed open-circuit gas at the tick's depth. That is the breathing
+ * source this step integrated the tissues on, so the PO2 is read from it
+ * here, at the step's depth, before the loop or the gas is updated.
+ */
+function accumulateCns(
+  state: DiveState,
+  breathing: BreathingSource,
+  depthM: Metres,
+  elapsedS: Seconds,
+): DiveState {
+  const po2Bar =
+    breathing.kind === "ccr" && !breathing.onBailout
+      ? breathing.actualPo2Bar
+      : resolveInspiredGas(breathing, depthM).oxygenFraction *
+        ambientPressureBar(depthM);
+  const rate = cnsRatePercentPerMinute(po2Bar);
+  if (rate === 0) {
+    return state;
+  }
+  return freezeDiveState({
+    ...state,
+    cnsPercent: state.cnsPercent + rate * secondsToMinutes(elapsedS),
+  });
 }
 
 function applyGasSwitchIntent(

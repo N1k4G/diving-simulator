@@ -98,6 +98,12 @@ export interface DiveState {
   tanks: readonly TankState[];
   activeTankIndex: number;
   surfaceAirConsumptionLpm: LitresPerMinute;
+  /**
+   * CNS oxygen exposure in percent of the NOAA single-exposure limit (#186),
+   * accumulated per step as legacy's updateCNS() does. Unbounded: legacy
+   * lets it exceed 100 and so does this.
+   */
+  cnsPercent: number;
   ccr: CcrState | null;
   failure: FailureState;
   events: readonly DiveEvent[];
@@ -224,6 +230,7 @@ export function createInitialDiveState(
     surfaceAirConsumptionLpm: litresPerMinute(
       options.surfaceAirConsumptionLpm ?? 15,
     ),
+    cnsPercent: 0,
     ccr: options.ccr ?? null,
     failure: {
       reason: null,

@@ -22,6 +22,7 @@ interface GoldenCheckpoint {
     maxDepth_m: number;
     diveTime_min: number;
     diveMode?: string;
+    cns_percent: number;
     activeTankIndex?: number;
   };
   configuration?: {
@@ -249,6 +250,12 @@ function expectTissuesToMatch(
 ): void {
   expect(state.tissues.nitrogenBar).toHaveLength(16);
   expect(state.tissues.heliumBar).toHaveLength(16);
+  // CNS exposure (#186), accumulated on the same breathing source as the
+  // tissues, against the cns_percent legacy records at every checkpoint.
+  expect(
+    Math.abs(state.cnsPercent - checkpoint.state.cns_percent),
+    `CNS at ${checkpoint.checkpointId}`,
+  ).toBeLessThanOrEqual(baselineFixture.tolerances.absoluteEpsilon.default);
 
   for (let index = 0; index < 16; index += 1) {
     expectDifferenceWithin(
