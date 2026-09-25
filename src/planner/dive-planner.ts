@@ -509,6 +509,20 @@ function bestForecastGas(state: DiveState, depthM: number): GasMix | null {
     );
   }
 
+  // After a bailout the diver breathes the diluent cylinder open-circuit and
+  // nothing else: the model refuses every tank switch on a CCR dive, and
+  // tanks[] there holds only the save's placeholder cylinder. So the ascent
+  // is planned on the diluent while it has gas, and runs out of gas when it
+  // is empty.
+  //
+  // DELIBERATE DEPARTURE FROM THE LEGACY ORACLE (#183, docs/decisions.md
+  // "Deliberate departures from the legacy client"). Legacy's
+  // bestGasForDepth() returns tanks[activeTank] outside tec mode, so it plans
+  // a bailout ascent on the setup cylinder, which the diver cannot breathe.
+  if (state.ccr?.onBailout) {
+    return state.ccr.diluentCylinderPressureBar > 0 ? state.ccr.diluent : null;
+  }
+
   const ambientBar = ambientPressureBar(depthM);
   let bestGas: GasMix | null = null;
   let fallbackGas: GasMix | null = null;

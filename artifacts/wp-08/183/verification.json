@@ -1,0 +1,56 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 183,
+  "slice": "Bailout forecast breathes the diluent, a deliberate departure from the legacy oracle",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "9b1988ff874f49495a3e4a1852842c9e7f937b5a",
+  "measuredTree": "eacd15e40b4111cbe665cd670c6d7ca7ff9c91c6",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-09-25T22:00:50Z",
+  "runFinishedAt": "2026-09-25T22:06:37Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "Measured against the committed tree, first full run. Only the commit adding this file follows the measured one.",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass — 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "272 passed (270 on main, +2 in tests/unit/bailout-forecast.test.ts)",
+    "parity": "49 passed (unchanged count; two checkpoints now assert the departure instead of legacy equality)",
+    "e2e": "133 passed in 4.4 min (unchanged)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "decision": {
+    "by": "the owner, on #183 (2026-09-26)",
+    "what": "After a CCR bailout the forecast breathes the diluent while its cylinder has gas, and is out of gas when it is empty.",
+    "legacy": "src/physics.js calculateDecoSchedule: the current segment uses activeGas() (the diluent on bailout), but every ascent step and stop uses bestGasForDepth(), which outside tec mode returns tanks[activeTank]. On a CCR dive that is the setup placeholder, which the diver cannot breathe.",
+    "legacyClient": "Unchanged. The departure is recorded in docs/decisions.md, 'Deliberate departures from the legacy client'."
+  },
+  "measuredEffect": "On ccr-setpoint-bailout-30m (Tx 15/45 diluent, air setup cylinder), legacy's TTS is 4 min at both bailout checkpoints. The migration planner gives 7 min at bailed-out and 6 min at bailout-ascent-21m, the same as an open-circuit forecast on the diluent alone. ccr-bailout-30m, which uses air for both gases, still matches legacy exactly.",
+  "parityDesign": "tests/parity/dive-planner.test.ts names the two affected checkpoints in DEPARTURES instead of skipping them. There, ceiling and NDL are still compared with legacy exactly, because the ceiling depends only on the tissues and the NDL on the current gas, which is the diluent in both clients. TTS and schedule must equal the diluent-only open-circuit reference and must differ from legacy's recorded TTS, so the entry fails as soon as the departure disappears. The fixture is unchanged.",
+  "counterCheck": {
+    "method": "The bailout branch removed from bestForecastGas(), restored from a copy afterwards.",
+    "result": "4 of 27 fail: both departure tests and both unit tests.",
+    "oneRevertDidNotApplyAtFirst": "The first anchor also matched currentForecastGas(). The script refused the ambiguous match and nothing ran. A unique anchor was used for the rerun."
+  },
+  "releaseLabel": {
+    "chosen": "release:none",
+    "reasoning": "Migration client only; unreachable until #170."
+  },
+  "durableProvenance": {
+    "srcTree": "368b0d294bca289c11d77d0fa729ebc5d48e8f26",
+    "testsTree": "ffdb1ce7a131f965416f012bace541478970b486",
+    "scriptsTree": "842ae2b75fb9d44a8a67a6b4da81b84928cd8c87"
+  }
+}
