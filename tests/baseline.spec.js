@@ -139,7 +139,8 @@ test('baseline: generated contracts are complete and internally consistent', asy
     'trimix-45m-20min',
     'ccr-30m-30min',
     'ccr-bailout-30m',
-    'ccr-setpoint-bailout-30m'
+    'ccr-setpoint-bailout-30m',
+    'tec-switch-21m'
   ]);
   for (const scenario of traces.scenarios) {
     expect(scenario.checkpoints.length).toBeGreaterThan(0);
