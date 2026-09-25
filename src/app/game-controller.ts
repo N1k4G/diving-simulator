@@ -1,4 +1,5 @@
 import {
+  CCR_SETPOINT_STEP_BAR,
   createInitialDiveState,
   type InitialDiveOptions,
   freezeDiveState,
@@ -230,6 +231,43 @@ export class GameController {
     this.#publishFrame();
   }
 
+  /**
+   * Moves the loop setpoint by a signed number of bar (#163).
+   *
+   * Whether it is allowed is the model's call — no rebreather, on bailout,
+   * failed, or already at the bound all leave the state as it was, and then
+   * nothing is published. The forecast is re-requested because the planner
+   * breathes the loop at the *target* PO₂ (currentForecastGas), so a new
+   * setpoint is a new forecast gas.
+   */
+  adjustSetpoint(deltaBar: number): void {
+    const before = this.#model.snapshot;
+    const after = this.#model.adjustSetpoint(deltaBar);
+    if (after === before) {
+      return;
+    }
+    this.#onAuthoritativeState?.(after);
+    this.#requestForecast(true);
+    this.#publishFrame();
+  }
+
+  /**
+   * Bails out to open circuit (#163). Irreversible, and confirmed by the
+   * state rather than a dialog (#67): once onBailout is set the controls
+   * that could be pressed again are gone, and DiveModel.bailOut refuses a
+   * second one anyway. The forecast changes with the breathed gas.
+   */
+  bailOut(): void {
+    const before = this.#model.snapshot;
+    const after = this.#model.bailOut();
+    if (after === before) {
+      return;
+    }
+    this.#onAuthoritativeState?.(after);
+    this.#requestForecast(true);
+    this.#publishFrame();
+  }
+
   destroy(): void {
     if (this.#disposed) {
       return;
@@ -422,6 +460,24 @@ export class GameController {
       this.toggleFastForward();
       return;
     }
+    // [ and ] move the setpoint and B bails out, as src/game-loop.js binds
+    // them during a CCR dive. Edge-triggered like the digits, and claimed
+    // only while the loop is being breathed: on open circuit or after a
+    // bailout these keys do nothing, so they are left to whoever else
+    // wants them.
+    if (!event.repeat && this.#loopControlsOffered()) {
+      const setpointStep = setpointStepForKey(event.key);
+      if (setpointStep !== null) {
+        event.preventDefault();
+        this.adjustSetpoint(setpointStep);
+        return;
+      }
+      if (event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        this.bailOut();
+        return;
+      }
+    }
     // 1-6 pick a cylinder, as game-loop.js does during the dive. Held keys
     // are ignored: a switch is a discrete act, and autorepeat would re-issue
     // it every few milliseconds.
@@ -448,6 +504,20 @@ export class GameController {
     return state.failure.reason === null && tankIndex < state.tanks.length;
   }
 
+  /**
+   * Legacy's `diveMode === 'ccr' && !ccrState.onBailout` gate for the
+   * setpoint keys and B, plus the failed-dive rule every in-dive control
+   * follows. The DOM row in wreck-app.ts hides itself on the same condition.
+   */
+  #loopControlsOffered(): boolean {
+    const state = this.#model.snapshot;
+    return (
+      state.failure.reason === null &&
+      state.ccr !== null &&
+      !state.ccr.onBailout
+    );
+  }
+
   readonly #handleKeyUp = (event: KeyboardEvent): void => {
     const control = controlForKey(event.key);
     if (control) {
@@ -468,6 +538,21 @@ function tankIndexForKey(key: string): number | null {
     return null;
   }
   return Number.parseInt(key, 10) - 1;
+}
+
+/**
+ * `[` lowers and `]` raises, by one CCR_SP_STEP — src/game-loop.js, and the
+ * same pair the setup screen binds so the two screens agree.
+ */
+function setpointStepForKey(key: string): number | null {
+  switch (key) {
+    case "[":
+      return -CCR_SETPOINT_STEP_BAR;
+    case "]":
+      return CCR_SETPOINT_STEP_BAR;
+    default:
+      return null;
+  }
 }
 
 function controlForKey(key: string): ContinuousControl | null {

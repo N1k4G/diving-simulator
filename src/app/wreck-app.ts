@@ -20,8 +20,10 @@ import {
   formatDepth,
   formatDuration,
   formatGasFraction,
+  formatPartialPressure,
   formatPressure,
 } from "./i18n/formatters";
+import { CCR_SETPOINT_STEP_BAR } from "../core/dive-state";
 import { renderSetupScreen } from "./setup/setup-screen";
 import {
   toInitialDiveOptions,
@@ -43,12 +45,18 @@ interface HudElements {
   readonly time: HTMLElement;
   readonly gas: HTMLElement;
   readonly cylinder: HTMLElement;
+  readonly setpoint: HTMLElement;
+  readonly loopPo2: HTMLElement;
+  readonly oxygenCylinder: HTMLElement;
+  readonly diluentCylinder: HTMLElement;
+  readonly scrubber: HTMLElement;
   readonly ndl: HTMLElement;
   readonly zone: HTMLElement;
   readonly status: HTMLElement;
   readonly speed: HTMLElement;
   readonly warning: HTMLElement;
   readonly tanks: HTMLElement;
+  readonly ccr: HTMLElement;
   readonly torch: HTMLButtonElement;
   readonly fastForward: HTMLButtonElement;
   readonly mute: HTMLButtonElement;
@@ -67,12 +75,19 @@ const zoneMessageKeys: Record<WreckZone, MessageKey> = {
 // later, so a failing dive still read "Simulation running" and the only thing
 // saying otherwise was the chip turning red — meaning encoded through colour
 // alone, which docs/decisions.md:100 rules out.
-type WarningSeverity = "lowGas" | "oxygen" | "failure";
+type WarningSeverity =
+  | "lowGas"
+  | "scrubberLow"
+  | "oxygen"
+  | "co2"
+  | "failure";
 
 // Full sentence for the role=alert region.
 const warningAlertKeys: Record<WarningSeverity, MessageKey> = {
   lowGas: "wreck.warning.lowGas",
+  scrubberLow: "wreck.warning.scrubberLow",
   oxygen: "wreck.warning.oxygen",
+  co2: "wreck.warning.co2",
   failure: "wreck.warning.failure",
 };
 
@@ -80,9 +95,19 @@ const warningAlertKeys: Record<WarningSeverity, MessageKey> = {
 // alert text and has to stand on its own.
 const warningStatusKeys: Record<WarningSeverity, MessageKey> = {
   lowGas: "wreck.hud.warning.lowGas",
+  scrubberLow: "wreck.hud.warning.scrubberLow",
   oxygen: "wreck.hud.warning.oxygen",
+  co2: "wreck.hud.warning.co2",
   failure: "wreck.hud.warning.failure",
 };
+
+// src/renderer.js TASK-032E, the CCR warning banner: LOW PO2 below 0.18 bar,
+// HIGH PO2 above 1.5, CO2! once the scrubber has failed, SCR LOW under ten
+// minutes. Tighter than the model's failure thresholds (0.16 / 1.6) on
+// purpose — a warning that fires at the failure line is not a warning.
+const CCR_PO2_LOW_WARNING_BAR = 0.18;
+const CCR_PO2_HIGH_WARNING_BAR = 1.5;
+const SCRUBBER_LOW_WARNING_S = 10 * 60;
 
 export function renderWreckApplication(
   root: HTMLElement,
@@ -279,6 +304,7 @@ async function startWreckSimulation(
 
   bindContinuousControl(hud.shell, controller);
   bindTankControls(hud.tanks, controller);
+  bindLoopControls(hud.ccr, controller);
   hud.torch.addEventListener("click", () => controller.toggleTorch());
   hud.fastForward.addEventListener("click", () =>
     controller.toggleFastForward(),
@@ -395,6 +421,19 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     translate(locale, "wreck.hud.cylinder"),
     unavailable,
   );
+  // The rebreather's rows (#163): what src/renderer.js draws in the CCR gas
+  // box in place of the open-circuit one — SP, PO2, O2, DIL, SCR. Hidden
+  // until updateHud sees a loop, and the open-circuit gas row hides in
+  // exchange, because on a CCR dive that row would show tanks[0], the
+  // codec's placeholder cylinder, at a pressure nobody is drawing down.
+  const setpoint = appendMetric(hud, "setpoint", translate(locale, "wreck.hud.setpoint"), unavailable);
+  const loopPo2 = appendMetric(hud, "loopPo2", translate(locale, "wreck.hud.loopPo2"), unavailable);
+  const oxygenCylinder = appendMetric(hud, "oxygenCylinder", translate(locale, "wreck.hud.oxygenCylinder"), unavailable);
+  const diluentCylinder = appendMetric(hud, "diluentCylinder", translate(locale, "wreck.hud.diluentCylinder"), unavailable);
+  const scrubber = appendMetric(hud, "scrubber", translate(locale, "wreck.hud.scrubber"), unavailable);
+  for (const value of [setpoint, loopPo2, oxygenCylinder, diluentCylinder, scrubber]) {
+    setMetricHidden(value, true);
+  }
   const ndl = appendMetric(hud, "ndl", translate(locale, "wreck.hud.ndl"), unavailable);
   const zone = appendMetric(hud, "zone", translate(locale, "wreck.hud.zone"), unavailable);
 
@@ -464,9 +503,43 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   // is how the hint ended up drawn across the row at desktop widths (#163
   // review). A column cannot overlap itself; the dock's own width cap is
   // what keeps the pair clear of the D-pad on the right.
+  // The rebreather row (#163): setpoint down and up, and bailout. Built
+  // once — the count never changes — and shown by updateHud only while the
+  // loop is breathed, which is legacy's `diveMode === 'ccr' &&
+  // !ccrState.onBailout` for all three (src/touch.js
+  // updateCcrDiveButtonVisibility). After a bailout there is no setpoint to
+  // move and nothing left to bail out of, so the whole row goes.
+  const ccr = document.createElement("div");
+  ccr.className = "wreck-ccr";
+  ccr.dataset.wreckCcr = "true";
+  ccr.hidden = true;
+  ccr.setAttribute("aria-label", translate(locale, "wreck.controls.ccr.heading"));
+  for (const [direction, labelKey, symbolKey, shortcut] of [
+    ["decrease", "wreck.controls.setpoint.decrease", "wreck.symbol.setpointDown", "["],
+    ["increase", "wreck.controls.setpoint.increase", "wreck.symbol.setpointUp", "]"],
+  ] as const) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.setpoint = direction;
+    button.setAttribute("aria-label", translate(locale, labelKey));
+    button.setAttribute("aria-keyshortcuts", shortcut);
+    button.textContent = translate(locale, symbolKey);
+    ccr.append(button);
+  }
+  const bailout = document.createElement("button");
+  bailout.type = "button";
+  bailout.dataset.bailout = "true";
+  // The name carries the consequence, because the button cannot ask for a
+  // confirmation (#67) and its irreversibility has to be knowable before
+  // the press rather than discovered after it.
+  bailout.setAttribute("aria-label", translate(locale, "wreck.controls.bailout"));
+  bailout.setAttribute("aria-keyshortcuts", "B");
+  bailout.textContent = translate(locale, "wreck.controls.bailout.label");
+  ccr.append(bailout);
+
   const dock = document.createElement("div");
   dock.className = "wreck-dock";
-  dock.append(hint, tanks);
+  dock.append(hint, tanks, ccr);
 
   shell.append(topbar, viewport, hud, warning, dock, controls);
   return {
@@ -476,12 +549,18 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     time,
     gas,
     cylinder,
+    setpoint,
+    loopPo2,
+    oxygenCylinder,
+    diluentCylinder,
+    scrubber,
     ndl,
     zone,
     status,
     speed,
     warning,
     tanks,
+    ccr,
     torch,
     fastForward,
     mute,
@@ -506,6 +585,7 @@ function updateHud(
   hud.fastForward.hidden = !fastForward.available;
   hud.fastForward.setAttribute("aria-pressed", String(fastForward.active));
   hud.speed.hidden = !fastForward.active;
+  syncLoopRows(hud, presentation, locale);
   hud.ndl.textContent = presentation.planner
     ? formatDuration(presentation.planner.ndlMin * 60, locale)
     : translate(locale, "wreck.value.unavailable");
@@ -569,19 +649,115 @@ function selectCylinderText(
     .replace("{gas}", formatGasFraction(activeTank.gas.oxygenFraction, locale));
 }
 
+/**
+ * The rebreather's HUD rows and its control row, kept in step with the dive
+ * state (#163).
+ *
+ * On a closed-circuit dive the five loop rows show and the open-circuit gas
+ * row hides; on open circuit it is the other way round. The control row
+ * follows legacy's `diveMode === 'ccr' && !ccrState.onBailout`, plus the
+ * failed-dive rule every in-dive control here follows: a setpoint on a
+ * failed dive moves nothing, and DiveModel refuses it anyway.
+ */
+function syncLoopRows(
+  hud: HudElements,
+  presentation: Readonly<PresentationState>,
+  locale: SupportedLocale,
+): void {
+  const { ccr, status } = presentation;
+  const loopRows = [
+    hud.setpoint,
+    hud.loopPo2,
+    hud.oxygenCylinder,
+    hud.diluentCylinder,
+    hud.scrubber,
+  ];
+  setMetricHidden(hud.gas, ccr !== null);
+  for (const row of loopRows) {
+    setMetricHidden(row, ccr === null);
+  }
+  hud.ccr.hidden = ccr === null || ccr.onBailout || status === "failed";
+  if (!ccr) {
+    return;
+  }
+  hud.setpoint.textContent = formatPartialPressure(ccr.targetPo2Bar, locale);
+  hud.loopPo2.textContent = formatPartialPressure(ccr.actualPo2Bar, locale);
+  hud.oxygenCylinder.textContent = formatPressure(
+    ccr.oxygenCylinderPressureBar,
+    locale,
+  );
+  hud.diluentCylinder.textContent = formatPressure(
+    ccr.diluentCylinderPressureBar,
+    locale,
+  );
+  hud.scrubber.textContent = formatDuration(ccr.scrubberRemainingS, locale);
+}
+
+function bindLoopControls(
+  container: HTMLElement,
+  controller: GameController,
+): void {
+  container.addEventListener("click", (event) => {
+    const target = event.target as Element | null;
+    const setpoint = target?.closest<HTMLElement>("[data-setpoint]");
+    if (setpoint) {
+      controller.adjustSetpoint(
+        setpoint.dataset.setpoint === "increase"
+          ? CCR_SETPOINT_STEP_BAR
+          : -CCR_SETPOINT_STEP_BAR,
+      );
+      return;
+    }
+    if (target?.closest("[data-bailout]")) {
+      controller.bailOut();
+    }
+  });
+}
+
 // Returns the severity rather than a message, so callers cannot pick one
 // wording for the chip and a different state for the styling.
+//
+// Ordered by what the diver must act on first, not by legacy's banner order:
+// src/renderer.js lets SCR LOW (a caution) overwrite HIGH PO2 (a danger)
+// because it is assigned last, which is an artefact of sequential
+// assignment rather than a ranking. Here a loop outside its PO₂ window
+// outranks a scrubber with nine minutes left, and a failed scrubber
+// outranks both — CO₂ is the one that ends the dive in three minutes.
 function selectWarning(
   presentation: Readonly<PresentationState>,
 ): WarningSeverity | null {
   if (presentation.failureReason) {
     return "failure";
   }
+  const { ccr } = presentation;
+  const loopBreathed = ccr !== null && !ccr.onBailout;
+  if (loopBreathed && ccr.scrubberFailed) {
+    return "co2";
+  }
   if (
-    presentation.breathingPo2Bar < 0.16 ||
-    presentation.breathingPo2Bar > 1.6
+    loopBreathed
+      ? ccr.actualPo2Bar < CCR_PO2_LOW_WARNING_BAR ||
+        ccr.actualPo2Bar > CCR_PO2_HIGH_WARNING_BAR
+      : presentation.breathingPo2Bar < 0.16 ||
+        presentation.breathingPo2Bar > 1.6
   ) {
     return "oxygen";
+  }
+  if (
+    loopBreathed &&
+    ccr.scrubberRemainingS > 0 &&
+    ccr.scrubberRemainingS < SCRUBBER_LOW_WARNING_S
+  ) {
+    return "scrubberLow";
+  }
+  // Low gas: the cylinder actually being breathed. On a rebreather that is
+  // the diluent after a bailout, and nothing before it — the loop is not a
+  // cylinder, and tanks[0] there is the codec's placeholder.
+  if (ccr) {
+    if (ccr.onBailout && ccr.diluentCylinderPressureBar <= 50) {
+      return "lowGas";
+    }
+    return null;
   }
   const activeTank = presentation.tanks[presentation.activeTankIndex];
   if (activeTank && activeTank.pressureBar <= 50) {
@@ -700,7 +876,28 @@ function bindContinuousControl(
 // today's order but keeps the fragility: reorder the metrics and the media
 // query silently hides whichever one now sits fifth. The CSS names the metric
 // it means instead, so the rule cannot drift away from its intent.
-type HudMetric = "depth" | "time" | "gas" | "cylinder" | "ndl" | "zone";
+type HudMetric =
+  | "depth"
+  | "time"
+  | "gas"
+  | "cylinder"
+  | "setpoint"
+  | "loopPo2"
+  | "oxygenCylinder"
+  | "diluentCylinder"
+  | "scrubber"
+  | "ndl"
+  | "zone";
+
+// Hides the whole row — term and value — of a metric, given the value
+// element appendMetric returned. `.wreck-hud div[hidden]` in the stylesheet
+// makes the attribute win over the row's display: flex.
+function setMetricHidden(value: HTMLElement, hidden: boolean): void {
+  const row = value.parentElement;
+  if (row) {
+    row.hidden = hidden;
+  }
+}
 
 function appendMetric(
   list: HTMLDListElement,

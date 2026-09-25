@@ -139,6 +139,16 @@ export function createTankState(
   });
 }
 
+/**
+ * The bounds the loop setpoint may take, from src/constants.js CCR_SP_MIN,
+ * CCR_SP_MAX and CCR_SP_STEP. They live in the core because the in-dive
+ * adjustment (#163) is a model operation, and the setup screen's controls
+ * read the same three numbers rather than carrying a second copy.
+ */
+export const CCR_SETPOINT_MIN_BAR = 0.5;
+export const CCR_SETPOINT_MAX_BAR = 1.6;
+export const CCR_SETPOINT_STEP_BAR = 0.1;
+
 export function createCcrState(
   diluent: GasMix,
   overrides: Partial<

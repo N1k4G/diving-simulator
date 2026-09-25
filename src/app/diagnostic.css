@@ -261,6 +261,13 @@ summary:focus-visible {
   text-align: right;
 }
 
+/* `.wreck-hud div` sets display: flex, which beats the user agent's
+   [hidden] { display: none }. Without this the rebreather rows (#163) would
+   stay visible on an open-circuit dive with their `hidden` attribute set. */
+.wreck-hud div[hidden] {
+  display: none;
+}
+
 .wreck-warning {
   position: absolute;
   z-index: 5;
@@ -376,6 +383,42 @@ summary:focus-visible {
   border-style: dashed;
   color: rgb(233 251 255 / 55%);
   cursor: not-allowed;
+}
+
+/* The rebreather row (#163): setpoint down, setpoint up, bailout. Sits where
+   the cylinder row sits on an open-circuit dive — the two are never shown
+   together, since the model refuses a gas switch while the loop is breathed
+   — and follows the same 44px / 8px rule. */
+.wreck-ccr {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.wreck-ccr[hidden] {
+  display: none;
+}
+
+.wreck-ccr button {
+  min-width: 2.75rem;
+  height: 2.75rem;
+  padding: 0 0.75rem;
+  border: 1px solid rgb(168 232 242 / 55%);
+  border-radius: 0.6rem;
+  color: #e9fbff;
+  background: rgb(3 24 32 / 82%);
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  touch-action: none;
+}
+
+/* Bailout is the one control on the screen that cannot be undone. The
+   border marks it apart; the accessible name says so in words. */
+.wreck-ccr [data-bailout] {
+  border-color: rgb(246 219 114 / 75%);
+  color: #f6db72;
 }
 
 .wreck-controls {

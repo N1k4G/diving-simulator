@@ -21,6 +21,24 @@ export function formatPressure(
   return `${formattedValue}\u00a0bar`;
 }
 
+/**
+ * A partial pressure, to two decimals — a loop PO₂ of 1.28 bar and one of
+ * 1.32 bar are different readings to a rebreather diver, where a cylinder
+ * pressure to the tenth of a bar is already more than anyone reads.
+ */
+export function formatPartialPressure(
+  pressureBar: number,
+  locale: SupportedLocale,
+): string {
+  const value = assertNonNegative(pressureBar, "pressureBar");
+  const formattedValue = new Intl.NumberFormat(localeTags[locale], {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+
+  return `${formattedValue} bar`;
+}
+
 export function formatGasFraction(
   fraction: number,
   locale: SupportedLocale,
