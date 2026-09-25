@@ -3,11 +3,11 @@
   "issue": 163,
   "slice": "PR 3 of n: the rebreather controls — setpoint ([ ] and buttons), bailout (B and a button), the loop's HUD rows, and the loop warnings",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "b9038f0ade1c9d2397f5d2d44e19c5af76a19913",
-  "measuredTree": "4faa892a117de1df2be2e2189f6ae1ea1259cf86",
+  "measuredCommit": "874565af83adac2138b309b87e5b297e4c5455b7",
+  "measuredTree": "5a6ce1c57f79f104046fc7532cb47e965bc39a66",
   "workingTree": "clean before the run and still clean after it (git status --porcelain empty at both ends, checked by the same shell invocation that ran the command)",
-  "recordedAt": "2026-09-25T09:18:16Z",
-  "runFinishedAt": "2026-09-25T09:22:39Z",
+  "recordedAt": "2026-09-25T09:42:18Z",
+  "runFinishedAt": "2026-09-25T09:48:06Z",
   "timestampProvenance": "Both are the output of `date -u +%Y-%m-%dT%H:%M:%SZ` printed by the shell immediately before and after the command, not values written by hand.",
   "provenanceNote": "Measured against the committed tree rather than the working tree that became it. Only the commit adding this file follows the measured one.",
   "environment": {
@@ -25,9 +25,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass — 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "244 passed (222 on main, +22: 14 in tests/unit/ccr-in-dive.test.ts, 5 in tests/unit/game-controller-ccr.test.ts, 3 in tests/unit/game-controller-forecast.test.ts)",
+    "unit": "245 passed (222 on main, +23: 14 in tests/unit/ccr-in-dive.test.ts, 5 in tests/unit/game-controller-ccr.test.ts, 4 in tests/unit/game-controller-forecast.test.ts)",
     "parity": "36 passed (unchanged)",
-    "e2e": "108 passed in 3.2 min (97 on main, +11 in tests/in-dive-controls.spec.js)",
+    "e2e": "118 passed in 4.3 min (97 on main, +21 in tests/in-dive-controls.spec.js)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, max delta 0",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -40,7 +40,7 @@
     "bailout": "src/game-loop.js TASK-032F: `if (keys['b']) { ccrState.onBailout = true }` under the same gate. DiveModel.bailOut() applies the existing applyBailoutIntent, which also zeroes co2BuildupS and records the one bailout event.",
     "keys": "`[` and `]` for the setpoint, B for bailout — src/game-loop.js; the same pair the setup screen binds, so the two screens agree.",
     "controlVisibility": "src/touch.js updateCcrDiveButtonVisibility: bailout, SP+ and SP− shown while `diveMode === 'ccr' && gameState === 'diving' && !ccrState.onBailout`; the DOM row here follows that plus the failed-dive rule.",
-    "hudRows": "src/renderer.js drawDiveComputer, CCR branch of infoPageMode 0: mode, SP, PO2, O2, DIL, SCR. The five value rows are ported; the mode word is carried by the cylinder row ('Rebreather loop' / 'Bailout · diluent cylinder') from slice 2.",
+    "hudRows": "src/renderer.js drawDiveComputer, CCR branch of infoPageMode 0: mode, SP, PO2, O2, DIL, SCR. The five value rows are ported with legacy's row danger rules — PO2 outside 0.18..1.6, O2 and DIL under 30 bar and SCR under 10 minutes, the last three on the rounded value legacy displays — marked with the ⚠ glyph (hudDangerPrefix) and a danger tone. The scrubber reads in whole minutes as legacy draws it. The mode word is carried by the cylinder row from slice 2.",
     "warnings": "src/renderer.js TASK-032E: LOW PO2 below 0.18 bar, HIGH PO2 above 1.5, CO2! once scrubberFailed, SCR LOW under 10 minutes, all only while not on bailout. Thresholds and effective precedence are both the oracle's: the banner assigns PO2, then CO2!, then SCR LOW (guarded by !scrubberFailed), so the last assignment wins and the order is SCR LOW > CO2! > PO2."
   },
   "deliberateDesign": {
@@ -49,11 +49,13 @@
     "keysClaimedOnlyWhenOnOffer": "`[` `]` and B call preventDefault() only under #loopControlsOffered(), the same rule as the digits and F: a key that does nothing is left to whoever else wants it.",
     "rowsSwap": "On a CCR dive the five loop rows show and the open-circuit gas row hides, rather than both showing. The gas row on a CCR dive would read tanks[0]'s pressure, a cylinder nobody draws down; showing it beside the O₂ and diluent rows would be a third pressure with no meaning.",
     "twoDecimalsForPo2": "formatPartialPressure gives two decimals for setpoint and loop PO₂ (legacy: toFixed(1) for SP, toFixed(2) for PO2). A loop at 1.28 and one at 1.32 are different readings; a cylinder to the tenth of a bar is already more than anyone reads.",
-    "warningPrecedence": "failure > scrubberLow > co2 > oxygen > lowGas, which is the legacy banner's effective order (see boundsPortedFromTheOracle.warnings). The first cut ranked PO₂ above the scrubber on the argument that a hyperoxic loop is more urgent than nine minutes of scrubber; review round 1 held that docs/decisions.md makes the legacy harness the behavioural oracle and that a re-ranking needs its own committed decision. Accepted: the oracle's order stands until such a decision exists.",
-    "lowGasOnTheBreathedCylinder": "Low gas fires on the active cylinder for open circuit, on the diluent after a bailout, and never on the loop — the loop is not a cylinder, and tanks[0] there is the placeholder. Before this slice the rule read tanks[0] on a CCR dive too; at 200 bar it never fired, so nothing observable changes, but the rule now says what it means.",
+    "warningPrecedence": "failure > scrubberLow > co2 > oxygen > lowGas. The first four follow the legacy banner's effective order (see boundsPortedFromTheOracle.warnings). lowGas, either rebreather cylinder under 30 bar, comes last because legacy's banner does not carry it at all: legacy marks the row only. The first cut ranked PO₂ above the scrubber; review round 1 held that the legacy harness is the behavioural oracle, and the oracle's order stands until a committed decision says otherwise.",
+    "lowGasOnTheBreathedCylinder": "On a rebreather, low gas fires when either CCR cylinder is under legacy's 30 bar row threshold (rounded), the oxygen cylinder only while the loop is breathed, and never on tanks[0], the placeholder. That promotes a legacy row marker to the alert and audio path, which the definition of done asks of every warning. The open-circuit migration already did the same for its 50 bar gas row. It replaces an invented ≤50 bar diluent threshold after bailout that the first cut carried.",
     "bailoutNameCarriesTheConsequence": "The bailout button's accessible name is 'Bail out to open circuit — cannot be undone'. It cannot ask for confirmation (#67), so its irreversibility has to be knowable before the press rather than discovered after it.",
     "hiddenRowsNeedCss": "`.wreck-hud div` sets display: flex, which beats the user agent's [hidden] rule; `.wreck-hud div[hidden] { display: none }` was added so the loop rows actually vanish on open circuit. Asserted by the e2e that checks the rows hidden.",
-    "forcedForecastSurvivesAFlight": "A forced forecast (gas switch, setpoint, bailout) that arrives while a request is in flight is remembered; the in-flight answer, computed for the gas the diver has left, is not published, and one replacement goes out from the latest state when it settles. Several forces during one flight collapse into that one replacement."
+    "forcedForecastSurvivesAFlight": "A forced forecast (gas switch, setpoint, bailout) that arrives while a request is in flight is remembered; the in-flight answer, computed for the gas the diver has left, is not published, and one replacement goes out from the latest state when it settles. Several forces during one flight collapse into that one replacement.",
+    "forecastInvalidatedOnGasChange": "A cylinder switch, a setpoint change and a bailout clear the forecast before publishing (#invalidateForecast), so the HUD never pairs the new breathing gas with the previous NDL; it shows its unavailable mark until the new forecast lands.",
+    "shortScreenLayout": "Screens up to 600 px tall lay the HUD out in two columns. Measured before the fix: the ten-row CCR panel's padding ran 8 px into the keyboard hint at 844x390 and 3 px into the setpoint button at 667x375, and no readout was covered. The whole-minute scrubber alone clears both, because it stops the row wrapping. The two-column rule adds margin for rows still to come."
   },
   "sliceBoundary": {
     "issueSuggestion": "#163 proposes 'PR 3: CCR setpoint + bailout'. This is that PR, plus the HUD rows and warnings the issue lists under 'HUD additions the controls need' for the loop, because a setpoint control without a setpoint readout cannot be tested through the HUD.",
@@ -75,10 +77,16 @@
       "controlRowKeptAfterBailout": "the row no longer hides on onBailout — build pass, the bailout e2e fails",
       "co2WarningRemoved": "the co2 severity never selected — build pass, the failed-scrubber e2e fails",
       "forcedForceDropped": "the pending guard no longer records a force — 2 of 3 forecast unit tests fail",
-      "staleAnswerPublished": "the superseded in-flight answer is published — 1 of 3 forecast unit tests fails"
+      "staleAnswerPublished": "the superseded in-flight answer is published — 1 of 3 forecast unit tests fails",
+      "forecastNotCleared": "#invalidateForecast() without the clearing — 1 of 4 forecast unit tests fails",
+      "lowCylinderRuleDisabled": "isCcrCylinderLow() always false — build pass, the under-30-bar e2e fails",
+      "shortScreenLayoutReverted": "the two-column rule removed AND the scrubber back on formatDuration, the full pre-fix layout — build pass, 2 of 8 layout e2e fail: panel into the hint by 240x8 px at 844x390, panel into the setpoint button by 59x3 px at 667x375"
     },
     "oneRevertDidNotCompileAtFirst": "Removing the #loopControlsOffered() call from the key handler left the method unread, and the build failed on TS6133 before any e2e ran; the script reported the failed build instead of a pass. The revert was rewritten to keep reading the method (`|| true`) and rerun.",
-    "rerunAfterRound1": "All seven original cases were run again against b9038f0 with the same outcomes; the two forecast cases were added in that round."
+    "rerunAfterRound1": "All seven original cases were run again against b9038f0 with the same outcomes; the two forecast cases were added in that round.",
+    "layoutGuardNote": "Removing only the two-column rule leaves the guard green, because the whole-minute scrubber alone clears the overlap. Removing both reproduces the measured defect. Two earlier attempts proved nothing and are recorded rather than redone quietly. The first guard compared rows only, and the rows never overlapped, only the panel did, so it now includes the panel. One revert did not compile (TS2774) and would have run against a stale dist/; it was rewritten and rerun with the build result read first.",
+    "rerunAfterRound2": "The seven original cases were run again against 874565a with the same outcomes.",
+    "workingTreeIncident": "While running the layout counter-check, `git checkout --` was used to restore two files that also held uncommitted round-2 edits. Those edits were discarded, spotted from the tool's change notice, re-applied, and checked with `git diff --stat` and a type-check before anything was committed. Later counter-checks restored from copies taken beforehand. The measurement above is of the committed tree."
   },
   "accessibility": {
     "keyboard": "SP − / SP + carry aria-keyshortcuts '[' and ']', bailout 'B'. The keyboard hint names all three in en and de.",
@@ -95,8 +103,8 @@
     "why": "measuredCommit is a branch commit and becomes unreachable once this is squash-merged; the subtree hashes survive the squash because the squash commit carries the same content.",
     "check": "After the merge, `git rev-parse <squash-merge-commit>:src <squash-merge-commit>:tests <squash-merge-commit>:scripts` should equal the three below.",
     "caveat": "Holds only while the sole commit after the measured one adds this artifact and touches nothing under src, tests or scripts.",
-    "srcTree": "4de5c4f02238109553e4e606d899b9bc62d69d87",
-    "testsTree": "ec6209884dc7ff0b5a2b321db80c41ba975df31f",
+    "srcTree": "aa466e67ee55831a2e5be86cb6fed46a40b41552",
+    "testsTree": "58d2b582d575d6c028f0a045eb5f5f2f786908e6",
     "scriptsTree": "52e3852fe9906142a846f72ea929c1f546e9d74c"
   },
   "reviewRound1": {
@@ -120,7 +128,33 @@
   "supersedes": [
     {
       "measuredCommit": "f44cc318c4175faca6837d022e75c258f5eaf76b",
-      "why": "Predates review round 1, which found the forced forecast lost during a flight and the warning precedence diverging from the oracle."
+      "why": "Predates review round 1."
+    },
+    {
+      "measuredCommit": "b9038f0ade1c9d2397f5d2d44e19c5af76a19913",
+      "why": "Predates review round 2, which found the stale forecast after a gas change, the landscape overlap and the missing low-cylinder warnings."
     }
-  ]
+  ],
+  "reviewRound2": {
+    "findings": 4,
+    "bailoutForecastGas": {
+      "finding": "Re-reported from round 1.",
+      "disposition": "Still disputed as a finding against this PR and tracked as #183, because the correction needs a normative decision and a fixture change, which are the owner's to make. Answered on the PR."
+    },
+    "staleForecastVisible": {
+      "finding": "minor bug — a completed forecast stayed on screen after a gas-changing act until the worker answered.",
+      "assessment": "Confirmed.",
+      "fix": "#invalidateForecast() clears it before publishing. One unit test was added, and it fails with the clearing removed."
+    },
+    "landscapeOverlap": {
+      "finding": "major contract-violation — the CCR HUD overlapped the dock in mobile landscape; the finding said it painted over NDL and zone.",
+      "assessment": "Confirmed with a correction: the HUD panel's padding overlapped, by 8 px at 844x390 and 3 px at 667x375, and no readout was covered.",
+      "fix": "Whole-minute scrubber plus a two-column HUD up to 600 px tall. An e2e checks the panel and every row against every control at 844x390, 667x375, 390x844 and 1280x720 in both modes."
+    },
+    "lowCylinderWarnings": {
+      "finding": "major contract-violation — the O₂ and diluent rows dropped legacy's under-30-bar danger marking, and the state produced no warning at all.",
+      "assessment": "Confirmed.",
+      "fix": "Legacy's row danger rules with the ⚠ glyph on all four loop rows, and the low-gas warning for either cylinder under 30 bar."
+    }
+  }
 }
