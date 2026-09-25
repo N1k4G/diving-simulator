@@ -7,8 +7,10 @@ import {
 } from "../core/dive-state";
 import { resolveInspiredGas } from "../core/dive-model";
 import { bars, type Bars, type Litres } from "../core/units";
-import type {
-  PlannerForecast,
+import {
+  compartmentSaturation,
+  maximumOperatingDepthM,
+  type PlannerForecast,
 } from "../planner/dive-planner";
 
 export type DiveStatus = "surface" | "diving" | "failed";
@@ -20,6 +22,20 @@ export interface PresentationTank {
   readonly gasRemainingL: Litres;
   readonly pressureBar: Bars;
   readonly active: boolean;
+  /**
+   * Maximum operating depth at 1.6 bar, computed on demand (#163). Null for
+   * a mix without oxygen, which has none.
+   */
+  readonly modM: number | null;
+}
+
+/**
+ * The tissue figure legacy's gas-info tissue page draws (#163): each
+ * compartment's loading as a fraction of its M-value at the current depth.
+ * GF99 and surface GF join it with the decompression page in #186.
+ */
+export interface PresentationSaturation {
+  readonly mValueRatios: readonly number[];
 }
 
 export interface PresentationDecoStop {
@@ -41,6 +57,9 @@ export interface PresentationPlannerForecast {
 }
 
 export interface PresentationCcr {
+  readonly diluent: Readonly<GasMix>;
+  readonly oxygenCylinderVolumeL: Litres;
+  readonly diluentCylinderVolumeL: Litres;
   readonly targetPo2Bar: Bars;
   readonly actualPo2Bar: Bars;
   readonly oxygenCylinderPressureBar: Bars;
@@ -62,6 +81,7 @@ export interface PresentationState {
   readonly failureReason: DiveFailureReason | null;
   readonly events: readonly Readonly<DiveEvent>[];
   readonly planner: PresentationPlannerForecast | null;
+  readonly saturation: PresentationSaturation;
 }
 
 export function createPresentationState(
@@ -77,6 +97,7 @@ export function createPresentationState(
         gasRemainingL: tank.gasRemainingL,
         pressureBar: selectTankPressureBar(state, index),
         active: index === state.activeTankIndex,
+        modM: maximumOperatingDepthM(tank.gas.oxygenFraction),
       }),
     ),
   );
@@ -97,6 +118,18 @@ export function createPresentationState(
     failureReason: state.failure.reason,
     events,
     planner: planner ? freezePlannerForecast(planner) : null,
+    saturation: selectSaturation(state),
+  });
+}
+
+export function selectSaturation(state: DiveState): PresentationSaturation {
+  const ambientBar = 1 + state.depthM / 10;
+  return Object.freeze({
+    mValueRatios: Object.freeze(
+      compartmentSaturation(state.tissues, ambientBar).map(
+        (compartment) => compartment.mValueRatio,
+      ),
+    ),
   });
 }
 
@@ -142,6 +175,9 @@ export function selectBreathingPo2Bar(state: DiveState): Bars {
 
 function freezePresentationCcr(ccr: CcrState): PresentationCcr {
   return Object.freeze({
+    diluent: Object.freeze({ ...ccr.diluent }),
+    oxygenCylinderVolumeL: ccr.oxygenCylinderVolumeL,
+    diluentCylinderVolumeL: ccr.diluentCylinderVolumeL,
     targetPo2Bar: ccr.targetPo2Bar,
     actualPo2Bar: ccr.actualPo2Bar,
     oxygenCylinderPressureBar: ccr.oxygenCylinderPressureBar,

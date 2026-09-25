@@ -694,7 +694,9 @@ async function expectHudClearOfControls(page) {
           };
         });
     }, selector);
-  const rows = await boxesOf('.wreck-hud, .wreck-hud > div');
+  // The gas-information panel counts as HUD too when it is open (#163): it
+  // shares the HUD's column and must stop above the controls just the same.
+  const rows = await boxesOf('.wreck-hud, .wreck-hud > div, .gas-info');
   const controls = await boxesOf(
     '.wreck-controls button, .wreck-dock button, .controls-hint',
   );
@@ -993,4 +995,193 @@ test.describe('rebreather controls', () => {
       expect(saved.state.ccr.onBailout).toBe(true);
     });
   });
+});
+
+// Gas information (#163): I walks legacy's info pages and Escape closes
+// them, mirroring src/state.js (WP-037 / BUG-CCR-3) and the pages
+// src/renderer.js draws for infoPageMode 1-5.
+
+const gasInfoPanel = (page) => page.locator('[data-gas-info]');
+const gasInfoToggle = (page) => page.locator('[data-gas-info-toggle]');
+const gasInfoHeading = (page) => gasInfoPanel(page).locator('h2');
+
+async function startFourCylinderDive(page) {
+  await page.goto('/dist/');
+  await page.evaluate(() => window.localStorage.clear());
+  await acceptSafetyGate(page);
+  await page.locator('[data-setup-group=mode] [data-setup-option=tec]').check();
+  for (let i = 0; i < 3; i += 1) {
+    await page.locator('[data-setup-tank-add]').click();
+  }
+  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  await expect(page.locator('[data-wreck-tanks] button')).toHaveCount(4);
+}
+
+test.describe('gas information', () => {
+  test('a recreational dive has none, and leaves I alone', async ({ page }) => {
+    // Legacy: `isAdvanced() || diveMode === 'ccr'`.
+    await page.goto('/dist/');
+    await page.evaluate(() => window.localStorage.clear());
+    await startDiveByKeyboard(page);
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+
+    await expect(gasInfoToggle(page)).toBeHidden();
+    expect(await pressAndReadClaim(page, 'i')).toBe(false);
+    await expect(gasInfoPanel(page)).toBeHidden();
+  });
+
+  test('I walks cylinders and tissues, then closes', async ({ page }) => {
+    // Legacy's decompression page joins with CNS in #186 (#185 review).
+    await startTwoCylinderDive(page);
+    await expect(gasInfoToggle(page)).toBeVisible();
+    await expect(gasInfoToggle(page)).toHaveAttribute('aria-expanded', 'false');
+
+    await page.keyboard.press('i');
+    await expect(gasInfoPanel(page)).toBeVisible();
+    await expect(gasInfoToggle(page)).toHaveAttribute('aria-expanded', 'true');
+    await expect(gasInfoHeading(page)).toHaveText('Gas information · Cylinders 1–2');
+    await expect(gasInfoPanel(page)).toContainText('Cylinder 1 · Breathing');
+    await expect(gasInfoPanel(page)).toContainText('Cylinder 2');
+    // Air: floor((1.6 / 0.21 - 1) * 10) = 66 m, legacy's MOD row.
+    await expect(gasInfoPanel(page)).toContainText('66 m');
+    await expect(gasInfoPanel(page)).toContainText('250 bar');
+
+    await page.keyboard.press('i');
+    await expect(gasInfoHeading(page)).toHaveText('Gas information · Tissue saturation');
+    await expect(gasInfoPanel(page).locator('.gas-info-bars li')).toHaveCount(16);
+    await expect(gasInfoPanel(page).locator('.gas-info-bars li').first()).toContainText(
+      /Compartment 1: \d+% of its M-value/,
+    );
+
+    await page.keyboard.press('i');
+    await expect(gasInfoPanel(page)).toBeHidden();
+    await expect(gasInfoToggle(page)).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('the default technical dive, one cylinder, has it, and keeps it across a reload', async ({ page }) => {
+    // #185 review: counting cylinders read the default technical setup as
+    // recreational. The mode now comes from the setup, and from the save on
+    // a resume.
+    await page.goto('/dist/');
+    await page.evaluate(() => window.localStorage.clear());
+    await acceptSafetyGate(page);
+    await page.locator('[data-setup-group=mode] [data-setup-option=tec]').check();
+    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+
+    await expect(gasInfoToggle(page)).toBeVisible();
+    await page.keyboard.press('i');
+    await expect(gasInfoHeading(page)).toHaveText('Gas information · Cylinders 1–1');
+
+    const saved = await persistedSave(page);
+    expect(saved.version).toBe(3);
+    expect(saved.diveMode).toBe('tec');
+
+    // Resume: the setup screen the reload draws says recreational, the save
+    // says technical, and the save wins, as it does for the gradient factors.
+    await page.reload();
+    await acceptSafetyGate(page);
+    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+    await expect(gasInfoToggle(page)).toBeVisible();
+  });
+
+  test('four cylinders get a second cylinders page', async ({ page }) => {
+    // Legacy skips page 2 unless tankCount > 3.
+    await startFourCylinderDive(page);
+    await page.keyboard.press('i');
+    await expect(gasInfoHeading(page)).toHaveText('Gas information · Cylinders 1–3');
+    await page.keyboard.press('i');
+    await expect(gasInfoHeading(page)).toHaveText('Gas information · Cylinders 4–4');
+    await expect(gasInfoPanel(page)).toContainText('Cylinder 4');
+    await page.keyboard.press('i');
+    await expect(gasInfoHeading(page)).toHaveText('Gas information · Tissue saturation');
+  });
+
+  test('the button walks the same pages as the key', async ({ page }) => {
+    await startTwoCylinderDive(page);
+
+    await gasInfoToggle(page).click();
+    await expect(gasInfoHeading(page)).toHaveText('Gas information · Cylinders 1–2');
+    // Mixed: on by button, on to the next page by key.
+    await page.keyboard.press('i');
+    await expect(gasInfoHeading(page)).toHaveText('Gas information · Tissue saturation');
+    await gasInfoToggle(page).click();
+    await expect(gasInfoPanel(page)).toBeHidden();
+  });
+
+  test('Escape closes it, and is left alone while it is closed', async ({ page }) => {
+    await startTwoCylinderDive(page);
+    expect(await pressAndReadClaim(page, 'Escape')).toBe(false);
+
+    await page.keyboard.press('i');
+    await expect(gasInfoPanel(page)).toBeVisible();
+    expect(await pressAndReadClaim(page, 'Escape')).toBe(true);
+    await expect(gasInfoPanel(page)).toBeHidden();
+
+    // And I starts again from the first page.
+    await page.keyboard.press('i');
+    await expect(gasInfoHeading(page)).toHaveText('Gas information · Cylinders 1–2');
+  });
+
+  test('a rebreather toggles its one page, which follows a bailout', async ({ page }) => {
+    // Legacy: `infoPageMode = (infoPageMode === 5) ? 0 : 5`.
+    await startCcrDive(page);
+    await page.keyboard.press('i');
+    await expect(gasInfoHeading(page)).toHaveText('Gas information · Rebreather');
+    await expect(gasInfoPanel(page)).toContainText('Loop');
+    await expect(gasInfoPanel(page)).toContainText('21% O₂ · 0% He');
+    // Legacy's O2 V and DIL V rows (#185 review): the default 2 L and 3 L.
+    await expect(gasInfoPanel(page)).toContainText('O₂ cylinder size');
+    await expect(gasInfoPanel(page)).toContainText('2 L');
+    await expect(gasInfoPanel(page)).toContainText('Diluent cylinder size');
+    await expect(gasInfoPanel(page)).toContainText('3 L');
+
+    await page.keyboard.press('b');
+    // BAIL in legacy's danger tone; here the glyph says it.
+    await expect(gasInfoPanel(page)).toContainText('⚠ Bailout');
+
+    await page.keyboard.press('i');
+    await expect(gasInfoPanel(page)).toBeHidden();
+  });
+
+  test('a failed dive has none', async ({ page }) => {
+    await resumeCcrDiveWith(page, (state) => {
+      state.failure.reason = 'ccr-hypoxia';
+      state.events.push({
+        type: 'failure',
+        elapsedTimeS: state.elapsedTimeS,
+        failureReason: 'ccr-hypoxia',
+      });
+    });
+    await expect(gasInfoToggle(page)).toBeHidden();
+    expect(await pressAndReadClaim(page, 'i')).toBe(false);
+  });
+
+  test('the toggle meets the 44px target', async ({ page }) => {
+    await startTwoCylinderDive(page);
+    const box = await gasInfoToggle(page).boundingBox();
+    expect(Math.round(box.width)).toBeGreaterThanOrEqual(44);
+    expect(Math.round(box.height)).toBeGreaterThanOrEqual(44);
+  });
+
+  // Open pages against every control, at the sizes a phone takes. The panel
+  // shares the HUD's column and has to stop above the dock and the D-pad.
+  for (const [width, height] of [[844, 390], [667, 375], [390, 844], [1280, 720]]) {
+    test.describe(`${width}x${height}`, () => {
+      test.use({ viewport: { width, height } });
+
+      test('no open page meets a control, and NDL stays visible', async ({ page }) => {
+        await startSixCylinderDive(page);
+        // Cylinders 1-3, cylinders 4-6, tissues.
+        for (let step = 0; step < 3; step += 1) {
+          await gasInfoToggle(page).click();
+          await expect(gasInfoPanel(page)).toBeVisible();
+          await expectHudClearOfControls(page);
+          await expect(hudRow(page, 'ndl')).toBeVisible();
+        }
+      });
+    });
+  }
 });

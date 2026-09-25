@@ -183,7 +183,8 @@ summary:focus-visible {
   pointer-events: auto;
 }
 
-.audio-control {
+.audio-control,
+.gas-info-control {
   /* #137 §4.4.2: was 2.3rem (~37px), below this project's 44px touch-target
      standard (the same class of defect #121 fixed in the legacy client).
      2.75rem = 44px at the unmodified 16px root this file assumes throughout. */
@@ -222,13 +223,34 @@ summary:focus-visible {
   height: 100%;
 }
 
-.wreck-hud {
+/* The left column: the HUD, and under it the gas-information panel when
+   one is open (#163). The column carries the position the HUD used to, so
+   the panel sits below the readouts instead of over them — NDL is never the
+   thing a page hides (#137 §4.4.1). Its height stops above the bottom
+   controls (dock and D-pad, both under 8.1rem tall), and the panel scrolls
+   inside what is left rather than running into them. */
+.wreck-column {
   position: absolute;
   z-index: 4;
   top: 5.8rem;
   left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  width: min(20rem, calc(100% - 2.5rem));
+  max-height: calc(100% - 5.8rem - 9.5rem);
+  pointer-events: none;
+}
+
+.wreck-column > * {
+  pointer-events: auto;
+}
+
+.wreck-hud {
+  flex-shrink: 0;
   display: grid;
-  width: min(15rem, calc(100% - 2.5rem));
+  width: min(15rem, 100%);
   gap: 0.5rem;
   margin: 0;
   padding: 0.8rem;
@@ -521,8 +543,12 @@ summary:focus-visible {
     border-radius: 0;
   }
 
-  .wreck-hud {
+  .wreck-column {
     top: 5rem;
+    max-height: calc(100% - 5rem - 9.5rem);
+  }
+
+  .wreck-hud {
     width: 12.5rem;
   }
 
@@ -554,11 +580,153 @@ summary:focus-visible {
    where both apply. tests/in-dive-controls.spec.js asserts neither the
    panel nor a row meets a control at these sizes. */
 @media (height <= 600px) {
+  .wreck-column {
+    width: min(32rem, calc(100% - 2.5rem));
+  }
+
   .wreck-hud {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     column-gap: 1rem;
-    width: min(32rem, calc(100% - 2.5rem));
+    width: 100%;
   }
+}
+
+/* The gas-information panel (#163). Same treatment as the HUD above it. */
+.gas-info {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.8rem;
+  border: 1px solid rgb(129 226 241 / 25%);
+  border-radius: 0.75rem;
+  color: #e9fbff;
+  background: rgb(2 17 23 / 88%);
+  backdrop-filter: blur(8px);
+}
+
+.gas-info[hidden] {
+  display: none;
+}
+
+.gas-info-heading {
+  margin: 0 0 0.6rem;
+  color: #a5cbd2;
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.gas-info-body {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.gas-info-block-title {
+  margin: 0 0 0.3rem;
+  font-size: 0.85rem;
+}
+
+.gas-info-block[data-active] .gas-info-block-title {
+  color: #83d9e7;
+}
+
+.gas-info dl {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+}
+
+.gas-info dl div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.gas-info dt {
+  color: #a5cbd2;
+  font-size: 0.72rem;
+}
+
+.gas-info dd {
+  margin: 0;
+  font-family: ui-monospace, monospace;
+  font-weight: 750;
+  text-align: right;
+}
+
+/* Legacy's hudColor tiers on the pages (#163). Danger also carries the ⚠
+   glyph in its text; caution and warning are a tint over a value that is
+   already legible, plus a hidden word for assistive technology. */
+.gas-info dd[data-severity="caution"] {
+  color: #f6db72;
+}
+
+.gas-info dd[data-severity="warning"] {
+  color: #ffb36b;
+}
+
+.gas-info dd[data-severity="danger"] {
+  color: #ff9b9b;
+}
+
+.gas-info-caption {
+  margin: 0 0 0.5rem;
+  color: #a5cbd2;
+  font-size: 0.72rem;
+}
+
+/* Sixteen compartment bars, height by M-value share, as legacy's page 3. */
+.gas-info-bars {
+  display: grid;
+  grid-template-columns: repeat(16, minmax(0, 1fr));
+  gap: 2px;
+  height: 6rem;
+  margin: 0;
+  padding: 0 0 1rem;
+  list-style: none;
+}
+
+.gas-info-bars li {
+  position: relative;
+  background: rgb(255 255 255 / 6%);
+}
+
+.gas-info-bar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: calc(var(--ratio, 0) * 100%);
+  background: #74efbc;
+}
+
+.gas-info-bars li[data-severity="caution"] .gas-info-bar {
+  background: #f6db72;
+}
+
+.gas-info-bars li[data-severity="danger"] .gas-info-bar {
+  background: #ff6b6b;
+}
+
+.gas-info-bar-marker {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  color: #7f9aa0;
+  font-size: 0.6rem;
+  transform: translateX(-50%);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 @media (prefers-reduced-motion: reduce) {

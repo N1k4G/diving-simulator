@@ -23,7 +23,13 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // written before the configured factors reached the planner at all, so its
 // dive really was planned on the defaults and filling them in is exact, not a
 // guess.
-export const CURRENT_SAVE_GAME_VERSION = 2;
+//
+// v3 adds diveMode (#163). v1 and v2 saves are migrated with the mode read
+// off the dive (see inferDiveMode), which is exact for rebreather and
+// multi-cylinder dives and reads a single-cylinder technical dive as
+// recreational: the best a save that never recorded the mode allows.
+export const CURRENT_SAVE_GAME_VERSION = 3;
+export const SECOND_SAVE_GAME_VERSION = 2;
 export const FIRST_SAVE_GAME_VERSION = 1;
 export const LEGACY_SAVE_STATE_VERSION = 2;
 
@@ -45,6 +51,15 @@ export interface SavedGradientFactors {
   readonly highPercent: number;
 }
 
+/**
+ * The dive mode chosen on the setup screen, as legacy saves it
+ * ("diveMode: diveMode" in src/game-loop.js). Needed after a resume because
+ * the mode decides what the diver is offered: legacy's gas information is
+ * gated on isAdvanced() or CCR, and a technical dive starts with a single
+ * cylinder, so its state alone looks recreational (#185 review).
+ */
+export type SavedDiveMode = "rec" | "tec" | "ccr";
+
 export interface SaveGame {
   readonly schema: typeof SAVE_GAME_SCHEMA;
   readonly version: typeof CURRENT_SAVE_GAME_VERSION;
@@ -57,9 +72,37 @@ export interface SaveGame {
    * jumped (#158 review).
    */
   readonly gradientFactors: SavedGradientFactors;
+  readonly diveMode: SavedDiveMode;
 }
 
-export type SaveGameMigration = "legacy-v2" | "save-game-v1" | null;
+export type SaveGameMigration =
+  | "legacy-v2"
+  | "save-game-v1"
+  | "save-game-v2"
+  | null;
+
+/**
+ * The mode a dive that never recorded one most likely had: a loop is CCR,
+ * more than one cylinder is technical (recreational has exactly one), and a
+ * single open-circuit cylinder is recreational.
+ */
+export function inferDiveMode(state: DiveState): SavedDiveMode {
+  if (state.ccr !== null) {
+    return "ccr";
+  }
+  return state.tanks.length > 1 ? "tec" : "rec";
+}
+
+/** A known mode that names a loop exactly when the state has one. */
+function isConsistentDiveMode(
+  candidate: unknown,
+  state: DiveState,
+): candidate is SavedDiveMode {
+  if (candidate !== "rec" && candidate !== "tec" && candidate !== "ccr") {
+    return false;
+  }
+  return (candidate === "ccr") === (state.ccr !== null);
+}
 
 export type SaveGameDecodeResult =
   | {
@@ -80,6 +123,7 @@ export function createSaveGame(
   state: DiveState,
   gradientFactors: SavedGradientFactors,
   savedAtEpochMs = Date.now(),
+  diveMode: SavedDiveMode = inferDiveMode(state),
 ): SaveGame {
   if (!isPositiveFinite(savedAtEpochMs)) {
     throw new RangeError("save timestamp must be a positive finite number");
@@ -94,6 +138,9 @@ export function createSaveGame(
       "gradient factors must be within 30-100 with low no greater than high",
     );
   }
+  if (!isConsistentDiveMode(diveMode, frozenState)) {
+    throw new RangeError("dive mode must be ccr exactly when the dive has a loop");
+  }
 
   return Object.freeze({
     schema: SAVE_GAME_SCHEMA,
@@ -104,6 +151,7 @@ export function createSaveGame(
       lowPercent: gradientFactors.lowPercent,
       highPercent: gradientFactors.highPercent,
     }),
+    diveMode,
   });
 }
 
@@ -136,8 +184,12 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
 
   if (candidate.schema === SAVE_GAME_SCHEMA) {
     const isCurrent = candidate.version === CURRENT_SAVE_GAME_VERSION;
+    const isSecond = candidate.version === SECOND_SAVE_GAME_VERSION;
     const isFirst = candidate.version === FIRST_SAVE_GAME_VERSION;
-    if (!Number.isInteger(candidate.version) || (!isCurrent && !isFirst)) {
+    if (
+      !Number.isInteger(candidate.version) ||
+      (!isCurrent && !isSecond && !isFirst)
+    ) {
       return { ok: false, reason: "unsupported-version" };
     }
     if (
@@ -150,12 +202,23 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     // v2 payload must carry a valid pair rather than fall back to them, or a
     // corrupted field would silently re-plan the dive on 35/75 — the very
     // failure this version exists to stop.
-    if (isCurrent && !isSavedGradientFactors(candidate.gradientFactors)) {
+    if (!isFirst && !isSavedGradientFactors(candidate.gradientFactors)) {
       return { ok: false, reason: "invalid-data" };
     }
-    const gradientFactors = isCurrent
-      ? (candidate.gradientFactors as SavedGradientFactors)
-      : DEFAULT_SAVED_GRADIENT_FACTORS;
+    // Likewise a v3 payload must carry a mode consistent with its state; only
+    // saves from before the field existed are inferred.
+    if (
+      isCurrent &&
+      !isConsistentDiveMode(candidate.diveMode, candidate.state)
+    ) {
+      return { ok: false, reason: "invalid-data" };
+    }
+    const gradientFactors = isFirst
+      ? DEFAULT_SAVED_GRADIENT_FACTORS
+      : (candidate.gradientFactors as SavedGradientFactors);
+    const diveMode = isCurrent
+      ? (candidate.diveMode as SavedDiveMode)
+      : inferDiveMode(candidate.state);
 
     return {
       ok: true,
@@ -163,8 +226,13 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
         candidate.state,
         gradientFactors,
         candidate.savedAtEpochMs,
+        diveMode,
       ),
-      migratedFrom: isCurrent ? null : "save-game-v1",
+      migratedFrom: isCurrent
+        ? null
+        : isSecond
+          ? "save-game-v2"
+          : "save-game-v1",
     };
   }
 
@@ -256,7 +324,13 @@ function migrateLegacyV2(candidate: Record<string, unknown>): SaveGame | null {
   const gradientFactors = readLegacyGradientFactors(candidate);
 
   try {
-    return createSaveGame(state, gradientFactors, candidate.savedAt);
+    // The legacy save records its mode, so it is carried over, not inferred.
+    return createSaveGame(
+      state,
+      gradientFactors,
+      candidate.savedAt,
+      candidate.diveMode as SavedDiveMode,
+    );
   } catch {
     return null;
   }

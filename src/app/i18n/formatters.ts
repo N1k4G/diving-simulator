@@ -54,6 +54,30 @@ export function formatWholeMinutes(
   return formatUnit(minutes, locale, "minute");
 }
 
+/**
+ * A whole-number percentage that may exceed 100 — a gradient factor, or a
+ * compartment past its M-value. formatGasFraction refuses anything over 1,
+ * which is right for a gas and wrong for these.
+ */
+export function formatPercent(
+  fraction: number,
+  locale: SupportedLocale,
+): string {
+  const value = assertNonNegative(fraction, "fraction");
+  return new Intl.NumberFormat(localeTags[locale], {
+    style: "percent",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+/** A cylinder's water volume in litres, as legacy's "O2 V" and "DIL V" rows. */
+export function formatVolume(
+  volumeL: number,
+  locale: SupportedLocale,
+): string {
+  return formatUnit(assertNonNegative(volumeL, "volumeL"), locale, "liter", 1);
+}
+
 export function formatGasFraction(
   fraction: number,
   locale: SupportedLocale,
