@@ -3,11 +3,11 @@
   "issue": 163,
   "slice": "PR 3 of n: the rebreather controls — setpoint ([ ] and buttons), bailout (B and a button), the loop's HUD rows, and the loop warnings",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "874565af83adac2138b309b87e5b297e4c5455b7",
-  "measuredTree": "5a6ce1c57f79f104046fc7532cb47e965bc39a66",
+  "measuredCommit": "3e05bf804ba7caf5f529bfb511c395ad76c8c711",
+  "measuredTree": "aa67d6146dce208a403aba5286365f1efb366b83",
   "workingTree": "clean before the run and still clean after it (git status --porcelain empty at both ends, checked by the same shell invocation that ran the command)",
-  "recordedAt": "2026-09-25T09:42:18Z",
-  "runFinishedAt": "2026-09-25T09:48:06Z",
+  "recordedAt": "2026-09-25T10:04:04Z",
+  "runFinishedAt": "2026-09-25T10:09:52Z",
   "timestampProvenance": "Both are the output of `date -u +%Y-%m-%dT%H:%M:%SZ` printed by the shell immediately before and after the command, not values written by hand.",
   "provenanceNote": "Measured against the committed tree rather than the working tree that became it. Only the commit adding this file follows the measured one.",
   "environment": {
@@ -27,7 +27,7 @@
     "distCheck": "pass — 17 files scanned, no source maps, 4 diagnostic markers absent",
     "unit": "245 passed (222 on main, +23: 14 in tests/unit/ccr-in-dive.test.ts, 5 in tests/unit/game-controller-ccr.test.ts, 4 in tests/unit/game-controller-forecast.test.ts)",
     "parity": "36 passed (unchanged)",
-    "e2e": "118 passed in 4.3 min (97 on main, +21 in tests/in-dive-controls.spec.js)",
+    "e2e": "119 passed in 4.3 min (97 on main, +22 in tests/in-dive-controls.spec.js)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, max delta 0",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -80,7 +80,8 @@
       "staleAnswerPublished": "the superseded in-flight answer is published — 1 of 3 forecast unit tests fails",
       "forecastNotCleared": "#invalidateForecast() without the clearing — 1 of 4 forecast unit tests fails",
       "lowCylinderRuleDisabled": "isCcrCylinderLow() always false — build pass, the under-30-bar e2e fails",
-      "shortScreenLayoutReverted": "the two-column rule removed AND the scrubber back on formatDuration, the full pre-fix layout — build pass, 2 of 8 layout e2e fail: panel into the hint by 240x8 px at 844x390, panel into the setpoint button by 59x3 px at 667x375"
+      "shortScreenLayoutReverted": "the two-column rule removed AND the scrubber back on formatDuration, the full pre-fix layout — build pass, 2 of 8 layout e2e fail: panel into the hint by 240x8 px at 844x390, panel into the setpoint button by 59x3 px at 667x375",
+      "setpointRepeatFiltered": "the repeat filter restored on [ and ] — build pass, the held-key e2e fails"
     },
     "oneRevertDidNotCompileAtFirst": "Removing the #loopControlsOffered() call from the key handler left the method unread, and the build failed on TS6133 before any e2e ran; the script reported the failed build instead of a pass. The revert was rewritten to keep reading the method (`|| true`) and rerun.",
     "rerunAfterRound1": "All seven original cases were run again against b9038f0 with the same outcomes; the two forecast cases were added in that round.",
@@ -103,8 +104,8 @@
     "why": "measuredCommit is a branch commit and becomes unreachable once this is squash-merged; the subtree hashes survive the squash because the squash commit carries the same content.",
     "check": "After the merge, `git rev-parse <squash-merge-commit>:src <squash-merge-commit>:tests <squash-merge-commit>:scripts` should equal the three below.",
     "caveat": "Holds only while the sole commit after the measured one adds this artifact and touches nothing under src, tests or scripts.",
-    "srcTree": "aa466e67ee55831a2e5be86cb6fed46a40b41552",
-    "testsTree": "58d2b582d575d6c028f0a045eb5f5f2f786908e6",
+    "srcTree": "0e427e2e73c794bd825084d7508833edb0130935",
+    "testsTree": "fa034bb8e851511bb9c40195bad3878527402798",
     "scriptsTree": "52e3852fe9906142a846f72ea929c1f546e9d74c"
   },
   "reviewRound1": {
@@ -133,6 +134,10 @@
     {
       "measuredCommit": "b9038f0ade1c9d2397f5d2d44e19c5af76a19913",
       "why": "Predates review round 2, which found the stale forecast after a gas change, the landscape overlap and the missing low-cylinder warnings."
+    },
+    {
+      "measuredCommit": "874565af83adac2138b309b87e5b297e4c5455b7",
+      "why": "Predates review round 3, which found held setpoint keys not repeating."
     }
   ],
   "reviewRound2": {
@@ -156,5 +161,22 @@
       "assessment": "Confirmed.",
       "fix": "Legacy's row danger rules with the ⚠ glyph on all four loop rows, and the low-gas warning for either cylinder under 30 bar."
     }
+  },
+  "reviewRound3": {
+    "findings": 2,
+    "bailoutForecastGas": {
+      "finding": "Re-reported from rounds 1 and 2.",
+      "disposition": "Still disputed as a finding against this PR and tracked as #183. The review prompt carries earlier findings but not the replies to them, so this finding will be re-reported until the code changes or the owner decides."
+    },
+    "heldSetpointKey": {
+      "finding": "minor contract-violation — a held [ or ] adjusted once, where legacy repeats with keyboard autorepeat.",
+      "assessment": "Confirmed. src/state.js's keydown listener sets keys[k] on every event with no repeat filter, and updateDiving consumes one step per set.",
+      "fix": "The setpoint keys accept repeated keydowns; B stays edge-triggered. An e2e holds ] for three keydowns and asserts 1.00 bar."
+    }
+  },
+  "unrelatedFailureObserved": {
+    "what": "The first full run on 3e05bf8 (2026-09-25T09:57:46Z to 10:03:25Z) failed one test: tests/reload-resume.spec.js 'free-flow overlay save survives a real reload', a 30 s timeout waiting for window.gameAPI after page.reload().",
+    "notThisBranch": "Checkable: `git diff --name-only main...HEAD` lists no src/*.js or src/*.html file, window.gameAPI exists only in the legacy client, and the spec loads only the legacy page.",
+    "status": "Passed alone three times in a row (5 passed, about 4.2 s each), and the full run recorded above passed all 119. playwright.config.js already names this spec as one that timed out intermittently under parallel load (#130). Recorded as observed and not diagnosed further."
   }
 }
