@@ -365,3 +365,222 @@ test.describe('mobile viewport', () => {
     }
   });
 });
+
+// The active-cylinder readout (#163, HUD half). Until this row existed the
+// tests above had to read the save to learn which cylinder was breathed.
+test.describe('cylinder readout', () => {
+  test('the HUD names the cylinder being breathed and follows a switch', async ({ page }) => {
+    await startTwoCylinderDive(page);
+    const cylinder = page.locator('.wreck-hud [data-hud-metric="cylinder"] dd');
+
+    await expect(cylinder).toContainText('1 ·');
+    await page.keyboard.press('2');
+    await expect(cylinder).toContainText('2 ·');
+    // The oxygen fraction is part of the row, so a switch between two
+    // different mixes reads as a change of gas and not only of number.
+    await expect(cylinder).toContainText('21%');
+  });
+
+  test('a closed-circuit dive shows the loop, not a cylinder', async ({ page }) => {
+    // tanks[0] exists on a CCR dive only because the codec requires one; it
+    // is not being breathed and must not be named as if it were.
+    await page.goto('/dist/');
+    await page.evaluate(() => window.localStorage.clear());
+    await acceptSafetyGate(page);
+    await page.locator('[data-setup-group=mode] [data-setup-option=ccr]').check();
+    await expect(page.locator('[data-setup-stepper=setpoint]')).toBeVisible();
+    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+
+    await expect(page.locator('.wreck-hud [data-hud-metric="cylinder"] dd')).toHaveText(
+      'Rebreather loop',
+    );
+  });
+});
+
+// The torch has had a key and a button since the wreck slice; what #163's
+// definition of done adds is that the two must reach the same state, which
+// nothing asserted for the keyboard path.
+test('the torch key and the torch button reach the same state', async ({ page }) => {
+  await page.goto('/dist/');
+  await page.evaluate(() => window.localStorage.clear());
+  await startDiveByKeyboard(page);
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  const torch = page.locator('[data-torch]');
+  await expect(torch).toHaveAttribute('aria-pressed', 'true');
+
+  await page.keyboard.press('t');
+  await expect(torch).toHaveAttribute('aria-pressed', 'false');
+
+  await torch.click();
+  await expect(torch).toHaveAttribute('aria-pressed', 'true');
+});
+
+/**
+ * A dive resumed while holding an 18 m decompression stop.
+ *
+ * Every compartment is loaded to 3.0 bar of nitrogen, which under the default
+ * gradient factors puts the ceiling at 17.5 m; decoStop() rounds that up to
+ * 18 m, the shallowest depth the wreck route allows, and the diver is parked
+ * there. tests/unit/game-controller-fast-forward.test.ts asserts that the same
+ * loading forecasts an 18 m stop, so this fixture and the unit test cannot
+ * drift apart silently.
+ *
+ * Built by starting a real dive and editing its save, as the empty-cylinder
+ * test does, so the payload has whatever shape the codec currently requires.
+ */
+async function startDiveAtDecoStop(page, configure) {
+  await page.goto('/dist/');
+  await page.evaluate(() => window.localStorage.clear());
+  await acceptSafetyGate(page);
+  if (configure) await configure(page);
+  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+
+  const saved = await persistedSave(page);
+  saved.state.depthM = 18;
+  saved.state.maxDepthM = 34;
+  saved.state.tissues.nitrogenBar = saved.state.tissues.nitrogenBar.map(() => 3);
+
+  await page.goto('/dist/');
+  await page.evaluate(
+    ([key, value]) => window.localStorage.setItem(key, value),
+    [SAVE_KEY, JSON.stringify(saved)],
+  );
+  await acceptSafetyGate(page);
+  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  // Offered once the forecast has placed the diver at the stop.
+  await expect(page.locator('[data-fast-forward]')).toBeVisible();
+}
+
+const fastForwardButton = (page) => page.locator('[data-fast-forward]');
+const fastForwardIndicator = (page) => page.locator('[data-fast-forward-indicator]');
+
+// Fast-forward (#163): F and a button, offered only while a stop is held,
+// mirroring src/game-loop.js updateDiving() and src/touch.js touchUpdateUI().
+test.describe('fast-forward', () => {
+  test('is not offered on a dive with no stop to wait out', async ({ page }) => {
+    // A fresh dive at 26 m on air has no ceiling, so legacy's canFastForward
+    // is false: the button is not shown and F is left to whoever else wants
+    // it rather than claimed and discarded (the #163 review's rule for the
+    // digit keys, applied here too).
+    await page.goto('/dist/');
+    await page.evaluate(() => window.localStorage.clear());
+    await startDiveByKeyboard(page);
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+
+    await expect(fastForwardButton(page)).toBeHidden();
+    await expect(fastForwardIndicator(page)).toBeHidden();
+
+    await page.evaluate(() => {
+      window.__fastForwardKeyClaimed = null;
+      window.addEventListener('keydown', (event) => {
+        if (event.key === 'f') window.__fastForwardKeyClaimed = event.defaultPrevented;
+      });
+    });
+    await page.keyboard.press('f');
+    expect(await page.evaluate(() => window.__fastForwardKeyClaimed)).toBe(false);
+    await expect(fastForwardIndicator(page)).toBeHidden();
+  });
+
+  test('F runs the dive clock ten times faster while the stop is held', async ({ page }) => {
+    await startDiveAtDecoStop(page);
+    await expect(fastForwardButton(page)).toHaveAttribute('aria-pressed', 'false');
+    await expect(fastForwardIndicator(page)).toBeHidden();
+
+    const before = await persistedSave(page);
+    await page.keyboard.press('f');
+
+    await expect(fastForwardButton(page)).toHaveAttribute('aria-pressed', 'true');
+    // Said in words, not only through the button's state: the diver has to
+    // be told the clock is running fast (docs/decisions.md, colour alone).
+    await expect(fastForwardIndicator(page)).toBeVisible();
+    await expect(fastForwardIndicator(page)).toHaveText('Fast-forward ×10');
+
+    // Twenty dive seconds would take twenty real seconds at normal speed
+    // and two at ten times. Six seconds of wall clock is the margin for a
+    // loaded test machine, and still a third of what normal speed needs —
+    // so a clock that did not actually speed up fails here.
+    await page.waitForFunction(
+      ([key, startS]) => {
+        const raw = window.localStorage.getItem(key);
+        return raw !== null && JSON.parse(raw).state.elapsedTimeS >= startS + 20;
+      },
+      [SAVE_KEY, before.state.elapsedTimeS],
+      { timeout: 6_000 },
+    );
+
+    // And off again on the next press.
+    await page.keyboard.press('f');
+    await expect(fastForwardButton(page)).toHaveAttribute('aria-pressed', 'false');
+    await expect(fastForwardIndicator(page)).toBeHidden();
+  });
+
+  test('the button reaches the same state as the key', async ({ page }) => {
+    await startDiveAtDecoStop(page);
+
+    await fastForwardButton(page).click();
+    await expect(fastForwardButton(page)).toHaveAttribute('aria-pressed', 'true');
+    await expect(fastForwardIndicator(page)).toBeVisible();
+
+    // Mixed: on by button, off by key. One control, two ways in.
+    await page.keyboard.press('f');
+    await expect(fastForwardButton(page)).toHaveAttribute('aria-pressed', 'false');
+    await expect(fastForwardIndicator(page)).toBeHidden();
+  });
+
+  test('holding a vertical key ends it, and releasing does not resume it', async ({ page }) => {
+    // src/game-loop.js: `canFastForward && !keys['w'] && !keys['arrowup']
+    // && !keys['s'] && !keys['arrowdown']`, else fastForwardActive = false.
+    await startDiveAtDecoStop(page);
+    await page.keyboard.press('f');
+    await expect(fastForwardIndicator(page)).toBeVisible();
+
+    await page.keyboard.down('ArrowUp');
+    // Not on offer while the key is held, and off.
+    await expect(fastForwardButton(page)).toBeHidden();
+    await expect(fastForwardIndicator(page)).toBeHidden();
+
+    await page.keyboard.up('ArrowUp');
+    // The route floor is 18 m, so the diver is still at the stop and the
+    // control returns — unpressed. Legacy cleared the flag; only a new press
+    // sets it again.
+    await expect(fastForwardButton(page)).toBeVisible();
+    await expect(fastForwardButton(page)).toHaveAttribute('aria-pressed', 'false');
+    await expect(fastForwardIndicator(page)).toBeHidden();
+  });
+
+  test('a cylinder switch ends it', async ({ page }) => {
+    // src/game-loop.js TASK-019 clears fastForwardActive with the switch.
+    await startDiveAtDecoStop(page, configureTwoCylinderTec);
+    await expect(page.locator('[data-wreck-tanks] button')).toHaveCount(2);
+    await page.keyboard.press('f');
+    await expect(fastForwardIndicator(page)).toBeVisible();
+
+    await page.keyboard.press('2');
+
+    await expect(page.locator('[data-tank="1"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(fastForwardIndicator(page)).toBeHidden();
+    await expect(fastForwardButton(page)).toHaveAttribute('aria-pressed', 'false');
+    // Still at the stop, so still on offer for a new decision.
+    await expect(fastForwardButton(page)).toBeVisible();
+  });
+
+  test.describe('mobile viewport', () => {
+    test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+    test('can be toggled by touch and meets the 44px target', async ({ page }) => {
+      await startDiveAtDecoStop(page);
+
+      const box = await fastForwardButton(page).boundingBox();
+      expect(box).not.toBeNull();
+      expect(Math.round(box.width), 'button width').toBeGreaterThanOrEqual(44);
+      expect(Math.round(box.height), 'button height').toBeGreaterThanOrEqual(44);
+
+      await fastForwardButton(page).tap();
+      await expect(fastForwardButton(page)).toHaveAttribute('aria-pressed', 'true');
+      await expect(fastForwardIndicator(page)).toBeVisible();
+    });
+  });
+});

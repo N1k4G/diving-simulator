@@ -344,6 +344,31 @@ export function decoStopDepth(ceilingM: Metres | number): Metres {
   return ceilingM <= 0 ? metres(0) : metres(Math.ceil(ceilingM / 3) * 3);
 }
 
+/**
+ * How far from the stop depth a diver may drift and still count as holding
+ * the stop: src/game-loop.js `Math.abs(depth - decoStopD) <= 1.5`.
+ */
+export const DECO_STOP_BAND_M = 1.5;
+
+/**
+ * Whether the diver is holding the current decompression stop (#163).
+ *
+ * This is the condition legacy fast-forward is offered under — a stop exists
+ * and the diver is within the band around it. A ceiling of zero means no stop,
+ * and so no fast-forward: a diver in open water with no obligation has nothing
+ * to wait out. The safety-stop half of legacy's rule
+ * (`safetyStopCountdownStarted && !safetyStopComplete && depth in 2.4..8.3`)
+ * is not here because no module of this client owns a safety-stop countdown
+ * yet; when one does, this is where its band joins.
+ */
+export function isAtDecoStop(
+  depthM: Metres | number,
+  ceilingM: Metres | number,
+): boolean {
+  const stopM = decoStopDepth(ceilingM);
+  return stopM > 0 && Math.abs(depthM - stopM) <= DECO_STOP_BAND_M;
+}
+
 function calculateTts(
   state: DiveState,
   settings: PlannerSettings,

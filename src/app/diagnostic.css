@@ -289,6 +289,28 @@ summary:focus-visible {
   background: #a92828;
 }
 
+/* The fast-forward indicator (#163). Its own chip rather than a colour on
+   the dive-time metric, so that the sped-up clock is stated in words —
+   docs/decisions.md rules out meaning carried by colour alone, and a clock
+   that runs ten times faster is exactly the kind of state a diver has to be
+   told about rather than left to notice. Legacy conveys the same with a
+   distinct border on the F button; that is kept too, through aria-pressed. */
+.speed-chip {
+  margin: 0;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid rgb(246 219 114 / 55%);
+  border-radius: 999px;
+  color: #f6db72;
+  background: rgb(3 24 32 / 80%);
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.speed-chip[hidden] {
+  display: none;
+}
+
 /* One column in the bottom-left corner: the keyboard hint above, the
    cylinder row below. Both used to be anchored there absolutely with the
    same offsets, so the hint was drawn across the row at desktop widths
@@ -406,6 +428,20 @@ summary:focus-visible {
 .wreck-controls .torch-control {
   grid-column: 3;
   grid-row: 1;
+}
+
+/* Top-left cell of the 3x2 grid, the one the D-pad leaves empty. Hidden
+   rather than disabled when there is no stop to wait out, as legacy's
+   touch-fast-forward button is (src/touch.js touchUpdateUI): a control that
+   would do nothing is not offered. The cell keeps its place in the grid
+   either way, so the movement buttons never shift under a thumb. */
+.wreck-controls .fast-forward-control {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.wreck-controls button[hidden] {
+  display: none;
 }
 
 .controls-hint {
