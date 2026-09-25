@@ -4,13 +4,10 @@ import {
   cylinderIndicesForPage,
   gasInfoAvailable,
   gasInfoPageStillValid,
-  displayedNdlMinutes,
   gasInfoPages,
   po2Severity,
   cylinderSeverity,
   mValueRatioSeverity,
-  gradientFactorSeverity,
-  ndlSeverity,
   scrubberSeverity,
   nextGasInfoPage,
 } from "../../src/app/gas-info-pages";
@@ -80,7 +77,6 @@ describe("which dives have gas information", () => {
     expect(gasInfoPages(view(ocDive(1)), "tec")).toEqual([
       "cylinders-1",
       "tissues",
-      "deco",
     ]);
   });
 
@@ -95,17 +91,18 @@ describe("which dives have gas information", () => {
 });
 
 describe("the order I walks the pages in", () => {
-  it("three cylinders or fewer: cylinders, tissues, deco, closed", () => {
+  it("three cylinders or fewer: cylinders, tissues, closed", () => {
+    // Legacy's decompression page (4) joins with CNS in #186.
     // Legacy skips page 2 when tankCount <= 3.
     const presentation = view(ocDive(3));
-    expect(gasInfoPages(presentation, "tec")).toEqual(["cylinders-1", "tissues", "deco"]);
+    expect(gasInfoPages(presentation, "tec")).toEqual(["cylinders-1", "tissues"]);
     const walk: (string | null)[] = [];
     let page = nextGasInfoPage(null, presentation, "tec");
     while (page !== null) {
       walk.push(page);
       page = nextGasInfoPage(page, presentation, "tec");
     }
-    expect(walk).toEqual(["cylinders-1", "tissues", "deco"]);
+    expect(walk).toEqual(["cylinders-1", "tissues"]);
   });
 
   it("four cylinders or more: both cylinder pages", () => {
@@ -113,7 +110,6 @@ describe("the order I walks the pages in", () => {
       "cylinders-1",
       "cylinders-2",
       "tissues",
-      "deco",
     ]);
   });
 
@@ -189,27 +185,13 @@ describe("legacy's colour tiers and display rules (#185 review round 2)", () => 
     expect(cylinderSeverity(49)).toBe("danger");
   });
 
-  it("tissues, gradient factors, NDL and scrubber use legacy's bands", () => {
+  it("tissues and scrubber use legacy's bands", () => {
     expect(mValueRatioSeverity(0.79)).toBe("normal");
     expect(mValueRatioSeverity(0.8)).toBe("caution");
     expect(mValueRatioSeverity(1)).toBe("danger");
-    expect(gradientFactorSeverity(79)).toBe("normal");
-    expect(gradientFactorSeverity(80)).toBe("caution");
-    expect(gradientFactorSeverity(100)).toBe("danger");
-    expect(ndlSeverity(15)).toBe("normal");
-    expect(ndlSeverity(14)).toBe("caution");
-    expect(ndlSeverity(4)).toBe("danger");
     expect(scrubberSeverity(30)).toBe("normal");
     expect(scrubberSeverity(29)).toBe("caution");
     expect(scrubberSeverity(9)).toBe("danger");
-  });
-
-  it("NDL shows at most 99 minutes, and nothing for the 999 sentinel", () => {
-    // Legacy: `ndl >= 999 ? '---' : (ndl > 99 ? '99' : ndl) + ' min'`.
-    expect(displayedNdlMinutes(120)).toBe(99);
-    expect(displayedNdlMinutes(99)).toBe(99);
-    expect(displayedNdlMinutes(12)).toBe(12);
-    expect(displayedNdlMinutes(999)).toBeNull();
   });
 });
 
@@ -253,8 +235,6 @@ describe("the figures on the pages", () => {
     // Math.max(0, ...) does.
     const state = createInitialDiveState(73);
     expect(leadingGradientFactorPercent(state.tissues, 1)).toBe(0);
-    expect(view(state).saturation.gf99Percent).toBe(0);
-    expect(view(state).saturation.surfaceGfPercent).toBe(0);
     expect(view(state).saturation.mValueRatios).toHaveLength(16);
   });
 

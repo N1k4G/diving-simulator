@@ -1031,7 +1031,8 @@ test.describe('gas information', () => {
     await expect(gasInfoPanel(page)).toBeHidden();
   });
 
-  test('I walks cylinders, tissues and decompression, then closes', async ({ page }) => {
+  test('I walks cylinders and tissues, then closes', async ({ page }) => {
+    // Legacy's decompression page joins with CNS in #186 (#185 review).
     await startTwoCylinderDive(page);
     await expect(gasInfoToggle(page)).toBeVisible();
     await expect(gasInfoToggle(page)).toHaveAttribute('aria-expanded', 'false');
@@ -1052,13 +1053,6 @@ test.describe('gas information', () => {
     await expect(gasInfoPanel(page).locator('.gas-info-bars li').first()).toContainText(
       /Compartment 1: \d+% of its M-value/,
     );
-
-    await page.keyboard.press('i');
-    await expect(gasInfoHeading(page)).toHaveText('Gas information · Decompression');
-    // The setup's gradient factors, 35/75 by default.
-    await expect(gasInfoPanel(page)).toContainText('GF low');
-    await expect(gasInfoPanel(page)).toContainText('35%');
-    await expect(gasInfoPanel(page)).toContainText('75%');
 
     await page.keyboard.press('i');
     await expect(gasInfoPanel(page)).toBeHidden();
@@ -1114,7 +1108,7 @@ test.describe('gas information', () => {
     await page.keyboard.press('i');
     await expect(gasInfoHeading(page)).toHaveText('Gas information · Tissue saturation');
     await gasInfoToggle(page).click();
-    await expect(gasInfoHeading(page)).toHaveText('Gas information · Decompression');
+    await expect(gasInfoPanel(page)).toBeHidden();
   });
 
   test('Escape closes it, and is left alone while it is closed', async ({ page }) => {
@@ -1180,7 +1174,8 @@ test.describe('gas information', () => {
 
       test('no open page meets a control, and NDL stays visible', async ({ page }) => {
         await startSixCylinderDive(page);
-        for (let step = 0; step < 4; step += 1) {
+        // Cylinders 1-3, cylinders 4-6, tissues.
+        for (let step = 0; step < 3; step += 1) {
           await gasInfoToggle(page).click();
           await expect(gasInfoPanel(page)).toBeVisible();
           await expectHudClearOfControls(page);

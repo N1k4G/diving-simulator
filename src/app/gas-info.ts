@@ -1,11 +1,14 @@
 // The gas-information overlay (#163): legacy's `I` pages, as DOM.
 //
+// Legacy's decompression page (infoPageMode 4) is not here yet. It shows
+// CNS %, which the migration model does not track, and it arrives complete
+// with CNS in #186 rather than as a page with a row missing (#185 review).
+//
 // src/renderer.js drawDiveComputer replaces the dive computer's boxes with a
 // page while infoPageMode > 0. Here the page is a panel beside the HUD, so
 // the depth, time and NDL stay visible while it is open. The panel is a
 // labelled region, not a dialog: the dive keeps running, nothing is modal,
 // and focus stays where it was.
-import type { PlannerSettings } from "../planner/dive-planner";
 import type {
   PresentationState,
   PresentationTank,
@@ -23,10 +26,7 @@ import {
 import {
   cylinderIndicesForPage,
   cylinderSeverity,
-  displayedNdlMinutes,
-  gradientFactorSeverity,
   mValueRatioSeverity,
-  ndlSeverity,
   po2Severity,
   scrubberSeverity,
   type GasInfoPage,
@@ -102,7 +102,6 @@ export function syncGasInfo(
   page: GasInfoPage | null,
   available: boolean,
   presentation: Readonly<PresentationState>,
-  settings: Readonly<PlannerSettings>,
   locale: SupportedLocale,
 ): void {
   elements.toggle.hidden = !available;
@@ -118,7 +117,7 @@ export function syncGasInfo(
   }
   elements.panel.dataset.page = page;
 
-  const blocks = buildBlocks(page, presentation, settings, locale);
+  const blocks = buildBlocks(page, presentation, locale);
   const key = JSON.stringify(blocks);
   if (elements.body.dataset.renderKey === key) {
     return;
@@ -142,8 +141,6 @@ function pageTitle(
     }
     case "tissues":
       return translate(locale, "wreck.gasInfo.page.tissues");
-    case "deco":
-      return translate(locale, "wreck.gasInfo.page.deco");
     case "loop":
       return translate(locale, "wreck.gasInfo.page.loop");
   }
@@ -152,11 +149,9 @@ function pageTitle(
 function buildBlocks(
   page: GasInfoPage,
   presentation: Readonly<PresentationState>,
-  settings: Readonly<PlannerSettings>,
   locale: SupportedLocale,
 ): readonly Block[] {
   const t = (key: MessageKey) => translate(locale, key);
-  const unavailable = t("wreck.value.unavailable");
   switch (page) {
     case "cylinders-1":
     case "cylinders-2":
@@ -181,63 +176,6 @@ function buildBlocks(
           })),
         },
       ];
-    case "deco": {
-      // PARTIAL. Legacy's page 4 also shows CNS %, rounded, caution at 50,
-      // danger at 80. The migration model does not track CNS yet, so there
-      // is no authoritative value to show. The row is left out rather than
-      // filled with a placeholder, and lands with #186.
-      const { planner, saturation } = presentation;
-      const po2 = presentation.breathingPo2Bar;
-      return [
-        {
-          kind: "rows",
-          rows: [
-            {
-              label: t("wreck.gasInfo.deco.gf99"),
-              value: formatPercent(saturation.gf99Percent / 100, locale),
-              severity: gradientFactorSeverity(saturation.gf99Percent),
-            },
-            {
-              label: t("wreck.gasInfo.deco.surfaceGf"),
-              value: formatPercent(saturation.surfaceGfPercent / 100, locale),
-              severity: gradientFactorSeverity(saturation.surfaceGfPercent),
-            },
-            {
-              label: t("wreck.gasInfo.deco.ceiling"),
-              value: planner ? formatDepth(planner.ceilingM, locale) : unavailable,
-              // Legacy draws a ceiling above the surface in its warn tone.
-              severity: planner && planner.ceilingM > 0 ? "warning" : "normal",
-            },
-            {
-              label: t("wreck.gasInfo.deco.gfLow"),
-              value: formatPercent(settings.gfLowPercent / 100, locale),
-            },
-            {
-              label: t("wreck.gasInfo.deco.gfHigh"),
-              value: formatPercent(settings.gfHighPercent / 100, locale),
-            },
-            {
-              label: t("wreck.gasInfo.deco.tts"),
-              value: planner ? formatWholeMinutes(planner.ttsMin * 60, locale) : unavailable,
-              severity: planner && planner.ttsMin > 0 ? "warning" : "normal",
-            },
-            {
-              label: t("wreck.gasInfo.deco.ndl"),
-              value: ndlText(planner?.ndlMin ?? null, locale, unavailable),
-              severity:
-                planner && displayedNdlMinutes(planner.ndlMin) !== null
-                  ? ndlSeverity(planner.ndlMin)
-                  : "normal",
-            },
-            {
-              label: t("wreck.gasInfo.deco.po2"),
-              value: formatPartialPressure(po2, locale),
-              severity: po2Severity(po2),
-            },
-          ],
-        },
-      ];
-    }
     case "loop": {
       const { ccr } = presentation;
       if (!ccr) {
@@ -316,15 +254,6 @@ function cylinderBlock(tank: PresentationTank, locale: SupportedLocale): Block {
       },
     ],
   };
-}
-
-function ndlText(
-  ndlMin: number | null,
-  locale: SupportedLocale,
-  unavailable: string,
-): string {
-  const shown = ndlMin === null ? null : displayedNdlMinutes(ndlMin);
-  return shown === null ? unavailable : formatWholeMinutes(shown * 60, locale);
 }
 
 /**
