@@ -18,6 +18,7 @@
 // 5 = the CCR page, and 0 the normal dive computer (here: the overlay closed,
 // null). Escape returns to 0.
 import type { PresentationState } from "../presentation/presentation-state";
+import type { DiveMode } from "./setup/dive-setup";
 
 export type GasInfoPage =
   | "cylinders-1"
@@ -31,29 +32,26 @@ export type GasInfoPage =
  *
  * Legacy's gate is `isAdvanced() || diveMode === 'ccr'`: technical and
  * rebreather dives, never recreational, and only while `gameState ===
- * 'diving'` — a failed dive is legacy's game-over state. This client does not
- * carry the dive mode past the setup screen (the save has no field for it),
- * so it reads it off the dive: a loop is CCR, and more than one cylinder is
- * technical, since recreational has exactly one. The one case that reads
- * differently is a technical dive configured with a single cylinder, which
- * looks recreational from its state and so gets no overlay. Carrying the mode
- * in the save would close that, at the cost of a save-format change that is
- * not this issue's.
+ * 'diving'` — a failed dive is legacy's game-over state. The mode is the one
+ * the dive was set up with, carried in the save since v3; a first cut counted
+ * cylinders instead, and a technical dive starts with one (#185 review).
  */
 export function gasInfoAvailable(
   presentation: Readonly<PresentationState>,
+  diveMode: DiveMode,
 ): boolean {
   if (presentation.status === "failed") {
     return false;
   }
-  return presentation.ccr !== null || presentation.tanks.length > 1;
+  return diveMode === "tec" || diveMode === "ccr";
 }
 
 /** The pages `I` cycles through on this dive, in order. */
 export function gasInfoPages(
   presentation: Readonly<PresentationState>,
+  diveMode: DiveMode,
 ): readonly GasInfoPage[] {
-  if (!gasInfoAvailable(presentation)) {
+  if (!gasInfoAvailable(presentation, diveMode)) {
     return [];
   }
   if (presentation.ccr !== null) {
@@ -72,8 +70,9 @@ export function gasInfoPages(
 export function nextGasInfoPage(
   current: GasInfoPage | null,
   presentation: Readonly<PresentationState>,
+  diveMode: DiveMode,
 ): GasInfoPage | null {
-  const pages = gasInfoPages(presentation);
+  const pages = gasInfoPages(presentation, diveMode);
   if (pages.length === 0) {
     return null;
   }
@@ -91,8 +90,11 @@ export function nextGasInfoPage(
 export function gasInfoPageStillValid(
   current: GasInfoPage | null,
   presentation: Readonly<PresentationState>,
+  diveMode: DiveMode,
 ): boolean {
-  return current !== null && gasInfoPages(presentation).includes(current);
+  return (
+    current !== null && gasInfoPages(presentation, diveMode).includes(current)
+  );
 }
 
 /** The cylinder indices a cylinders page shows: three per page, as legacy. */

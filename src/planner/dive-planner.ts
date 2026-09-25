@@ -414,9 +414,15 @@ export function leadingGradientFactorPercent(
  * bestGasForDepth, is commented out as DISABLED — so a stored field would
  * carry a number nothing decides with, and cost a save-format change.
  */
-export function maximumOperatingDepthM(oxygenFraction: number): number {
-  if (!Number.isFinite(oxygenFraction) || oxygenFraction <= 0) {
-    throw new RangeError("oxygen fraction must be a positive finite number");
+export function maximumOperatingDepthM(oxygenFraction: number): number | null {
+  if (!Number.isFinite(oxygenFraction) || oxygenFraction < 0) {
+    throw new RangeError("oxygen fraction must be a finite non-negative number");
+  }
+  // A mix without oxygen never reaches the PO2 limit, so it has no MOD. The
+  // setup screen allows 0% (#185 review): throwing here threw out of every
+  // frame and the dive never started.
+  if (oxygenFraction === 0) {
+    return null;
   }
   return Math.floor((PO2_HIGH_BAR / oxygenFraction - 1) * 10);
 }

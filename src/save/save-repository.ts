@@ -4,6 +4,7 @@ import {
   encodeSaveGame,
   type SaveGame,
   type SaveGameDecodeResult,
+  type SavedDiveMode,
   type SavedGradientFactors,
 } from "./save-game";
 import type { DiveState } from "../core/dive-state";
@@ -61,8 +62,14 @@ export class LocalSaveRepository {
     state: DiveState,
     gradientFactors: SavedGradientFactors,
     savedAtEpochMs = Date.now(),
+    diveMode?: SavedDiveMode,
   ): { readonly saveGame: SaveGame; readonly persisted: boolean } {
-    const saveGame = createSaveGame(state, gradientFactors, savedAtEpochMs);
+    const saveGame = createSaveGame(
+      state,
+      gradientFactors,
+      savedAtEpochMs,
+      diveMode,
+    );
     const persisted = tryWrite(
       this.#store,
       SAVE_GAME_STORAGE_KEY,

@@ -70,6 +70,14 @@ export function formatPercent(
   }).format(value);
 }
 
+/** A cylinder's water volume in litres, as legacy's "O2 V" and "DIL V" rows. */
+export function formatVolume(
+  volumeL: number,
+  locale: SupportedLocale,
+): string {
+  return formatUnit(assertNonNegative(volumeL, "volumeL"), locale, "liter", 1);
+}
+
 export function formatGasFraction(
   fraction: number,
   locale: SupportedLocale,

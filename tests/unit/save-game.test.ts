@@ -147,6 +147,75 @@ describe("SaveGame gradient factors", () => {
     expect(result.saveGame.state).toEqual(representativeState());
   });
 
+  // v3 carries the dive mode (#163, #185 review): a technical dive starts
+  // with one cylinder, so its state alone looks recreational, and the mode
+  // decides whether gas information is offered after a resume.
+  describe("the dive mode", () => {
+    const singleCylinder = () =>
+      createInitialDiveState(81, {
+        tanks: [createTankState(createGasMix(0.21, 0.35))],
+      });
+
+    it("round-trips a single-cylinder technical dive as technical", () => {
+      const encoded = encodeSaveGame(
+        createSaveGame(singleCylinder(), CONSERVATIVE_FACTORS, 1_735_689_600_000, "tec"),
+      );
+      const decoded = decodeSaveGame(encoded);
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      expect(decoded.migratedFrom).toBeNull();
+      expect(decoded.saveGame.version).toBe(3);
+      expect(decoded.saveGame.diveMode).toBe("tec");
+    });
+
+    it("defaults to the mode the dive implies when none is given", () => {
+      expect(createSaveGame(singleCylinder(), CONSERVATIVE_FACTORS).diveMode).toBe("rec");
+      const twoCylinders = createInitialDiveState(82, {
+        tanks: [
+          createTankState(createGasMix(0.21, 0)),
+          createTankState(createGasMix(0.5, 0)),
+        ],
+      });
+      expect(createSaveGame(twoCylinders, CONSERVATIVE_FACTORS).diveMode).toBe("tec");
+      const loop = createInitialDiveState(83, {
+        ccr: createCcrState(createGasMix(0.21, 0)),
+      });
+      expect(createSaveGame(loop, CONSERVATIVE_FACTORS).diveMode).toBe("ccr");
+    });
+
+    it("migrates a v2 save with the mode read off the dive", () => {
+      const v2 = JSON.parse(
+        encodeSaveGame(createSaveGame(singleCylinder(), CONSERVATIVE_FACTORS, 1_735_689_600_000, "tec")),
+      ) as Record<string, unknown>;
+      v2.version = 2;
+      delete v2.diveMode;
+
+      const result = decodeSaveGame(JSON.stringify(v2));
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.migratedFrom).toBe("save-game-v2");
+      expect(result.saveGame.version).toBe(3);
+      // The best a save that never recorded the mode allows.
+      expect(result.saveGame.diveMode).toBe("rec");
+      expect(result.saveGame.gradientFactors).toEqual(CONSERVATIVE_FACTORS);
+    });
+
+    it("rejects a v3 save whose mode contradicts its state", () => {
+      const v3 = JSON.parse(
+        encodeSaveGame(createSaveGame(singleCylinder(), CONSERVATIVE_FACTORS, 1_735_689_600_000)),
+      ) as Record<string, unknown>;
+      for (const bad of ["ccr", "deep", undefined]) {
+        v3.diveMode = bad;
+        expect(decodeSaveGame(JSON.stringify(v3))).toEqual({ ok: false, reason: "invalid-data" });
+      }
+    });
+
+    it("refuses to build a save whose mode contradicts its state", () => {
+      expect(() => createSaveGame(singleCylinder(), CONSERVATIVE_FACTORS, 1, "ccr")).toThrow(RangeError);
+    });
+  });
+
   it.each([
     ["missing", undefined],
     ["not an object", 50],

@@ -25,6 +25,7 @@ import {
   maximumOperatingDepthM,
 } from "../../src/planner/dive-planner";
 import { createPresentationState } from "../../src/presentation/presentation-state";
+import { isLoopPagePo2Danger, selectLoopRowDanger } from "../../src/app/loop-danger";
 
 // Gas information (#163): the page rules from src/state.js, and the figures
 // from src/renderer.js drawDiveComputer infoPageMode 1-5.
@@ -58,11 +59,22 @@ const view = (state: DiveState) => createPresentationState(state, null);
 
 describe("which dives have gas information", () => {
   it("is offered on technical and rebreather dives, not recreational", () => {
-    // Legacy: `isAdvanced() || diveMode === 'ccr'`. A single open-circuit
-    // cylinder is how a recreational dive looks from its state.
-    expect(gasInfoAvailable(view(ocDive(1)))).toBe(false);
-    expect(gasInfoAvailable(view(ocDive(2)))).toBe(true);
-    expect(gasInfoAvailable(view(ccrDive()))).toBe(true);
+    // Legacy: `isAdvanced() || diveMode === 'ccr'`, by the mode the dive
+    // was set up with.
+    expect(gasInfoAvailable(view(ocDive(1)), "rec")).toBe(false);
+    expect(gasInfoAvailable(view(ocDive(2)), "tec")).toBe(true);
+    expect(gasInfoAvailable(view(ccrDive()), "ccr")).toBe(true);
+  });
+
+  it("a technical dive with a single cylinder has it too", () => {
+    // The default technical setup has one cylinder. Counting cylinders read
+    // it as recreational and hid the pages (#185 review).
+    expect(gasInfoAvailable(view(ocDive(1)), "tec")).toBe(true);
+    expect(gasInfoPages(view(ocDive(1)), "tec")).toEqual([
+      "cylinders-1",
+      "tissues",
+      "deco",
+    ]);
   });
 
   it("is not offered once the dive has failed", () => {
@@ -70,8 +82,8 @@ describe("which dives have gas information", () => {
       ...ocDive(2),
       failure: { ...ocDive(2).failure, reason: "out-of-gas" },
     });
-    expect(gasInfoAvailable(view(failed))).toBe(false);
-    expect(nextGasInfoPage(null, view(failed))).toBeNull();
+    expect(gasInfoAvailable(view(failed), "tec")).toBe(false);
+    expect(nextGasInfoPage(null, view(failed), "tec")).toBeNull();
   });
 });
 
@@ -79,18 +91,18 @@ describe("the order I walks the pages in", () => {
   it("three cylinders or fewer: cylinders, tissues, deco, closed", () => {
     // Legacy skips page 2 when tankCount <= 3.
     const presentation = view(ocDive(3));
-    expect(gasInfoPages(presentation)).toEqual(["cylinders-1", "tissues", "deco"]);
+    expect(gasInfoPages(presentation, "tec")).toEqual(["cylinders-1", "tissues", "deco"]);
     const walk: (string | null)[] = [];
-    let page = nextGasInfoPage(null, presentation);
+    let page = nextGasInfoPage(null, presentation, "tec");
     while (page !== null) {
       walk.push(page);
-      page = nextGasInfoPage(page, presentation);
+      page = nextGasInfoPage(page, presentation, "tec");
     }
     expect(walk).toEqual(["cylinders-1", "tissues", "deco"]);
   });
 
   it("four cylinders or more: both cylinder pages", () => {
-    expect(gasInfoPages(view(ocDive(4)))).toEqual([
+    expect(gasInfoPages(view(ocDive(4)), "tec")).toEqual([
       "cylinders-1",
       "cylinders-2",
       "tissues",
@@ -101,15 +113,15 @@ describe("the order I walks the pages in", () => {
   it("a rebreather toggles its one page", () => {
     // Legacy: `infoPageMode = (infoPageMode === 5) ? 0 : 5`.
     const presentation = view(ccrDive());
-    expect(nextGasInfoPage(null, presentation)).toBe("loop");
-    expect(nextGasInfoPage("loop", presentation)).toBeNull();
+    expect(nextGasInfoPage(null, presentation, "ccr")).toBe("loop");
+    expect(nextGasInfoPage("loop", presentation, "ccr")).toBeNull();
   });
 
   it("a page the dive no longer has closes rather than jumping", () => {
     const presentation = view(ocDive(2));
-    expect(gasInfoPageStillValid("cylinders-2", presentation)).toBe(false);
-    expect(nextGasInfoPage("cylinders-2", presentation)).toBeNull();
-    expect(gasInfoPageStillValid("tissues", presentation)).toBe(true);
+    expect(gasInfoPageStillValid("cylinders-2", presentation, "tec")).toBe(false);
+    expect(nextGasInfoPage("cylinders-2", presentation, "tec")).toBeNull();
+    expect(gasInfoPageStillValid("tissues", presentation, "tec")).toBe(true);
   });
 
   it("shows three cylinders per page", () => {
@@ -121,13 +133,55 @@ describe("the order I walks the pages in", () => {
   });
 });
 
+describe("the loop's danger limits, page and HUD", () => {
+  // Legacy's gas-information page marks loop PO2 outside 0.16..1.6 bar
+  // (PO2_HYPOXIA, PO2_HIGH); its dive-computer row uses 0.18..1.6. A reading
+  // of 0.17 bar is marked on the HUD and not on the page (#185 review).
+  const ccrAt = (actualPo2Bar: number) => {
+    const ccr = view(
+      freezeDiveState({
+        ...ccrDive(),
+        ccr: { ...ccrDive().ccr!, actualPo2Bar: bars(actualPo2Bar) },
+      }),
+    ).ccr!;
+    return ccr;
+  };
+
+  it("0.17 bar: marked on the HUD row, not on the page", () => {
+    expect(selectLoopRowDanger(ccrAt(0.17)).loopPo2).toBe(true);
+    expect(isLoopPagePo2Danger(0.17)).toBe(false);
+  });
+
+  it("below 0.16 or above 1.6: marked on both", () => {
+    expect(isLoopPagePo2Danger(0.15)).toBe(true);
+    expect(selectLoopRowDanger(ccrAt(0.15)).loopPo2).toBe(true);
+    expect(isLoopPagePo2Danger(1.61)).toBe(true);
+    expect(selectLoopRowDanger(ccrAt(1.61)).loopPo2).toBe(true);
+    expect(isLoopPagePo2Danger(1.6)).toBe(false);
+  });
+});
+
 describe("the figures on the pages", () => {
   it("MOD is legacy's floor((1.6 / fO2 - 1) * 10)", () => {
     expect(maximumOperatingDepthM(0.21)).toBe(66);
     expect(maximumOperatingDepthM(0.32)).toBe(40);
     expect(maximumOperatingDepthM(0.5)).toBe(22);
     expect(maximumOperatingDepthM(1)).toBe(6);
-    expect(() => maximumOperatingDepthM(0)).toThrow(RangeError);
+    expect(() => maximumOperatingDepthM(-0.1)).toThrow(RangeError);
+  });
+
+  it("a mix without oxygen has no MOD, and the snapshot is still built", () => {
+    // The setup allows 0% oxygen; a throw here threw out of every frame and
+    // the dive never started (#185 review).
+    expect(maximumOperatingDepthM(0)).toBeNull();
+    const state = freezeDiveState({
+      ...ocDive(2),
+      tanks: [
+        createTankState(createGasMix(0.21, 0)),
+        createTankState(createGasMix(0, 1)),
+      ],
+    });
+    expect(view(state).tanks.map((tank) => tank.modM)).toEqual([66, null]);
   });
 
   it("each cylinder in the snapshot carries its MOD", () => {

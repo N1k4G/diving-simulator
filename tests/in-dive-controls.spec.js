@@ -1065,6 +1065,34 @@ test.describe('gas information', () => {
     await expect(gasInfoToggle(page)).toHaveAttribute('aria-expanded', 'false');
   });
 
+  test('the default technical dive, one cylinder, has it, and keeps it across a reload', async ({ page }) => {
+    // #185 review: counting cylinders read the default technical setup as
+    // recreational. The mode now comes from the setup, and from the save on
+    // a resume.
+    await page.goto('/dist/');
+    await page.evaluate(() => window.localStorage.clear());
+    await acceptSafetyGate(page);
+    await page.locator('[data-setup-group=mode] [data-setup-option=tec]').check();
+    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+
+    await expect(gasInfoToggle(page)).toBeVisible();
+    await page.keyboard.press('i');
+    await expect(gasInfoHeading(page)).toHaveText('Gas information · Cylinders 1–1');
+
+    const saved = await persistedSave(page);
+    expect(saved.version).toBe(3);
+    expect(saved.diveMode).toBe('tec');
+
+    // Resume: the setup screen the reload draws says recreational, the save
+    // says technical, and the save wins, as it does for the gradient factors.
+    await page.reload();
+    await acceptSafetyGate(page);
+    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+    await expect(gasInfoToggle(page)).toBeVisible();
+  });
+
   test('four cylinders get a second cylinders page', async ({ page }) => {
     // Legacy skips page 2 unless tankCount > 3.
     await startFourCylinderDive(page);
@@ -1110,6 +1138,11 @@ test.describe('gas information', () => {
     await expect(gasInfoHeading(page)).toHaveText('Gas information · Rebreather');
     await expect(gasInfoPanel(page)).toContainText('Loop');
     await expect(gasInfoPanel(page)).toContainText('21% O₂ · 0% He');
+    // Legacy's O2 V and DIL V rows (#185 review): the default 2 L and 3 L.
+    await expect(gasInfoPanel(page)).toContainText('O₂ cylinder size');
+    await expect(gasInfoPanel(page)).toContainText('2 L');
+    await expect(gasInfoPanel(page)).toContainText('Diluent cylinder size');
+    await expect(gasInfoPanel(page)).toContainText('3 L');
 
     await page.keyboard.press('b');
     // BAIL in legacy's danger tone; here the glyph says it.

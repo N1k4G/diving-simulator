@@ -18,10 +18,11 @@ import {
   formatPartialPressure,
   formatPercent,
   formatPressure,
+  formatVolume,
   formatWholeMinutes,
 } from "./i18n/formatters";
 import { cylinderIndicesForPage, type GasInfoPage } from "./gas-info-pages";
-import { selectLoopRowDanger } from "./loop-danger";
+import { isLoopPagePo2Danger, selectLoopRowDanger } from "./loop-danger";
 
 export interface GasInfoElements {
   readonly panel: HTMLElement;
@@ -232,7 +233,11 @@ function buildBlocks(
           kind: "rows",
           rows: [
             { label: t("wreck.hud.setpoint"), value: formatPartialPressure(ccr.targetPo2Bar, locale) },
-            { label: t("wreck.hud.loopPo2"), value: formatPartialPressure(ccr.actualPo2Bar, locale), danger: danger.loopPo2 },
+            {
+              label: t("wreck.hud.loopPo2"),
+              value: formatPartialPressure(ccr.actualPo2Bar, locale),
+              danger: isLoopPagePo2Danger(ccr.actualPo2Bar),
+            },
             {
               label: t("wreck.gasInfo.loop.mode"),
               value: t(ccr.onBailout ? "wreck.gasInfo.loop.onBailout" : "wreck.gasInfo.loop.onLoop"),
@@ -245,9 +250,17 @@ function buildBlocks(
               danger: danger.oxygenCylinder,
             },
             {
+              label: t("wreck.gasInfo.loop.oxygenVolume"),
+              value: formatVolume(ccr.oxygenCylinderVolumeL, locale),
+            },
+            {
               label: t("wreck.hud.diluentCylinder"),
               value: formatPressure(Math.round(ccr.diluentCylinderPressureBar), locale),
               danger: danger.diluentCylinder,
+            },
+            {
+              label: t("wreck.gasInfo.loop.diluentVolume"),
+              value: formatVolume(ccr.diluentCylinderVolumeL, locale),
             },
             { label: t("wreck.gasInfo.loop.diluentMix"), value: mixText(ccr.diluent, locale) },
             {
@@ -277,7 +290,13 @@ function cylinderBlock(tank: PresentationTank, locale: SupportedLocale): Block {
         // Legacy: `tkIsDanger = tkBar < 50` on the rounded pressure.
         danger: pressureBar < 50,
       },
-      { label: t("wreck.gasInfo.cylinder.mod"), value: formatDepth(tank.modM, locale) },
+      {
+        label: t("wreck.gasInfo.cylinder.mod"),
+        value:
+          tank.modM === null
+            ? t("wreck.value.unavailable")
+            : formatDepth(tank.modM, locale),
+      },
     ],
   };
 }

@@ -43,6 +43,7 @@ import {
 import {
   toInitialDiveOptions,
   toPlannerSettings,
+  type DiveMode,
   type DiveSetup,
   type SiteId,
 } from "./setup/dive-setup";
@@ -283,6 +284,9 @@ async function startWreckSimulation(
         resumed.gradientFactors.highPercent,
       )
     : toPlannerSettings(setup);
+  // The mode travels like the gradient factors: from the save when the dive
+  // is resumed, from the setup screen when it is new (#185 review).
+  const diveMode: DiveMode = resumed ? resumed.diveMode : setup.mode;
   let nextSaveAtS = 5;
   let gasInfoPage: GasInfoPage | null = null;
   let lastPresentation: PresentationState | null = null;
@@ -299,7 +303,7 @@ async function startWreckSimulation(
     plannerSettings,
     onAuthoritativeState: (state) => {
       if (state.elapsedTimeS >= nextSaveAtS) {
-        saveState(repository, state, plannerSettings);
+        saveState(repository, state, plannerSettings, diveMode);
         nextSaveAtS = state.elapsedTimeS + 5;
       }
     },
@@ -308,13 +312,13 @@ async function startWreckSimulation(
       lastPresentation = frame.presentation;
       // A page the dive no longer has closes: legacy leaves infoPageMode
       // behind the game-over screen, where it is not drawn.
-      if (!gasInfoPageStillValid(gasInfoPage, frame.presentation)) {
+      if (!gasInfoPageStillValid(gasInfoPage, frame.presentation, diveMode)) {
         gasInfoPage = null;
       }
       syncGasInfo(
         hud.gasInfo,
         gasInfoPage,
-        gasInfoAvailable(frame.presentation),
+        gasInfoAvailable(frame.presentation, diveMode),
         frame.presentation,
         plannerSettings,
         locale,
@@ -340,11 +344,11 @@ async function startWreckSimulation(
     if (!lastPresentation) {
       return;
     }
-    gasInfoPage = nextGasInfoPage(gasInfoPage, lastPresentation);
+    gasInfoPage = nextGasInfoPage(gasInfoPage, lastPresentation, diveMode);
     syncGasInfo(
       hud.gasInfo,
       gasInfoPage,
-      gasInfoAvailable(lastPresentation),
+      gasInfoAvailable(lastPresentation, diveMode),
       lastPresentation,
       plannerSettings,
       locale,
@@ -361,7 +365,7 @@ async function startWreckSimulation(
     if (
       event.key.toLowerCase() === "i" &&
       !event.repeat &&
-      gasInfoAvailable(lastPresentation)
+      gasInfoAvailable(lastPresentation, diveMode)
     ) {
       event.preventDefault();
       cycleGasInfo();
@@ -371,7 +375,7 @@ async function startWreckSimulation(
       syncGasInfo(
         hud.gasInfo,
         null,
-        gasInfoAvailable(lastPresentation),
+        gasInfoAvailable(lastPresentation, diveMode),
         lastPresentation,
         plannerSettings,
         locale,
@@ -391,7 +395,7 @@ async function startWreckSimulation(
   window.addEventListener("pagehide", () => {
     document.removeEventListener("visibilitychange", handleVisibility);
     window.removeEventListener("keydown", handleGasInfoKey);
-    saveState(repository, controller.authoritativeState, plannerSettings);
+    saveState(repository, controller.authoritativeState, plannerSettings, diveMode);
     controller.destroy();
     audio.destroy();
   }, {
@@ -411,12 +415,18 @@ function saveState(
   repository: LocalSaveRepository,
   state: DiveState,
   settings: Readonly<PlannerSettings>,
+  diveMode: DiveMode,
 ): void {
   try {
-    repository.save(state, {
-      lowPercent: settings.gfLowPercent,
-      highPercent: settings.gfHighPercent,
-    });
+    repository.save(
+      state,
+      {
+        lowPercent: settings.gfLowPercent,
+        highPercent: settings.gfHighPercent,
+      },
+      Date.now(),
+      diveMode,
+    );
   } catch (error) {
     console.error(error);
   }

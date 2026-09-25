@@ -23,8 +23,11 @@ export interface PresentationTank {
   readonly gasRemainingL: Litres;
   readonly pressureBar: Bars;
   readonly active: boolean;
-  /** Maximum operating depth at 1.6 bar, computed on demand (#163). */
-  readonly modM: number;
+  /**
+   * Maximum operating depth at 1.6 bar, computed on demand (#163). Null for
+   * a mix without oxygen, which has none.
+   */
+  readonly modM: number | null;
 }
 
 /**
@@ -58,6 +61,8 @@ export interface PresentationPlannerForecast {
 
 export interface PresentationCcr {
   readonly diluent: Readonly<GasMix>;
+  readonly oxygenCylinderVolumeL: Litres;
+  readonly diluentCylinderVolumeL: Litres;
   readonly targetPo2Bar: Bars;
   readonly actualPo2Bar: Bars;
   readonly oxygenCylinderPressureBar: Bars;
@@ -176,6 +181,8 @@ export function selectBreathingPo2Bar(state: DiveState): Bars {
 function freezePresentationCcr(ccr: CcrState): PresentationCcr {
   return Object.freeze({
     diluent: Object.freeze({ ...ccr.diluent }),
+    oxygenCylinderVolumeL: ccr.oxygenCylinderVolumeL,
+    diluentCylinderVolumeL: ccr.diluentCylinderVolumeL,
     targetPo2Bar: ccr.targetPo2Bar,
     actualPo2Bar: ccr.actualPo2Bar,
     oxygenCylinderPressureBar: ccr.oxygenCylinderPressureBar,

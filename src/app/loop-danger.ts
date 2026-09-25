@@ -1,6 +1,7 @@
 // The rebreather's warning thresholds, shared by the HUD rows and alert in
 // wreck-app.ts and the gas-information page in gas-info.ts (#163), so the two
 // cannot mark the same reading differently.
+import { PO2_HIGH_BAR, PO2_HYPOXIA_BAR } from "../core/dive-model";
 import type { PresentationState } from "../presentation/presentation-state";
 
 // src/renderer.js TASK-032E, the CCR warning banner: LOW PO2 below 0.18 bar,
@@ -40,6 +41,16 @@ export function selectLoopRowDanger(
     diluentCylinder: isCcrCylinderLow(ccr.diluentCylinderPressureBar),
     scrubber: Math.round(ccr.scrubberRemainingS / 60) < 10,
   };
+}
+
+/**
+ * The loop PO2 limits of legacy's gas-information page, which are not the
+ * HUD row's: src/renderer.js infoPageMode 5 marks it with
+ * `po2Actual < PO2_HYPOXIA || po2Actual > PO2_HIGH`, 0.16 and 1.6 bar, where
+ * the dive computer row uses 0.18 (#185 review).
+ */
+export function isLoopPagePo2Danger(actualPo2Bar: number): boolean {
+  return actualPo2Bar < PO2_HYPOXIA_BAR || actualPo2Bar > PO2_HIGH_BAR;
 }
 
 // src/renderer.js: `var o2Bar = Math.round(ccrState.o2CylPressure);
