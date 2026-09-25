@@ -1,13 +1,13 @@
 {
   "schema": "issue-evidence/1",
   "issue": 163,
-  "slice": "PR 5 of n: gas information — I and a button walk legacy's info pages (cylinders, tissues, decompression, rebreather); the switch-depth decision carried over from #158; save format v3 with the dive mode",
+  "slice": "PR 5 of n: gas information, I and a button walking legacy info pages (cylinders, tissues, decompression without CNS pending #186, rebreather); the switch-depth decision from #158; save format v3 with the dive mode",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "d2b02eff45e32a8015bb7971b927c02c7bcc61aa",
-  "measuredTree": "2b9a70bb257219e5c139fad643ebb1c3d8b28ea2",
+  "measuredCommit": "4c5c0dec7d78d6a8ab452f7bea9b30b0c8d4fdd0",
+  "measuredTree": "7679aed460cf4f2e54a062aef8e7590064b981fb",
   "workingTree": "clean before the run and still clean after it (git status --porcelain empty at both ends, checked by the same shell invocation that ran the command)",
-  "recordedAt": "2026-09-25T13:31:58Z",
-  "runFinishedAt": "2026-09-25T13:37:29Z",
+  "recordedAt": "2026-09-25T13:43:48Z",
+  "runFinishedAt": "2026-09-25T13:49:19Z",
   "timestampProvenance": "Both are the output of `date -u +%Y-%m-%dT%H:%M:%SZ` printed by the shell immediately before and after the command.",
   "provenanceNote": "Measured against the committed tree. Only the commit adding this file follows the measured one. The first full run on this commit is the one recorded; no run was repeated.",
   "stackedOn": "feat/163-ccr-controls (PR #182): the loop page reads the rebreather HUD's strings and the danger thresholds this PR moves out of wreck-app.ts. Sibling of #184, which it does not depend on.",
@@ -28,7 +28,7 @@
     "distCheck": "pass — 17 files scanned, no source maps, 4 diagnostic markers absent",
     "unit": "271 passed (245 on PR #182, +26: 21 in tests/unit/gas-info.test.ts, 5 in tests/unit/save-game.test.ts)",
     "parity": "36 passed (unchanged; this branch does not carry #184's fixture)",
-    "e2e": "133 passed in 4.3 min (120 on PR #182, +13 in tests/in-dive-controls.spec.js)",
+    "e2e": "133 passed in 4.4 min (120 on PR #182, +13 in tests/in-dive-controls.spec.js)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, max delta 0",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -83,7 +83,7 @@
   "durableProvenance": {
     "check": "After the merge, `git rev-parse <squash-merge-commit>:src <squash-merge-commit>:tests <squash-merge-commit>:scripts` should equal the three below.",
     "caveat": "Holds only while the sole commit after the measured one adds this artifact.",
-    "srcTree": "00b11fb63ead85611503d6199cd4932725bc9760",
+    "srcTree": "41c675f5b54d7e2ca527a347816f7d59572bb67f",
     "testsTree": "03228bd37ace61e6068da9ac9e1b0b90ae5b6111",
     "scriptsTree": "52e3852fe9906142a846f72ea929c1f546e9d74c"
   },
@@ -124,6 +124,10 @@
     {
       "measuredCommit": "1a5f9c3c25f18722286eaf0dad253e27e7ba75ba",
       "why": "Predates review round 2."
+    },
+    {
+      "measuredCommit": "d2b02eff45e32a8015bb7971b927c02c7bcc61aa",
+      "why": "Predates the round-3 partial-page note; source differs by a comment only."
     }
   ],
   "reviewRound2": {
