@@ -118,6 +118,27 @@ describe("a forced forecast while one is in flight", () => {
     expect(requests).toHaveLength(1);
   });
 
+  it("clears an answered forecast the moment the breathed gas changes", async () => {
+    // #163 review round 2 on PR #182. The forecast on screen was computed
+    // for the gas before the act; showing it beside the new breathing state
+    // until the worker answers paired two different gases in one HUD.
+    const { controller, frames, requests, settle } = createHarness();
+
+    controller.adjustSetpoint(CCR_SETPOINT_STEP_BAR);
+    requests[0]?.resolve(forecastWithNdl(80));
+    await settle();
+    expect(frames.at(-1)?.presentation.planner?.ndlMin).toBe(80);
+
+    controller.bailOut();
+    // The frame published by the bailout already carries no forecast.
+    expect(frames.at(-1)?.presentation.ccr?.onBailout).toBe(true);
+    expect(frames.at(-1)?.presentation.planner).toBeNull();
+
+    requests[1]?.resolve(forecastWithNdl(40));
+    await settle();
+    expect(frames.at(-1)?.presentation.planner?.ndlMin).toBe(40);
+  });
+
   it("collapses several forces during one flight into a single replacement", async () => {
     // Three presses while one request is pending: one replacement, computed
     // from the state after all three, not three requests.

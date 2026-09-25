@@ -235,7 +235,7 @@ export class GameController {
     // The save and the forecast both describe the breathed gas, so neither
     // may wait for the next step to hear about it.
     this.#onAuthoritativeState?.(after);
-    this.#requestForecast(true);
+    this.#invalidateForecast();
     this.#publishFrame();
   }
 
@@ -255,7 +255,7 @@ export class GameController {
       return;
     }
     this.#onAuthoritativeState?.(after);
-    this.#requestForecast(true);
+    this.#invalidateForecast();
     this.#publishFrame();
   }
 
@@ -272,7 +272,7 @@ export class GameController {
       return;
     }
     this.#onAuthoritativeState?.(after);
-    this.#requestForecast(true);
+    this.#invalidateForecast();
     this.#publishFrame();
   }
 
@@ -409,6 +409,21 @@ export class GameController {
     });
     this.#renderer.render(presentation, scene);
     this.#onFrame(Object.freeze({ presentation, scene, fastForward }));
+  }
+
+  /**
+   * Drops the forecast on screen and asks for a new one (#163 review round
+   * 2 on PR #182). Called by the acts that change the breathed gas — a
+   * cylinder switch, a setpoint, a bailout — because the forecast already
+   * shown was computed for the gas the diver has just left: keeping it
+   * until the worker answers paired the new breathing state with the old
+   * NDL for as long as the worker took, up to its timeout. The HUD shows
+   * its unavailable mark instead until the new forecast lands, which is
+   * the same thing it shows before the first one.
+   */
+  #invalidateForecast(): void {
+    this.#planner = null;
+    this.#requestForecast(true);
   }
 
   #requestForecast(force = false): void {

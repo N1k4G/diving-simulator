@@ -22,6 +22,7 @@ import {
   formatGasFraction,
   formatPartialPressure,
   formatPressure,
+  formatWholeMinutes,
 } from "./i18n/formatters";
 import { CCR_SETPOINT_STEP_BAR } from "../core/dive-state";
 import { renderSetupScreen } from "./setup/setup-screen";
@@ -108,6 +109,11 @@ const warningStatusKeys: Record<WarningSeverity, MessageKey> = {
 const CCR_PO2_LOW_WARNING_BAR = 0.18;
 const CCR_PO2_HIGH_WARNING_BAR = 1.5;
 const SCRUBBER_LOW_WARNING_S = 10 * 60;
+// src/renderer.js drawDiveComputer, CCR branch: the PO2 row turns danger
+// above 1.6 (the banner already warns from 1.5), and each cylinder row
+// under 30 bar.
+const CCR_PO2_ROW_DANGER_HIGH_BAR = 1.6;
+const CCR_CYLINDER_LOW_BAR = 30;
 
 export function renderWreckApplication(
   root: HTMLElement,
@@ -681,16 +687,76 @@ function syncLoopRows(
     return;
   }
   hud.setpoint.textContent = formatPartialPressure(ccr.targetPo2Bar, locale);
-  hud.loopPo2.textContent = formatPartialPressure(ccr.actualPo2Bar, locale);
-  hud.oxygenCylinder.textContent = formatPressure(
-    ccr.oxygenCylinderPressureBar,
+  // The rows legacy draws in its danger tone with the ⚠ prefix
+  // (src/renderer.js drawDiveComputer, CCR branch — hudDangerPrefix()), so a
+  // reading past its limit says so in the glyph and not only in colour
+  // (#163 review round 2 on PR #182).
+  const danger = selectLoopRowDanger(ccr);
+  writeLoopRow(
+    hud.loopPo2,
+    formatPartialPressure(ccr.actualPo2Bar, locale),
+    danger.loopPo2,
     locale,
   );
-  hud.diluentCylinder.textContent = formatPressure(
-    ccr.diluentCylinderPressureBar,
+  writeLoopRow(
+    hud.oxygenCylinder,
+    formatPressure(ccr.oxygenCylinderPressureBar, locale),
+    danger.oxygenCylinder,
     locale,
   );
-  hud.scrubber.textContent = formatDuration(ccr.scrubberRemainingS, locale);
+  writeLoopRow(
+    hud.diluentCylinder,
+    formatPressure(ccr.diluentCylinderPressureBar, locale),
+    danger.diluentCylinder,
+    locale,
+  );
+  writeLoopRow(
+    hud.scrubber,
+    formatWholeMinutes(ccr.scrubberRemainingS, locale),
+    danger.scrubber,
+    locale,
+  );
+}
+
+/**
+ * Which loop rows legacy marks as danger, by its own row thresholds, which
+ * are not the banner's: PO2 outside 0.18..1.6 (the banner warns from 1.5),
+ * either cylinder under 30 bar and the scrubber under 10 minutes, the last
+ * three on the rounded value legacy displays.
+ */
+function selectLoopRowDanger(ccr: NonNullable<PresentationState["ccr"]>) {
+  return {
+    loopPo2:
+      ccr.actualPo2Bar < CCR_PO2_LOW_WARNING_BAR ||
+      ccr.actualPo2Bar > CCR_PO2_ROW_DANGER_HIGH_BAR,
+    oxygenCylinder: isCcrCylinderLow(ccr.oxygenCylinderPressureBar),
+    diluentCylinder: isCcrCylinderLow(ccr.diluentCylinderPressureBar),
+    scrubber: Math.round(ccr.scrubberRemainingS / 60) < 10,
+  };
+}
+
+// src/renderer.js: `var o2Bar = Math.round(ccrState.o2CylPressure);
+// o2IsDangerCCR = o2Bar < 30`, and the same for the diluent.
+function isCcrCylinderLow(pressureBar: number): boolean {
+  return Math.round(pressureBar) < CCR_CYLINDER_LOW_BAR;
+}
+
+function writeLoopRow(
+  value: HTMLElement,
+  text: string,
+  danger: boolean,
+  locale: SupportedLocale,
+): void {
+  const next = danger
+    ? `${translate(locale, "wreck.symbol.warning")} ${text}`
+    : text;
+  if (value.textContent !== next) {
+    value.textContent = next;
+  }
+  const row = value.parentElement;
+  if (row) {
+    row.toggleAttribute("data-danger", danger);
+  }
 }
 
 function bindLoopControls(
@@ -755,14 +821,18 @@ function selectWarning(
   ) {
     return "oxygen";
   }
-  // Low gas: the cylinder actually being breathed. On a rebreather that is
-  // the diluent after a bailout, and nothing before it — the loop is not a
-  // cylinder, and tanks[0] there is the codec's placeholder.
+  // Low gas on a rebreather: either of its own cylinders under legacy's
+  // 30 bar row threshold (#163 review round 2 on PR #182), never tanks[0],
+  // which there is the codec's placeholder. The oxygen cylinder only while
+  // the loop is breathed — after a bailout nothing draws on it, so its level
+  // is a row marker and not a reason to interrupt the diver. Last in the
+  // order because legacy's banner does not carry it at all: it may speak
+  // only when none of the banner's warnings is active.
   if (ccr) {
-    if (ccr.onBailout && ccr.diluentCylinderPressureBar <= 50) {
-      return "lowGas";
-    }
-    return null;
+    const lowOxygen =
+      !ccr.onBailout && isCcrCylinderLow(ccr.oxygenCylinderPressureBar);
+    const lowDiluent = isCcrCylinderLow(ccr.diluentCylinderPressureBar);
+    return lowOxygen || lowDiluent ? "lowGas" : null;
   }
   const activeTank = presentation.tanks[presentation.activeTankIndex];
   if (activeTank && activeTank.pressureBar <= 50) {

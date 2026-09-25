@@ -671,6 +671,47 @@ async function savedStateWhere(page, predicate, timeoutMs = 15_000) {
   }
 }
 
+/**
+ * The HUD panel and every visible HUD row against every visible control and
+ * the hint. The panel itself is included, not only its rows: at 844x390 the
+ * rows stopped short of the dock while the panel's padding and background ran
+ * 9px into it, and a control drawn over the panel's edge is still a control
+ * drawn over the HUD.
+ */
+async function expectHudClearOfControls(page) {
+  const boxesOf = (selector) =>
+    page.evaluate((sel) => {
+      return [...document.querySelectorAll(sel)]
+        .filter((el) => el.getClientRects().length > 0)
+        .map((el) => {
+          const r = el.getBoundingClientRect();
+          return {
+            label: el.dataset.hudMetric || el.getAttribute('aria-label') || el.className,
+            x: r.x,
+            y: r.y,
+            width: r.width,
+            height: r.height,
+          };
+        });
+    }, selector);
+  const rows = await boxesOf('.wreck-hud, .wreck-hud > div');
+  const controls = await boxesOf(
+    '.wreck-controls button, .wreck-dock button, .controls-hint',
+  );
+  expect(rows.length).toBeGreaterThan(0);
+  expect(controls.length).toBeGreaterThan(0);
+  for (const row of rows) {
+    for (const control of controls) {
+      const dx = Math.min(row.x + row.width, control.x + control.width) - Math.max(row.x, control.x);
+      const dy = Math.min(row.y + row.height, control.y + control.height) - Math.max(row.y, control.y);
+      expect(
+        dx <= 0 || dy <= 0,
+        `HUD row ${row.label} meets ${control.label} by ${Math.round(dx)}x${Math.round(dy)}px`,
+      ).toBe(true);
+    }
+  }
+}
+
 const hudRow = (page, name) => page.locator(`.wreck-hud [data-hud-metric="${name}"]`);
 const hudValue = (page, name) => hudRow(page, name).locator('dd');
 const LOOP_ROWS = ['setpoint', 'loopPo2', 'oxygenCylinder', 'diluentCylinder', 'scrubber'];
@@ -820,6 +861,30 @@ test.describe('rebreather controls', () => {
     await expect(page.locator('.status-chip')).toContainText('CO₂ buildup');
   });
 
+  test('a rebreather cylinder under 30 bar is marked and warns', async ({ page }) => {
+    // src/renderer.js marks the O2 and DIL rows in danger tone with the ⚠
+    // prefix under 30 bar (#163 review round 2 on PR #182). Here that is the
+    // glyph in the row and the low-gas warning in words.
+    await resumeCcrDiveWith(page, (state) => {
+      state.ccr.oxygenCylinderPressureBar = 25;
+    });
+
+    await expect(hudValue(page, 'oxygenCylinder')).toHaveText('⚠ 25 bar');
+    await expect(hudRow(page, 'oxygenCylinder')).toHaveAttribute('data-danger', '');
+    await expect(hudValue(page, 'diluentCylinder')).toHaveText('200 bar');
+    await expect(page.locator('[role="alert"]')).toHaveText(
+      'Low gas pressure — begin a controlled exit',
+    );
+    await expect(page.locator('.status-chip')).toContainText('Low gas');
+  });
+
+  test('the scrubber reads in whole minutes, as legacy draws it', async ({ page }) => {
+    await resumeCcrDiveWith(page, (state) => {
+      state.ccr.scrubberRemainingS = 150 * 60 + 20;
+    });
+    await expect(hudValue(page, 'scrubber')).toHaveText(/^150 min$/);
+  });
+
   test('a failed dive offers no rebreather controls', async ({ page }) => {
     await resumeCcrDiveWith(page, (state) => {
       state.failure.reason = 'ccr-hypoxia';
@@ -833,6 +898,26 @@ test.describe('rebreather controls', () => {
     await expect(page.locator('[data-wreck-ccr]')).toBeHidden();
     expect(await pressAndReadClaim(page, ']')).toBe(false);
   });
+
+  // The HUD against every control, at the sizes a phone takes. The CCR HUD
+  // has ten rows; in one column they ran into the dock at short heights
+  // (#163 review round 2 on PR #182). Checked for both modes, since the
+  // open-circuit HUD shares the layout.
+  for (const [width, height] of [[844, 390], [667, 375], [390, 844], [1280, 720]]) {
+    test.describe(`${width}x${height}`, () => {
+      test.use({ viewport: { width, height } });
+
+      test('no HUD row meets a control on a rebreather dive', async ({ page }) => {
+        await startCcrDive(page);
+        await expectHudClearOfControls(page);
+      });
+
+      test('no HUD row meets a control on a six-cylinder dive', async ({ page }) => {
+        await startSixCylinderDive(page);
+        await expectHudClearOfControls(page);
+      });
+    });
+  }
 
   test.describe('mobile viewport', () => {
     test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });

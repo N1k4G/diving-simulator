@@ -39,6 +39,21 @@ export function formatPartialPressure(
   return `${formattedValue} bar`;
 }
 
+/**
+ * A duration in whole minutes, for the scrubber row: src/renderer.js draws
+ * `Math.round(ccrState.scrubberRemaining) + ' min'`. formatDuration's
+ * "2 hr, 59 min, 58 sec" wrapped onto two lines in the HUD and, with the
+ * loop's other rows, pushed it into the controls on a short screen (#163
+ * review round 2 on PR #182).
+ */
+export function formatWholeMinutes(
+  durationS: number,
+  locale: SupportedLocale,
+): string {
+  const minutes = Math.round(assertNonNegative(durationS, "durationS") / 60);
+  return formatUnit(minutes, locale, "minute");
+}
+
 export function formatGasFraction(
   fraction: number,
   locale: SupportedLocale,
