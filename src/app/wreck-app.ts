@@ -717,12 +717,16 @@ function bindLoopControls(
 // Returns the severity rather than a message, so callers cannot pick one
 // wording for the chip and a different state for the styling.
 //
-// Ordered by what the diver must act on first, not by legacy's banner order:
-// src/renderer.js lets SCR LOW (a caution) overwrite HIGH PO2 (a danger)
-// because it is assigned last, which is an artefact of sequential
-// assignment rather than a ranking. Here a loop outside its PO₂ window
-// outranks a scrubber with nine minutes left, and a failed scrubber
-// outranks both — CO₂ is the one that ends the dive in three minutes.
+// The loop warnings keep the legacy banner's effective precedence
+// (src/renderer.js TASK-032E): LOW/HIGH PO2 is assigned first, CO2!
+// overwrites it once the scrubber has failed, and SCR LOW overwrites
+// whatever is there while the scrubber is under ten minutes and has not
+// failed — so SCR LOW > CO2! > PO2, with the first two mutually exclusive
+// through scrubberFailed. A first cut of this ranked PO₂ above the scrubber
+// on the argument that a hyperoxic loop is the more urgent of the two; the
+// #182 review held that the legacy harness is the behavioural oracle
+// (docs/decisions.md) and that a re-ranking needs its own committed
+// decision, which is right, so the order is the oracle's until one exists.
 function selectWarning(
   presentation: Readonly<PresentationState>,
 ): WarningSeverity | null {
@@ -731,6 +735,14 @@ function selectWarning(
   }
   const { ccr } = presentation;
   const loopBreathed = ccr !== null && !ccr.onBailout;
+  if (
+    loopBreathed &&
+    !ccr.scrubberFailed &&
+    ccr.scrubberRemainingS > 0 &&
+    ccr.scrubberRemainingS < SCRUBBER_LOW_WARNING_S
+  ) {
+    return "scrubberLow";
+  }
   if (loopBreathed && ccr.scrubberFailed) {
     return "co2";
   }
@@ -742,13 +754,6 @@ function selectWarning(
         presentation.breathingPo2Bar > 1.6
   ) {
     return "oxygen";
-  }
-  if (
-    loopBreathed &&
-    ccr.scrubberRemainingS > 0 &&
-    ccr.scrubberRemainingS < SCRUBBER_LOW_WARNING_S
-  ) {
-    return "scrubberLow";
   }
   // Low gas: the cylinder actually being breathed. On a rebreather that is
   // the diluent after a bailout, and nothing before it — the loop is not a

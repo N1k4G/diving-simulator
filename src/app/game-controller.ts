@@ -89,6 +89,14 @@ export class GameController {
 
   #planner: PlannerForecast | null = null;
   #plannerPending = false;
+  /**
+   * A forced refresh arrived while a request was in flight (#163 review
+   * round 1 on PR #182). The in-flight answer describes a breathing gas the
+   * diver has since left — a gas switch, a setpoint, a bailout — so it is
+   * dropped when it lands, and a fresh request goes out then with the
+   * latest state instead of waiting for the next whole-second step.
+   */
+  #forcedForecastQueued = false;
   #routePositionM = START_ROUTE_POSITION_M;
   #diverDepthM = START_DEPTH_M;
   #elapsedRealS = 0;
@@ -404,7 +412,13 @@ export class GameController {
   }
 
   #requestForecast(force = false): void {
-    if (this.#plannerPending || this.#disposed) {
+    if (this.#disposed) {
+      return;
+    }
+    if (this.#plannerPending) {
+      if (force) {
+        this.#forcedForecastQueued = true;
+      }
       return;
     }
     const snapshot = this.#forecastScheduler.takeSnapshotIfDue(
@@ -420,7 +434,11 @@ export class GameController {
     void this.#plannerClient
       .forecast(snapshot, this.#plannerSettings)
       .then((forecast) => {
-        if (!this.#disposed) {
+        // Superseded while in flight: the state it was computed from no
+        // longer describes the breathed gas, so it must not become the
+        // forecast on screen even for the moment until the replacement
+        // lands.
+        if (!this.#disposed && !this.#forcedForecastQueued) {
           this.#planner = forecast;
           this.#publishFrame();
         }
@@ -432,6 +450,10 @@ export class GameController {
       })
       .finally(() => {
         this.#plannerPending = false;
+        if (this.#forcedForecastQueued && !this.#disposed) {
+          this.#forcedForecastQueued = false;
+          this.#requestForecast(true);
+        }
       });
   }
 
