@@ -174,20 +174,29 @@ function runBaselineScenarios() {
     bailout.checkpoints.push(checkpoint('ccr-bailout-30m', 'bailout-ascent-18m'));
     scenarios.push(bailout);
 
-    // #163 acceptance: an in-dive setpoint change and a bailout, driven by
-    // the keys a diver presses ([ ] and B), so the migration client's
-    // DiveModel.adjustSetpoint() and bailOut() can be replayed against them.
-    // The tank switch the acceptance also names is `deco-gas-21m` above: a
-    // CCR dive has one open-circuit cylinder in legacy too (TASK-019 loops to
-    // tankCount), so no single legacy dive carries all three.
+    // #163 acceptance: a tank switch, a setpoint change and a bailout,
+    // driven by the keys a diver presses (2, ] and B), so the migration
+    // client's DiveModel.switchGas(), adjustSetpoint() and bailOut() can be
+    // replayed against them. Two dives, because a CCR dive has one
+    // open-circuit cylinder in legacy too (TASK-019 loops to tankCount).
     //
-    // The diluent is Tx 15/45 while the setup cylinder stays air, on purpose.
-    // `ccr-bailout-30m` uses air for both, so no checkpoint could tell which
-    // one a bailout forecast breathes; this one can (#183).
+    // EACH KEY IS READ IN A ZERO-LENGTH TICK. updateDiving() reads the keys
+    // after updateTissues() and after the gas billing or loop update, so a
+    // key read inside an ordinary tick lands in the middle of it: that tick
+    // integrates the old gas and, for a tank switch, bills the new one. The
+    // migration client applies an act between whole-second steps, where
+    // neither half of that split exists. A zero-length tick puts the key on a
+    // tick boundary, where the two clients mean the same thing, so the
+    // segment after it can be replayed on the model's own breathing and life
+    // support and compared field by field (#184 review round 1).
     //
-    // Each key is read inside updateDiving() after updateTissues() and the
-    // loop update, so the tick that reads it integrates at the old setpoint
-    // or on the loop, and the change applies from the next tick.
+    // The five minutes after ] run in one-second ticks, the model's fixed
+    // step. The loop PO2 climbs to the new setpoint inside them, and a 6 s
+    // legacy tick integrates that climb differently from six 1 s steps.
+    //
+    // The CCR diluent is Tx 15/45 while the setup cylinder stays air, on
+    // purpose. ccr-bailout-30m uses air for both, so no checkpoint could tell
+    // which one a bailout forecast breathes; this one can (#183).
     setup('ccr', 'shore', [[0.21, 0, 200]]);
     api.ccrState.targetSP = 1.2;
     api.ccrState.actualPO2 = 1.2;
@@ -196,24 +205,46 @@ function runBaselineScenarios() {
     api.ccrState.dilFN2 = 0.4;
     const inDive = {
       scenarioId: 'ccr-setpoint-bailout-30m',
-      description: 'CCR at 1.2 bar with Tx 15/45 diluent at 30 m; ] raises the setpoint to 1.3 after 10 min, B bails out after 15 min, then an ascent to 21 m on the diluent',
+      description: 'CCR at 1.2 bar with Tx 15/45 diluent at 30 m; ] in a zero-length tick raises the setpoint to 1.3 after 10 min, five minutes in one-second ticks, B in a zero-length tick, then an ascent to 21 m on the diluent',
       checkpoints: [checkpoint('ccr-setpoint-bailout-30m', 'surface')]
     };
     holdDepth(30, 10);
     inDive.checkpoints.push(checkpoint('ccr-setpoint-bailout-30m', 'bottom-10min'));
     api.setKeys({ ']': true });
-    updateAtDepth(30, 0.025, 0);
+    updateAtDepth(30, 0, 0);
     api.clearKeys();
     inDive.checkpoints.push(checkpoint('ccr-setpoint-bailout-30m', 'setpoint-raised'));
-    holdDepth(30, 5);
+    holdDepth(30, 5, 1 / 60);
     inDive.checkpoints.push(checkpoint('ccr-setpoint-bailout-30m', 'bottom-15min'));
     api.setKeys({ b: true });
-    updateAtDepth(30, 0.025, 0);
+    updateAtDepth(30, 0, 0);
     api.clearKeys();
     inDive.checkpoints.push(checkpoint('ccr-setpoint-bailout-30m', 'bailed-out'));
     ascend(30, 21, 9);
     inDive.checkpoints.push(checkpoint('ccr-setpoint-bailout-30m', 'bailout-ascent-21m'));
     scenarios.push(inDive);
+
+    // The open-circuit half: key 2 at 21 m on a trimix dive, in a zero-length
+    // tick, then three minutes on the 50% cylinder, so both cylinders' gas
+    // can be compared after the switch. deco-gas-21m above reads the key in
+    // an ordinary tick, and is left exactly as it was recorded.
+    setup('tec', 'wreck', [[0.21, 0.35, 200], [0.5, 0, 200]]);
+    const tecSwitch = {
+      scenarioId: 'tec-switch-21m',
+      description: 'Trimix 21/35 at 30 m for 15 min, ascent to 21 m, key 2 in a zero-length tick to the 50% cylinder, then 3 min at 21 m on it',
+      checkpoints: [checkpoint('tec-switch-21m', 'surface')]
+    };
+    holdDepth(30, 15);
+    tecSwitch.checkpoints.push(checkpoint('tec-switch-21m', 'bottom-15min'));
+    ascend(30, 21, 9);
+    tecSwitch.checkpoints.push(checkpoint('tec-switch-21m', 'ascent-21m'));
+    api.setKeys({ 2: true });
+    updateAtDepth(21, 0, 0);
+    api.clearKeys();
+    tecSwitch.checkpoints.push(checkpoint('tec-switch-21m', 'switched'));
+    holdDepth(21, 3);
+    tecSwitch.checkpoints.push(checkpoint('tec-switch-21m', 'deco-gas-3min'));
+    scenarios.push(tecSwitch);
 
     return scenarios;
   } finally {
