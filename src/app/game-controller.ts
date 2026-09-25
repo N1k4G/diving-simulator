@@ -498,18 +498,24 @@ export class GameController {
       return;
     }
     // [ and ] move the setpoint and B bails out, as src/game-loop.js binds
-    // them during a CCR dive. Edge-triggered like the digits, and claimed
-    // only while the loop is being breathed: on open circuit or after a
-    // bailout these keys do nothing, so they are left to whoever else
-    // wants them.
-    if (!event.repeat && this.#loopControlsOffered()) {
+    // them during a CCR dive, claimed only while the loop is being
+    // breathed: on open circuit or after a bailout these keys do nothing,
+    // so they are left to whoever else wants them.
+    //
+    // The setpoint keys repeat while held, as legacy's do: its keydown
+    // listener sets keys[k] on every event, autorepeat included, and
+    // updateDiving consumes one step per set (#163 review round 3 on
+    // PR #182). The bound stops the climb, not the key. B stays
+    // edge-triggered — after the first press there is nothing left to bail
+    // out of, and the model refuses a second one either way.
+    if (this.#loopControlsOffered()) {
       const setpointStep = setpointStepForKey(event.key);
       if (setpointStep !== null) {
         event.preventDefault();
         this.adjustSetpoint(setpointStep);
         return;
       }
-      if (event.key.toLowerCase() === "b") {
+      if (event.key.toLowerCase() === "b" && !event.repeat) {
         event.preventDefault();
         this.bailOut();
         return;

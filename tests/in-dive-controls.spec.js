@@ -784,6 +784,24 @@ test.describe('rebreather controls', () => {
     expect(saved.state.ccr.targetPo2Bar).toBe(0.7);
   });
 
+  test('holding ] keeps raising the setpoint, as legacy does', async ({ page }) => {
+    // Legacy's keydown listener sets keys[']'] on every event, autorepeat
+    // included, and updateDiving consumes one step per set (#163 review
+    // round 3 on PR #182). Playwright marks every keyboard.down() after the
+    // first as a repeat until the key is released, which is what a held key
+    // sends.
+    await startCcrDive(page);
+
+    await page.keyboard.down(']');
+    await page.keyboard.down(']');
+    await page.keyboard.down(']');
+    await page.keyboard.up(']');
+
+    await expect(hudValue(page, 'setpoint')).toHaveText('1.00 bar');
+    const saved = await savedStateWhere(page, (s) => s.ccr.targetPo2Bar === 1);
+    expect(saved.state.ccr.targetPo2Bar).toBe(1);
+  });
+
   test('the setpoint buttons reach the same state as the keys', async ({ page }) => {
     await startCcrDive(page);
 
