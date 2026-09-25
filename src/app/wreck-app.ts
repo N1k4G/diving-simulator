@@ -25,7 +25,21 @@ import {
   formatWholeMinutes,
 } from "./i18n/formatters";
 import { CCR_SETPOINT_STEP_BAR } from "../core/dive-state";
+import {
+  CCR_PO2_HIGH_WARNING_BAR,
+  CCR_PO2_LOW_WARNING_BAR,
+  SCRUBBER_LOW_WARNING_S,
+  isCcrCylinderLow,
+  selectLoopRowDanger,
+} from "./loop-danger";
 import { renderSetupScreen } from "./setup/setup-screen";
+import { createGasInfo, syncGasInfo, type GasInfoElements } from "./gas-info";
+import {
+  gasInfoAvailable,
+  gasInfoPageStillValid,
+  nextGasInfoPage,
+  type GasInfoPage,
+} from "./gas-info-pages";
 import {
   toInitialDiveOptions,
   toPlannerSettings,
@@ -61,6 +75,7 @@ interface HudElements {
   readonly torch: HTMLButtonElement;
   readonly fastForward: HTMLButtonElement;
   readonly mute: HTMLButtonElement;
+  readonly gasInfo: GasInfoElements;
 }
 
 const zoneMessageKeys: Record<WreckZone, MessageKey> = {
@@ -101,19 +116,6 @@ const warningStatusKeys: Record<WarningSeverity, MessageKey> = {
   co2: "wreck.hud.warning.co2",
   failure: "wreck.hud.warning.failure",
 };
-
-// src/renderer.js TASK-032E, the CCR warning banner: LOW PO2 below 0.18 bar,
-// HIGH PO2 above 1.5, CO2! once the scrubber has failed, SCR LOW under ten
-// minutes. Tighter than the model's failure thresholds (0.16 / 1.6) on
-// purpose — a warning that fires at the failure line is not a warning.
-const CCR_PO2_LOW_WARNING_BAR = 0.18;
-const CCR_PO2_HIGH_WARNING_BAR = 1.5;
-const SCRUBBER_LOW_WARNING_S = 10 * 60;
-// src/renderer.js drawDiveComputer, CCR branch: the PO2 row turns danger
-// above 1.6 (the banner already warns from 1.5), and each cylinder row
-// under 30 bar.
-const CCR_PO2_ROW_DANGER_HIGH_BAR = 1.6;
-const CCR_CYLINDER_LOW_BAR = 30;
 
 export function renderWreckApplication(
   root: HTMLElement,
@@ -282,6 +284,8 @@ async function startWreckSimulation(
       )
     : toPlannerSettings(setup);
   let nextSaveAtS = 5;
+  let gasInfoPage: GasInfoPage | null = null;
+  let lastPresentation: PresentationState | null = null;
   const controller = new GameController({
     renderer,
     // A restored save still wins over the setup, which is existing resume
@@ -301,6 +305,20 @@ async function startWreckSimulation(
     },
     onFrame: (frame) => {
       updateHud(hud, frame, locale);
+      lastPresentation = frame.presentation;
+      // A page the dive no longer has closes: legacy leaves infoPageMode
+      // behind the game-over screen, where it is not drawn.
+      if (!gasInfoPageStillValid(gasInfoPage, frame.presentation)) {
+        gasInfoPage = null;
+      }
+      syncGasInfo(
+        hud.gasInfo,
+        gasInfoPage,
+        gasInfoAvailable(frame.presentation),
+        frame.presentation,
+        plannerSettings,
+        locale,
+      );
       audio.update({
         elapsedRealS: frame.scene.elapsedRealS,
         warningActive: selectWarning(frame.presentation) !== null,
@@ -315,6 +333,52 @@ async function startWreckSimulation(
   hud.fastForward.addEventListener("click", () =>
     controller.toggleFastForward(),
   );
+  // Gas information (#163). UI state only — which page is open changes
+  // nothing the model or the save knows about, so it lives here and not in
+  // the controller. The key and the button both walk the same cycle.
+  const cycleGasInfo = () => {
+    if (!lastPresentation) {
+      return;
+    }
+    gasInfoPage = nextGasInfoPage(gasInfoPage, lastPresentation);
+    syncGasInfo(
+      hud.gasInfo,
+      gasInfoPage,
+      gasInfoAvailable(lastPresentation),
+      lastPresentation,
+      plannerSettings,
+      locale,
+    );
+  };
+  hud.gasInfo.toggle.addEventListener("click", cycleGasInfo);
+  // I walks the pages and Escape closes them, as src/state.js binds both.
+  // Each is claimed only when it does something, like every dive key here;
+  // a modified I (Ctrl+I and the like) is the browser's.
+  const handleGasInfoKey = (event: KeyboardEvent) => {
+    if (!lastPresentation || event.ctrlKey || event.metaKey || event.altKey) {
+      return;
+    }
+    if (
+      event.key.toLowerCase() === "i" &&
+      !event.repeat &&
+      gasInfoAvailable(lastPresentation)
+    ) {
+      event.preventDefault();
+      cycleGasInfo();
+    } else if (event.key === "Escape" && gasInfoPage !== null) {
+      event.preventDefault();
+      gasInfoPage = null;
+      syncGasInfo(
+        hud.gasInfo,
+        null,
+        gasInfoAvailable(lastPresentation),
+        lastPresentation,
+        plannerSettings,
+        locale,
+      );
+    }
+  };
+  window.addEventListener("keydown", handleGasInfoKey);
   hud.mute.addEventListener("click", () => {
     audio.setMuted(!audio.muted);
     hud.mute.setAttribute("aria-pressed", String(audio.muted));
@@ -326,6 +390,7 @@ async function startWreckSimulation(
   document.addEventListener("visibilitychange", handleVisibility);
   window.addEventListener("pagehide", () => {
     document.removeEventListener("visibilitychange", handleVisibility);
+    window.removeEventListener("keydown", handleGasInfoKey);
     saveState(repository, controller.authoritativeState, plannerSettings);
     controller.destroy();
     audio.destroy();
@@ -405,7 +470,8 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   mute.setAttribute("aria-label", translate(locale, "wreck.controls.mute"));
   mute.setAttribute("aria-pressed", "false");
   mute.textContent = translate(locale, "wreck.symbol.audio");
-  topbarActions.append(speed, status, mute);
+  const gasInfo = createGasInfo(locale);
+  topbarActions.append(speed, status, gasInfo.toggle, mute);
   topbar.append(identity, topbarActions);
 
   const viewport = document.createElement("div");
@@ -547,7 +613,13 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   dock.className = "wreck-dock";
   dock.append(hint, tanks, ccr);
 
-  shell.append(topbar, viewport, hud, warning, dock, controls);
+  // The HUD and the gas-information panel share one column, so an open
+  // page sits below the readouts rather than over them (#163).
+  const column = document.createElement("div");
+  column.className = "wreck-column";
+  column.append(hud, gasInfo.panel);
+
+  shell.append(topbar, viewport, column, warning, dock, controls);
   return {
     shell,
     viewport,
@@ -570,6 +642,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     torch,
     fastForward,
     mute,
+    gasInfo,
   };
 }
 
@@ -721,29 +794,6 @@ function syncLoopRows(
     danger.scrubber,
     locale,
   );
-}
-
-/**
- * Which loop rows legacy marks as danger, by its own row thresholds, which
- * are not the banner's: PO2 outside 0.18..1.6 (the banner warns from 1.5),
- * either cylinder under 30 bar and the scrubber under 10 minutes, the last
- * three on the rounded value legacy displays.
- */
-function selectLoopRowDanger(ccr: NonNullable<PresentationState["ccr"]>) {
-  return {
-    loopPo2:
-      ccr.actualPo2Bar < CCR_PO2_LOW_WARNING_BAR ||
-      ccr.actualPo2Bar > CCR_PO2_ROW_DANGER_HIGH_BAR,
-    oxygenCylinder: isCcrCylinderLow(ccr.oxygenCylinderPressureBar),
-    diluentCylinder: isCcrCylinderLow(ccr.diluentCylinderPressureBar),
-    scrubber: Math.round(ccr.scrubberRemainingS / 60) < 10,
-  };
-}
-
-// src/renderer.js: `var o2Bar = Math.round(ccrState.o2CylPressure);
-// o2IsDangerCCR = o2Bar < 30`, and the same for the diluent.
-function isCcrCylinderLow(pressureBar: number): boolean {
-  return Math.round(pressureBar) < CCR_CYLINDER_LOW_BAR;
 }
 
 function writeLoopRow(

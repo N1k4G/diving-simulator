@@ -345,6 +345,83 @@ export function decoStopDepth(ceilingM: Metres | number): Metres {
 }
 
 /**
+ * How close each compartment is to its M-value at a given ambient pressure
+ * (#163, gas information).
+ *
+ * src/renderer.js drawDiveComputer, infoPageMode 3 and 4:
+ *   mVal  = a + pAmb / b                         (combined N2/He a, b)
+ *   ratio = (pN2 + pHe) / mVal                   — the tissue bar
+ *   gf    = (pt - pAmb) / (mVal - pAmb) * 100    — 0 when mVal - pAmb <= 1e-4
+ * The a and b are the same combined coefficients calculateCeiling() uses, so
+ * the overlay and the ceiling cannot disagree about a compartment.
+ */
+export interface CompartmentSaturation {
+  readonly mValueRatio: number;
+  readonly gradientFactorPercent: number;
+}
+
+export function compartmentSaturation(
+  tissues: TissueState,
+  ambientBar: number,
+): readonly CompartmentSaturation[] {
+  assertTissueShape(tissues);
+  const result: CompartmentSaturation[] = [];
+  for (let index = 0; index < ZHL16C_N2.length; index += 1) {
+    const { a, b } = combinedCoefficients(
+      tissues.nitrogenBar,
+      tissues.heliumBar,
+      index,
+    );
+    const totalBar =
+      (tissues.nitrogenBar[index] ?? 0) + (tissues.heliumBar[index] ?? 0);
+    const mValueBar = a + ambientBar / b;
+    result.push(
+      Object.freeze({
+        mValueRatio: totalBar / mValueBar,
+        gradientFactorPercent:
+          mValueBar - ambientBar > 0.0001
+            ? ((totalBar - ambientBar) / (mValueBar - ambientBar)) * 100
+            : 0,
+      }),
+    );
+  }
+  return Object.freeze(result);
+}
+
+/**
+ * The leading compartment's gradient factor, as legacy shows it: GF99 at the
+ * current depth and SrfGF at 1.0 bar, `Math.max(0, Math.round(max gf))`.
+ */
+export function leadingGradientFactorPercent(
+  tissues: TissueState,
+  ambientBar: number,
+): number {
+  let leading = 0;
+  for (const compartment of compartmentSaturation(tissues, ambientBar)) {
+    leading = Math.max(leading, compartment.gradientFactorPercent);
+  }
+  return Math.max(0, Math.round(leading));
+}
+
+/**
+ * A mix's maximum operating depth at PO2_HIGH_BAR, as legacy's gas-info page
+ * draws it: `Math.floor(((PO2_HIGH / fO2) - 1) * 10)`.
+ *
+ * This is also #158's carried-over question answered: the per-cylinder
+ * switch depth stays out of TankState and is computed on demand. Legacy
+ * keeps `switchDepth` on each tank but reads it only on its setup screen —
+ * the one place its gas logic consulted it, the staging check in
+ * bestGasForDepth, is commented out as DISABLED — so a stored field would
+ * carry a number nothing decides with, and cost a save-format change.
+ */
+export function maximumOperatingDepthM(oxygenFraction: number): number {
+  if (!Number.isFinite(oxygenFraction) || oxygenFraction <= 0) {
+    throw new RangeError("oxygen fraction must be a positive finite number");
+  }
+  return Math.floor((PO2_HIGH_BAR / oxygenFraction - 1) * 10);
+}
+
+/**
  * How far from the stop depth a diver may drift and still count as holding
  * the stop: src/game-loop.js `Math.abs(depth - decoStopD) <= 1.5`.
  */
