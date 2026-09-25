@@ -3,11 +3,11 @@
   "issue": 163,
   "slice": "PR 3 of n: the rebreather controls — setpoint ([ ] and buttons), bailout (B and a button), the loop's HUD rows, and the loop warnings",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "f44cc318c4175faca6837d022e75c258f5eaf76b",
-  "measuredTree": "654972fd871bf16b592c198ad48649d09ea582e9",
+  "measuredCommit": "b9038f0ade1c9d2397f5d2d44e19c5af76a19913",
+  "measuredTree": "4faa892a117de1df2be2e2189f6ae1ea1259cf86",
   "workingTree": "clean before the run and still clean after it (git status --porcelain empty at both ends, checked by the same shell invocation that ran the command)",
-  "recordedAt": "2026-09-25T08:58:55Z",
-  "runFinishedAt": "2026-09-25T09:03:27Z",
+  "recordedAt": "2026-09-25T09:18:16Z",
+  "runFinishedAt": "2026-09-25T09:22:39Z",
   "timestampProvenance": "Both are the output of `date -u +%Y-%m-%dT%H:%M:%SZ` printed by the shell immediately before and after the command, not values written by hand.",
   "provenanceNote": "Measured against the committed tree rather than the working tree that became it. Only the commit adding this file follows the measured one.",
   "environment": {
@@ -25,9 +25,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass — 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "241 passed (222 on main, +19: 14 in tests/unit/ccr-in-dive.test.ts, 5 in tests/unit/game-controller-ccr.test.ts)",
+    "unit": "244 passed (222 on main, +22: 14 in tests/unit/ccr-in-dive.test.ts, 5 in tests/unit/game-controller-ccr.test.ts, 3 in tests/unit/game-controller-forecast.test.ts)",
     "parity": "36 passed (unchanged)",
-    "e2e": "108 passed in 3.3 min (97 on main, +11 in tests/in-dive-controls.spec.js)",
+    "e2e": "108 passed in 3.2 min (97 on main, +11 in tests/in-dive-controls.spec.js)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, max delta 0",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -41,7 +41,7 @@
     "keys": "`[` and `]` for the setpoint, B for bailout — src/game-loop.js; the same pair the setup screen binds, so the two screens agree.",
     "controlVisibility": "src/touch.js updateCcrDiveButtonVisibility: bailout, SP+ and SP− shown while `diveMode === 'ccr' && gameState === 'diving' && !ccrState.onBailout`; the DOM row here follows that plus the failed-dive rule.",
     "hudRows": "src/renderer.js drawDiveComputer, CCR branch of infoPageMode 0: mode, SP, PO2, O2, DIL, SCR. The five value rows are ported; the mode word is carried by the cylinder row ('Rebreather loop' / 'Bailout · diluent cylinder') from slice 2.",
-    "warnings": "src/renderer.js TASK-032E: LOW PO2 below 0.18 bar, HIGH PO2 above 1.5, CO2! once scrubberFailed, SCR LOW under 10 minutes, all only while not on bailout. The thresholds are ported; the precedence is not (see deliberateDesign.warningPrecedence)."
+    "warnings": "src/renderer.js TASK-032E: LOW PO2 below 0.18 bar, HIGH PO2 above 1.5, CO2! once scrubberFailed, SCR LOW under 10 minutes, all only while not on bailout. Thresholds and effective precedence are both the oracle's: the banner assigns PO2, then CO2!, then SCR LOW (guarded by !scrubberFailed), so the last assignment wins and the order is SCR LOW > CO2! > PO2."
   },
   "deliberateDesign": {
     "operationsAreTheModels": "The controller passes a delta or a request; DiveModel decides. No rebreather, on bailout, failed, at a bound, or a non-finite delta all return the same state reference, and the controller then publishes nothing and saves nothing — the same silence as a refused gas switch. There is one place for each rule.",
@@ -49,10 +49,11 @@
     "keysClaimedOnlyWhenOnOffer": "`[` `]` and B call preventDefault() only under #loopControlsOffered(), the same rule as the digits and F: a key that does nothing is left to whoever else wants it.",
     "rowsSwap": "On a CCR dive the five loop rows show and the open-circuit gas row hides, rather than both showing. The gas row on a CCR dive would read tanks[0]'s pressure, a cylinder nobody draws down; showing it beside the O₂ and diluent rows would be a third pressure with no meaning.",
     "twoDecimalsForPo2": "formatPartialPressure gives two decimals for setpoint and loop PO₂ (legacy: toFixed(1) for SP, toFixed(2) for PO2). A loop at 1.28 and one at 1.32 are different readings; a cylinder to the tenth of a bar is already more than anyone reads.",
-    "warningPrecedence": "failure > co2 > oxygen (loop 0.18..1.5, or open-circuit 0.16..1.6 after bailout) > scrubberLow > lowGas. Legacy assigns LOW/HIGH PO2, then CO2!, then SCR LOW in sequence, so a caution (SCR LOW) overwrites a danger (HIGH PO2) — an artefact of assignment order, not a ranking. A hyperoxic loop outranks nine minutes of scrubber, and a failed scrubber outranks both because CO₂ ends the dive in three minutes. Recorded here as a deviation in ordering only; every legacy warning still has a visual and an audio equivalent.",
+    "warningPrecedence": "failure > scrubberLow > co2 > oxygen > lowGas, which is the legacy banner's effective order (see boundsPortedFromTheOracle.warnings). The first cut ranked PO₂ above the scrubber on the argument that a hyperoxic loop is more urgent than nine minutes of scrubber; review round 1 held that docs/decisions.md makes the legacy harness the behavioural oracle and that a re-ranking needs its own committed decision. Accepted: the oracle's order stands until such a decision exists.",
     "lowGasOnTheBreathedCylinder": "Low gas fires on the active cylinder for open circuit, on the diluent after a bailout, and never on the loop — the loop is not a cylinder, and tanks[0] there is the placeholder. Before this slice the rule read tanks[0] on a CCR dive too; at 200 bar it never fired, so nothing observable changes, but the rule now says what it means.",
     "bailoutNameCarriesTheConsequence": "The bailout button's accessible name is 'Bail out to open circuit — cannot be undone'. It cannot ask for confirmation (#67), so its irreversibility has to be knowable before the press rather than discovered after it.",
-    "hiddenRowsNeedCss": "`.wreck-hud div` sets display: flex, which beats the user agent's [hidden] rule; `.wreck-hud div[hidden] { display: none }` was added so the loop rows actually vanish on open circuit. Asserted by the e2e that checks the rows hidden."
+    "hiddenRowsNeedCss": "`.wreck-hud div` sets display: flex, which beats the user agent's [hidden] rule; `.wreck-hud div[hidden] { display: none }` was added so the loop rows actually vanish on open circuit. Asserted by the e2e that checks the rows hidden.",
+    "forcedForecastSurvivesAFlight": "A forced forecast (gas switch, setpoint, bailout) that arrives while a request is in flight is remembered; the in-flight answer, computed for the gas the diver has left, is not published, and one replacement goes out from the latest state when it settles. Several forces during one flight collapse into that one replacement."
   },
   "sliceBoundary": {
     "issueSuggestion": "#163 proposes 'PR 3: CCR setpoint + bailout'. This is that PR, plus the HUD rows and warnings the issue lists under 'HUD additions the controls need' for the loop, because a setpoint control without a setpoint readout cannot be tested through the HUD.",
@@ -72,9 +73,12 @@
       "setpointMovableAfterBailout": "the onBailout guard removed from the setpoint — 2 of 19 unit tests fail",
       "loopKeysClaimedUnconditionally": "`[` `]` and B call preventDefault() on open circuit too — build pass, the open-circuit e2e fails on defaultPrevented",
       "controlRowKeptAfterBailout": "the row no longer hides on onBailout — build pass, the bailout e2e fails",
-      "co2WarningRemoved": "the co2 severity never selected — build pass, the failed-scrubber e2e fails"
+      "co2WarningRemoved": "the co2 severity never selected — build pass, the failed-scrubber e2e fails",
+      "forcedForceDropped": "the pending guard no longer records a force — 2 of 3 forecast unit tests fail",
+      "staleAnswerPublished": "the superseded in-flight answer is published — 1 of 3 forecast unit tests fails"
     },
-    "oneRevertDidNotCompileAtFirst": "Removing the #loopControlsOffered() call from the key handler left the method unread, and the build failed on TS6133 before any e2e ran; the script reported the failed build instead of a pass. The revert was rewritten to keep reading the method (`|| true`) and rerun."
+    "oneRevertDidNotCompileAtFirst": "Removing the #loopControlsOffered() call from the key handler left the method unread, and the build failed on TS6133 before any e2e ran; the script reported the failed build instead of a pass. The revert was rewritten to keep reading the method (`|| true`) and rerun.",
+    "rerunAfterRound1": "All seven original cases were run again against b9038f0 with the same outcomes; the two forecast cases were added in that round."
   },
   "accessibility": {
     "keyboard": "SP − / SP + carry aria-keyshortcuts '[' and ']', bailout 'B'. The keyboard hint names all three in en and de.",
@@ -91,8 +95,32 @@
     "why": "measuredCommit is a branch commit and becomes unreachable once this is squash-merged; the subtree hashes survive the squash because the squash commit carries the same content.",
     "check": "After the merge, `git rev-parse <squash-merge-commit>:src <squash-merge-commit>:tests <squash-merge-commit>:scripts` should equal the three below.",
     "caveat": "Holds only while the sole commit after the measured one adds this artifact and touches nothing under src, tests or scripts.",
-    "srcTree": "5c391fdfbf729427b2aad0863aaa22f667be1262",
-    "testsTree": "1b3fc5d8a637ba182cd2ddc2c62553c0bce64fbb",
+    "srcTree": "4de5c4f02238109553e4e606d899b9bc62d69d87",
+    "testsTree": "ec6209884dc7ff0b5a2b321db80c41ba975df31f",
     "scriptsTree": "52e3852fe9906142a846f72ea929c1f546e9d74c"
-  }
+  },
+  "reviewRound1": {
+    "findings": 3,
+    "bailoutForecastGas": {
+      "finding": "major bug — after a bailout, bestForecastGas() scans state.tanks for ascent steps and stops and can pick tanks[0], the codec's placeholder cylinder, which the diver cannot breathe.",
+      "assessment": "Disputed as a finding against this PR. It is the oracle's behaviour: src/physics.js calculateDecoSchedule uses activeGas() (the diluent on bailout) for the current segment but bestGasForDepth(d) for every ascent step and stop, and outside tec mode that returns tanks[activeTank] — the placeholder. The migration planner reproduces it, and it predates this PR, which adds bailOut() and calls the same forced forecast a gas switch already called.",
+      "disposition": "Tracked as #183: a normative decision, the planner change, and a baseline scenario whose diluent differs from the placeholder cylinder (ccr-bailout-30m uses air for both and cannot tell them apart). Answered on the PR."
+    },
+    "forcedForecastDropped": {
+      "finding": "minor bug — #requestForecast(true) returned at the pending guard, so a force during a periodic request was lost and the stale answer was published.",
+      "assessment": "Confirmed.",
+      "fix": "#forcedForecastQueued: the stale answer is dropped and a replacement issued from the latest state on settle. Three unit tests in tests/unit/game-controller-forecast.test.ts drive the worker client by hand."
+    },
+    "warningPrecedence": {
+      "finding": "major contract-violation — PO₂ ranked above SCR LOW, diverging from the legacy banner without a committed decision.",
+      "assessment": "Accepted.",
+      "fix": "selectWarning() now follows SCR LOW > CO2! > PO2."
+    }
+  },
+  "supersedes": [
+    {
+      "measuredCommit": "f44cc318c4175faca6837d022e75c258f5eaf76b",
+      "why": "Predates review round 1, which found the forced forecast lost during a flight and the warning precedence diverging from the oracle."
+    }
+  ]
 }
