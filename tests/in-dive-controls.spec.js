@@ -396,6 +396,37 @@ test.describe('cylinder readout', () => {
       'Rebreather loop',
     );
   });
+
+  test('a bailed-out closed-circuit dive names the diluent cylinder', async ({ page }) => {
+    // After a bailout the model breathes the diluent open-circuit
+    // (breathingSourceForState), and a save can resume in that state. The
+    // row used to say "Rebreather loop" for any CCR dive (#163 review
+    // round 1); the loop is exactly what a bailed-out diver is not on.
+    await page.goto('/dist/');
+    await page.evaluate(() => window.localStorage.clear());
+    await acceptSafetyGate(page);
+    await page.locator('[data-setup-group=mode] [data-setup-option=ccr]').check();
+    await expect(page.locator('[data-setup-stepper=setpoint]')).toBeVisible();
+    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+
+    const saved = await persistedSave(page);
+    saved.state.ccr.onBailout = true;
+    saved.state.events.push({ type: 'bailout', elapsedTimeS: saved.state.elapsedTimeS });
+
+    await page.goto('/dist/');
+    await page.evaluate(
+      ([key, value]) => window.localStorage.setItem(key, value),
+      [SAVE_KEY, JSON.stringify(saved)],
+    );
+    await acceptSafetyGate(page);
+    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+
+    await expect(page.locator('.wreck-hud [data-hud-metric="cylinder"] dd')).toHaveText(
+      'Bailout · diluent cylinder',
+    );
+  });
 });
 
 // The torch has had a key and a button since the wreck slice; what #163's
@@ -450,7 +481,8 @@ async function startDiveAtDecoStop(page, configure) {
   await acceptSafetyGate(page);
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
-  // Offered once the forecast has placed the diver at the stop.
+  // Offered from the first frame: the ceiling is computed from the model's
+  // own tissues, not awaited from the forecast worker.
   await expect(page.locator('[data-fast-forward]')).toBeVisible();
 }
 

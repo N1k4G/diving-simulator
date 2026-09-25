@@ -542,15 +542,23 @@ function updateHud(
  *
  * A closed-circuit dive breathes the loop, not a cylinder, and `tanks[0]`
  * on such a dive is only the codec's required placeholder — showing it as
- * "1 · 21 % O₂" would name a cylinder nobody is breathing. The loop's own
- * rows (setpoint, loop PO₂, scrubber, bailout) are the CCR slice of #163.
+ * "1 · 21 % O₂" would name a cylinder nobody is breathing. After a bailout
+ * the model breathes the diluent cylinder open-circuit
+ * (breathingSourceForState), and a save can resume in that state, so the
+ * row says so rather than still naming the loop (#163 review round 1). The
+ * loop's own rows (setpoint, loop PO₂, scrubber) are the CCR slice of #163.
  */
 function selectCylinderText(
   presentation: Readonly<PresentationState>,
   locale: SupportedLocale,
 ): string {
   if (presentation.ccr) {
-    return translate(locale, "wreck.hud.cylinder.loop");
+    return translate(
+      locale,
+      presentation.ccr.onBailout
+        ? "wreck.hud.cylinder.bailout"
+        : "wreck.hud.cylinder.loop",
+    );
   }
   const activeTank = presentation.tanks[presentation.activeTankIndex];
   if (!activeTank) {

@@ -9,6 +9,7 @@ import { NO_INPUT, type InputIntent } from "../core/inputs";
 import { metres, seconds } from "../core/units";
 import {
   DEFAULT_PLANNER_SETTINGS,
+  calculateCeiling,
   isAtDecoStop,
   type PlannerForecast,
   type PlannerSettings,
@@ -304,22 +305,32 @@ export class GameController {
   /**
    * Legacy's `canFastForward && !keys[w|up|s|down]`, on this client's state.
    *
-   * The stop comes from the forecast's ceiling, which is the same number
-   * legacy reads from frameCalc.ceiling, and the depth is the model's — the
-   * one the tissues were last integrated at — rather than the view's, so the
-   * decision is a function of authoritative state plus the held controls and
-   * not of where the sprite happens to be between steps. Without a forecast
-   * there is no stop to hold, and a failed dive has nothing left to wait out.
+   * The ceiling is computed here, synchronously, from the model's tissues —
+   * as legacy reads frameCalc.ceiling, refreshed on the same tick. It is not
+   * taken from the worker's forecast (#163 review round 1): that arrives
+   * asynchronously, is refreshed at most every two simulated seconds, and
+   * can stay pending for the worker's whole timeout, so while the clock ran
+   * at 10x a stop that had already cleared to 15 m would have kept the 18 m
+   * answer and the fast-forward with it. calculateCeiling is sixteen
+   * compartments of arithmetic and is what the worker itself calls first.
+   *
+   * The depth is the model's — the one the tissues were last integrated at —
+   * rather than the view's, so the decision is a function of authoritative
+   * state plus the held controls and not of where the sprite happens to be
+   * between steps. A failed dive has nothing left to wait out.
    */
   #fastForwardAvailable(): boolean {
     const state = this.#model.snapshot;
-    if (state.failure.reason !== null || this.#planner === null) {
+    if (state.failure.reason !== null) {
       return false;
     }
     if (this.#pressed.has("ascend") || this.#pressed.has("descend")) {
       return false;
     }
-    return isAtDecoStop(state.depthM, this.#planner.ceilingM);
+    return isAtDecoStop(
+      state.depthM,
+      calculateCeiling(state.tissues, this.#plannerSettings),
+    );
   }
 
   #createInputIntent(): Readonly<InputIntent> {

@@ -11,7 +11,7 @@ import {
 import { bars, metres } from "../../src/core/units";
 import {
   DEFAULT_PLANNER_SETTINGS,
-  DivePlanner,
+  calculateCeiling,
   decoStopDepth,
 } from "../../src/planner/dive-planner";
 
@@ -26,7 +26,7 @@ import {
  * A diver holding an 18 m stop: every compartment loaded to 3.0 bar of
  * nitrogen puts the ceiling at 17.5 m under the default gradient factors, and
  * decoStop() rounds that up to 18 m. Two cylinders, so a gas switch is
- * possible — it is the one act that forces a forecast without start().
+ * possible.
  */
 function stateAtStop(depthM = 18): DiveState {
   const base = createInitialDiveState(7, {
@@ -48,7 +48,6 @@ function stateAtStop(depthM = 18): DiveState {
 
 function createHarness(initialState: DiveState) {
   const frames: GameFrame[] = [];
-  const planner = new DivePlanner();
   const controller = new GameController({
     renderer: {
       kind: "pixi",
@@ -61,10 +60,14 @@ function createHarness(initialState: DiveState) {
       frames.push(frame);
     },
     initialState,
-    // A real forecast, delivered the way the worker would: asynchronously.
+    // Never resolves. The eligibility rule must not depend on the worker's
+    // forecast (#163 review round 1): that is asynchronous and can be stale
+    // for the whole of the worker's timeout, while the ceiling it would be
+    // read from is sixteen compartments of arithmetic the controller can do
+    // itself on every check. A forecast that never comes proves the rule
+    // does not wait for one.
     plannerClient: {
-      forecast: (state: DiveState) =>
-        Promise.resolve(planner.forecast(state, DEFAULT_PLANNER_SETTINGS)),
+      forecast: () => new Promise(() => undefined),
       dispose: () => undefined,
     } as unknown as ConstructorParameters<
       typeof GameController
@@ -77,37 +80,29 @@ function createHarness(initialState: DiveState) {
     }
     return frame.fastForward;
   };
-  // The forecast lands in a later microtask; this lets it.
-  const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
-  return { controller, frames, last, settle };
+  return { controller, frames, last };
 }
 
 describe("fast-forward at the controller", () => {
   it("the fixture really is at an 18 m stop", () => {
-    const forecast = new DivePlanner().forecast(
-      stateAtStop(),
+    const ceilingM = calculateCeiling(
+      stateAtStop().tissues,
       DEFAULT_PLANNER_SETTINGS,
     );
-    expect(decoStopDepth(forecast.ceilingM)).toBe(18);
+    expect(decoStopDepth(ceilingM)).toBe(18);
   });
 
-  it("is not on offer until a forecast says there is a stop", () => {
+  it("is on offer from the authoritative state alone, with no forecast", () => {
     const { controller, last } = createHarness(stateAtStop());
 
-    // Nothing has been forecast, so there is no stop to hold, so the toggle
-    // is refused and publishes nothing. The torch is the probe: it publishes
-    // a frame without touching the fast-forward state.
-    controller.toggleFastForward();
+    // The torch is the probe: it publishes a frame without touching the
+    // fast-forward state.
     controller.toggleTorch();
-
-    expect(last()).toEqual({ available: false, active: false });
+    expect(last()).toEqual({ available: true, active: false });
   });
 
-  it("toggles once the forecast places the diver at a stop", async () => {
-    const { controller, last, settle } = createHarness(stateAtStop());
-    controller.requestTankSwitch(1);
-    await settle();
-    expect(last().available).toBe(true);
+  it("toggles on and off", () => {
+    const { controller, last } = createHarness(stateAtStop());
 
     controller.toggleFastForward();
     expect(last()).toEqual({ available: true, active: true });
@@ -116,20 +111,31 @@ describe("fast-forward at the controller", () => {
     expect(last()).toEqual({ available: true, active: false });
   });
 
-  it("is not on offer 1.6 m below the stop", async () => {
+  it("is not on offer 1.6 m below the stop", () => {
     // Just outside legacy's `Math.abs(depth - decoStopD) <= 1.5`.
-    const { controller, last, settle } = createHarness(stateAtStop(19.6));
-    controller.requestTankSwitch(1);
-    await settle();
+    const { controller, last } = createHarness(stateAtStop(19.6));
 
     controller.toggleFastForward();
+    controller.toggleTorch();
     expect(last()).toEqual({ available: false, active: false });
   });
 
-  it("stops when a vertical control is pressed and does not resume on release", async () => {
-    const { controller, last, settle } = createHarness(stateAtStop());
-    controller.requestTankSwitch(1);
-    await settle();
+  it("is not on offer without a ceiling", () => {
+    // A fresh diver at 26 m on air: surface-loaded tissues, no obligation.
+    const fresh = freezeDiveState({
+      ...createInitialDiveState(3),
+      depthM: metres(26),
+      maxDepthM: metres(26),
+    });
+    const { controller, last } = createHarness(fresh);
+
+    controller.toggleFastForward();
+    controller.toggleTorch();
+    expect(last()).toEqual({ available: false, active: false });
+  });
+
+  it("stops when a vertical control is pressed and does not resume on release", () => {
+    const { controller, last } = createHarness(stateAtStop());
     controller.toggleFastForward();
     expect(last().active).toBe(true);
 
@@ -151,28 +157,24 @@ describe("fast-forward at the controller", () => {
     expect(last()).toEqual({ available: true, active: false });
   });
 
-  it("a gas switch ends it", async () => {
+  it("a gas switch ends it", () => {
     // src/game-loop.js TASK-019 sets fastForwardActive = false on a switch.
-    const { controller, last, settle } = createHarness(stateAtStop());
-    controller.requestTankSwitch(1);
-    await settle();
+    const { controller, last } = createHarness(stateAtStop());
     controller.toggleFastForward();
     expect(last().active).toBe(true);
 
-    controller.requestTankSwitch(0);
+    controller.requestTankSwitch(1);
     expect(last().active).toBe(false);
-    expect(controller.authoritativeState.activeTankIndex).toBe(0);
+    expect(controller.authoritativeState.activeTankIndex).toBe(1);
   });
 
-  it("a refused switch leaves it running", async () => {
+  it("a refused switch leaves it running", () => {
     // The cancel belongs to an actual switch. Asking for the cylinder
     // already breathed changes nothing, so it must not stop the clock.
-    const { controller, last, settle } = createHarness(stateAtStop());
-    controller.requestTankSwitch(1);
-    await settle();
+    const { controller, last } = createHarness(stateAtStop());
     controller.toggleFastForward();
 
-    controller.requestTankSwitch(1);
+    controller.requestTankSwitch(0);
     controller.toggleTorch();
     expect(last().active).toBe(true);
   });
