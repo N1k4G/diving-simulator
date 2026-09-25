@@ -1,0 +1,86 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 163,
+  "slice": "PR 5 of n: gas information — I and a button walk legacy's info pages (cylinders, tissues, decompression, rebreather); the switch-depth decision carried over from #158",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "3ac7982c0ca3500252c130ef8e7cdc5492cc68b6",
+  "measuredTree": "69aec287b4c1e70755992742dc61d9add0f06bd9",
+  "workingTree": "clean before the run and still clean after it (git status --porcelain empty at both ends, checked by the same shell invocation that ran the command)",
+  "recordedAt": "2026-09-25T11:14:42Z",
+  "runFinishedAt": "2026-09-25T11:22:21Z",
+  "timestampProvenance": "Both are the output of `date -u +%Y-%m-%dT%H:%M:%SZ` printed by the shell immediately before and after the command.",
+  "provenanceNote": "Measured against the committed tree. Only the commit adding this file follows the measured one. The first full run on this commit is the one recorded; no run was repeated.",
+  "stackedOn": "feat/163-ccr-controls (PR #182): the loop page reads the rebreather HUD's strings and the danger thresholds this PR moves out of wreck-app.ts. Sibling of #184, which it does not depend on.",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass — 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "257 passed (245 on PR #182, +12 in tests/unit/gas-info.test.ts)",
+    "parity": "36 passed (unchanged; this branch does not carry #184's fixture)",
+    "e2e": "132 passed in 5.8 min (120 on PR #182, +12 in tests/in-dive-controls.spec.js)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels, max delta 0",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "boundsPortedFromTheOracle": {
+    "availability": "src/state.js: `(isAdvanced() || diveMode === 'ccr') && gameState === 'diving'`. Technical and rebreather dives only, never on a failed dive.",
+    "cycle": "src/state.js: CCR toggles 0 and 5; open circuit steps 1 to 4, skipping 2 when tankCount <= 3, and wraps to 0. Escape returns to 0.",
+    "cylinderPage": "src/renderer.js infoPageMode 1 and 2, three cylinders per page: label, mix, pressure `Math.round(gasRemaining / volume)` marked danger under 50 bar, MOD `Math.floor(((PO2_HIGH / fO2) - 1) * 10)`, and the ACTIVE marker.",
+    "tissuePage": "infoPageMode 3: per compartment `(pN2 + pHe) / (a + pAmb / b)` with combined N2/He coefficients, clamped to 0..1.2, danger at 1.0, with markers under compartments 1, 4, 8, 12 and 16.",
+    "decoPage": "infoPageMode 4: GF99 and SrfGF as `Math.max(0, Math.round(max((pt - p) / (M(p) - p) * 100)))` at the current ambient pressure and at 1.0 bar, each danger at 100 or more; ceiling; GF low and high; TTS; NDL, shown as '---' at the 999 sentinel and danger under 5; PO2.",
+    "loopPage": "infoPageMode 5: setpoint, loop PO2, mode (BAIL in danger tone), O2 cylinder, diluent cylinder and mix, scrubber minutes. The danger rules are shared with the HUD rows through src/app/loop-danger.ts."
+  },
+  "switchDepthDecision": {
+    "question": "#158 left open whether a per-tank switch depth joins TankState or is computed on demand.",
+    "decision": "Computed on demand: maximumOperatingDepthM() in src/planner/dive-planner.ts, carried in the presentation snapshot as PresentationTank.modM.",
+    "why": "Legacy maintains switchDepth per tank (gsAddTank, gsAdjustO2) but reads it only on its setup screen. The one place its gas logic consulted it, the staging check in physics.js bestGasForDepth, is commented out as DISABLED. A stored field would carry a number nothing decides with, and would need a save-format change."
+  },
+  "deliberateDesign": {
+    "panelUnderTheHud": "The HUD and the panel share a left column (.wreck-column) that carries the position the HUD used to have. An open page sits below the readouts, so NDL stays visible, which #137 §4.4.1 requires. The column's height stops above the bottom controls, and the panel scrolls inside the space left. A panel on the right would be squeezed to a sliver at 390 px, and one over the HUD would hide NDL.",
+    "notADialog": "A labelled region, not a dialog: the dive keeps running, nothing is modal, and focus stays where it was. The toggle carries aria-controls, aria-expanded and aria-keyshortcuts 'I'.",
+    "uiStateNotModelState": "Which page is open changes nothing the model or the save knows about, so it lives in wreck-app.ts and not in the controller.",
+    "keysClaimedOnlyWhenTheyAct": "I only where the overlay exists, Escape only while it is open, and never with Ctrl, Meta or Alt held, so browser shortcuts keep working.",
+    "figuresShareThePlannersCoefficients": "compartmentSaturation() uses calculateCeiling()'s combined coefficients. A unit test checks that at the ceiling depth the leading compartment's gradient factor equals GF high, to 1e-9.",
+    "rebuildOnlyOnChange": "The panel body is rebuilt only when its content changes, roughly once a second as the tissues move. It holds nothing focusable that a rebuild could discard."
+  },
+  "notPortedAndWhy": {
+    "cns": "The legacy decompression page shows CNS %. The migration model does not track CNS yet (#10), so the row is left out rather than shown with a placeholder.",
+    "singleCylinderTechnical": "The save carries no dive mode, so the overlay infers it from the dive: a loop means CCR, and more than one cylinder means technical. A technical dive configured with one cylinder looks recreational, so it gets no overlay. Storing the mode in the save would fix that, but a save-format change is outside this issue."
+  },
+  "regressionCaughtBeforeCommit": "The first build gave the toggle the mute button's .audio-control class to reuse its sizing. tests/wreck-slice.spec.js locates the mute button by that class and failed on two matches. The toggle now has its own class, and the size rule lists both selectors.",
+  "counterCheck": {
+    "method": "One revert at a time, restoring from copies taken beforehand, with the build result read before each e2e run.",
+    "cases": {
+      "columnHeightUnbounded": "the column's max-height removed at both widths — build pass, 3 of 4 viewport e2e fail (1280x720 has room to spare)",
+      "recreationalOffered": "single-cylinder dives offered the overlay — build pass, the recreational e2e fails",
+      "escapeAlwaysClaimed": "Escape claimed while the overlay is closed — build pass, the Escape e2e fails",
+      "secondCylinderPageAlways": "the cylinders 4-6 page offered with three cylinders or fewer — 2 of 12 unit tests fail"
+    }
+  },
+  "accessibility": {
+    "labels": "Every string comes from the catalogue in en and de, including the keyboard hint's new sentence about I.",
+    "nonColour": "Danger values carry the ⚠ glyph. Each tissue bar has a visually hidden sentence ('Compartment 1: 44% of its M-value'), with the glyph when past the M-value.",
+    "touchTarget": "The toggle is 44 x 44 CSS px, asserted."
+  },
+  "releaseLabel": {
+    "chosen": "release:none",
+    "reasoning": "Deployed bytes change but served behaviour does not while _redirects sends / to the legacy client (#170)."
+  },
+  "durableProvenance": {
+    "check": "After the merge, `git rev-parse <squash-merge-commit>:src <squash-merge-commit>:tests <squash-merge-commit>:scripts` should equal the three below.",
+    "caveat": "Holds only while the sole commit after the measured one adds this artifact.",
+    "srcTree": "a06a7f9364af8071e9322b2670b68f324387cc01",
+    "testsTree": "583aaf5d125ebbb9ea4020ba8d23112a25f675d0",
+    "scriptsTree": "52e3852fe9906142a846f72ea929c1f546e9d74c"
+  }
+}
