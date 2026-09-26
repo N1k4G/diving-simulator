@@ -3,13 +3,13 @@
   "issue": 186,
   "slice": "CNS exposure in the core model, save format v4, and the complete gas-information decompression page",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "6f7c52155266e7edae8ba09aa2276b476b5b6ca2",
-  "measuredTree": "582a86a9ec68686e0f01e938d1cae21b86644ef4",
+  "measuredCommit": "9ac0bd6cbbd98c21c999542b7f5f33ba442d01ac",
+  "measuredTree": "418185746b2bde423e93d517efd40cad09e227e6",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-09-26T19:04:03Z",
-  "runFinishedAt": "2026-09-26T19:09:59Z",
+  "recordedAt": "2026-09-26T19:18:59Z",
+  "runFinishedAt": "2026-09-26T19:24:51Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "Measured against the committed tree. This is the second full run on the commit; the first failed one test (see unrelatedFailureObserved).",
+  "provenanceNote": "Measured against the committed tree, first full run on it. Only the commit adding this update follows the measured one.",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -25,7 +25,7 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass — 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "285 passed (272 on main, +13)",
+    "unit": "286 passed (272 on main, +14)",
     "parity": "49 passed (unchanged count; the tissue and in-dive replays now also compare CNS)",
     "e2e": "134 passed in 4.5 min (133 on main, +1)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
@@ -44,7 +44,7 @@
   },
   "saveFormatV4": {
     "change": "state.cnsPercent, a finite non-negative number, is required from v4 on.",
-    "migrations": "v1, v2 and v3 saves resume at CNS 0: they were written by a client that did not track CNS, so 0 is an underestimate but the only value they support. A v3 save keeps its dive mode (save-game-v3). A legacy v2 save carries cnsPercent, defaulting to 0 when it is missing or invalid."
+    "migrations": "v1, v2 and v3 saves resume at CNS 0 unconditionally: they were written by a client that did not track CNS, so a cnsPercent present in such a payload is neither kept nor a reason to reject it. A v3 save keeps its dive mode (save-game-v3). A legacy v2 save carries cnsPercent, defaulting to 0 when it is missing or invalid."
   },
   "pageRestored": "#185 deferred the decompression page because CNS was missing (Codex rounds 3 and 4). The deferral commit's changes are reversed, which restores the page with its tiers and the 99-minute NDL cap, and the CNS row is added after surface GF.",
   "counterCheck": {
@@ -60,8 +60,8 @@
     "reasoning": "Migration client only; unreachable until #170."
   },
   "durableProvenance": {
-    "srcTree": "b222a19cf191567083886baff03b48ac70c4c7c2",
-    "testsTree": "456db1ecf444c3114884a5335d5206b7b3f741ff",
+    "srcTree": "bcd64b16df3ea0b41869c5f4edb00d3b5d8a8ca5",
+    "testsTree": "ef091873489101aff4527ba76843125175a1e342",
     "scriptsTree": "842ae2b75fb9d44a8a67a6b4da81b84928cd8c87"
   },
   "preReview1": {
@@ -77,14 +77,25 @@
       "disposition": "Owner decision on #188: offer the page on every technical dive. Recorded as the second entry in docs/decisions.md \"Deliberate departures from the legacy client\" and named in gas-info-pages.ts and the cycle test. Legacy is unchanged."
     }
   },
-  "unrelatedFailureObserved": {
-    "what": "The first full run on 6f7c521 (18:47:45Z to 19:03:15Z) timed out one test, tests/in-dive-controls.spec.js \"rebreather controls 1280x720 no HUD row meets a control on a six-cylinder dive\", after 60 s waiting for the setup start button. That run took 7.9 min for the e2e suite against the usual 4.5, so the machine was loaded.",
-    "status": "The test group passed alone three times (4 passed each, about 5 s), and the recorded second full run passed all 134. The commit changes no setup-screen code. Recorded as observed, not diagnosed further."
-  },
   "supersedes": [
     {
       "measuredCommit": "bf8608ed936f2d85d6186559aa4463c073a6590d",
       "why": "Predates the pre-review fixes."
+    },
+    {
+      "measuredCommit": "6f7c52155266e7edae8ba09aa2276b476b5b6ca2",
+      "why": "Predates Codex round 1."
     }
-  ]
+  ],
+  "codexRound1": {
+    "findings": 1,
+    "acceptedDisputes": [
+      "The decompression page on dives with three cylinders or fewer, accepted as the recorded owner departure."
+    ],
+    "preV4Cns": {
+      "finding": "minor contract-violation: a pre-v4 save kept a stray cnsPercent, and an invalid one was rejected, although every pre-v4 save should resume at 0.",
+      "assessment": "Confirmed.",
+      "fix": "The reset is unconditional for every non-current version. A unit test covers 17.92, a string and a negative value, and it fails with the old condition."
+    }
+  }
 }
