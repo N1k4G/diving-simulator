@@ -200,10 +200,12 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     ) {
       return { ok: false, reason: "unsupported-version" };
     }
-    // A save from before v4 has no CNS in its state; it resumes at 0, the
-    // value the client that wrote it was tracking (none). A v4 save must
-    // carry a valid one, which isDiveState checks.
-    if (!isCurrent && isRecord(candidate.state) && !("cnsPercent" in candidate.state)) {
+    // A save from before v4 resumes at CNS 0, the value the client that wrote
+    // it was tracking (none). Unconditionally: a pre-v4 payload carrying some
+    // cnsPercent anyway is not a record of CNS, so it is neither kept nor a
+    // reason to reject the save (#188 Codex round 1). A v4 save must carry a
+    // valid one, which isDiveState checks.
+    if (!isCurrent && isRecord(candidate.state)) {
       candidate.state = { ...candidate.state, cnsPercent: 0 };
     }
     if (

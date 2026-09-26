@@ -183,6 +183,22 @@ describe("SaveGame gradient factors", () => {
       expect(result.saveGame.diveMode).toBe("rec");
     });
 
+    it("resumes any pre-v4 save at 0, whatever cnsPercent it carries", () => {
+      // #188 Codex round 1: a v3 payload with a stray cnsPercent kept it, and
+      // an invalid one was rejected instead of resuming at 0.
+      for (const stray of [17.92, "x", -3]) {
+        const v3 = JSON.parse(
+          encodeSaveGame(createSaveGame(withCns(0), CONSERVATIVE_FACTORS, 1_735_689_600_000, "rec")),
+        ) as { version: number; state: Record<string, unknown> };
+        v3.version = 3;
+        v3.state.cnsPercent = stray;
+        const result = decodeSaveGame(JSON.stringify(v3));
+        expect(result.ok, String(stray)).toBe(true);
+        if (!result.ok) return;
+        expect(result.saveGame.state.cnsPercent, String(stray)).toBe(0);
+      }
+    });
+
     it("rejects a v4 save without a valid CNS", () => {
       for (const bad of [undefined, -1, "12", Number.NaN]) {
         const v4 = JSON.parse(
