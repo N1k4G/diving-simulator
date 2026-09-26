@@ -17,6 +17,13 @@
 // with 1 = tanks 1-3, 2 = tanks 4-6, 3 = tissues, 4 = deco metrics,
 // 5 = the CCR page, and 0 the normal dive computer (here: the overlay closed,
 // null). Escape returns to 0.
+//
+// DELIBERATE DEPARTURE (owner decision on #188, docs/decisions.md
+// "Deliberate departures from the legacy client"). With three cylinders or
+// fewer, legacy's cap is 3, so page 4 is never reached: the decompression
+// page exists only on dives with four or more cylinders, although its own
+// comment calls the cycle "0..4". Here it is offered on every technical
+// dive: cylinders, tissues, decompression, closed.
 import type { PresentationState } from "../presentation/presentation-state";
 import type { DiveMode } from "./setup/dive-setup";
 
@@ -118,6 +125,14 @@ export function scrubberSeverity(roundedMinutes: number): Severity {
 export function displayedNdlMinutes(ndlMin: number): number | null {
   if (ndlMin >= 999) return null;
   return Math.min(99, ndlMin);
+}
+
+/**
+ * The TTS the decompression page shows: none when there is nothing to
+ * ascend, as legacy draws `ttsVal2 > 0 ? ttsVal2 + ' min' : '--'`.
+ */
+export function displayedTtsMinutes(ttsMin: number): number | null {
+  return ttsMin > 0 ? ttsMin : null;
 }
 
 /** The pages `I` cycles through on this dive, in order. */

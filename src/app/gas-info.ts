@@ -25,6 +25,7 @@ import {
   cnsSeverity,
   cylinderSeverity,
   displayedNdlMinutes,
+  displayedTtsMinutes,
   gradientFactorSeverity,
   mValueRatioSeverity,
   ndlSeverity,
@@ -222,8 +223,14 @@ function buildBlocks(
             },
             {
               label: t("wreck.gasInfo.deco.tts"),
-              value: planner ? formatWholeMinutes(planner.ttsMin * 60, locale) : unavailable,
-              severity: planner && planner.ttsMin > 0 ? "warning" : "normal",
+              value:
+                planner && displayedTtsMinutes(planner.ttsMin) !== null
+                  ? formatWholeMinutes(planner.ttsMin * 60, locale)
+                  : unavailable,
+              severity:
+                planner && displayedTtsMinutes(planner.ttsMin) !== null
+                  ? "warning"
+                  : "normal",
             },
             {
               label: t("wreck.gasInfo.deco.ndl"),

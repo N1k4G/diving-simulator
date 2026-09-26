@@ -5,6 +5,7 @@ import {
   gasInfoAvailable,
   gasInfoPageStillValid,
   displayedNdlMinutes,
+  displayedTtsMinutes,
   gasInfoPages,
   po2Severity,
   cylinderSeverity,
@@ -97,7 +98,9 @@ describe("which dives have gas information", () => {
 
 describe("the order I walks the pages in", () => {
   it("three cylinders or fewer: cylinders, tissues, deco, closed", () => {
-    // Legacy skips page 2 when tankCount <= 3.
+    // Legacy skips page 2 when tankCount <= 3, and with it page 4, because
+    // its cap drops to 3. Offering page 4 anyway is a recorded departure
+    // (owner decision on #188, docs/decisions.md).
     const presentation = view(ocDive(3));
     expect(gasInfoPages(presentation, "tec")).toEqual(["cylinders-1", "tissues", "deco"]);
     const walk: (string | null)[] = [];
@@ -210,6 +213,12 @@ describe("legacy's colour tiers and display rules (#185 review round 2)", () => 
     expect(scrubberSeverity(30)).toBe("normal");
     expect(scrubberSeverity(29)).toBe("caution");
     expect(scrubberSeverity(9)).toBe("danger");
+  });
+
+  it("TTS shows nothing when there is nothing to ascend", () => {
+    // Legacy: `ttsVal2 > 0 ? ttsVal2 + ' min' : '--'` (#188 pre-review).
+    expect(displayedTtsMinutes(0)).toBeNull();
+    expect(displayedTtsMinutes(4)).toBe(4);
   });
 
   it("NDL shows at most 99 minutes, and nothing for the 999 sentinel", () => {
