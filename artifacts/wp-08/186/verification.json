@@ -3,13 +3,13 @@
   "issue": 186,
   "slice": "CNS exposure in the core model, save format v4, and the complete gas-information decompression page",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "bf8608ed936f2d85d6186559aa4463c073a6590d",
-  "measuredTree": "807e0e4eca5fd4bb85b05132e5fd9d1008d5fafe",
+  "measuredCommit": "6f7c52155266e7edae8ba09aa2276b476b5b6ca2",
+  "measuredTree": "582a86a9ec68686e0f01e938d1cae21b86644ef4",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-09-25T22:33:45Z",
-  "runFinishedAt": "2026-09-25T22:40:01Z",
+  "recordedAt": "2026-09-26T19:04:03Z",
+  "runFinishedAt": "2026-09-26T19:09:59Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "Measured against the committed tree, first full run. Only the commit adding this file follows the measured one.",
+  "provenanceNote": "Measured against the committed tree. This is the second full run on the commit; the first failed one test (see unrelatedFailureObserved).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -25,9 +25,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass — 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "284 passed (272 on main, +12: 6 in tests/unit/cns.test.ts, 4 in tests/unit/save-game.test.ts, 2 in tests/unit/gas-info.test.ts net of the restored decompression tests)",
+    "unit": "285 passed (272 on main, +13)",
     "parity": "49 passed (unchanged count; the tissue and in-dive replays now also compare CNS)",
-    "e2e": "134 passed in 5.0 min (133 on main, +1)",
+    "e2e": "134 passed in 4.5 min (133 on main, +1)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -60,8 +60,31 @@
     "reasoning": "Migration client only; unreachable until #170."
   },
   "durableProvenance": {
-    "srcTree": "b01d5d31011a1c36b1ec81bfb568624e8bdad2d5",
-    "testsTree": "fec11d1aa40dad9e31b79975bc8dccfba6a8b441",
+    "srcTree": "b222a19cf191567083886baff03b48ac70c4c7c2",
+    "testsTree": "456db1ecf444c3114884a5335d5206b7b3f741ff",
     "scriptsTree": "842ae2b75fb9d44a8a67a6b4da81b84928cd8c87"
-  }
+  },
+  "preReview1": {
+    "findings": 2,
+    "ttsZero": {
+      "finding": "The TTS row showed 0 min where legacy draws --.",
+      "assessment": "Confirmed (src/renderer.js).",
+      "fix": "displayedTtsMinutes() returns null at 0, with a unit test. The wreck route floors at 18 m, so no e2e dive reaches TTS 0."
+    },
+    "decoPageCap": {
+      "finding": "Legacy caps the I cycle at page 3 with three cylinders or fewer, so its decompression page exists only with four or more.",
+      "assessment": "Confirmed (src/state.js). This contradicts legacy own \"0..4 cycle\" comment.",
+      "disposition": "Owner decision on #188: offer the page on every technical dive. Recorded as the second entry in docs/decisions.md \"Deliberate departures from the legacy client\" and named in gas-info-pages.ts and the cycle test. Legacy is unchanged."
+    }
+  },
+  "unrelatedFailureObserved": {
+    "what": "The first full run on 6f7c521 (18:47:45Z to 19:03:15Z) timed out one test, tests/in-dive-controls.spec.js \"rebreather controls 1280x720 no HUD row meets a control on a six-cylinder dive\", after 60 s waiting for the setup start button. That run took 7.9 min for the e2e suite against the usual 4.5, so the machine was loaded.",
+    "status": "The test group passed alone three times (4 passed each, about 5 s), and the recorded second full run passed all 134. The commit changes no setup-screen code. Recorded as observed, not diagnosed further."
+  },
+  "supersedes": [
+    {
+      "measuredCommit": "bf8608ed936f2d85d6186559aa4463c073a6590d",
+      "why": "Predates the pre-review fixes."
+    }
+  ]
 }
