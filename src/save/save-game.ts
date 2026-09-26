@@ -28,7 +28,13 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // off the dive (see inferDiveMode), which is exact for rebreather and
 // multi-cylinder dives and reads a single-cylinder technical dive as
 // recreational: the best a save that never recorded the mode allows.
-export const CURRENT_SAVE_GAME_VERSION = 3;
+//
+// v4 adds state.cnsPercent (#186). v1 to v3 saves were written by a client
+// that did not track CNS, so they resume at 0: an underestimate of the real
+// exposure, and the only value such a save can support. Legacy saves carry
+// cnsPercent (since #10) and keep it.
+export const CURRENT_SAVE_GAME_VERSION = 4;
+export const THIRD_SAVE_GAME_VERSION = 3;
 export const SECOND_SAVE_GAME_VERSION = 2;
 export const FIRST_SAVE_GAME_VERSION = 1;
 export const LEGACY_SAVE_STATE_VERSION = 2;
@@ -79,6 +85,7 @@ export type SaveGameMigration =
   | "legacy-v2"
   | "save-game-v1"
   | "save-game-v2"
+  | "save-game-v3"
   | null;
 
 /**
@@ -184,13 +191,22 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
 
   if (candidate.schema === SAVE_GAME_SCHEMA) {
     const isCurrent = candidate.version === CURRENT_SAVE_GAME_VERSION;
+    const isThird = candidate.version === THIRD_SAVE_GAME_VERSION;
     const isSecond = candidate.version === SECOND_SAVE_GAME_VERSION;
     const isFirst = candidate.version === FIRST_SAVE_GAME_VERSION;
     if (
       !Number.isInteger(candidate.version) ||
-      (!isCurrent && !isSecond && !isFirst)
+      (!isCurrent && !isThird && !isSecond && !isFirst)
     ) {
       return { ok: false, reason: "unsupported-version" };
+    }
+    // A save from before v4 resumes at CNS 0, the value the client that wrote
+    // it was tracking (none). Unconditionally: a pre-v4 payload carrying some
+    // cnsPercent anyway is not a record of CNS, so it is neither kept nor a
+    // reason to reject the save (#188 Codex round 1). A v4 save must carry a
+    // valid one, which isDiveState checks.
+    if (!isCurrent && isRecord(candidate.state)) {
+      candidate.state = { ...candidate.state, cnsPercent: 0 };
     }
     if (
       !isPositiveFinite(candidate.savedAtEpochMs) ||
@@ -205,10 +221,10 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     if (!isFirst && !isSavedGradientFactors(candidate.gradientFactors)) {
       return { ok: false, reason: "invalid-data" };
     }
-    // Likewise a v3 payload must carry a mode consistent with its state; only
-    // saves from before the field existed are inferred.
+    // Likewise a v3 or v4 payload must carry a mode consistent with its
+    // state; only saves from before the field existed are inferred.
     if (
-      isCurrent &&
+      (isCurrent || isThird) &&
       !isConsistentDiveMode(candidate.diveMode, candidate.state)
     ) {
       return { ok: false, reason: "invalid-data" };
@@ -216,7 +232,7 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     const gradientFactors = isFirst
       ? DEFAULT_SAVED_GRADIENT_FACTORS
       : (candidate.gradientFactors as SavedGradientFactors);
-    const diveMode = isCurrent
+    const diveMode = isCurrent || isThird
       ? (candidate.diveMode as SavedDiveMode)
       : inferDiveMode(candidate.state);
 
@@ -230,9 +246,11 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
       ),
       migratedFrom: isCurrent
         ? null
-        : isSecond
-          ? "save-game-v2"
-          : "save-game-v1",
+        : isThird
+          ? "save-game-v3"
+          : isSecond
+            ? "save-game-v2"
+            : "save-game-v1",
     };
   }
 
@@ -302,6 +320,10 @@ function migrateLegacyV2(candidate: Record<string, unknown>): SaveGame | null {
     activeTankIndex: candidate.activeTank as number,
     surfaceAirConsumptionLpm:
       candidate.amvRate as DiveState["surfaceAirConsumptionLpm"],
+    // Legacy saves it since #10 (restoreDiveState reads `state.cnsPercent || 0`).
+    cnsPercent: isNonNegativeFinite(candidate.cnsPercent)
+      ? (candidate.cnsPercent as number)
+      : 0,
     ccr,
     failure: {
       reason: null,
@@ -459,6 +481,7 @@ function isDiveState(candidate: unknown): candidate is DiveState {
     (candidate.activeTankIndex as number) >= 0 &&
     (candidate.activeTankIndex as number) < candidate.tanks.length &&
     isNonNegativeFinite(candidate.surfaceAirConsumptionLpm) &&
+    isNonNegativeFinite(candidate.cnsPercent) &&
     (candidate.ccr === null || isCcrState(candidate.ccr)) &&
     isFailureState(candidate.failure) &&
     isEventHistory(

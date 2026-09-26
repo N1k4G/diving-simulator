@@ -1031,8 +1031,7 @@ test.describe('gas information', () => {
     await expect(gasInfoPanel(page)).toBeHidden();
   });
 
-  test('I walks cylinders and tissues, then closes', async ({ page }) => {
-    // Legacy's decompression page joins with CNS in #186 (#185 review).
+  test('I walks cylinders, tissues and decompression, then closes', async ({ page }) => {
     await startTwoCylinderDive(page);
     await expect(gasInfoToggle(page)).toBeVisible();
     await expect(gasInfoToggle(page)).toHaveAttribute('aria-expanded', 'false');
@@ -1055,6 +1054,16 @@ test.describe('gas information', () => {
     );
 
     await page.keyboard.press('i');
+    await expect(gasInfoHeading(page)).toHaveText('Gas information · Decompression');
+    // The setup's gradient factors, 35/75 by default.
+    await expect(gasInfoPanel(page)).toContainText('GF low');
+    await expect(gasInfoPanel(page)).toContainText('35%');
+    await expect(gasInfoPanel(page)).toContainText('75%');
+    // CNS, which the decompression page waited for (#186). A fresh dive
+    // has barely begun, so it reads 0%.
+    await expect(gasInfoPanel(page).locator('dl div', { hasText: 'CNS' }).locator('dd')).toHaveText('0%');
+
+    await page.keyboard.press('i');
     await expect(gasInfoPanel(page)).toBeHidden();
     await expect(gasInfoToggle(page)).toHaveAttribute('aria-expanded', 'false');
   });
@@ -1075,7 +1084,8 @@ test.describe('gas information', () => {
     await expect(gasInfoHeading(page)).toHaveText('Gas information · Cylinders 1–1');
 
     const saved = await persistedSave(page);
-    expect(saved.version).toBe(3);
+    // v3 added the mode; v4 (#186) keeps it and adds CNS.
+    expect(saved.version).toBe(4);
     expect(saved.diveMode).toBe('tec');
 
     // Resume: the setup screen the reload draws says recreational, the save
@@ -1085,6 +1095,28 @@ test.describe('gas information', () => {
     await page.locator('[data-start-dive]').click();
     await page.locator('[data-renderer=pixi] canvas').waitFor();
     await expect(gasInfoToggle(page)).toBeVisible();
+  });
+
+  test('a CNS exposure past 80% is marked in words, and survives a reload', async ({ page }) => {
+    // Legacy: rounded, caution from 50, danger from 80 with the warning
+    // glyph. The value comes from the save (v4), so this also shows CNS
+    // persists across a resume.
+    await startTwoCylinderDive(page);
+    const saved = await persistedSave(page);
+    expect(saved.version).toBe(4);
+    saved.state.cnsPercent = 84.6;
+    await page.goto('/dist/');
+    await page.evaluate(
+      ([key, value]) => window.localStorage.setItem(key, value),
+      [SAVE_KEY, JSON.stringify(saved)],
+    );
+    await acceptSafetyGate(page);
+    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+
+    for (let i = 0; i < 3; i += 1) await page.keyboard.press('i');
+    await expect(gasInfoHeading(page)).toHaveText('Gas information · Decompression');
+    await expect(gasInfoPanel(page).locator('dl div', { hasText: 'CNS' }).locator('dd')).toHaveText('⚠ 85%');
   });
 
   test('four cylinders get a second cylinders page', async ({ page }) => {
@@ -1108,7 +1140,7 @@ test.describe('gas information', () => {
     await page.keyboard.press('i');
     await expect(gasInfoHeading(page)).toHaveText('Gas information · Tissue saturation');
     await gasInfoToggle(page).click();
-    await expect(gasInfoPanel(page)).toBeHidden();
+    await expect(gasInfoHeading(page)).toHaveText('Gas information · Decompression');
   });
 
   test('Escape closes it, and is left alone while it is closed', async ({ page }) => {
@@ -1174,8 +1206,7 @@ test.describe('gas information', () => {
 
       test('no open page meets a control, and NDL stays visible', async ({ page }) => {
         await startSixCylinderDive(page);
-        // Cylinders 1-3, cylinders 4-6, tissues.
-        for (let step = 0; step < 3; step += 1) {
+        for (let step = 0; step < 4; step += 1) {
           await gasInfoToggle(page).click();
           await expect(gasInfoPanel(page)).toBeVisible();
           await expectHudClearOfControls(page);

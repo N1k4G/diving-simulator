@@ -41,6 +41,7 @@ interface Checkpoint {
     maxDepth_m: number;
     diveTime_min: number;
     diveMode?: string;
+    cns_percent: number;
     activeTankIndex: number;
   };
   configuration?: { amv_lpm?: number };
@@ -100,6 +101,8 @@ function within(actual: number | undefined, expected: number | undefined, tolera
 }
 
 function expectTissues(state: DiveState, expected: Checkpoint): void {
+  // CNS exposure (#186), on the model's own breathing, against legacy.
+  within(state.cnsPercent, expected.state.cns_percent, eps.default, `CNS at ${expected.checkpointId}`);
   for (let index = 0; index < 16; index += 1) {
     within(state.tissues.nitrogenBar[index], expected.tissues.n2_bar[index], eps["tissues.*_bar"], `N2 compartment ${index + 1} at ${expected.checkpointId}`);
     within(state.tissues.heliumBar[index], expected.tissues.he_bar[index], eps["tissues.*_bar"], `He compartment ${index + 1} at ${expected.checkpointId}`);

@@ -1,0 +1,101 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 186,
+  "slice": "CNS exposure in the core model, save format v4, and the complete gas-information decompression page",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "9ac0bd6cbbd98c21c999542b7f5f33ba442d01ac",
+  "measuredTree": "418185746b2bde423e93d517efd40cad09e227e6",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-09-26T19:18:59Z",
+  "runFinishedAt": "2026-09-26T19:24:51Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "Measured against the committed tree, first full run on it. Only the commit adding this update follows the measured one.",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass — 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "286 passed (272 on main, +14)",
+    "parity": "49 passed (unchanged count; the tissue and in-dive replays now also compare CNS)",
+    "e2e": "134 passed in 4.5 min (133 on main, +1)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "boundsPortedFromTheOracle": {
+    "rateTable": "src/physics.js updateCNS() (WP-038): <=0.5 bar 0, <=0.6 0.14, <=0.7 0.19, <=0.8 0.28, <=0.9 0.33, <=1.1 0.42, <=1.3 0.56, <=1.5 0.83, <=1.6 2.22, above 10 %/min, each bound inclusive.",
+    "timingAndSource": "src/game-loop.js calls updateCNS() right after updateTissues() in the same tick, on calculatePO2(): the loop PO2 on an active rebreather (#4, #50), otherwise activeGas().fO2 at the tick's depth. The model reads the PO2 from the breathing source it has just integrated the tissues on, at the step's depth, before the loop or gas update.",
+    "page": "src/renderer.js infoPageMode 4, first box: GF99, SrfGF, CNS. CNS is rounded to a whole percent, caution at 50 or more, danger at 80 or more with the warning prefix.",
+    "legacySave": "Legacy saves cnsPercent since #10 (restoreDiveState reads `state.cnsPercent || 0`)."
+  },
+  "parity": {
+    "noRegeneration": "Every fixture checkpoint already records state.cns_percent, so the fixture is unchanged.",
+    "coverage": "tests/parity/tissue-model.test.ts compares CNS at the air, trimix and CCR bottoms and at the air, trimix and CCR ascents. tests/parity/in-dive-controls.test.ts compares it through the tank switch, the three minutes on the new cylinder, the setpoint change, the five minutes after it, the bailout and the ascent on the diluent, on the model's own breathing. All within 1e-9.",
+    "notReplayed": "trimix-45m-20min/deco-gas-21m and ccr-bailout-30m read their keys inside an ordinary tick, which splits the tick (see #184), so those segments are not replayed. Their CNS is covered by the zero-length-tick replays of the same acts."
+  },
+  "saveFormatV4": {
+    "change": "state.cnsPercent, a finite non-negative number, is required from v4 on.",
+    "migrations": "v1, v2 and v3 saves resume at CNS 0 unconditionally: they were written by a client that did not track CNS, so a cnsPercent present in such a payload is neither kept nor a reason to reject it. A v3 save keeps its dive mode (save-game-v3). A legacy v2 save carries cnsPercent, defaulting to 0 when it is missing or invalid."
+  },
+  "pageRestored": "#185 deferred the decompression page because CNS was missing (Codex rounds 3 and 4). The deferral commit's changes are reversed, which restores the page with its tiers and the 99-minute NDL cap, and the CNS row is added after surface GF.",
+  "counterCheck": {
+    "method": "One revert at a time in src/core/dive-model.ts, restored from a copy afterwards.",
+    "cases": {
+      "wrongRateBand": "the 0.6 bar band set to 0.15 instead of 0.14: 6 of 55 fail",
+      "loopFromCylinder": "loop CNS computed from the setup cylinder instead of the loop PO2, legacy's old #4 bug: 5 of 55 fail"
+    }
+  },
+  "intendedExpectationChanges": "tests/unit/save-game.test.ts and tests/in-dive-controls.spec.js hard-coded save version 3 in two places, and those assertions now expect 4 or the version constant. The version bump is intended. No other expected value changed.",
+  "releaseLabel": {
+    "chosen": "release:none",
+    "reasoning": "Migration client only; unreachable until #170."
+  },
+  "durableProvenance": {
+    "srcTree": "bcd64b16df3ea0b41869c5f4edb00d3b5d8a8ca5",
+    "testsTree": "ef091873489101aff4527ba76843125175a1e342",
+    "scriptsTree": "842ae2b75fb9d44a8a67a6b4da81b84928cd8c87"
+  },
+  "preReview1": {
+    "findings": 2,
+    "ttsZero": {
+      "finding": "The TTS row showed 0 min where legacy draws --.",
+      "assessment": "Confirmed (src/renderer.js).",
+      "fix": "displayedTtsMinutes() returns null at 0, with a unit test. The wreck route floors at 18 m, so no e2e dive reaches TTS 0."
+    },
+    "decoPageCap": {
+      "finding": "Legacy caps the I cycle at page 3 with three cylinders or fewer, so its decompression page exists only with four or more.",
+      "assessment": "Confirmed (src/state.js). This contradicts legacy own \"0..4 cycle\" comment.",
+      "disposition": "Owner decision on #188: offer the page on every technical dive. Recorded as the second entry in docs/decisions.md \"Deliberate departures from the legacy client\" and named in gas-info-pages.ts and the cycle test. Legacy is unchanged."
+    }
+  },
+  "supersedes": [
+    {
+      "measuredCommit": "bf8608ed936f2d85d6186559aa4463c073a6590d",
+      "why": "Predates the pre-review fixes."
+    },
+    {
+      "measuredCommit": "6f7c52155266e7edae8ba09aa2276b476b5b6ca2",
+      "why": "Predates Codex round 1."
+    }
+  ],
+  "codexRound1": {
+    "findings": 1,
+    "acceptedDisputes": [
+      "The decompression page on dives with three cylinders or fewer, accepted as the recorded owner departure."
+    ],
+    "preV4Cns": {
+      "finding": "minor contract-violation: a pre-v4 save kept a stray cnsPercent, and an invalid one was rejected, although every pre-v4 save should resume at 0.",
+      "assessment": "Confirmed.",
+      "fix": "The reset is unconditional for every non-current version. A unit test covers 17.92, a string and a negative value, and it fails with the old condition."
+    }
+  }
+}

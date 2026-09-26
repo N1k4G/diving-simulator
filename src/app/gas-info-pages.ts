@@ -18,8 +18,12 @@
 // 5 = the CCR page, and 0 the normal dive computer (here: the overlay closed,
 // null). Escape returns to 0.
 //
-// Page 4 is not in the cycle yet: it shows CNS %, which the migration model
-// does not track, and it lands complete with CNS in #186 (#185 review).
+// DELIBERATE DEPARTURE (owner decision on #188, docs/decisions.md
+// "Deliberate departures from the legacy client"). With three cylinders or
+// fewer, legacy's cap is 3, so page 4 is never reached: the decompression
+// page exists only on dives with four or more cylinders, although its own
+// comment calls the cycle "0..4". Here it is offered on every technical
+// dive: cylinders, tissues, decompression, closed.
 import type { PresentationState } from "../presentation/presentation-state";
 import type { DiveMode } from "./setup/dive-setup";
 
@@ -27,6 +31,7 @@ export type GasInfoPage =
   | "cylinders-1"
   | "cylinders-2"
   | "tissues"
+  | "deco"
   | "loop";
 
 /**
@@ -81,11 +86,53 @@ export function mValueRatioSeverity(ratio: number): Severity {
   return "normal";
 }
 
+/** GF99 and SrfGF: danger at 100 or more, caution at 80 or more. */
+export function gradientFactorSeverity(percent: number): Severity {
+  if (percent >= 100) return "danger";
+  if (percent >= 80) return "caution";
+  return "normal";
+}
+
+/**
+ * CNS on the decompression page, on the rounded percentage legacy shows:
+ * `cnsVal >= 80 ? danger : cnsVal >= 50 ? caution : ok`.
+ */
+export function cnsSeverity(roundedPercent: number): Severity {
+  if (roundedPercent >= 80) return "danger";
+  if (roundedPercent >= 50) return "caution";
+  return "normal";
+}
+
+/** NDL: danger under 5 minutes, caution under 15. */
+export function ndlSeverity(ndlMin: number): Severity {
+  if (ndlMin < 5) return "danger";
+  if (ndlMin < 15) return "caution";
+  return "normal";
+}
+
 /** Scrubber on the loop page, rounded minutes: danger under 10, caution under 30. */
 export function scrubberSeverity(roundedMinutes: number): Severity {
   if (roundedMinutes < 10) return "danger";
   if (roundedMinutes < 30) return "caution";
   return "normal";
+}
+
+/**
+ * The NDL the decompression page shows: none for the 999 "no limit"
+ * sentinel, and at most 99 minutes otherwise, as legacy draws
+ * `(ndl > 99 ? '99' : ndl) + ' min'` (#185 review).
+ */
+export function displayedNdlMinutes(ndlMin: number): number | null {
+  if (ndlMin >= 999) return null;
+  return Math.min(99, ndlMin);
+}
+
+/**
+ * The TTS the decompression page shows: none when there is nothing to
+ * ascend, as legacy draws `ttsVal2 > 0 ? ttsVal2 + ' min' : '--'`.
+ */
+export function displayedTtsMinutes(ttsMin: number): number | null {
+  return ttsMin > 0 ? ttsMin : null;
 }
 
 /** The pages `I` cycles through on this dive, in order. */
@@ -100,8 +147,8 @@ export function gasInfoPages(
     return ["loop"];
   }
   return presentation.tanks.length > 3
-    ? ["cylinders-1", "cylinders-2", "tissues"]
-    : ["cylinders-1", "tissues"];
+    ? ["cylinders-1", "cylinders-2", "tissues", "deco"]
+    : ["cylinders-1", "tissues", "deco"];
 }
 
 /**

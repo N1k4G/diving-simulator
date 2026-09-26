@@ -9,6 +9,7 @@ import { resolveInspiredGas } from "../core/dive-model";
 import { bars, type Bars, type Litres } from "../core/units";
 import {
   compartmentSaturation,
+  leadingGradientFactorPercent,
   maximumOperatingDepthM,
   type PlannerForecast,
 } from "../planner/dive-planner";
@@ -30,12 +31,14 @@ export interface PresentationTank {
 }
 
 /**
- * The tissue figure legacy's gas-info tissue page draws (#163): each
- * compartment's loading as a fraction of its M-value at the current depth.
- * GF99 and surface GF join it with the decompression page in #186.
+ * The tissue figures legacy's gas-info pages draw (#163): each
+ * compartment's loading as a fraction of its M-value at the current depth,
+ * the leading gradient factor there (GF99), and at the surface (SrfGF).
  */
 export interface PresentationSaturation {
   readonly mValueRatios: readonly number[];
+  readonly gf99Percent: number;
+  readonly surfaceGfPercent: number;
 }
 
 export interface PresentationDecoStop {
@@ -82,6 +85,8 @@ export interface PresentationState {
   readonly events: readonly Readonly<DiveEvent>[];
   readonly planner: PresentationPlannerForecast | null;
   readonly saturation: PresentationSaturation;
+  /** CNS oxygen exposure in percent (#186). */
+  readonly cnsPercent: number;
 }
 
 export function createPresentationState(
@@ -119,6 +124,7 @@ export function createPresentationState(
     events,
     planner: planner ? freezePlannerForecast(planner) : null,
     saturation: selectSaturation(state),
+    cnsPercent: state.cnsPercent,
   });
 }
 
@@ -130,6 +136,8 @@ export function selectSaturation(state: DiveState): PresentationSaturation {
         (compartment) => compartment.mValueRatio,
       ),
     ),
+    gf99Percent: leadingGradientFactorPercent(state.tissues, ambientBar),
+    surfaceGfPercent: leadingGradientFactorPercent(state.tissues, 1),
   });
 }
 

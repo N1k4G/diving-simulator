@@ -244,6 +244,7 @@ departing values differ from legacy and match an independent reference.
 
 | Decision | Legacy behaviour | Migration behaviour | Evidence |
 | --- | --- | --- | --- |
+| #188, owner, 2026-09-26 | The gas-information `I` cycle caps at page 3 with three cylinders or fewer (`infoPageMode > (tankCount > 3 ? 4 : 3)`, `src/state.js`), so the decompression page (4) is reachable only with four or more cylinders, contrary to its "0..4 cycle" comment. | The decompression page is offered on every technical dive: cylinders, tissues, decompression, closed. | `tests/unit/gas-info.test.ts` (the cycle), `tests/in-dive-controls.spec.js` (two-cylinder dive reaching the page) |
 | #183, owner, 2026-09-26 | After a CCR bailout, the decompression forecast plans every ascent step and stop on `tanks[activeTank]`, because `bestGasForDepth()` outside tec mode ignores the diluent. On a CCR dive that cylinder is the setup placeholder, which the diver cannot breathe. | The forecast breathes the diluent while its cylinder has gas, and is out of gas when it is empty. | `tests/parity/dive-planner.test.ts` (`DEPARTURES`, on `ccr-setpoint-bailout-30m`), `tests/unit/bailout-forecast.test.ts` |
 
 ## External gates
