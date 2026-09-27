@@ -141,7 +141,8 @@ test('baseline: generated contracts are complete and internally consistent', asy
     'ccr-bailout-30m',
     'ccr-setpoint-bailout-30m',
     'tec-switch-21m',
-    'buoyancy-vent-inflate-12m'
+    'buoyancy-vent-inflate-12m',
+    'buoyancy-ccr-inflate-12m'
   ]);
   for (const scenario of traces.scenarios) {
     expect(scenario.checkpoints.length).toBeGreaterThan(0);

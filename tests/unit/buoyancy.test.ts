@@ -15,6 +15,7 @@ import {
   type DiveState,
 } from "../../src/core/dive-state";
 import { bars, metres, seconds } from "../../src/core/units";
+import { DiveModel } from "../../src/core/dive-model";
 
 // Buoyancy physics (#192). tests/parity/buoyancy.test.ts replays a recorded
 // legacy dive; these pin what that recording does not reach.
@@ -104,5 +105,32 @@ describe("the bounds", () => {
     const ceilinged = integrateBuoyancy(rising, { ceilingM: 18, floorM: 34 }, 10);
     expect(ceilinged.depthM).toBe(18);
     expect(ceilinged.verticalVelocityMpm).toBe(0);
+  });
+});
+
+describe("the frame cadence", () => {
+  // Legacy applies the controls once per frame, before that frame's physics,
+  // and with W or S held a frame is at most 0.3 s of dive time (#193 review).
+  // A one-second step must not inflate or vent for the whole second first.
+  const neutralAt12 = () =>
+    freezeDiveState({ ...at(createInitialDiveState(10), 12), bcdGasSurfaceLiters: neutralBcdSurfaceLitres(12) });
+  const OPEN = { ceilingM: 0, floorM: 300 };
+  const VENT = { inflate: false, vent: true };
+
+  it("runs a one-second step as ten 0.1 s frames", () => {
+    const whole = new DiveModel(neutralAt12()).advanceWithBuoyancy(OPEN, seconds(1), VENT);
+    const frames = new DiveModel(neutralAt12());
+    for (let i = 0; i < 10; i += 1) frames.advanceWithBuoyancy(OPEN, seconds(0.1), VENT);
+    expect(whole.depthM).toBeCloseTo(frames.snapshot.depthM, 12);
+    expect(whole.verticalVelocityMpm).toBeCloseTo(frames.snapshot.verticalVelocityMpm, 12);
+    expect(whole.bcdGasSurfaceLiters).toBeCloseTo(frames.snapshot.bcdGasSurfaceLiters, 12);
+    expect(whole.elapsedTimeS).toBeCloseTo(1, 9);
+  });
+
+  it("does not vent the whole second before the diver moves", () => {
+    const batched = integrateBuoyancy(applyBcdControls(neutralAt12(), VENT, seconds(1)), OPEN, 1);
+    const framed = new DiveModel(neutralAt12()).advanceWithBuoyancy(OPEN, seconds(1), VENT);
+    // Batched, the diver sinks as if empty from the start.
+    expect(batched.depthM - framed.depthM).toBeGreaterThan(0.01);
   });
 });

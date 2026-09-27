@@ -19,6 +19,7 @@ import {
 } from "./dive-state";
 import { NO_INPUT, type InputIntent } from "./inputs";
 import {
+  PHYSICS_MAX_SUBSTEP_S,
   applyBcdControls,
   integrateBuoyancy,
   type BuoyancyControls,
@@ -88,12 +89,19 @@ export class DiveModel {
    * Advances the dive with the depth produced by buoyancy (#192), instead of a
    * depth the caller dictates.
    *
-   * Per whole-second step, in legacy's order within a tick: the BCD is
-   * inflated or vented for the step at the current depth (inflateBCD /
-   * ventBCD), the physics moves the diver in 0.1 s sub-steps within the
-   * bounds, and the rest of the step (tissues, CNS, gas, failures) runs at
-   * the depth the physics left, exactly as legacy's updateTissues() reads the
-   * depth after updateBuoyancyPhysics(). A failed dive does not move.
+   * In frames of at most 0.1 s, each in legacy's order within a frame: the
+   * BCD is inflated or vented for the frame at the current depth (inflateBCD
+   * / ventBCD), the physics moves the diver within the bounds, and the rest
+   * of the frame (tissues, CNS, gas, failures) runs at the depth the physics
+   * left, exactly as legacy's updateTissues() reads the depth after
+   * updateBuoyancyPhysics(). A failed dive does not move.
+   *
+   * The frame length is part of the behaviour: legacy applies the controls
+   * once per frame, so a longer frame batches more inflation before any
+   * motion (#193 review). 0.1 s of dive time is a frame legacy runs (1/30 s
+   * real at TIME_ACCELERATION 3), and it is legacy's physics sub-step, so the
+   * physics inside a frame is one sub-step. A caller stepping by display
+   * frames passes shorter steps and gets legacy's frames exactly.
    */
   advanceWithBuoyancy(
     bounds: Readonly<VerticalBounds>,
@@ -101,8 +109,10 @@ export class DiveModel {
     controls: Readonly<BuoyancyControls>,
   ): DiveState {
     let remainingS = elapsedS;
-    while (remainingS > 0 && this.#state.failure.reason === null) {
-      const stepS = seconds(Math.min(remainingS, FIXED_STEP_SECONDS));
+    // Legacy's sub-step guard: 1 s in 0.1 s frames leaves a remainder in the
+    // 1e-16 range, which is not another frame.
+    while (remainingS > 1e-9 && this.#state.failure.reason === null) {
+      const stepS = seconds(Math.min(remainingS, PHYSICS_MAX_SUBSTEP_S));
       const inflated = applyBcdControls(this.#state, controls, stepS);
       const moved = integrateBuoyancy(inflated, bounds, stepS);
       const withMotion = freezeDiveState({
