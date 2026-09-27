@@ -127,6 +127,20 @@ describe("the frame cadence", () => {
     expect(whole.elapsedTimeS).toBeCloseTo(1, 9);
   });
 
+  it("integrates a longer span in legacy's 0.1 s physics sub-steps", () => {
+    // src/game-loop.js PHYSICS_MAX_SUBSTEP_SEC: a span handed to the physics
+    // at once moves as its 0.1 s sub-steps would, not as one step.
+    const sinking = freezeDiveState({ ...neutralAt12(), bcdGasSurfaceLiters: 2 });
+    const once = integrateBuoyancy(sinking, OPEN, 1);
+    let stepped = sinking;
+    for (let i = 0; i < 10; i += 1) {
+      const moved = integrateBuoyancy(stepped, OPEN, 0.1);
+      stepped = freezeDiveState({ ...stepped, depthM: metres(moved.depthM), verticalVelocityMpm: moved.verticalVelocityMpm });
+    }
+    expect(once.depthM).toBeCloseTo(stepped.depthM, 12);
+    expect(once.verticalVelocityMpm).toBeCloseTo(stepped.verticalVelocityMpm, 12);
+  });
+
   it("does not vent the whole second before the diver moves", () => {
     const batched = integrateBuoyancy(applyBcdControls(neutralAt12(), VENT, seconds(1)), OPEN, 1);
     const framed = new DiveModel(neutralAt12()).advanceWithBuoyancy(OPEN, seconds(1), VENT);
