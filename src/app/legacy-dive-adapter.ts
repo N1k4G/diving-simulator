@@ -24,6 +24,8 @@ export interface LegacyTissueCheckpoint {
     diveMode?: string;
     activeTankIndex?: number;
     cns_percent?: number;
+    verticalVelocity_mpm?: number;
+    bcdGasSurface_l?: number;
   };
   configuration?: {
     amv_lpm?: number;
@@ -106,5 +108,8 @@ export function diveStateFromLegacyCheckpoint(
         initialState.surfaceAirConsumptionLpm,
     ),
     cnsPercent: checkpoint.state.cns_percent ?? 0,
+    verticalVelocityMpm: checkpoint.state.verticalVelocity_mpm ?? 0,
+    bcdGasSurfaceLiters:
+      checkpoint.state.bcdGasSurface_l ?? initialState.bcdGasSurfaceLiters,
   });
 }

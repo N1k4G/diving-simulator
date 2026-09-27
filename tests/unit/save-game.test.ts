@@ -17,6 +17,7 @@ import {
   decodeSaveGame,
   encodeSaveGame,
 } from "../../src/save/save-game";
+import { neutralBcdSurfaceLitres } from "../../src/core/buoyancy";
 
 describe("SaveGame", () => {
   it("round-trips every authoritative DiveState field", () => {
@@ -143,8 +144,14 @@ describe("SaveGame gradient factors", () => {
     expect(result.migratedFrom).toBe("save-game-v1");
     expect(result.saveGame.version).toBe(CURRENT_SAVE_GAME_VERSION);
     expect(result.saveGame.gradientFactors).toEqual(DEFAULT_SAVED_GRADIENT_FACTORS);
-    // The dive itself survives the migration untouched.
-    expect(result.saveGame.state).toEqual(representativeState());
+    // The dive itself survives the migration, and resumes at rest with the
+    // BCD neutral at its depth, since no save before v5 recorded vertical
+    // motion (#192).
+    expect(result.saveGame.state).toEqual({
+      ...representativeState(),
+      verticalVelocityMpm: 0,
+      bcdGasSurfaceLiters: neutralBcdSurfaceLitres(representativeState().depthM),
+    });
   });
 
   // v3 carries the dive mode (#163, #185 review): a technical dive starts
@@ -155,14 +162,14 @@ describe("SaveGame gradient factors", () => {
     const withCns = (cnsPercent: number) =>
       freezeDiveState({ ...createInitialDiveState(84), cnsPercent });
 
-    it("round-trips in a v4 save", () => {
+    it("round-trips in a current save", () => {
       const decoded = decodeSaveGame(
         encodeSaveGame(createSaveGame(withCns(17.92), CONSERVATIVE_FACTORS, 1_735_689_600_000)),
       );
       expect(decoded.ok).toBe(true);
       if (!decoded.ok) return;
       expect(decoded.migratedFrom).toBeNull();
-      expect(decoded.saveGame.version).toBe(4);
+      expect(decoded.saveGame.version).toBe(CURRENT_SAVE_GAME_VERSION);
       expect(decoded.saveGame.state.cnsPercent).toBe(17.92);
     });
 
@@ -219,6 +226,62 @@ describe("SaveGame gradient factors", () => {
       delete withoutCns.cnsPercent;
       const defaulted = decodeSaveGame(JSON.stringify(withoutCns));
       expect(defaulted.ok && defaulted.saveGame.state.cnsPercent).toBe(0);
+    });
+  });
+
+  // v5 carries vertical motion (#192).
+  describe("vertical motion", () => {
+    const moving = () =>
+      freezeDiveState({
+        ...createInitialDiveState(85),
+        depthM: 22.5 as DiveState["depthM"],
+        maxDepthM: 22.5 as DiveState["maxDepthM"],
+        verticalVelocityMpm: -12.25,
+        bcdGasSurfaceLiters: 13.9,
+      });
+
+    it("round-trips velocity and BCD gas in a v5 save", () => {
+      const decoded = decodeSaveGame(encodeSaveGame(createSaveGame(moving(), CONSERVATIVE_FACTORS, 1_735_689_600_000)));
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      expect(decoded.saveGame.version).toBe(5);
+      expect(decoded.saveGame.state.verticalVelocityMpm).toBe(-12.25);
+      expect(decoded.saveGame.state.bcdGasSurfaceLiters).toBe(13.9);
+    });
+
+    it("resumes a v4 save at rest, with the BCD neutral at its depth", () => {
+      const v4 = JSON.parse(
+        encodeSaveGame(createSaveGame(moving(), CONSERVATIVE_FACTORS, 1_735_689_600_000)),
+      ) as { version: number; state: Record<string, unknown> };
+      v4.version = 4;
+      delete v4.state.verticalVelocityMpm;
+      delete v4.state.bcdGasSurfaceLiters;
+      const result = decodeSaveGame(JSON.stringify(v4));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.migratedFrom).toBe("save-game-v4");
+      expect(result.saveGame.state.verticalVelocityMpm).toBe(0);
+      expect(result.saveGame.state.bcdGasSurfaceLiters).toBeCloseTo(neutralBcdSurfaceLitres(22.5), 12);
+    });
+
+    it("rejects a v5 save with invalid motion", () => {
+      for (const [field, bad] of [["verticalVelocityMpm", "fast"], ["bcdGasSurfaceLiters", -1], ["bcdGasSurfaceLiters", undefined]] as const) {
+        const v5 = JSON.parse(
+          encodeSaveGame(createSaveGame(moving(), CONSERVATIVE_FACTORS, 1_735_689_600_000)),
+        ) as { state: Record<string, unknown> };
+        if (bad === undefined) delete v5.state[field];
+        else v5.state[field] = bad;
+        expect(decodeSaveGame(JSON.stringify(v5)).ok, `${field}=${String(bad)}`).toBe(false);
+      }
+    });
+
+    it("carries legacy's verticalVelocity and bcdGasSurfaceLiters over", () => {
+      const legacy = { ...legacyV2Save(), verticalVelocity: 6.5, bcdGasSurfaceLiters: 9.25 };
+      const result = decodeSaveGame(JSON.stringify(legacy));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.saveGame.state.verticalVelocityMpm).toBe(6.5);
+      expect(result.saveGame.state.bcdGasSurfaceLiters).toBe(9.25);
     });
   });
 

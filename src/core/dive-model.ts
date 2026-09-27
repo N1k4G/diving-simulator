@@ -19,6 +19,12 @@ import {
 } from "./dive-state";
 import { NO_INPUT, type InputIntent } from "./inputs";
 import {
+  applyBcdControls,
+  integrateBuoyancy,
+  type BuoyancyControls,
+  type VerticalBounds,
+} from "./buoyancy";
+import {
   bars,
   fraction,
   litres,
@@ -75,6 +81,42 @@ export class DiveModel {
       remainingS = seconds(Math.max(0, remainingS - stepS));
     }
 
+    return this.#state;
+  }
+
+  /**
+   * Advances the dive with the depth produced by buoyancy (#192), instead of a
+   * depth the caller dictates.
+   *
+   * Per whole-second step, in legacy's order within a tick: the BCD is
+   * inflated or vented for the step at the current depth (inflateBCD /
+   * ventBCD), the physics moves the diver in 0.1 s sub-steps within the
+   * bounds, and the rest of the step (tissues, CNS, gas, failures) runs at
+   * the depth the physics left, exactly as legacy's updateTissues() reads the
+   * depth after updateBuoyancyPhysics(). A failed dive does not move.
+   */
+  advanceWithBuoyancy(
+    bounds: Readonly<VerticalBounds>,
+    elapsedS: Seconds,
+    controls: Readonly<BuoyancyControls>,
+  ): DiveState {
+    let remainingS = elapsedS;
+    while (remainingS > 0 && this.#state.failure.reason === null) {
+      const stepS = seconds(Math.min(remainingS, FIXED_STEP_SECONDS));
+      const inflated = applyBcdControls(this.#state, controls, stepS);
+      const moved = integrateBuoyancy(inflated, bounds, stepS);
+      const withMotion = freezeDiveState({
+        ...inflated,
+        verticalVelocityMpm: moved.verticalVelocityMpm,
+        bcdGasSurfaceLiters: moved.bcdGasSurfaceLiters,
+      });
+      this.#state = advanceDiveStep(
+        withMotion,
+        { depthM: metres(moved.depthM) },
+        stepS,
+      );
+      remainingS = seconds(Math.max(0, remainingS - stepS));
+    }
     return this.#state;
   }
 
