@@ -1,0 +1,70 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 192,
+  "slice": "PR 1 of 2: buoyancy physics in the core model, replayed against a legacy recording; save v5",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "7692e30e1a5bd9b676f8678815e4fa473f519af8",
+  "measuredTree": "a5cf87a682edcf322b3f54e38ef6240bbf675fb3",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-09-27T15:21:55Z",
+  "runFinishedAt": "2026-09-27T15:28:53Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "The full run above is on 7692e30. The only later commit adds this file, so src, tests and scripts are identical to the measured tree (see durableProvenance).",
+  "earlierRun": "A first full run on a22b0ce, the same change before an amend, failed 2 Playwright tests in tests/in-dive-controls.spec.js that pinned the save at version 4 (expected 4, received 5). They now assert the version they rely on: at least v3 for the dive mode, at least v4 for CNS. Both passed alone (14 of 14 in the gas information group) and in the full run above.",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "298 passed (286 on main, +8 in tests/unit/buoyancy.test.ts, +4 in tests/unit/save-game.test.ts)",
+    "parity": "56 passed (49 on main, +2 in tests/parity/buoyancy.test.ts, +5 planner checkpoints the new scenario adds to tests/parity/dive-planner.test.ts)",
+    "e2e": "139 passed in 5.5 min (unchanged count; tests/baseline.spec.js pins the new scenario in its existing list)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "parity": {
+    "scenario": "buoyancy-vent-inflate-12m",
+    "recording": "scripts/baseline-scenarios.cjs: rec setup, shore site swapped to the geometry-free 'open' site, one air cylinder, neutralizeAt(12) at rest. Then S held 4 s, nothing 20 s, W held 11 s, nothing 30 s, in one-second ticks through legacy's updateDiving(), so updateBuoyancyPhysics() moves the diver and nothing sets the depth.",
+    "checkpoints": {
+      "neutral-12m": "depth 12, velocity 0, BCD 6.8657 L",
+      "vented-4s": "depth 12.802, velocity 20 (the descent limit)",
+      "sinking-20s": "depth 19.469",
+      "inflated-11s": "depth 22.575, velocity 2.905 (turned by the inflation, below both limits), BCD 13.892 L",
+      "coasting-30s": "depth 15.974, velocity -25 (the ascent limit, reached as the BCD expands)"
+    },
+    "compared": "Depth after each of the 65 ticks; velocity, BCD gas, CNS, cylinder gas and the 16 N2 compartments at each checkpoint. Tolerances are the fixture's own absoluteEpsilon.",
+    "noFailure": "Legacy does not end the dive in the recording, and the model's failure stays null throughout."
+  },
+  "fixtureRegeneration": {
+    "command": "npm run baseline:generate",
+    "legacyChange": "src/game-loop.js captureBaselineCheckpoint() gains state.bcdGasSurface_l, an additive field as docs/decisions.md 'Trace contract limits' allows.",
+    "additiveCheck": "The fixture at 0c9701a (before) and at 7692e30 (after) were compared scenario by scenario with bcdGasSurface_l stripped. air-18m-30min, trimix-45m-20min, ccr-30m-30min, ccr-bailout-30m, ccr-setpoint-bailout-30m and tec-switch-21m are identical. Every one of their checkpoints carries the new field. The header differs only in referenceCommit."
+  },
+  "counterChecks": {
+    "method": "Each revert was applied to src/core/buoyancy.ts from a backup copy, tests/parity/buoyancy.test.ts and tests/unit/buoyancy.test.ts were run (10 tests), then the file was restored from the backup. The working tree was clean afterwards apart from this evidence file. Rerun on 7692e30 at the time of recording.",
+    "results": [
+      { "revert": "no drag (dragCoefficient term removed)", "result": "1 failed: the parity replay" },
+      { "revert": "no neutral dead zone (effective = net)", "result": "1 failed: the parity replay" },
+      { "revert": "one 1 s step instead of 0.1 s sub-steps", "result": "1 failed: the parity replay" },
+      { "revert": "wetsuit lift not compressing with pressure", "result": "2 failed: the parity replay and the unit test \"holds a diver at rest where it is neutral\"" }
+    ]
+  },
+  "departures": {
+    "ccrBcdFromDiluent": "Owner decision on #192: on a rebreather the BCD inflates from the diluent cylinder, not tanks[activeTank]. Recorded in docs/decisions.md 'Deliberate departures from the legacy client' and pinned by tests/unit/buoyancy.test.ts. The recording is open circuit, so the parity replay does not reach it."
+  },
+  "durableProvenance": {
+    "src": "0de34a830c2d7870164cce1c1651910cddc33731",
+    "tests": "2246301b9bf6fac489e3d232d9de9103b779bfce",
+    "scripts": "13561ee419fbf91eceea893ff7145d037488b1ad"
+  }
+}
