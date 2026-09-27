@@ -1,0 +1,68 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 159,
+  "slice": "PR 1 of 3: the game-over screen, as DOM, with legacy's flow and content",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "8bfae232b46fcdd907208ccea8a262db78b1894d",
+  "measuredTree": "fc2e6b4ef55bdd849f374125218ac3b36b007ec4",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-09-27T13:05:50Z",
+  "runFinishedAt": "2026-09-27T13:11:53Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "Measured against the committed tree, first full run. Only the commit adding this file follows the measured one.",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass — 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "286 passed (unchanged)",
+    "parity": "49 passed (unchanged)",
+    "e2e": "139 passed in 4.8 min (134 on main, +5 in tests/game-over.spec.js)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "boundsPortedFromTheOracle": {
+    "transition": "src/game-loop.js sets gameState = 'gameover' on the tick the dive fails. Its state-change block calls clearSavedDive() for any state other than diving, surface or drill, and on 'gameover' Enter sets gameState = 'gas-setup'. Legacy keeps its per-mode settings (modeSettings), so the setup comes back as it was.",
+    "content": "src/renderer.js drawGameOver(): the eyebrow, the GAME OVER heading, then the cause label (S('gameOverReasons')). For causes with an entry in GAME_OVER_INFO it adds what happened, medical, and a numbered how-to-avoid list. The overhead-environment box appears for activeSite().hasOverhead, then dive time and max depth, then the retry prompt.",
+    "texts": "src/constants.js GAME_OVER_INFO, STRINGS.en and STRINGS.de, in sentence case; the uppercase styling comes from CSS. The CCR labels are S('ccrHypoxia'), S('ccrHyperoxia') and S('ccrCO2'), as game-loop.js assigns them. They have no GAME_OVER_INFO entry, so their screen shows no explanation sections, in legacy and here.",
+    "overhead": "Read from the wreck's site resource (siteGameplay('wreck').hasOverhead) rather than hard-coded. The wreck is the only site RENDERABLE_SITES draws."
+  },
+  "deliberateDesign": {
+    "dom": "Ordinary document flow, so a screen taller than a phone scrolls like any page. Legacy's canvas needed a hand-made offset for that (#120, src/state.js).",
+    "accessibility": "The screen is not a live region, which #138 rules out. Focus moves to the h1 (tabindex -1) instead. The explanation sections carry h2 headings, and the retry button is 44 px high with aria-keyshortcuts 'Enter'.",
+    "teardown": "The failing frame hands over to the screen. The controller, audio and listeners are torn down one microtask later, so the controller is not destroyed from inside its own frame callback. From that frame on nothing saves, including the pagehide handler.",
+    "enterKey": "Enter anywhere retries, as on legacy's screen. On the focused button it is left to the button's own activation, so it is not handled twice."
+  },
+  "notHereAndWhy": {
+    "otherCauses": "The model has no barotrauma, decompression sickness, narcosis or shark failure, so the screen cannot show them. Tracked as #189.",
+    "postDiveAndChart": "The post-dive debriefing, with score, violations and gas summary, and the profile chart are PR 2 and PR 3 of #159, as the issue slices them. The issue's score-parity acceptance belongs to PR 2."
+  },
+  "intendedTestChanges": "Three specs resumed a failed save and then expected the dive view: the HUD failure alert in tests/wreck-slice.spec.js, a persisted save afterwards in 'a failed dive offers no cylinder controls at all', and a canvas to wait for in resumeCcrDiveWith. A failed dive now ends on the game-over screen and clears its save. They wait for either the canvas or the game-over screen, and they assert the screen and the cleared save. The wreck-slice live-region checks move to the oxygen state, where the dive view still exists, and gain checks that the game-over screen has no live region and that its heading has focus.",
+  "counterCheck": {
+    "method": "One revert at a time, restored from a copy afterwards, with the build result read before each e2e run.",
+    "cases": {
+      "saveNotCleared": "repository.clear() removed: 2 of 5 game-over tests fail",
+      "focusNotMoved": "heading.focus() removed: 1 of 5 fails",
+      "setupNotKept": "retry returns to a default setup: 1 of 5 fails (the tec mode and 0% oxygen are gone)"
+    }
+  },
+  "releaseLabel": {
+    "chosen": "release:none",
+    "reasoning": "Migration client only; unreachable until #170."
+  },
+  "durableProvenance": {
+    "srcTree": "0302306ced4f05f64bad7a38feabd5311478e1b3",
+    "testsTree": "5ba2cf301f1dc52710164275adb924ca32856839",
+    "scriptsTree": "842ae2b75fb9d44a8a67a6b4da81b84928cd8c87"
+  }
+}
