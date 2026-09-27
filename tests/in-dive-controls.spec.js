@@ -197,7 +197,9 @@ test('a failed dive offers no cylinder controls at all', async ({ page }) => {
   );
   await acceptSafetyGate(page);
   await page.locator('[data-start-dive]').click();
-  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  // A failed dive now ends on the game-over screen (#159), which replaces the
+  // dive view on its first frame, so there is no canvas left to wait for.
+  await page.locator('[data-game-over]').waitFor();
 
   await expect(page.locator('[data-wreck-tanks]')).toBeHidden();
 
@@ -216,8 +218,9 @@ test('a failed dive offers no cylinder controls at all', async ({ page }) => {
   await page.keyboard.press('2');
 
   expect(await page.evaluate(() => window.__tankKeyClaimed)).toBe(false);
-  const after = await persistedSave(page);
-  expect(after.state.activeTankIndex).toBe(saved.state.activeTankIndex);
+  // The save is cleared rather than left to resume (#159), as legacy clears it
+  // on its transition to game over.
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), SAVE_KEY)).toBeNull();
 });
 
 test('a single-cylinder dive shows no cylinder row', async ({ page }) => {
@@ -649,7 +652,8 @@ async function resumeCcrDiveWith(page, mutate) {
   );
   await acceptSafetyGate(page);
   await page.locator('[data-start-dive]').click();
-  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  // A failed state ends on the game-over screen (#159) instead of the canvas.
+  await page.locator('[data-renderer=pixi] canvas, [data-game-over]').first().waitFor();
 }
 
 /**

@@ -133,6 +133,141 @@ summary:focus-visible {
   opacity: 0.6;
 }
 
+/* The result screens (#159). Ordinary document flow: taller than the
+   viewport, they scroll like any page, which is what legacy's canvas needed
+   a hand-made offset for (#120). The panel is capped in width and never set
+   to a fixed height, so it cannot trap content below the fold. */
+.result-screen {
+  box-sizing: border-box;
+  width: min(100%, 44rem);
+  padding: clamp(1.25rem, 5vw, 3rem);
+  border: 1px solid rgb(129 226 241 / 35%);
+  border-radius: 1.25rem;
+  background: rgb(3 24 32 / 92%);
+  box-shadow: 0 1.5rem 5rem rgb(0 0 0 / 45%);
+  overflow-wrap: anywhere;
+}
+
+.game-over {
+  border-color: rgb(255 120 120 / 45%);
+  background: linear-gradient(180deg, rgb(40 12 14 / 96%), rgb(10 6 8 / 96%));
+}
+
+.result-eyebrow {
+  margin: 0 0 0.5rem;
+  color: #8694a1;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.result-heading {
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.game-over .result-heading {
+  color: #ff7b7b;
+}
+
+.result-heading:focus {
+  outline: none;
+}
+
+.result-heading:focus-visible {
+  outline: 3px solid #f6db72;
+  outline-offset: 3px;
+}
+
+.game-over-reason {
+  margin: 0.75rem 0 1.5rem;
+  color: #ffb060;
+  font-size: clamp(1.1rem, 4vw, 1.5rem);
+  font-weight: 800;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.result-section {
+  margin: 0 0 1.25rem;
+}
+
+.result-section-heading {
+  margin: 0 0 0.4rem;
+  color: #e9fbff;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.result-section p,
+.result-section li {
+  margin: 0;
+  color: #aab6c1;
+  line-height: 1.5;
+}
+
+.game-over-prevention {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding-left: 1.4rem;
+}
+
+.game-over-prevention li {
+  color: #9fd8ff;
+}
+
+.game-over-overhead {
+  padding: 0.9rem 1rem;
+  border: 1px solid rgb(255 160 40 / 55%);
+  border-radius: 0.5rem;
+  background: rgb(255 160 40 / 8%);
+}
+
+.game-over-overhead .result-section-heading {
+  color: #ffb84d;
+}
+
+.game-over-overhead p {
+  color: #ffd9a0;
+}
+
+.result-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 2rem;
+  margin: 1.5rem 0;
+  color: #8694a1;
+}
+
+.result-stats div {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.result-stats dd {
+  margin: 0;
+  color: #e9fbff;
+  font-family: ui-monospace, monospace;
+}
+
+.result-screen .primary-action {
+  display: flex;
+  width: 100%;
+  min-height: 2.75rem;
+}
+
+.result-hint {
+  margin: 0.6rem 0 0;
+  color: #8694a1;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
 .wreck-shell {
   position: relative;
   display: grid;
