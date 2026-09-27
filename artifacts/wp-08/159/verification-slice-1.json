@@ -3,11 +3,11 @@
   "issue": 159,
   "slice": "PR 1 of 3: the game-over screen, as DOM, with legacy's flow and content",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "8bfae232b46fcdd907208ccea8a262db78b1894d",
-  "measuredTree": "fc2e6b4ef55bdd849f374125218ac3b36b007ec4",
+  "measuredCommit": "1d3525de3b936a4fd3bf3d734ba82ec6c7ba96e0",
+  "measuredTree": "8a3ed0fdc0748bda873679b8d878ea3716fd9ea1",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-09-27T13:05:50Z",
-  "runFinishedAt": "2026-09-27T13:11:53Z",
+  "recordedAt": "2026-09-27T13:22:59Z",
+  "runFinishedAt": "2026-09-27T13:29:02Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
   "provenanceNote": "Measured against the committed tree, first full run. Only the commit adding this file follows the measured one.",
   "environment": {
@@ -27,7 +27,7 @@
     "distCheck": "pass — 17 files scanned, no source maps, 4 diagnostic markers absent",
     "unit": "286 passed (unchanged)",
     "parity": "49 passed (unchanged)",
-    "e2e": "139 passed in 4.8 min (134 on main, +5 in tests/game-over.spec.js)",
+    "e2e": "139 passed in 4.7 min (134 on main, +5 in tests/game-over.spec.js)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -45,9 +45,10 @@
   },
   "notHereAndWhy": {
     "otherCauses": "The model has no barotrauma, decompression sickness, narcosis or shark failure, so the screen cannot show them. Tracked as #189.",
-    "postDiveAndChart": "The post-dive debriefing, with score, violations and gas summary, and the profile chart are PR 2 and PR 3 of #159, as the issue slices them. The issue's score-parity acceptance belongs to PR 2."
+    "postDiveAndChart": "The post-dive debriefing, with score, violations and gas summary, and the profile chart are PR 2 and PR 3 of #159, as the issue slices them. The issue's score-parity acceptance belongs to PR 2.",
+    "retryAfterResume": "Retry after a resumed dive uses the setup screen that preceded the resume. Reconstructing the setup from the save is part of the resume flow, #191."
   },
-  "intendedTestChanges": "Three specs resumed a failed save and then expected the dive view: the HUD failure alert in tests/wreck-slice.spec.js, a persisted save afterwards in 'a failed dive offers no cylinder controls at all', and a canvas to wait for in resumeCcrDiveWith. A failed dive now ends on the game-over screen and clears its save. They wait for either the canvas or the game-over screen, and they assert the screen and the cleared save. The wreck-slice live-region checks move to the oxygen state, where the dive view still exists, and gain checks that the game-over screen has no live region and that its heading has focus.",
+  "intendedTestChanges": "Several specs resumed a failed save and then expected the dive view: the HUD failure alert in tests/wreck-slice.spec.js, a persisted save afterwards, and a canvas to wait for in resumeCcrDiveWith. A failed dive now ends on the game-over screen and clears its save. The helper waits for either the canvas or the game-over screen. The three failed-dive specs in tests/in-dive-controls.spec.js checked hidden controls and unclaimed keys, which cannot fail once the view and controller are gone. They now assert that the failure of each mode (two cylinders, rebreather, gas information) ends on the game-over screen with its cause label and clears the save. The wreck-slice live-region checks move to the oxygen state and gain the game-over screen live-region and focus checks.",
   "counterCheck": {
     "method": "One revert at a time, restored from a copy afterwards, with the build result read before each e2e run.",
     "cases": {
@@ -61,8 +62,32 @@
     "reasoning": "Migration client only; unreachable until #170."
   },
   "durableProvenance": {
-    "srcTree": "0302306ced4f05f64bad7a38feabd5311478e1b3",
-    "testsTree": "5ba2cf301f1dc52710164275adb924ca32856839",
+    "srcTree": "8676287b4ccef978a43c94c3f1b8b0abf278fd56",
+    "testsTree": "dcd7f7b9655b8bbc340851ef40d537fba5d5d817",
     "scriptsTree": "842ae2b75fb9d44a8a67a6b4da81b84928cd8c87"
-  }
+  },
+  "preReview1": {
+    "findings": 3,
+    "retryAfterResume": {
+      "finding": "Retry after a resumed dive returns to the setup screen that preceded the resume, not the save settings.",
+      "assessment": "Confirmed. The resumed dive runs on the save while the setup screen shows its own settings, a gap older than this PR. Legacy restoreDiveState() restores the setup globals, including fill pressure, which the migration save does not have.",
+      "disposition": "Deferred to #191 (the resume flow). The code and the PR description name it."
+    },
+    "vacuousSpecs": {
+      "finding": "Three adjusted specs checked hidden controls and unclaimed keys, which cannot fail after game over.",
+      "assessment": "Confirmed.",
+      "fix": "They now assert the game-over screen, the cause label and the cleared save for each mode."
+    },
+    "pagehideLeak": {
+      "finding": "The pagehide listener stayed registered after game over, keeping each ended dive reachable.",
+      "assessment": "Confirmed. It was a leak only, since the gameOver guard kept behaviour correct.",
+      "fix": "teardown() removes it."
+    }
+  },
+  "supersedes": [
+    {
+      "measuredCommit": "8bfae232b46fcdd907208ccea8a262db78b1894d",
+      "why": "Predates the pre-review fixes."
+    }
+  ]
 }
