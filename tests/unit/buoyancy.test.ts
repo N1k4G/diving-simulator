@@ -14,7 +14,7 @@ import {
   freezeDiveState,
   type DiveState,
 } from "../../src/core/dive-state";
-import { metres, seconds } from "../../src/core/units";
+import { bars, metres, seconds } from "../../src/core/units";
 
 // Buoyancy physics (#192). tests/parity/buoyancy.test.ts replays a recorded
 // legacy dive; these pin what that recording does not reach.
@@ -63,6 +63,19 @@ describe("inflating and venting", () => {
     const state = at(createInitialDiveState(4, { tanks: [empty] }), 10);
     expect(applyBcdControls(state, { inflate: true, vent: false }, seconds(1)).bcdGasSurfaceLiters)
       .toBe(state.bcdGasSurfaceLiters);
+  });
+
+  it("empties a nearly empty diluent without going below zero (pre-review of #193)", () => {
+    // 0.013... bar in 3 L is less than one second's draw at 20 m, and
+    // p - (p * v) / v lands one ulp below zero for this value.
+    const base = createInitialDiveState(9, { ccr: createCcrState(createGasMix(0.21, 0)) });
+    const state = freezeDiveState({
+      ...at(base, 20),
+      ccr: { ...base.ccr!, diluentCylinderPressureBar: bars(0.013039117352056168) },
+    });
+    const next = applyBcdControls(state, { inflate: true, vent: false }, seconds(1));
+    expect(next.ccr?.diluentCylinderPressureBar).toBe(0);
+    expect(next.bcdGasSurfaceLiters - state.bcdGasSurfaceLiters).toBeCloseTo(0.013039117352056168 * 3, 12);
   });
 
   it("stops at the BCD's capacity", () => {

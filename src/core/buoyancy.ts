@@ -120,8 +120,12 @@ function drawInflationGas(
         ...state,
         ccr: {
           ...ccr,
+          // Emptying the cylinder is exactly zero: p - (p * v) / v can land
+          // one ulp below it.
           diluentCylinderPressureBar: bars(
-            ccr.diluentCylinderPressureBar - drawnL / ccr.diluentCylinderVolumeL,
+            drawnL >= availableL
+              ? 0
+              : Math.max(0, ccr.diluentCylinderPressureBar - drawnL / ccr.diluentCylinderVolumeL),
           ),
         },
       }),
@@ -136,7 +140,7 @@ function drawInflationGas(
       ...state,
       tanks: state.tanks.map((t, i) =>
         i === state.activeTankIndex
-          ? { ...t, gasRemainingL: litres(t.gasRemainingL - drawnL) }
+          ? { ...t, gasRemainingL: litres(Math.max(0, t.gasRemainingL - drawnL)) }
           : t,
       ),
     }),
