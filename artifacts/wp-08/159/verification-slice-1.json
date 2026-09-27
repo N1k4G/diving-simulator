@@ -9,7 +9,7 @@
   "recordedAt": "2026-09-27T13:22:59Z",
   "runFinishedAt": "2026-09-27T13:29:02Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "Measured against the committed tree, first full run. Only the commit adding this file follows the measured one.",
+  "provenanceNote": "The full run above is on 1d3525d. The later commits change only docs/baseline/claims-register.json (f5b71a4 and 5cba4cc) and this file, so src, tests and scripts are identical to the measured tree (see durableProvenance). The one test that reads the register was rerun on 5cba4cc and recorded under docsFollowUp.",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -89,5 +89,30 @@
       "measuredCommit": "8bfae232b46fcdd907208ccea8a262db78b1894d",
       "why": "Predates the pre-review fixes."
     }
-  ]
+  ],
+  "docsFollowUp": {
+    "commits": [
+      "f5b71a4",
+      "5cba4cc"
+    ],
+    "change": "docs/baseline/claims-register.json names the migration catalogue keys (en, de) for every claim whose text the migration client ships: USE-BOUNDARY-001, OVERHEAD-001, OXYGEN-001, CCR-001, GAS-001, GAMEOVER-001 and DECOMPRESSION-001 (Codex round 1 and the pre-review after it). Every new source was checked to resolve in both locales.",
+    "rerun": {
+      "command": "npx playwright test tests/baseline.spec.js",
+      "commit": "5cba4cc9c5bbadcc95d1ff6cdd6c589a030e4dbf",
+      "startedAt": "2026-09-27T13:50:07Z",
+      "finishedAt": "2026-09-27T13:50:20Z",
+      "result": "6 passed"
+    }
+  },
+  "codexRound1": {
+    "findings": 1,
+    "acceptedDisputes": [
+      "Retry after a resumed dive, deferred to #191."
+    ],
+    "claimsRegister": {
+      "finding": "minor contract-violation: the game-over medical and prevention copy was not in the claims register.",
+      "assessment": "Confirmed. The same held for earlier migration text.",
+      "fix": "The register names the catalogue keys for the whole class, completed after the pre-review found three remaining gaps (failure chip, decompression outputs, severity markers)."
+    }
+  }
 }
