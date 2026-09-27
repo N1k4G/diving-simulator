@@ -267,19 +267,19 @@ function runBaselineScenarios() {
 
     // #192: vertical motion from buoyancy. Air at 12 m, BCD neutral there,
     // then S held briefly (vent and sink), nothing held (the diver keeps
-    // moving on momentum and compression), W held (inflate and rise),
-    // nothing held. Short presses, as a diver trims: long ones drive the
+    // sinking on momentum and compression), W held (inflate), nothing held.
+    // 11 s of W stops the sink, turns it, and lets the ascent accelerate as
+    // the BCD expands. Presses of 12 s or more, or long vents, drive the
     // diver into the velocity limits and a barotrauma game over, which the
-    // model cannot produce yet (#189). One-
-    // second ticks, so each tick is exactly one of the model's steps and its
-    // ten 0.1 s physics sub-steps.
+    // model cannot produce yet (#189). One-second ticks, so each tick is
+    // exactly one of the model's steps and its ten 0.1 s physics sub-steps.
     setup('rec', 'shore', [[0.21, 0, 200]]);
     api.setDepth(12);
     neutralizeAt(12);
     api.verticalVelocity = 0;
     const buoyancy = {
       scenarioId: 'buoyancy-vent-inflate-12m',
-      description: 'Air, neutral at 12 m; S held 4 s, released 20 s, W held 6 s, released 30 s, all in one-second ticks with the buoyancy physics moving the diver',
+      description: 'Air, neutral at 12 m; S held 4 s, released 20 s, W held 11 s, released 30 s, all in one-second ticks with the buoyancy physics moving the diver',
       checkpoints: [checkpoint('buoyancy-vent-inflate-12m', 'neutral-12m')]
     };
     const second = 1 / 60;
@@ -287,8 +287,8 @@ function runBaselineScenarios() {
     buoyancy.checkpoints.push(checkpoint('buoyancy-vent-inflate-12m', 'vented-4s'));
     for (let i = 0; i < 20; i++) physicsTick({}, second);
     buoyancy.checkpoints.push(checkpoint('buoyancy-vent-inflate-12m', 'sinking-20s'));
-    for (let i = 0; i < 6; i++) physicsTick({ w: true }, second);
-    buoyancy.checkpoints.push(checkpoint('buoyancy-vent-inflate-12m', 'inflated-6s'));
+    for (let i = 0; i < 11; i++) physicsTick({ w: true }, second);
+    buoyancy.checkpoints.push(checkpoint('buoyancy-vent-inflate-12m', 'inflated-11s'));
     for (let i = 0; i < 30; i++) physicsTick({}, second);
     buoyancy.checkpoints.push(checkpoint('buoyancy-vent-inflate-12m', 'coasting-30s'));
     scenarios.push(buoyancy);
