@@ -1,18 +1,19 @@
 {
   "schema": "issue-evidence/1",
   "issue": 192,
-  "slice": "PR 1 of 2: buoyancy physics in the core model, replayed against a legacy recording; save v5",
+  "slice": "PR 1 of 2: buoyancy physics in the core model, stepped in legacy frames and replayed against two legacy recordings; save v5",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "8c42fedf5b991fcda530374f82e84430425c8543",
-  "measuredTree": "c295a8707a1cb318f62f5c6248788602e6da6ad0",
+  "measuredCommit": "87ee5732146a43dba6a9f0b65f5416b608ef7667",
+  "measuredTree": "cbc9c524f1cd43a232d8dd41df882497ef7d4374",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-09-27T15:42:52Z",
+  "recordedAt": "2026-09-27T16:16:19Z",
   "runFinishedAt": "2026-09-27T15:51:29Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "The full run above is on 8c42fed. The only later commit updates this file, so src, tests and scripts are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "The full run above is on 87ee573. 57f1ef0 then adds one unit test (tests/unit/buoyancy.test.ts); src and scripts are identical to the measured tree, and typecheck, lint, unit and parity were rerun on 57f1ef0 (see followUp). The only later commit updates this file.",
   "earlierRuns": [
     "A first full run on a22b0ce, the same change before an amend, failed 2 Playwright tests in tests/in-dive-controls.spec.js that pinned the save at version 4 (expected 4, received 5). They now assert the version they rely on: at least v3 for the dive mode, at least v4 for CNS. Both passed alone (14 of 14 in the gas information group) and in the full run above.",
-    "A full run on 7692e30 passed (298 unit, 56 parity, 139 e2e). The pre-review of #193, pass 1, then found that inflating from a diluent holding less than one step's draw could throw (p - (p * v) / v one ulp below zero). 8c42fed fixes it and adds a unit test that throws a RangeError without the fix; the run above is on that commit."
+    "A full run on 7692e30 passed (298 unit, 56 parity, 139 e2e). The pre-review of #193, pass 1, then found that inflating from a diluent holding less than one step's draw could throw (p - (p * v) / v one ulp below zero). 8c42fed fixes it and adds a unit test that throws a RangeError without the fix; the run above is on that commit.",
+    "A full run on 8c42fed passed (299 unit, 56 parity, 139 e2e). Codex round 1 then found that the model batched a whole second of BCD controls before any motion, which legacy never does with a control held (fast-forward is off, a frame is at most 0.3 s of dive time), and that the #192 departure had no parity test. cd22afc re-records both buoyancy scenarios in 60 Hz frames and adds buoyancy-ccr-inflate-12m; 87ee573 steps the model in 0.1 s frames and adds the departure test. The run above is on 87ee573."
   ],
   "environment": {
     "os": "Windows 11",
@@ -29,57 +30,88 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "299 passed (286 on main, +9 in tests/unit/buoyancy.test.ts, +4 in tests/unit/save-game.test.ts)",
-    "parity": "56 passed (49 on main, +2 in tests/parity/buoyancy.test.ts, +5 planner checkpoints the new scenario adds to tests/parity/dive-planner.test.ts)",
-    "e2e": "139 passed in 6.7 min (unchanged count; tests/baseline.spec.js pins the new scenario in its existing list)",
+    "unit": "301 passed on 87ee573 (286 on main, +11 in tests/unit/buoyancy.test.ts, +4 in tests/unit/save-game.test.ts); 302 on 57f1ef0",
+    "parity": "61 passed (49 on main, +4 in tests/parity/buoyancy.test.ts, +8 planner checkpoints the two new scenarios add to tests/parity/dive-planner.test.ts)",
+    "e2e": "139 passed in 4.9 min (unchanged count; tests/baseline.spec.js pins the two new scenarios in its existing list)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
   "parity": {
-    "scenario": "buoyancy-vent-inflate-12m",
-    "recording": "scripts/baseline-scenarios.cjs: rec setup, shore site swapped to the geometry-free 'open' site, one air cylinder, neutralizeAt(12) at rest. Then S held 4 s, nothing 20 s, W held 11 s, nothing 30 s, in one-second ticks through legacy's updateDiving(), so updateBuoyancyPhysics() moves the diver and nothing sets the depth.",
-    "checkpoints": {
-      "neutral-12m": "depth 12, velocity 0, BCD 6.8657 L",
-      "vented-4s": "depth 12.802, velocity 20 (the descent limit)",
-      "sinking-20s": "depth 19.469",
-      "inflated-11s": "depth 22.575, velocity 2.905 (turned by the inflation, below both limits), BCD 13.892 L",
-      "coasting-30s": "depth 15.974, velocity -25 (the ascent limit, reached as the BCD expands)"
+    "cadence": "Both scenarios hold keys in 60 Hz frames (scripts/baseline-scenarios.cjs holdKeys): updateDiving(1/60 s real), 0.05 s of dive time, the cadence the legacy game loop runs at. The model replays one advanceWithBuoyancy() call per frame.",
+    "buoyancy-vent-inflate-12m": {
+      "recording": "rec setup on the geometry-free open site, one air cylinder, neutralizeAt(12) at rest; S held 4 s, nothing 20 s, W held 11 s, nothing 30 s.",
+      "checkpoints": {
+        "neutral-12m": "depth 12, velocity 0, BCD 6.866 L",
+        "vented-4s": "depth 12.637, velocity 20 (the descent limit)",
+        "sinking-20s": "depth 19.303",
+        "inflated-11s": "depth 22.547, velocity 5.107 (turned, below both limits), BCD 13.889 L",
+        "coasting-30s": "depth 16.220, velocity -25 (the ascent limit, reached as the BCD expands)"
+      },
+      "compared": "Depth after each of the 1,300 frames; velocity, BCD gas, CNS, cylinder gas and the 16 N2 compartments at each checkpoint, at the fixture's absoluteEpsilon."
     },
-    "compared": "Depth after each of the 65 ticks; velocity, BCD gas, CNS, cylinder gas and the 16 N2 compartments at each checkpoint. Tolerances are the fixture's own absoluteEpsilon.",
-    "noFailure": "Legacy does not end the dive in the recording, and the model's failure stays null throughout."
+    "buoyancy-ccr-inflate-12m": {
+      "recording": "CCR at 1.3 bar with air diluent, neutral at 12 m; W held 2 s, nothing 8 s.",
+      "checkpoints": {
+        "inflated-2s": "depth 11.949, velocity -4.371, BCD 8.625 L; legacy placeholder tank down 1.759 L, diluent 200 bar",
+        "rising-8s": "depth 10.212, velocity -19.087"
+      },
+      "compared": "Depth after each of the 200 frames; velocity, BCD gas, CNS, N2 compartments, loop pO2, O2 cylinder and scrubber with legacy. The departure: legacy's placeholder lost exactly the BCD gain, the migration's placeholder is untouched, and its diluent pressure equals legacy's minus that gain over the cylinder volume (0.586 bar lower)."
+    },
+    "noFailure": "Legacy does not end either dive, and the model's failure stays null throughout."
   },
   "fixtureRegeneration": {
     "command": "npm run baseline:generate",
     "legacyChange": "src/game-loop.js captureBaselineCheckpoint() gains state.bcdGasSurface_l, an additive field as docs/decisions.md 'Trace contract limits' allows.",
-    "additiveCheck": "The fixture at 0c9701a (before) and at 7692e30 (after) were compared scenario by scenario with bcdGasSurface_l stripped. air-18m-30min, trimix-45m-20min, ccr-30m-30min, ccr-bailout-30m, ccr-setpoint-bailout-30m and tec-switch-21m are identical. Every one of their checkpoints carries the new field. The header differs only in referenceCommit."
+    "additiveCheck": "The fixture before (at d6b4788) and after (generated from cd22afc) were compared scenario by scenario: air-18m-30min, trimix-45m-20min, ccr-30m-30min, ccr-bailout-30m, ccr-setpoint-bailout-30m and tec-switch-21m are byte-identical, and the header differs only in referenceCommit. Against the fixture on main the same six differ only by the added state.bcdGasSurface_l, checked at the first regeneration."
   },
   "counterChecks": {
-    "method": "Each revert was applied to src/core/buoyancy.ts from a backup copy, tests/parity/buoyancy.test.ts and tests/unit/buoyancy.test.ts were run (10 tests), then the file was restored from the backup. The working tree was clean afterwards apart from this evidence file. Run on 7692e30; the fix in 8c42fed changes only the diluent draw, which the recording (open circuit) does not reach.",
+    "method": "Each revert was applied to src/core/buoyancy.ts or src/core/dive-model.ts from a backup copy, tests/parity/buoyancy.test.ts, tests/unit/buoyancy.test.ts and tests/unit/save-game.test.ts were run, then the file was restored from the backup; the working tree was clean afterwards. Run on 57f1ef0 (the physics reverts) and on 87ee573 (the cadence and departure reverts).",
     "results": [
       {
-        "revert": "no drag (dragCoefficient term removed)",
-        "result": "1 failed: the parity replay"
+        "revert": "no drag",
+        "result": "2 failed: both parity replays"
       },
       {
-        "revert": "no neutral dead zone (effective = net)",
-        "result": "1 failed: the parity replay"
+        "revert": "no neutral dead zone",
+        "result": "2 failed: both parity replays"
       },
       {
-        "revert": "one 1 s step instead of 0.1 s sub-steps",
-        "result": "1 failed: the parity replay"
+        "revert": "integrateBuoyancy() in one step instead of 0.1 s sub-steps",
+        "result": "1 failed: \"integrates a longer span in legacy's 0.1 s physics sub-steps\""
       },
       {
         "revert": "wetsuit lift not compressing with pressure",
-        "result": "2 failed: the parity replay and the unit test \"holds a diver at rest where it is neutral\""
+        "result": "3 failed: both parity replays and \"holds a diver at rest where it is neutral\""
+      },
+      {
+        "revert": "advanceWithBuoyancy() frames of 1 s (FIXED_STEP_SECONDS), the batching Codex round 1 found",
+        "result": "2 failed: \"runs a one-second step as ten 0.1 s frames\" and \"does not vent the whole second before the diver moves\"; the parity replays pass, since a 0.05 s frame is one frame either way"
+      },
+      {
+        "revert": "inflation drawn from tanks[activeTank] on a rebreather, as legacy",
+        "result": "1 failed: the declared-departure parity test"
       }
     ]
   },
   "departures": {
-    "ccrBcdFromDiluent": "Owner decision on #192: on a rebreather the BCD inflates from the diluent cylinder, not tanks[activeTank]. Recorded in docs/decisions.md 'Deliberate departures from the legacy client' and pinned by tests/unit/buoyancy.test.ts. The recording is open circuit, so the parity replay does not reach it."
+    "ccrBcdFromDiluent": "Owner decision on #192: on a rebreather the BCD inflates from the diluent cylinder, not tanks[activeTank]. Recorded in docs/decisions.md \"Deliberate departures from the legacy client\"; proven by the declared-departure parity test on buoyancy-ccr-inflate-12m and pinned by tests/unit/buoyancy.test.ts."
   },
   "durableProvenance": {
-    "src": "8272ab99859fe6827f0386424f0f4009b616de7d",
-    "tests": "75c7a5e97cb6a5abd674f00b14348f3494a207b6",
-    "scripts": "13561ee419fbf91eceea893ff7145d037488b1ad"
+    "src": "f8076ca5eefa3ddb385eb75b5a0dbd910eea257e",
+    "tests": "24fb49a0352743d7bdefd71551c0400c45a0405e",
+    "scripts": "fbd5e3fc09a3d1c75414617bb4060bca16d38ffc",
+    "note": "src and scripts as measured on 87ee573; tests as on 57f1ef0."
+  },
+  "followUp": {
+    "commit": "57f1ef06c9df673a820a4a5172b5d6db8dee0b7d",
+    "recordedAt": "2026-09-27T16:23:19Z",
+    "runFinishedAt": "2026-09-27T16:23:28Z",
+    "change": "Adds the unit test \"integrates a longer span in legacy's 0.1 s physics sub-steps\": with the model stepping in 0.1 s frames the parity replay no longer reaches integrateBuoyancy()'s sub-step loop, and the single-step counter-check passed every test until this was added.",
+    "results": {
+      "typecheck": "pass",
+      "lint": "pass",
+      "unit": "302 passed",
+      "parity": "61 passed"
+    }
   }
 }
