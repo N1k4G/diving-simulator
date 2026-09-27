@@ -97,6 +97,18 @@ function runBaselineScenarios() {
     trajectory.push({ depth_m: api.depth, dtDive_min: stepMinutes });
   }
 
+  // Holds keys for a span of dive time in 60 Hz frames, the cadence the
+  // legacy game loop runs at: one frame is 1/60 s real, TIME_ACCELERATION/60 s
+  // of dive time. Legacy applies the BCD controls once per frame, before that
+  // frame's physics, so the frame length is part of the behaviour (#193
+  // review): with W or S held, fast-forward is off and a frame is never
+  // longer than 0.1 s real.
+  function holdKeys(keys, diveSeconds) {
+    const frameMinutes = api.TIME_ACCELERATION / 60 / 60;
+    const frames = Math.round(diveSeconds / (frameMinutes * 60));
+    for (let frame = 0; frame < frames; frame++) physicsTick(keys, frameMinutes);
+  }
+
   function holdDepth(depth, minutes, stepMinutes = 0.1) {
     const steps = Math.round(minutes / stepMinutes);
     for (let step = 0; step < steps; step++) {
@@ -271,27 +283,51 @@ function runBaselineScenarios() {
     // 11 s of W stops the sink, turns it, and lets the ascent accelerate as
     // the BCD expands. Presses of 12 s or more, or long vents, drive the
     // diver into the velocity limits and a barotrauma game over, which the
-    // model cannot produce yet (#189). One-second ticks, so each tick is
-    // exactly one of the model's steps and its ten 0.1 s physics sub-steps.
+    // model cannot produce yet (#189). Recorded in 60 Hz frames (holdKeys).
     setup('rec', 'shore', [[0.21, 0, 200]]);
     api.setDepth(12);
     neutralizeAt(12);
     api.verticalVelocity = 0;
     const buoyancy = {
       scenarioId: 'buoyancy-vent-inflate-12m',
-      description: 'Air, neutral at 12 m; S held 4 s, released 20 s, W held 11 s, released 30 s, all in one-second ticks with the buoyancy physics moving the diver',
+      description: 'Air, neutral at 12 m; S held 4 s, released 20 s, W held 11 s, released 30 s, in 60 Hz frames with the buoyancy physics moving the diver',
       checkpoints: [checkpoint('buoyancy-vent-inflate-12m', 'neutral-12m')]
     };
-    const second = 1 / 60;
-    for (let i = 0; i < 4; i++) physicsTick({ s: true }, second);
+    holdKeys({ s: true }, 4);
     buoyancy.checkpoints.push(checkpoint('buoyancy-vent-inflate-12m', 'vented-4s'));
-    for (let i = 0; i < 20; i++) physicsTick({}, second);
+    holdKeys({}, 20);
     buoyancy.checkpoints.push(checkpoint('buoyancy-vent-inflate-12m', 'sinking-20s'));
-    for (let i = 0; i < 11; i++) physicsTick({ w: true }, second);
+    holdKeys({ w: true }, 11);
     buoyancy.checkpoints.push(checkpoint('buoyancy-vent-inflate-12m', 'inflated-11s'));
-    for (let i = 0; i < 30; i++) physicsTick({}, second);
+    holdKeys({}, 30);
     buoyancy.checkpoints.push(checkpoint('buoyancy-vent-inflate-12m', 'coasting-30s'));
     scenarios.push(buoyancy);
+
+    // #192, the recorded departure: a rebreather diver inflating. Legacy's
+    // inflateBCD() draws from tanks[activeTank], the setup placeholder on a
+    // CCR dive; the migration draws from the diluent (docs/decisions.md). The
+    // fixture keeps legacy's values; tests/parity/buoyancy.test.ts declares
+    // the departure. W held 2 s turns the diver upward, and the ascent stays
+    // below the velocity limits.
+    setup('ccr', 'shore', [[0.21, 0, 200]]);
+    api.ccrState.targetSP = 1.3;
+    api.ccrState.actualPO2 = 1.3;
+    api.ccrState.dilFO2 = 0.21;
+    api.ccrState.dilFHe = 0;
+    api.ccrState.dilFN2 = 0.79;
+    api.setDepth(12);
+    neutralizeAt(12);
+    api.verticalVelocity = 0;
+    const ccrInflate = {
+      scenarioId: 'buoyancy-ccr-inflate-12m',
+      description: 'CCR at 1.3 bar with air diluent, neutral at 12 m; W held 2 s, released 8 s, in 60 Hz frames with the buoyancy physics moving the diver',
+      checkpoints: [checkpoint('buoyancy-ccr-inflate-12m', 'neutral-12m')]
+    };
+    holdKeys({ w: true }, 2);
+    ccrInflate.checkpoints.push(checkpoint('buoyancy-ccr-inflate-12m', 'inflated-2s'));
+    holdKeys({}, 8);
+    ccrInflate.checkpoints.push(checkpoint('buoyancy-ccr-inflate-12m', 'rising-8s'));
+    scenarios.push(ccrInflate);
 
     return scenarios;
   } finally {
