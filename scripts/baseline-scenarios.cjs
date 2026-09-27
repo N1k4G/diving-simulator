@@ -78,6 +78,25 @@ function runBaselineScenarios() {
     trajectory.push({ depth_m: api.depth, dtDive_min: stepMinutes });
   }
 
+  // One updateDiving() tick with the given keys held and the buoyancy physics
+  // left to move the diver (#192). Unlike updateAtDepth(), nothing sets the
+  // depth or neutralises the BCD: the depth recorded is whatever the physics
+  // produced. The declared site is swapped for the geometry-free 'open' one,
+  // as updateAtDepth() does, so the only bounds are the surface and MAX_DEPTH.
+  function physicsTick(keys, stepMinutes) {
+    api.clearKeys();
+    api.setKeys(keys);
+    const declaredSite = api.diveSite;
+    api.diveSite = 'open';
+    try {
+      api.updateDiving(stepMinutes * 60 / api.TIME_ACCELERATION);
+    } finally {
+      api.diveSite = declaredSite;
+      api.clearKeys();
+    }
+    trajectory.push({ depth_m: api.depth, dtDive_min: stepMinutes });
+  }
+
   function holdDepth(depth, minutes, stepMinutes = 0.1) {
     const steps = Math.round(minutes / stepMinutes);
     for (let step = 0; step < steps; step++) {
@@ -245,6 +264,31 @@ function runBaselineScenarios() {
     holdDepth(21, 3);
     tecSwitch.checkpoints.push(checkpoint('tec-switch-21m', 'deco-gas-3min'));
     scenarios.push(tecSwitch);
+
+    // #192: vertical motion from buoyancy. Air at 12 m, BCD neutral there,
+    // then S held (vent and sink), nothing held (the diver keeps moving on
+    // momentum and compression), W held (inflate and rise), nothing held. One-
+    // second ticks, so each tick is exactly one of the model's steps and its
+    // ten 0.1 s physics sub-steps.
+    setup('rec', 'shore', [[0.21, 0, 200]]);
+    api.setDepth(12);
+    neutralizeAt(12);
+    api.verticalVelocity = 0;
+    const buoyancy = {
+      scenarioId: 'buoyancy-vent-inflate-12m',
+      description: 'Air, neutral at 12 m; S held 20 s, released 30 s, W held 25 s, released 30 s, all in one-second ticks with the buoyancy physics moving the diver',
+      checkpoints: [checkpoint('buoyancy-vent-inflate-12m', 'neutral-12m')]
+    };
+    const second = 1 / 60;
+    for (let i = 0; i < 20; i++) physicsTick({ s: true }, second);
+    buoyancy.checkpoints.push(checkpoint('buoyancy-vent-inflate-12m', 'vented-20s'));
+    for (let i = 0; i < 30; i++) physicsTick({}, second);
+    buoyancy.checkpoints.push(checkpoint('buoyancy-vent-inflate-12m', 'sinking-30s'));
+    for (let i = 0; i < 25; i++) physicsTick({ w: true }, second);
+    buoyancy.checkpoints.push(checkpoint('buoyancy-vent-inflate-12m', 'inflated-25s'));
+    for (let i = 0; i < 30; i++) physicsTick({}, second);
+    buoyancy.checkpoints.push(checkpoint('buoyancy-vent-inflate-12m', 'coasting-30s'));
+    scenarios.push(buoyancy);
 
     return scenarios;
   } finally {

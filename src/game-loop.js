@@ -1809,6 +1809,9 @@ function captureBaselineCheckpoint(scenarioId, checkpointId) {
             // NDL. It widens the safety stop from 3 to 5 minutes, so a planner
             // replaying this checkpoint needs it recorded explicitly.
             ndlDroppedBelow5: ndlDroppedBelow5,
+            // #192: BCD gas in surface-equivalent litres, the state the
+            // buoyancy physics integrates. Needed to replay vertical motion.
+            bcdGasSurface_l: _baselineFinite(bcdGasSurfaceLiters),
             safetyStop: {
                 needed: safetyStopNeeded,
                 remaining_min: _baselineFinite(safetyStopRemaining),
