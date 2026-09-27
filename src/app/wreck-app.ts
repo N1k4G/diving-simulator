@@ -421,6 +421,10 @@ async function startWreckSimulation(
   const teardown = () => {
     document.removeEventListener("visibilitychange", handleVisibility);
     window.removeEventListener("keydown", handleGasInfoKey);
+    // Removed here too, not only by its own `once`: after a game over the
+    // page stays open, and each ended dive would otherwise keep its
+    // destroyed controller, renderer and HUD reachable (#190 pre-review).
+    window.removeEventListener("pagehide", handlePageHide);
     controller.destroy();
     audio.destroy();
   };
@@ -442,22 +446,23 @@ async function startWreckSimulation(
         overhead: siteGameplay("wreck")?.hasOverhead ?? false,
       },
       // Back to the setup, keeping what was configured, as legacy's Enter
-      // returns to its gas setup with the same settings.
+      // returns to its gas setup with the same settings. For a resumed dive
+      // this is the setup screen that preceded the resume, not the save's
+      // settings; that gap belongs to the resume flow (#191).
       onRetry: () => {
         disposeGameOver();
         showSetupScreen(root, locale, setup);
       },
     });
   };
-  window.addEventListener("pagehide", () => {
+  function handlePageHide(): void {
     if (gameOver) {
       return;
     }
     saveState(repository, controller.authoritativeState, plannerSettings, diveMode);
     teardown();
-  }, {
-    once: true,
-  });
+  }
+  window.addEventListener("pagehide", handlePageHide, { once: true });
   try {
     await audioResume;
     await controller.start(hud.viewport);
