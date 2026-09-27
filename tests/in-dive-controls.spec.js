@@ -173,7 +173,7 @@ test('an empty cylinder is offered but cannot be breathed', async ({ page }) => 
   await expect(page.locator('[data-tank="0"]')).toHaveAttribute('aria-pressed', 'true');
 });
 
-test('a failed dive offers no cylinder controls at all', async ({ page }) => {
+test('a failed two-cylinder dive ends on the game-over screen', async ({ page }) => {
   // DiveModel.switchGas refuses a switch once failure.reason is set, so
   // leaving the buttons enabled offered an action that could not happen, and
   // the digit keys were still claimed with preventDefault (#163 review).
@@ -197,27 +197,16 @@ test('a failed dive offers no cylinder controls at all', async ({ page }) => {
   );
   await acceptSafetyGate(page);
   await page.locator('[data-start-dive]').click();
-  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  // A failed dive now ends on the game-over screen (#159), which replaces the
+  // dive view on its first frame, so there is no canvas left to wait for.
+  await page.locator('[data-game-over]').waitFor();
 
-  await expect(page.locator('[data-wreck-tanks]')).toBeHidden();
-
-  // And the key is released rather than swallowed. Asserting the model is
-  // unchanged would prove nothing here — switchGas refuses on a failed dive
-  // either way, so that assertion passes whether or not the key was claimed.
-  // What distinguishes the two is preventDefault(), so that is what is read:
-  // this listener is registered after the controller's, so it sees the flag
-  // the controller would have set.
-  await page.evaluate(() => {
-    window.__tankKeyClaimed = null;
-    window.addEventListener('keydown', (event) => {
-      if (event.key === '2') window.__tankKeyClaimed = event.defaultPrevented;
-    });
-  });
-  await page.keyboard.press('2');
-
-  expect(await page.evaluate(() => window.__tankKeyClaimed)).toBe(false);
-  const after = await persistedSave(page);
-  expect(after.state.activeTankIndex).toBe(saved.state.activeTankIndex);
+    // A failed dive ends on the game-over screen (#159), so the controls this
+    // test used to look for no longer exist to be hidden. What it checks now
+    // is that this mode's failure lands there and clears its save.
+    await expect(page.locator('[data-game-over]')).toBeVisible();
+    await expect(page.locator('[data-game-over-reason]')).toHaveText('Out of gas');
+    expect(await page.evaluate((key) => window.localStorage.getItem(key), SAVE_KEY)).toBeNull();
 });
 
 test('a single-cylinder dive shows no cylinder row', async ({ page }) => {
@@ -649,7 +638,8 @@ async function resumeCcrDiveWith(page, mutate) {
   );
   await acceptSafetyGate(page);
   await page.locator('[data-start-dive]').click();
-  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  // A failed state ends on the game-over screen (#159) instead of the canvas.
+  await page.locator('[data-renderer=pixi] canvas, [data-game-over]').first().waitFor();
 }
 
 /**
@@ -920,7 +910,7 @@ test.describe('rebreather controls', () => {
     await expect(hudValue(page, 'scrubber')).toHaveText(/^150 min$/);
   });
 
-  test('a failed dive offers no rebreather controls', async ({ page }) => {
+  test('a failed rebreather dive ends on the game-over screen', async ({ page }) => {
     await resumeCcrDiveWith(page, (state) => {
       state.failure.reason = 'ccr-hypoxia';
       state.events.push({
@@ -930,8 +920,12 @@ test.describe('rebreather controls', () => {
       });
     });
 
-    await expect(page.locator('[data-wreck-ccr]')).toBeHidden();
-    expect(await pressAndReadClaim(page, ']')).toBe(false);
+    // A failed dive ends on the game-over screen (#159), so the controls this
+    // test used to look for no longer exist to be hidden. What it checks now
+    // is that this mode's failure lands there and clears its save.
+    await expect(page.locator('[data-game-over]')).toBeVisible();
+    await expect(page.locator('[data-game-over-reason]')).toHaveText('Hypoxia — O₂ too low');
+    expect(await page.evaluate((key) => window.localStorage.getItem(key), SAVE_KEY)).toBeNull();
   });
 
   // The HUD against every control, at the sizes a phone takes. The CCR HUD
@@ -1178,17 +1172,23 @@ test.describe('gas information', () => {
     await expect(gasInfoPanel(page)).toBeHidden();
   });
 
-  test('a failed dive has none', async ({ page }) => {
+  test('a failed dive has no gas information: it ends on the game-over screen', async ({ page }) => {
+    // Legacy's gate is gameState === 'diving', and a failed dive is game over.
     await resumeCcrDiveWith(page, (state) => {
-      state.failure.reason = 'ccr-hypoxia';
+      state.failure.reason = 'ccr-co2';
       state.events.push({
         type: 'failure',
         elapsedTimeS: state.elapsedTimeS,
-        failureReason: 'ccr-hypoxia',
+        failureReason: 'ccr-co2',
       });
     });
-    await expect(gasInfoToggle(page)).toBeHidden();
-    expect(await pressAndReadClaim(page, 'i')).toBe(false);
+
+    // A failed dive ends on the game-over screen (#159), so the controls this
+    // test used to look for no longer exist to be hidden. What it checks now
+    // is that this mode's failure lands there and clears its save.
+    await expect(page.locator('[data-game-over]')).toBeVisible();
+    await expect(page.locator('[data-game-over-reason]')).toHaveText('CO₂ poisoning — scrubber exhausted');
+    expect(await page.evaluate((key) => window.localStorage.getItem(key), SAVE_KEY)).toBeNull();
   });
 
   test('the toggle meets the 44px target', async ({ page }) => {

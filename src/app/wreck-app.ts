@@ -33,6 +33,8 @@ import {
   selectLoopRowDanger,
 } from "./loop-danger";
 import { renderSetupScreen } from "./setup/setup-screen";
+import { renderGameOverScreen } from "./game-over";
+import { siteGameplay } from "../sites/site-resources";
 import { createGasInfo, syncGasInfo, type GasInfoElements } from "./gas-info";
 import {
   gasInfoAvailable,
@@ -141,9 +143,14 @@ export function renderWreckApplication(
 // Gate -> setup -> dive. The setup screen owns a keyboard listener, so its
 // disposer runs before anything else is mounted; leaving it attached would
 // let `1`-`8` keep reconfiguring a dive that had already started.
-function showSetupScreen(root: HTMLElement, locale: SupportedLocale): void {
+function showSetupScreen(
+  root: HTMLElement,
+  locale: SupportedLocale,
+  initialSetup?: DiveSetup,
+): void {
   const dispose = renderSetupScreen(root, {
     locale,
+    ...(initialSetup ? { initialSetup } : {}),
     onStart: (setup) => {
       dispose();
       if (!isRenderableSite(setup.siteId)) {
@@ -290,6 +297,10 @@ async function startWreckSimulation(
   let nextSaveAtS = 5;
   let gasInfoPage: GasInfoPage | null = null;
   let lastPresentation: PresentationState | null = null;
+  // Set when the dive ends in a failure. From then on nothing is saved: legacy
+  // clears the save on its transition to 'gameover' (game-loop.js,
+  // clearSavedDive()), because a failed dive is not one to resume.
+  let gameOver = false;
   const controller = new GameController({
     renderer,
     // A restored save still wins over the setup, which is existing resume
@@ -302,12 +313,27 @@ async function startWreckSimulation(
     // defaults and the GF controls change a number nobody reads (#158 review).
     plannerSettings,
     onAuthoritativeState: (state) => {
+      if (gameOver) {
+        return;
+      }
       if (state.elapsedTimeS >= nextSaveAtS) {
         saveState(repository, state, plannerSettings, diveMode);
         nextSaveAtS = state.elapsedTimeS + 5;
       }
     },
     onFrame: (frame) => {
+      // Game over (#159): legacy switches to its game-over screen on the tick
+      // the dive fails. The teardown waits for a microtask so the controller
+      // is not destroyed from inside its own frame callback.
+      if (frame.presentation.status === "failed" && !gameOver) {
+        gameOver = true;
+        const ended = frame.presentation;
+        queueMicrotask(() => endInGameOver(ended));
+        return;
+      }
+      if (gameOver) {
+        return;
+      }
       updateHud(hud, frame, locale);
       lastPresentation = frame.presentation;
       // A page the dive no longer has closes: legacy leaves infoPageMode
@@ -392,15 +418,51 @@ async function startWreckSimulation(
     void action.catch((error: unknown) => console.error(error));
   };
   document.addEventListener("visibilitychange", handleVisibility);
-  window.addEventListener("pagehide", () => {
+  const teardown = () => {
     document.removeEventListener("visibilitychange", handleVisibility);
     window.removeEventListener("keydown", handleGasInfoKey);
-    saveState(repository, controller.authoritativeState, plannerSettings, diveMode);
+    // Removed here too, not only by its own `once`: after a game over the
+    // page stays open, and each ended dive would otherwise keep its
+    // destroyed controller, renderer and HUD reachable (#190 pre-review).
+    window.removeEventListener("pagehide", handlePageHide);
     controller.destroy();
     audio.destroy();
-  }, {
-    once: true,
-  });
+  };
+  const endInGameOver = (ended: Readonly<PresentationState>) => {
+    teardown();
+    try {
+      repository.clear();
+    } catch (error) {
+      console.error(error);
+    }
+    const disposeGameOver = renderGameOverScreen(root, {
+      locale,
+      content: {
+        // status "failed" means failureReason is set.
+        reason: ended.failureReason!,
+        elapsedTimeS: ended.elapsedTimeS,
+        maxDepthM: ended.maxDepthM,
+        // The only site that renders is the wreck (RENDERABLE_SITES).
+        overhead: siteGameplay("wreck")?.hasOverhead ?? false,
+      },
+      // Back to the setup, keeping what was configured, as legacy's Enter
+      // returns to its gas setup with the same settings. For a resumed dive
+      // this is the setup screen that preceded the resume, not the save's
+      // settings; that gap belongs to the resume flow (#191).
+      onRetry: () => {
+        disposeGameOver();
+        showSetupScreen(root, locale, setup);
+      },
+    });
+  };
+  function handlePageHide(): void {
+    if (gameOver) {
+      return;
+    }
+    saveState(repository, controller.authoritativeState, plannerSettings, diveMode);
+    teardown();
+  }
+  window.addEventListener("pagehide", handlePageHide, { once: true });
   try {
     await audioResume;
     await controller.start(hud.viewport);

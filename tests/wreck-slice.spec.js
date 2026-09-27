@@ -133,14 +133,6 @@ test('persisted safety states produce visible semantic warnings', async ({ page 
     'Unsafe simulated oxygen pressure',
   );
   await expect(chip).toHaveText('⚠ Oxygen warning');
-  await page.reload();
-
-  await mutateSavedState(page, 'failure');
-  await startDive(page);
-  await expect(page.getByRole('alert')).toHaveText(
-    'Simulated dive failure — return to the surface',
-  );
-  await expect(chip).toHaveText('⚠ Dive failure');
   // The chip must never contradict the styling: red without a warning word is
   // the colour-only encoding #138 was filed about.
   await expect(page.locator('.wreck-shell')).toHaveClass(/has-warning/);
@@ -187,6 +179,18 @@ test('persisted safety states produce visible semantic warnings', async ({ page 
   await expect(
     page.locator('.wreck-shell').locator(LIVE),
   ).toHaveCount(1);
+
+  // A failed dive ends on the game-over screen (#159), as legacy switches to
+  // its game-over screen on the tick the dive fails. Its cause is stated in
+  // words, and the screen is not a live region (#138): focus on its heading
+  // is what tells a screen reader the screen changed.
+  await page.reload();
+  await mutateSavedState(page, 'failure');
+  await startDive(page);
+  await expect(page.locator('[data-game-over]')).toBeVisible();
+  await expect(page.locator('[data-game-over-reason]')).toHaveText('Out of gas');
+  await expect(page.locator('[data-game-over]').locator(LIVE)).toHaveCount(0);
+  await expect(page.locator('#game-over-heading')).toBeFocused();
 });
 
 test.describe('mobile viewport', () => {
