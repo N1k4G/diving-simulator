@@ -1820,7 +1820,14 @@ function captureBaselineCheckpoint(scenarioId, checkpointId) {
                 minNdlSeen_min: _baselineFinite(minNdlSeen),
                 fastAscentAccum_s: _baselineFinite(_fastAscentAccum),
                 fastAscentPeak_mpm: _baselineFinite(_fastAscentPeak),
-                ceilingViolationAccum_s: _baselineFinite(_ceilingViolationAccum)
+                ceilingViolationAccum_s: _baselineFinite(_ceilingViolationAccum),
+                // #199: the time-weighted average depth's sums, the profile
+                // sampler's timer, and the ceiling the next profile sample
+                // records (frameCalc before this tick's refresh).
+                avgDepthAccum_ms: _baselineFinite(avgDepthAccum),
+                avgDepthSamples_s: _baselineFinite(avgDepthSamples),
+                profileTimer_s: _baselineFinite(_profileSampleTimer),
+                frameCeiling_m: _baselineFinite(frameCalc.ceiling)
             },
             safetyStop: {
                 needed: safetyStopNeeded,

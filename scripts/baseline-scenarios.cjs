@@ -17,11 +17,22 @@ function runBaselineScenarios() {
   // nominal 12 m/min ramp lands ~1.2e-3 bar out against a 1e-9 tolerance
   // (docs/decisions.md, "Trace contract limits").
   const trajectory = [];
+  // How much of legacy's diveProfile the previous checkpoints already hold.
+  let profileCursor = 0;
 
   function checkpoint(scenarioId, checkpointId) {
     const captured = api.captureBaselineCheckpoint(scenarioId, checkpointId);
     // splice(0) drains: each checkpoint owns the steps since the previous one.
     captured.trajectory = trajectory.splice(0);
+    // #199: likewise the depth profile samples taken since the previous
+    // checkpoint (src/game-loop.js, one every 2 dive seconds). A replay that
+    // starts mid-dive concatenates the earlier checkpoints' samples.
+    captured.profile = api.diveProfile.slice(profileCursor).map((sample) => ({
+      t_min: sample.t,
+      depth_m: sample.depth,
+      ceiling_m: sample.ceiling
+    }));
+    profileCursor = api.diveProfile.length;
     return captured;
   }
 
@@ -30,6 +41,7 @@ function runBaselineScenarios() {
     api.tanks.length = 0;
     api.tankCount = 0;
     api.resetDive();
+    profileCursor = 0;
     api.initTissues();
     api.initCCR();
     for (const tank of tankList) api.pushTank(tank[0], tank[1], tank[2]);
