@@ -6,7 +6,11 @@ import {
   type DiveState,
 } from "../core/dive-state";
 import { DiveModel } from "../core/dive-model";
-import { NO_INPUT, type InputIntent } from "../core/inputs";
+import {
+  neutralBcdSurfaceLitres,
+  type BuoyancyControls,
+  type VerticalBounds,
+} from "../core/buoyancy";
 import { metres, seconds } from "../core/units";
 import {
   DEFAULT_PLANNER_SETTINGS,
@@ -26,12 +30,19 @@ import { PlannerWorkerClient } from "./planner-worker-client";
 
 const START_DEPTH_M = 26;
 const START_ROUTE_POSITION_M = 18;
-const MIN_DEPTH_M = 18;
-const MAX_DEPTH_M = 34;
+/**
+ * The wreck route's vertical bounds, legacy's ceilingAt() and floorAt() for
+ * this slice (#192). The buoyancy physics stops the diver at them, as legacy
+ * stops it at a site's ceiling and floor.
+ */
+const ROUTE_BOUNDS: Readonly<VerticalBounds> = Object.freeze({
+  ceilingM: 18,
+  floorM: 34,
+});
 const MIN_ROUTE_POSITION_M = 8;
 const MAX_ROUTE_POSITION_M = 106;
 const FIN_SPEED_MPS = 5;
-const VERTICAL_SPEED_MPS = 1.6;
+/** src/game-loop.js gameLoop(): `dtReal = Math.min(dtReal, 0.1)`. */
 const MAX_FRAME_SECONDS = 0.1;
 /**
  * Dive seconds per real second: src/constants.js TIME_ACCELERATION, applied
@@ -103,9 +114,7 @@ export class GameController {
    */
   #forcedForecastQueued = false;
   #routePositionM = START_ROUTE_POSITION_M;
-  #diverDepthM = START_DEPTH_M;
   #elapsedRealS = 0;
-  #simulationAccumulatorS = 0;
   #facing: -1 | 1 = 1;
   #torchOn = true;
   #fastForwardActive = false;
@@ -121,12 +130,8 @@ export class GameController {
     this.#onAuthoritativeState = options.onAuthoritativeState ?? null;
     this.#plannerClient = options.plannerClient ?? new PlannerWorkerClient();
     this.#plannerSettings = options.plannerSettings ?? DEFAULT_PLANNER_SETTINGS;
-    const initial = options.initialState ?? createWreckInitialState();
-    this.#model = new DiveModel(initial);
-    this.#diverDepthM = clamp(
-      initial.depthM,
-      MIN_DEPTH_M,
-      MAX_DEPTH_M,
+    this.#model = new DiveModel(
+      withinRoute(options.initialState ?? createWreckInitialState()),
     );
   }
 
@@ -197,9 +202,9 @@ export class GameController {
    * press that arrives when the control is not on offer does nothing rather
    * than arming a fast-forward that starts the next time a stop is reached.
    *
-   * Only the clock changes. The model still steps in whole seconds through
-   * the same advance() call, so nothing about the simulation is skipped or
-   * approximated; there are simply more steps per real second.
+   * Only the clock changes: each frame hands the model ten times the dive
+   * time, as legacy's frame does, so nothing about the simulation is skipped
+   * or approximated.
    */
   toggleFastForward(): void {
     if (!this.#fastForwardAvailable()) {
@@ -311,19 +316,21 @@ export class GameController {
     if (this.#fastForwardActive && !this.#fastForwardAvailable()) {
       this.#fastForwardActive = false;
     }
-    this.#simulationAccumulatorS +=
+    // One display frame is one model frame (#192): legacy applies the BCD
+    // controls once per frame and moves the diver in its sub-steps, so the
+    // frame boundaries are part of the behaviour (docs/decisions.md,
+    // Architecture). The frame's dive time is legacy's dtReal * timeMultiplier.
+    const frameDiveS =
       elapsedS *
       TIME_ACCELERATION *
       (this.#fastForwardActive ? FAST_FORWARD_MULTIPLIER : 1);
-
-    while (this.#simulationAccumulatorS >= 1) {
-      this.#model.advance(
-        { depthM: metres(this.#diverDepthM) },
-        seconds(1),
-        this.#createInputIntent(),
+    if (frameDiveS > 0) {
+      this.#model.advanceWithBuoyancy(
+        ROUTE_BOUNDS,
+        seconds(frameDiveS),
+        this.#buoyancyControls(),
       );
       this.#onAuthoritativeState?.(this.#model.snapshot);
-      this.#simulationAccumulatorS -= 1;
       this.#requestForecast();
     }
 
@@ -335,9 +342,6 @@ export class GameController {
     const horizontal =
       (this.#pressed.has("right") ? 1 : 0) -
       (this.#pressed.has("left") ? 1 : 0);
-    const vertical =
-      (this.#pressed.has("descend") ? 1 : 0) -
-      (this.#pressed.has("ascend") ? 1 : 0);
 
     if (horizontal !== 0) {
       this.#facing = horizontal < 0 ? -1 : 1;
@@ -346,11 +350,6 @@ export class GameController {
       this.#routePositionM + horizontal * FIN_SPEED_MPS * elapsedS,
       MIN_ROUTE_POSITION_M,
       MAX_ROUTE_POSITION_M,
-    );
-    this.#diverDepthM = clamp(
-      this.#diverDepthM + vertical * VERTICAL_SPEED_MPS * elapsedS,
-      MIN_DEPTH_M,
-      MAX_DEPTH_M,
     );
     this.#elapsedRealS += elapsedS;
   }
@@ -386,14 +385,14 @@ export class GameController {
     );
   }
 
-  #createInputIntent(): Readonly<InputIntent> {
+  /**
+   * W or up inflates the BCD, S or down vents it: src/game-loop.js
+   * `wActive` / `sActive` before inflateBCD() and ventBCD().
+   */
+  #buoyancyControls(): Readonly<BuoyancyControls> {
     return {
-      ...NO_INPUT,
-      ascend: this.#pressed.has("ascend"),
-      descend: this.#pressed.has("descend"),
-      finLeft: this.#pressed.has("left"),
-      finRight: this.#pressed.has("right"),
-      switchGasIndex: null,
+      inflate: this.#pressed.has("ascend"),
+      vent: this.#pressed.has("descend"),
     };
   }
 
@@ -404,7 +403,7 @@ export class GameController {
     );
     const scene: WreckSceneState = Object.freeze({
       routePositionM: this.#routePositionM,
-      diverDepthM: this.#diverDepthM,
+      diverDepthM: this.#model.snapshot.depthM,
       elapsedRealS: this.#elapsedRealS,
       facing: this.#facing,
       torchOn: this.#torchOn,
@@ -629,6 +628,28 @@ function clamp(value: number, minimum: number, maximum: number): number {
 }
 
 /**
+ * A resumed dive saved outside the route's bounds, such as a legacy save at
+ * 12 m, starts at the nearest bound, at rest and neutral there (#198
+ * pre-review). The physics would clamp the depth on the first frame but keep
+ * the saved BCD gas, so a diver moved from 12 m to 18 m would arrive heavy and
+ * sink to the floor on its own. At rest and neutral is how a save without
+ * live motion resumes (src/save/save-game.ts, v6).
+ */
+function withinRoute(state: DiveState): DiveState {
+  const depthM = clamp(state.depthM, ROUTE_BOUNDS.ceilingM, ROUTE_BOUNDS.floorM);
+  if (depthM === state.depthM) {
+    return state;
+  }
+  return freezeDiveState({
+    ...state,
+    depthM: metres(depthM),
+    maxDepthM: metres(Math.max(state.maxDepthM, depthM)),
+    verticalVelocityMpm: 0,
+    bcdGasSurfaceLiters: neutralBcdSurfaceLitres(depthM),
+  });
+}
+
+/**
  * The wreck slice's starting state, optionally configured by the setup screen.
  *
  * Exported so the composition root can build a state from a DiveSetup without
@@ -638,7 +659,15 @@ function clamp(value: number, minimum: number, maximum: number): number {
 export function createWreckInitialState(
   options: InitialDiveOptions = {},
 ): DiveState {
-  const initial = createInitialDiveState(0x57524543, options);
+  // The slice starts mid-water at START_DEPTH_M, where legacy's dives start
+  // at the surface with 2 L in the BCD and descend. That much gas at 26 m
+  // would sink the diver to the floor at once, so the dive starts neutral
+  // there, as legacy's neutralizeAt() sets it (#192).
+  const initial = createInitialDiveState(0x57524543, {
+    ...options,
+    bcdGasSurfaceLiters:
+      options.bcdGasSurfaceLiters ?? neutralBcdSurfaceLitres(START_DEPTH_M),
+  });
   return freezeDiveState({
     ...initial,
     depthM: metres(START_DEPTH_M),

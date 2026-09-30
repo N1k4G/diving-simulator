@@ -145,8 +145,8 @@ describe("SaveGame gradient factors", () => {
     expect(result.saveGame.version).toBe(CURRENT_SAVE_GAME_VERSION);
     expect(result.saveGame.gradientFactors).toEqual(DEFAULT_SAVED_GRADIENT_FACTORS);
     // The dive itself survives the migration, and resumes at rest with the
-    // BCD neutral at its depth, since no save before v5 recorded vertical
-    // motion (#192).
+    // BCD neutral at its depth, since no save before v6 recorded live
+    // vertical motion (#192).
     expect(result.saveGame.state).toEqual({
       ...representativeState(),
       verticalVelocityMpm: 0,
@@ -229,7 +229,7 @@ describe("SaveGame gradient factors", () => {
     });
   });
 
-  // v5 carries vertical motion (#192).
+  // v5 added vertical motion, v6 marks it live (#192).
   describe("vertical motion", () => {
     const moving = () =>
       freezeDiveState({
@@ -240,11 +240,11 @@ describe("SaveGame gradient factors", () => {
         bcdGasSurfaceLiters: 13.9,
       });
 
-    it("round-trips velocity and BCD gas in a v5 save", () => {
+    it("round-trips velocity and BCD gas in a current save", () => {
       const decoded = decodeSaveGame(encodeSaveGame(createSaveGame(moving(), CONSERVATIVE_FACTORS, 1_735_689_600_000)));
       expect(decoded.ok).toBe(true);
       if (!decoded.ok) return;
-      expect(decoded.saveGame.version).toBe(5);
+      expect(decoded.saveGame.version).toBe(6);
       expect(decoded.saveGame.state.verticalVelocityMpm).toBe(-12.25);
       expect(decoded.saveGame.state.bcdGasSurfaceLiters).toBe(13.9);
     });
@@ -264,7 +264,30 @@ describe("SaveGame gradient factors", () => {
       expect(result.saveGame.state.bcdGasSurfaceLiters).toBeCloseTo(neutralBcdSurfaceLitres(22.5), 12);
     });
 
-    it("rejects a v5 save with invalid motion", () => {
+    it("resumes a v5 save at rest and neutral: its client never moved the diver with them", () => {
+      // What main's client wrote between #193 and #198: the model's untouched
+      // 2 L at 26 m, which would sink a resumed diver to the floor.
+      const v5 = JSON.parse(
+        encodeSaveGame(createSaveGame(moving(), CONSERVATIVE_FACTORS, 1_735_689_600_000)),
+      ) as { version: number; state: Record<string, unknown> };
+      v5.version = 5;
+      v5.state.depthM = 26;
+      v5.state.maxDepthM = 26;
+      v5.state.verticalVelocityMpm = 0;
+      v5.state.bcdGasSurfaceLiters = 2;
+      const result = decodeSaveGame(JSON.stringify(v5));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.migratedFrom).toBe("save-game-v5");
+      expect(result.saveGame.version).toBe(6);
+      expect(result.saveGame.state.verticalVelocityMpm).toBe(0);
+      expect(result.saveGame.state.bcdGasSurfaceLiters).toBeCloseTo(neutralBcdSurfaceLitres(26), 12);
+      // v5 already tracked CNS and the mode, and keeps both.
+      expect(result.saveGame.state.cnsPercent).toBe(moving().cnsPercent);
+      expect(result.saveGame.diveMode).toBe("rec");
+    });
+
+    it("rejects a current save with invalid motion", () => {
       for (const [field, bad] of [["verticalVelocityMpm", "fast"], ["bcdGasSurfaceLiters", -1], ["bcdGasSurfaceLiters", undefined]] as const) {
         const v5 = JSON.parse(
           encodeSaveGame(createSaveGame(moving(), CONSERVATIVE_FACTORS, 1_735_689_600_000)),

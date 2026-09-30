@@ -10,6 +10,26 @@ const {
 // rather than clicks, and Playwright refuses tap without it.
 const MOBILE_VIEWPORT = { viewport: { width: 390, height: 844 }, hasTouch: true };
 
+/**
+ * The configured loop, without what the dive's elapsed time changes. The
+ * first save lands on the first display frame past five dive seconds, and
+ * since the model advances frame by frame (#192) that is a few hundredths of
+ * a second later on one run than on another, so the loop pO2, the cylinder
+ * pressures, the scrubber and the CO2 timer differ with it. The comparisons
+ * below are about configuration.
+ */
+function loopConfiguration(ccr) {
+  const {
+    actualPo2Bar: _actualPo2Bar,
+    oxygenCylinderPressureBar: _oxygenCylinderPressureBar,
+    diluentCylinderPressureBar: _diluentCylinderPressureBar,
+    scrubberRemainingS: _scrubberRemainingS,
+    co2BuildupS: _co2BuildupS,
+    ...configuration
+  } = ccr;
+  return configuration;
+}
+
 const oxygenValue = (page) => page.locator('[data-setup-value=oxygen]');
 const pressureValue = (page) => page.locator('[data-setup-value=pressure]');
 const stepButton = (page, stepper, direction) =>
@@ -73,7 +93,12 @@ test('keyboard and pointer reach the same configuration and the same dive', asyn
 
   expect(pointerOxygen).toBe(keyboardOxygen);
   expect(pointerPressure).toBe(keyboardPressure);
-  expect(pointerGas).toBe(keyboardGas);
+  // The same cylinder, read from the HUD. The model now advances every
+  // display frame (#192), so the diver has breathed for however many frames
+  // ran before each read: a tenth of a bar either way, not the same string.
+  const bar = (text) => Number.parseFloat((text ?? '').replace(',', '.'));
+  expect(Math.abs(bar(pointerGas) - bar(keyboardGas))).toBeLessThanOrEqual(0.5);
+  expect(bar(keyboardGas)).toBeGreaterThan(209);
 
   // And the values are the configured ones, not merely equal to each other:
   // two broken paths agreeing on a default would satisfy the three above.
@@ -665,7 +690,7 @@ test.describe('closed-circuit mode', () => {
           return raw === null ? null : JSON.parse(raw);
         })
         .then((handle) => handle.jsonValue());
-      return saved.state.ccr;
+      return loopConfiguration(saved.state.ccr);
     };
 
     const byKeyboard = await loopAfter(async (p) => {
@@ -830,7 +855,7 @@ test.describe('mobile viewport', () => {
           return raw === null ? null : JSON.parse(raw);
         })
         .then((handle) => handle.jsonValue());
-      return saved.state.ccr;
+      return loopConfiguration(saved.state.ccr);
     };
 
     const byTouch = await loopFrom(async (p) => {

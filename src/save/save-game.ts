@@ -40,7 +40,14 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // depth (legacy's neutralizeAt), so a resumed dive neither sinks nor rises
 // on its own. Legacy saves carry both (verticalVelocity,
 // bcdGasSurfaceLiters) and keep them.
-export const CURRENT_SAVE_GAME_VERSION = 5;
+//
+// v6 changes no field: it marks saves whose motion is live (#192 PR 2). The
+// client that wrote v5 still moved the diver at a fixed speed, so a v5 save
+// holds the model's untouched defaults, 2 L of BCD gas at any depth, which
+// would sink a resumed diver to the floor. v5 saves resume at rest and
+// neutral, as older ones do.
+export const CURRENT_SAVE_GAME_VERSION = 6;
+export const FIFTH_SAVE_GAME_VERSION = 5;
 export const FOURTH_SAVE_GAME_VERSION = 4;
 export const THIRD_SAVE_GAME_VERSION = 3;
 export const SECOND_SAVE_GAME_VERSION = 2;
@@ -95,6 +102,7 @@ export type SaveGameMigration =
   | "save-game-v2"
   | "save-game-v3"
   | "save-game-v4"
+  | "save-game-v5"
   | null;
 
 /**
@@ -200,13 +208,14 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
 
   if (candidate.schema === SAVE_GAME_SCHEMA) {
     const isCurrent = candidate.version === CURRENT_SAVE_GAME_VERSION;
+    const isFifth = candidate.version === FIFTH_SAVE_GAME_VERSION;
     const isFourth = candidate.version === FOURTH_SAVE_GAME_VERSION;
     const isThird = candidate.version === THIRD_SAVE_GAME_VERSION;
     const isSecond = candidate.version === SECOND_SAVE_GAME_VERSION;
     const isFirst = candidate.version === FIRST_SAVE_GAME_VERSION;
     if (
       !Number.isInteger(candidate.version) ||
-      (!isCurrent && !isFourth && !isThird && !isSecond && !isFirst)
+      (!isCurrent && !isFifth && !isFourth && !isThird && !isSecond && !isFirst)
     ) {
       return { ok: false, reason: "unsupported-version" };
     }
@@ -215,8 +224,9 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     // cnsPercent anyway is not a record of CNS, so it is neither kept nor a
     // reason to reject the save (#188 Codex round 1). A v4 save must carry a
     // valid one, which isDiveState checks.
-    // Before v5 there was no vertical motion in the state: resume at rest,
-    // BCD neutral at the saved depth. Unconditionally, like the CNS reset.
+    // Before v6 the state's vertical motion was not live (none before v5,
+    // untouched defaults in v5): resume at rest, BCD neutral at the saved
+    // depth. Unconditionally, like the CNS reset.
     if (!isCurrent && isRecord(candidate.state)) {
       const savedDepth = isNonNegativeFinite(candidate.state.depthM)
         ? (candidate.state.depthM as number)
@@ -227,7 +237,7 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
         bcdGasSurfaceLiters: neutralBcdSurfaceLitres(savedDepth),
       };
     }
-    if (!isCurrent && !isFourth && isRecord(candidate.state)) {
+    if (!isCurrent && !isFifth && !isFourth && isRecord(candidate.state)) {
       candidate.state = { ...candidate.state, cnsPercent: 0 };
     }
     if (
@@ -243,10 +253,10 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     if (!isFirst && !isSavedGradientFactors(candidate.gradientFactors)) {
       return { ok: false, reason: "invalid-data" };
     }
-    // Likewise a v3 or v4 payload must carry a mode consistent with its
+    // Likewise a v3 to v6 payload must carry a mode consistent with its
     // state; only saves from before the field existed are inferred.
     if (
-      (isCurrent || isFourth || isThird) &&
+      (isCurrent || isFifth || isFourth || isThird) &&
       !isConsistentDiveMode(candidate.diveMode, candidate.state)
     ) {
       return { ok: false, reason: "invalid-data" };
@@ -254,7 +264,7 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     const gradientFactors = isFirst
       ? DEFAULT_SAVED_GRADIENT_FACTORS
       : (candidate.gradientFactors as SavedGradientFactors);
-    const diveMode = isCurrent || isFourth || isThird
+    const diveMode = isCurrent || isFifth || isFourth || isThird
       ? (candidate.diveMode as SavedDiveMode)
       : inferDiveMode(candidate.state);
 
@@ -268,7 +278,9 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
       ),
       migratedFrom: isCurrent
         ? null
-        : isFourth
+        : isFifth
+          ? "save-game-v5"
+          : isFourth
           ? "save-game-v4"
           : isThird
           ? "save-game-v3"

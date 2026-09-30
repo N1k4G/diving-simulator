@@ -323,10 +323,10 @@ async function expectNoOverlapWithOtherControls(
   }
 }
 
-async function startSixCylinderDive(page) {
+async function startSixCylinderDive(page, acceptGate = acceptSafetyGate) {
   await page.goto('/dist/');
   await page.evaluate(() => window.localStorage.clear());
-  await acceptSafetyGate(page);
+  await acceptGate(page);
   await page.locator('[data-setup-group=mode] [data-setup-option=tec]').check();
   for (let i = 0; i < 5; i += 1) {
     await page.locator('[data-setup-tank-add]').click();
@@ -1261,6 +1261,29 @@ test.describe('gas information', () => {
           await expect(gasInfoPanel(page)).toBeVisible();
           await expectHudClearOfControls(page);
           await expect(hudRow(page, 'ndl')).toBeVisible();
+        }
+      });
+    });
+  }
+
+  // German runs longer than English. The controls hint is shown from 721 px
+  // wide, and a German hint one line taller pushed the dock 16 px into the
+  // open panel while every test above, in English, still passed (#198
+  // pre-review).
+  for (const [width, height] of [[844, 390], [1280, 720]]) {
+    test.describe(`${width}x${height} in German`, () => {
+      test.use({ viewport: { width, height }, locale: 'de-DE' });
+
+      test('no open page meets a control', async ({ page }) => {
+        await startSixCylinderDive(page, async (p) => {
+          await p.getByRole('button', { name: 'Verstanden — Simulation starten' }).click();
+          await p.locator('.setup-screen').waitFor();
+        });
+        await expect(page.locator('.controls-hint')).toContainText('BCD');
+        for (let step = 0; step < 4; step += 1) {
+          await gasInfoToggle(page).click();
+          await expect(gasInfoPanel(page)).toBeVisible();
+          await expectHudClearOfControls(page);
         }
       });
     });

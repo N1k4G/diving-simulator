@@ -1,0 +1,97 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 192,
+  "slice": "PR 2 of 2: the client's diver moves with the core's buoyancy physics, one model frame per display frame, within the wreck route's bounds; save v6",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "b5860a08f4a5f722a1a25b651881ed3c82fbe4d1",
+  "measuredTree": "f21e0776dc52ec6b0422e8379acb381b4514ad79",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-09-30T12:41:24Z",
+  "runFinishedAt": "2026-09-30T12:46:13Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "The full run above is on b5860a0, which already contains the linux reference frames (40cac95, from the baseline workflow). The only later commit updates this file, so src, tests and scripts are identical to the measured tree (see durableProvenance).",
+  "earlierRuns": [
+    "A full run on be5b461 passed everything except one Playwright test: setup-screen 'keyboard and pointer reach the same configuration and the same dive' read the HUD's cylinder pressure as 210 bar in one dive and 209.9 in the other, because the model now advances every display frame. 1aff854 compares the two within half a bar and still requires the configured 210; the run above is on that commit.",
+    "A full run on 1aff854 passed (309 unit, 62 parity, 140 e2e). The pre-review of #198, pass 1, then found that a resumed dive outside the route drifted to the other bound, that v5 saves from the fixed-speed client carry an untouched 2 L of BCD gas, and that the controls hint still said the keys move the diver. 1f307a3 fixes all three; the run above is on that commit.",
+    "A full run on 1f307a3 passed (312 unit, 62 parity, 140 e2e). The pre-review of #198, pass 2, then found that the longer German controls hint wrapped one line more and, from 721 px wide, pushed the dock 16 px into the open gas-information panel; every overlap test ran in English. b5860a0 shortens both hints and adds two German overlap tests; the run above is on that commit."
+  ],
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "312 passed (302 on main, +9 in tests/unit/game-controller-buoyancy.test.ts, +1 in tests/unit/save-game.test.ts)",
+    "parity": "62 passed (unchanged)",
+    "e2e": "142 passed in 3.5 min (140 on main, +2 German cases of 'no open page meets a control' in tests/in-dive-controls.spec.js)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels, against the re-recorded win32 wreck-descended frame",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "boundsPortedFromTheOracle": {
+    "frame": "src/game-loop.js gameLoop(): dtReal = Math.min(dtReal, 0.1); updateDiving(): dtDiveSeconds = dtReal * timeMultiplier, with timeMultiplier = TIME_ACCELERATION, times FAST_FORWARD_MULTIPLIER while fast-forwarding. The controller passes that frame's dive time to advanceWithBuoyancy() once per display frame.",
+    "controls": "updateDiving(): if (wActive) inflateBCD(dtDiveSeconds, depth); if (sActive) ventBCD(dtDiveSeconds, depth). W or ArrowUp is ascend, S or ArrowDown is descend in the controller.",
+    "bounds": "updateBuoyancyPhysics() clamps at ceilingAt()/floorAt(). The wreck route's 18 m and 34 m, which used to clamp the view, are the bounds.",
+    "start": "Legacy starts at the surface with 2 L (updateSurface). The slice starts at 26 m, so a fresh wreck dive starts neutral there by legacy's neutralizeAt() formula, as pre-v5 saves resume.",
+    "resume": "A resumed dive saved outside 18-34 m (a legacy save, which carries its own depth, velocity and BCD gas) starts at the nearest bound, at rest and neutral there, keeping its deepest point; the physics alone would clamp the depth but keep the gas. v6 marks saved motion as live: v5 saves, written by the fixed-speed client with the model's untouched 2 L, resume at rest and neutral like older saves.",
+    "hint": "src/constants.js controlsText (en and de): 'W = inflate BCD (ascend), S = vent BCD (descend)'. The hint now opens 'W/↑ inflates the BCD, S/↓ vents it, A/D fin.' (de: 'W/↑ füllt das BCD, S/↓ lässt es ab, A/D schwimmen.'), and the up/down buttons' accessible names say the same at length."
+  },
+  "tests": {
+    "added": "tests/unit/game-controller-buoyancy.test.ts, 9 tests on a stubbed animation-frame loop: equality with a DiveModel stepped on legacy's frame schedule (20 ms frames at 3x, one 250 ms frame capped to 0.1 s, a fast-forward frame at 30x); W inflating to the 18 m ceiling; S venting to the 34 m floor; the neutral start holding at 26 m; the diver still sinking after S is released; dives saved at 12 m and 40 m starting at the bound, at rest and neutral. tests/unit/save-game.test.ts: a v5 save resumes at rest and neutral, keeping CNS and mode.",
+    "adjusted": [
+      "tests/setup-screen.spec.js 'keyboard and pointer configure the same loop' and 'a closed-circuit dive reaches the same model by touch alone as by keyboard alone' compare the loop's configuration, without the pO2, cylinder pressures, scrubber and CO2 timer, which differ with the first save's frame.",
+      "tests/setup-screen.spec.js 'keyboard and pointer reach the same configuration and the same dive' compares the HUD's cylinder pressure within 0.5 bar and requires more than 209."
+    ],
+    "referenceFrames": "wreck-descended re-recorded on win32 with npm run pixi:visual-update after comparing the actual and reference frames: only the diver's height differs (about half a metre of descent in 75 frames instead of 2 m). wreck-exterior-start and wreck-torch-off are byte-identical. The linux frames are recorded by .github/workflows/pixi-baseline.yml, dispatched by owner approval."
+  },
+  "counterChecks": {
+    "method": "Each revert was applied to src/app/game-controller.ts from a backup copy, tests/unit/game-controller-buoyancy.test.ts (9 tests) was run, and the file was restored from the backup. Run on the content of 1f307a3.",
+    "results": [
+      {
+        "revert": "inflate and vent swapped",
+        "result": "5 of 9 failed"
+      },
+      {
+        "revert": "no frame cap (MAX_FRAME_SECONDS 10)",
+        "result": "1 failed: the slow-frame cap"
+      },
+      {
+        "revert": "clock at 1x",
+        "result": "5 failed"
+      },
+      {
+        "revert": "open-water bounds (0 and 300 m)",
+        "result": "4 failed: the ceiling, the floor and both resumed-outside-the-route tests"
+      },
+      {
+        "revert": "no route fit on resume",
+        "result": "2 failed: both resumed-outside-the-route tests"
+      },
+      {
+        "revert": "a fresh dive with legacy's 2 L",
+        "result": "1 failed: the neutral start"
+      },
+      {
+        "revert": "main's controller (one-second accumulator, fixed vertical speed)",
+        "result": "8 of 9 failed"
+      }
+    ]
+  },
+  "durableProvenance": {
+    "src": "2eaa58a80f065d83f51311fae637e572c3f4e8ad",
+    "tests": "ef1d324708ed48bd992df43c791a947d70945507",
+    "scripts": "c476b541b5fbfcff2290caf1f5d9966aef83407a"
+  },
+  "layout": {
+    "measured": "With the gas-information panel open on six-cylinder and rebreather dives, at 844x390 and 1280x720, in en-US and de-DE: no overlap between the HUD column (rows and panel) and any control or the hint. Clearance between the panel's bottom and the hint's top: 32 px in English, 16 px in German. The previous hint overlapped by 16 px in German.",
+    "tests": "tests/in-dive-controls.spec.js 'gas information > 844x390 in German' and '1280x720 in German' > 'no open page meets a control'. Both fail with the previous hint (catalog from 1f307a3, dist rebuilt) and pass with the new one."
+  }
+}
