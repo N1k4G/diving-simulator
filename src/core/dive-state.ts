@@ -47,6 +47,11 @@ export interface TankState {
   gas: GasMix;
   volumeL: Litres;
   gasRemainingL: Litres;
+  /**
+   * The fill the dive started with (#199), legacy's totalGas: volume times
+   * the configured pressure. Gas used is this less gasRemainingL.
+   */
+  startGasL: Litres;
 }
 
 export interface CcrState {
@@ -57,6 +62,14 @@ export interface CcrState {
   oxygenCylinderPressureBar: Bars;
   diluentCylinderVolumeL: Litres;
   diluentCylinderPressureBar: Bars;
+  /**
+   * The start of the dive (#199), legacy's o2CylPressureStart,
+   * dilCylPressureStart and scrubberTotal: O2, diluent and scrubber time
+   * used are these less the current values.
+   */
+  oxygenCylinderStartPressureBar: Bars;
+  diluentCylinderStartPressureBar: Bars;
+  scrubberTotalS: Seconds;
   loopVolumeL: Litres;
   scrubberRemainingS: Seconds;
   metabolicOxygenLpm: LitresPerMinute;
@@ -255,6 +268,7 @@ export function createTankState(
     gas,
     volumeL: litres(volumeL),
     gasRemainingL: litres(volumeL * pressureBar),
+    startGasL: litres(volumeL * pressureBar),
   });
 }
 
@@ -275,6 +289,11 @@ export function createCcrState(
   > = {},
 ): CcrState {
   const targetPo2Bar = overrides.targetPo2Bar ?? bars(0.7);
+  const oxygenCylinderPressureBar =
+    overrides.oxygenCylinderPressureBar ?? bars(200);
+  const diluentCylinderPressureBar =
+    overrides.diluentCylinderPressureBar ?? bars(200);
+  const scrubberRemainingS = overrides.scrubberRemainingS ?? seconds(180 * 60);
   const po2ResponseBarPerSecond = overrides.po2ResponseBarPerSecond ?? 0.05;
 
   if (
@@ -293,13 +312,16 @@ export function createCcrState(
       bars(targetPo2Bar < 1 ? targetPo2Bar : 0.21),
     diluent,
     oxygenCylinderVolumeL: overrides.oxygenCylinderVolumeL ?? litres(2),
-    oxygenCylinderPressureBar:
-      overrides.oxygenCylinderPressureBar ?? bars(200),
+    oxygenCylinderPressureBar,
     diluentCylinderVolumeL: overrides.diluentCylinderVolumeL ?? litres(3),
-    diluentCylinderPressureBar:
-      overrides.diluentCylinderPressureBar ?? bars(200),
+    diluentCylinderPressureBar,
+    oxygenCylinderStartPressureBar:
+      overrides.oxygenCylinderStartPressureBar ?? oxygenCylinderPressureBar,
+    diluentCylinderStartPressureBar:
+      overrides.diluentCylinderStartPressureBar ?? diluentCylinderPressureBar,
     loopVolumeL: overrides.loopVolumeL ?? litres(6),
-    scrubberRemainingS: overrides.scrubberRemainingS ?? seconds(180 * 60),
+    scrubberRemainingS,
+    scrubberTotalS: overrides.scrubberTotalS ?? scrubberRemainingS,
     metabolicOxygenLpm:
       overrides.metabolicOxygenLpm ?? litresPerMinute(0.8),
     po2ResponseBarPerSecond,
