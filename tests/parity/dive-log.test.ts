@@ -23,7 +23,16 @@ import { metres, seconds } from "../../src/core/units";
 
 interface Checkpoint extends LegacyTissueCheckpoint {
   checkpointId: string;
-  state: LegacyTissueCheckpoint["state"] & { ndlDroppedBelow5: boolean };
+  state: LegacyTissueCheckpoint["state"] & {
+    ndlDroppedBelow5: boolean;
+    debrief: {
+      ascentRate_mpm: number;
+      minNdlSeen_min: number | null;
+      fastAscentAccum_s: number | null;
+      fastAscentPeak_mpm: number;
+      ceilingViolationAccum_s: number | null;
+    };
+  };
   events: { t: number; kind: string; value: number }[];
   trajectory: { depth_m: number; dtDive_min: number }[];
 }
@@ -58,6 +67,30 @@ function expectLogToMatch(model: DiveModel, recorded: Checkpoint): void {
       .toBeLessThanOrEqual(eps.default);
   });
   expect(model.snapshot.log.ndlDroppedBelowFiveMinutes, `ndlDroppedBelow5 at ${where}`).toBe(recorded.state.ndlDroppedBelow5);
+  expectContinuationToMatch(model, recorded);
+}
+
+/**
+ * What the next step continues from, against legacy's state.debrief (#201
+ * Codex round 1): the ascent rate, the lowest NDL, and each window's length,
+ * latch and peak. A fired window is null in the fixture (legacy's -Infinity)
+ * and latched in the log, where its length no longer counts.
+ */
+function expectContinuationToMatch(model: DiveModel, recorded: Checkpoint): void {
+  const where = recorded.checkpointId;
+  const log = model.snapshot.log;
+  const legacy = recorded.state.debrief;
+  expect(Math.abs(log.ascentRateMpm - legacy.ascentRate_mpm), `ascent rate at ${where}`).toBeLessThanOrEqual(eps.default);
+  expect(log.minNdlMin, `lowest NDL at ${where}`).toBe(legacy.minNdlSeen_min);
+  expect(log.fastAscentLatched, `fast-ascent latch at ${where}`).toBe(legacy.fastAscentAccum_s === null);
+  if (legacy.fastAscentAccum_s !== null) {
+    expect(Math.abs(log.fastAscentS - legacy.fastAscentAccum_s), `fast-ascent window at ${where}`).toBeLessThanOrEqual(eps.default);
+  }
+  expect(Math.abs(log.fastAscentPeakMpm - legacy.fastAscentPeak_mpm), `fast-ascent peak at ${where}`).toBeLessThanOrEqual(eps.default);
+  expect(log.ceilingViolationLatched, `ceiling latch at ${where}`).toBe(legacy.ceilingViolationAccum_s === null);
+  if (legacy.ceilingViolationAccum_s !== null) {
+    expect(Math.abs(log.ceilingViolationS - legacy.ceilingViolationAccum_s), `ceiling window at ${where}`).toBeLessThanOrEqual(eps.default);
+  }
 }
 
 function replayBuoyancy(
@@ -106,6 +139,31 @@ describe("the dive log against the recorded legacy dives", () => {
   // for the same bottoms: the scripted scenarios hold the loop at its
   // setpoint, where the model's own loop, dropped from the surface to 30 m in
   // one step, would settle elsewhere and load different tissues.
+  it("continues a latched fast ascent from a mid-dive checkpoint without logging it again", () => {
+    // coasting-30s already holds legacy's entry and a fired window, and the
+    // 10 fps vent that follows stays above 9 m/min throughout. Started from
+    // that checkpoint, the log must know the window has fired.
+    const start = checkpoint("buoyancy-vent-inflate-12m", "coasting-30s");
+    expect(start.state.debrief.fastAscentAccum_s).toBeNull();
+    const model = new DiveModel(diveStateFromLegacyCheckpoint(start, 501));
+    const next = checkpoint("buoyancy-vent-inflate-12m", "vented-3s-10fps");
+    for (const frame of next.trajectory) {
+      model.advanceWithBuoyancy(OPEN_WATER, seconds(frame.dtDive_min * 60), VENT);
+    }
+    expectLogToMatch(model, next);
+    expect(model.snapshot.log.entries).toHaveLength(1);
+  });
+
+  it("carries the lowest NDL across a checkpoint", () => {
+    // Legacy's air bottom has seen 3 minutes; a dive continued from it keeps
+    // that minimum while the NDL recovers on the way up.
+    const bottom = checkpoint("air-18m-30min", "bottom-30min");
+    const model = new DiveModel(diveStateFromLegacyCheckpoint(bottom, 17));
+    expect(model.snapshot.log.minNdlMin).toBe(3);
+    model.advance({ depthM: metres(9), breathing: openCircuit(createGasMix(0.21, 0)) }, seconds(60));
+    expect(model.snapshot.log.minNdlMin).toBe(3);
+  });
+
   it.each<[string, number, BreathingSource]>([
     ["air-18m-30min", 18, openCircuit(createGasMix(0.21, 0))],
     ["trimix-45m-20min", 45, openCircuit(createGasMix(0.21, 0.35))],

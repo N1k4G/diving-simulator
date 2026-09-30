@@ -362,6 +362,16 @@ describe("SaveGame gradient factors", () => {
         ["negative window", (log) => { log.fastAscentS = -1; }],
         ["NDL not a number", (log) => { log.minNdlMin = "4"; }],
         ["latch not a boolean", (log) => { log.ceilingViolationLatched = 1; }],
+        // What the model cannot produce (#201 Codex round 1).
+        ["a full window left unlatched", (log) => { log.fastAscentS = 2; }],
+        ["a latch on a short window", (log) => { log.ceilingViolationLatched = true; }],
+        ["a window under way without a peak", (log) => { log.fastAscentPeakMpm = 0; }],
+        ["a peak with no window", (log) => { log.fastAscentS = 0; }],
+        ["a fast ascent at 9 m/min", (log) => { (log.entries as Record<string, unknown>[])[0]!.value = 9; }],
+        ["a violation within the tolerance", (log) => { (log.entries as Record<string, unknown>[])[1]!.value = 0.2; }],
+        ["entries out of order", (log) => { (log.entries as Record<string, unknown>[])[1]!.elapsedTimeS = 300; }],
+        ["a fractional NDL", (log) => { log.minNdlMin = 4.5; }],
+        ["an NDL below five without the latch", (log) => { log.ndlDroppedBelowFiveMinutes = false; }],
       ];
       for (const [what, corrupt] of invalid) {
         const save = JSON.parse(
@@ -394,6 +404,16 @@ describe("SaveGame gradient factors", () => {
       expect(result.saveGame.state.log.minNdlMin).toBe(6);
       expect(result.saveGame.state.log.ndlDroppedBelowFiveMinutes).toBe(false);
       expect(result.saveGame.state.log.ascentRateMpm).toBe(-3.25);
+    });
+
+    it("keeps a legacy save whose lowest NDL is below five but predates the flag", () => {
+      const older: Record<string, unknown> = { ...legacyV2Save(), minNdlSeen: 3 };
+      delete older.ndlDroppedBelow5;
+      const result = decodeSaveGame(JSON.stringify(older));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.saveGame.state.log.minNdlMin).toBe(3);
+      expect(result.saveGame.state.log.ndlDroppedBelowFiveMinutes).toBe(true);
     });
 
     it("reads legacy's null minNdlSeen as no NDL seen yet", () => {

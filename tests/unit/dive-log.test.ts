@@ -4,6 +4,7 @@ import baselineFixture from "../fixtures/traces/baseline-v1.json";
 import { ceilingDepthM, ndlMinutes } from "../../src/core/decompression";
 import { DiveModel } from "../../src/core/dive-model";
 import {
+  createCcrState,
   createGasMix,
   createInitialDiveState,
   createTankState,
@@ -100,6 +101,44 @@ describe("ceiling violations", () => {
     stepThrough(model, [ceilingM - 0.2, ceilingM - 0.2, ceilingM - 0.2, ceilingM - 0.2]);
     expect(model.snapshot.log.entries).toEqual([]);
     expect(model.snapshot.log.ceilingViolationS).toBe(0);
+  });
+});
+
+describe("the step a dive ends on", () => {
+  // Legacy returns from updateDiving() on a rebreather failure before the
+  // debriefing capture, and fails for everything else after it (#201 Codex
+  // round 1). Both steps below complete a fast-ascent window.
+  const halfwayUp = (base: DiveState) =>
+    freezeDiveState({
+      ...diverAt(30, base),
+      log: { ...base.log, fastAscentS: seconds(1.5), fastAscentPeakMpm: 12 },
+    });
+
+  it("is not logged when the rebreather fails on it, but the ascent rate moves", () => {
+    const loop = createCcrState(air);
+    const failing = halfwayUp(
+      freezeDiveState({
+        ...createInitialDiveState(4, { ccr: { ...loop, scrubberFailed: true, co2BuildupS: seconds(179.5) } }),
+      }),
+    );
+    const model = new DiveModel(failing);
+    stepThrough(model, [29.8]);
+    expect(model.snapshot.failure.reason).toBe("ccr-co2");
+    expect(model.snapshot.log.entries).toEqual([]);
+    expect(model.snapshot.log.fastAscentS).toBe(1.5);
+    expect(model.snapshot.log.ascentRateMpm).toBeCloseTo(12, 9);
+  });
+
+  it("is logged when an open-circuit failure ends the dive on it", () => {
+    // 3% oxygen at 30 m is hypoxic, and the timer is half a second short.
+    const hypoxic = createInitialDiveState(5, { tanks: [createTankState(createGasMix(0.03, 0))] });
+    const failing = halfwayUp(
+      freezeDiveState({ ...hypoxic, failure: { ...hypoxic.failure, hypoxiaS: seconds(9.5) } }),
+    );
+    const model = new DiveModel(failing);
+    stepThrough(model, [29.8]);
+    expect(model.snapshot.failure.reason).toBe("hypoxia");
+    expect(model.snapshot.log.entries.map((entry) => entry.kind)).toEqual(["fast-ascent"]);
   });
 });
 

@@ -313,16 +313,39 @@ export function advanceDiveStep(
     elapsedS,
   );
   nextState = applyBailoutIntent(nextState, intent.bailout);
-  // Legacy's debriefing capture runs after the gas use and before the
-  // dive-ending checks.
-  nextState = updateDiveLog(nextState, previousDepthM, elapsedS, limits);
 
-  return updateFailureState(
+  const settled = updateFailureState(
     nextState,
     elapsedS,
     environment.breathing ?? breathingSourceForState(nextState),
   );
+  // Legacy's rebreather checks run in updateCCR() and return from
+  // updateDiving() before the debriefing capture; its other dive-ending
+  // checks come after it (#201 Codex round 1). The ascent rate is computed
+  // with the physics, before either, so it still moves on that step. The log
+  // reads nothing the failure update changes, so applying it afterwards is
+  // the same step.
+  if (
+    settled.failure.reason !== null &&
+    FAILURES_BEFORE_THE_LOG.has(settled.failure.reason)
+  ) {
+    return freezeDiveState({
+      ...settled,
+      log: {
+        ...settled.log,
+        ascentRateMpm: stepAscentRateMpm(settled, previousDepthM, elapsedS),
+      },
+    });
+  }
+  return updateDiveLog(settled, previousDepthM, elapsedS, limits);
 }
+
+/** The failures legacy detects in updateCCR(), before the "Issue #44" capture. */
+const FAILURES_BEFORE_THE_LOG: ReadonlySet<DiveFailureReason> = new Set([
+  "ccr-hypoxia",
+  "ccr-hyperoxia",
+  "ccr-co2",
+]);
 
 interface DecompressionLimits {
   readonly ceilingM: number;
@@ -373,6 +396,15 @@ function decompressionLimits(
   };
 }
 
+/** Legacy's ascentRate: the step's depth change in m/min, positive up. */
+function stepAscentRateMpm(
+  state: DiveState,
+  previousDepthM: number,
+  elapsedS: Seconds,
+): number {
+  return -(state.depthM - previousDepthM) / (elapsedS / 60);
+}
+
 /**
  * The debriefing capture of legacy's updateDiving() (#199, src/game-loop.js
  * "Issue #44"): the step's ascent rate, a fast ascent or a broken ceiling
@@ -387,7 +419,7 @@ function updateDiveLog(
 ): DiveState {
   const log = state.log;
   const entries = [...log.entries];
-  const ascentRateMpm = -(state.depthM - previousDepthM) / (elapsedS / 60);
+  const ascentRateMpm = stepAscentRateMpm(state, previousDepthM, elapsedS);
 
   let { fastAscentS, fastAscentPeakMpm, fastAscentLatched } = log;
   if (ascentRateMpm > FAST_ASCENT_RATE_MPM) {

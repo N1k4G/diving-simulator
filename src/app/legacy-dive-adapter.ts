@@ -4,10 +4,15 @@ import {
   createGasMix,
   createInitialDiveState,
   freezeDiveState,
+  type DiveLog,
   type DiveLogEntry,
   type DiveState,
   type TissueState,
 } from "../core/dive-state";
+import {
+  CEILING_VIOLATION_WINDOW_S,
+  FAST_ASCENT_WINDOW_S,
+} from "../core/dive-model";
 import { normalizeSeed } from "../core/rng";
 import {
   bars,
@@ -16,6 +21,7 @@ import {
   metres,
   minutes,
   minutesToSeconds,
+  seconds,
 } from "../core/units";
 
 export interface LegacyTissueCheckpoint {
@@ -29,6 +35,19 @@ export interface LegacyTissueCheckpoint {
     verticalVelocity_mpm?: number;
     bcdGasSurface_l?: number;
     ndlDroppedBelow5?: boolean;
+    /**
+     * The debriefing capture's continuation state (#199): legacy's
+     * ascentRate, minNdlSeen, and the two windows' accumulators and the fast
+     * ascent's peak. A fired window's -Infinity and an Infinity minNdlSeen
+     * are recorded as null.
+     */
+    debrief?: {
+      ascentRate_mpm: number | null;
+      minNdlSeen_min: number | null;
+      fastAscentAccum_s: number | null;
+      fastAscentPeak_mpm: number | null;
+      ceilingViolationAccum_s: number | null;
+    };
   };
   /** Legacy's diveEvents: time in minutes, legacy's kind names. */
   events?: readonly { t: number; kind: string; value: unknown }[];
@@ -116,12 +135,42 @@ export function diveStateFromLegacyCheckpoint(
     verticalVelocityMpm: checkpoint.state.verticalVelocity_mpm ?? 0,
     bcdGasSurfaceLiters:
       checkpoint.state.bcdGasSurface_l ?? initialState.bcdGasSurfaceLiters,
-    log: {
-      ...createEmptyDiveLog(),
+    log: logFromLegacyCheckpoint(checkpoint),
+  });
+}
+
+/**
+ * The dive log (#199) a legacy checkpoint continues from. A window legacy
+ * has fired (accumulator -Infinity, recorded as null) is latched; the log
+ * holds it at its full length, as the model does once it has fired.
+ */
+function logFromLegacyCheckpoint(checkpoint: LegacyTissueCheckpoint): DiveLog {
+  const debrief = checkpoint.state.debrief;
+  const empty = createEmptyDiveLog();
+  if (!debrief) {
+    return {
+      ...empty,
       entries: logEntriesFromLegacyEvents(checkpoint.events ?? []),
       ndlDroppedBelowFiveMinutes: checkpoint.state.ndlDroppedBelow5 ?? false,
-    },
-  });
+    };
+  }
+  const fastAscentLatched = debrief.fastAscentAccum_s === null;
+  const ceilingViolationLatched = debrief.ceilingViolationAccum_s === null;
+  return {
+    entries: logEntriesFromLegacyEvents(checkpoint.events ?? []),
+    ascentRateMpm: debrief.ascentRate_mpm ?? 0,
+    fastAscentS: fastAscentLatched
+      ? FAST_ASCENT_WINDOW_S
+      : seconds(debrief.fastAscentAccum_s ?? 0),
+    fastAscentPeakMpm: debrief.fastAscentPeak_mpm ?? 0,
+    fastAscentLatched,
+    ceilingViolationS: ceilingViolationLatched
+      ? CEILING_VIOLATION_WINDOW_S
+      : seconds(debrief.ceilingViolationAccum_s ?? 0),
+    ceilingViolationLatched,
+    minNdlMin: debrief.minNdlSeen_min,
+    ndlDroppedBelowFiveMinutes: checkpoint.state.ndlDroppedBelow5 ?? false,
+  };
 }
 
 /**

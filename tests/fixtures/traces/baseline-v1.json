@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "diving-simulator-golden-traces",
-  "referenceCommit": "d204a72ae81f0fb1622fba88cdd62f1d67d9d928",
+  "referenceCommit": "58641729ef5b32a59aa9bb58eaf27143e6596f5c",
   "generator": "npm run baseline:generate",
   "tolerances": {
     "exact": [
@@ -65,6 +65,13 @@
             "narcosisIndex": 0,
             "ndlDroppedBelow5": false,
             "bcdGasSurface_l": 1,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": null,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": false,
               "remaining_min": 0,
@@ -170,6 +177,13 @@
             "narcosisIndex": 0.1039999999808827,
             "ndlDroppedBelow5": true,
             "bcdGasSurface_l": 9.990465669399928,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": 3,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -1476,6 +1490,13 @@
             "narcosisIndex": 0.020063618224854536,
             "ndlDroppedBelow5": true,
             "bcdGasSurface_l": 1.1354646266299513,
+            "debrief": {
+              "ascentRate_mpm": 8.791941506670543,
+              "minNdlSeen_min": 3,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 282,
@@ -1830,6 +1851,13 @@
             "narcosisIndex": 0,
             "ndlDroppedBelow5": false,
             "bcdGasSurface_l": 1,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": null,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": false,
               "remaining_min": 0,
@@ -1944,6 +1972,13 @@
             "narcosisIndex": 0.24066025446766776,
             "ndlDroppedBelow5": true,
             "bcdGasSurface_l": 24.66167513979678,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": 0,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -2879,6 +2914,13 @@
             "narcosisIndex": 0.05543753938826498,
             "ndlDroppedBelow5": true,
             "bcdGasSurface_l": 11.579330766639371,
+            "debrief": {
+              "ascentRate_mpm": 6.599921636023122,
+              "minNdlSeen_min": 0,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -3442,6 +3484,13 @@
             "narcosisIndex": 0.054027549150963805,
             "ndlDroppedBelow5": true,
             "bcdGasSurface_l": 11.579330766639371,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": 0,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -3587,6 +3636,13 @@
             "narcosisIndex": 0,
             "ndlDroppedBelow5": false,
             "bcdGasSurface_l": 1,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": null,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": false,
               "remaining_min": 0,
@@ -3692,6 +3748,13 @@
             "narcosisIndex": 0.07244779156005937,
             "ndlDroppedBelow5": true,
             "bcdGasSurface_l": 16.42141716744801,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": 0,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -5010,6 +5073,13 @@
             "narcosisIndex": 0.01849344600320777,
             "ndlDroppedBelow5": true,
             "bcdGasSurface_l": 6.8657265399448795,
+            "debrief": {
+              "ascentRate_mpm": 6.593956130002923,
+              "minNdlSeen_min": 0,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -5454,6 +5524,13 @@
             "narcosisIndex": 0,
             "ndlDroppedBelow5": false,
             "bcdGasSurface_l": 1,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": null,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": false,
               "remaining_min": 0,
@@ -5559,6 +5636,13 @@
             "narcosisIndex": 0.32980781691596356,
             "ndlDroppedBelow5": false,
             "bcdGasSurface_l": 16.42141716744801,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": 5,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -6065,6 +6149,13 @@
             "narcosisIndex": 0.3298111942815718,
             "ndlDroppedBelow5": false,
             "bcdGasSurface_l": 16.42141716744801,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": 5,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -6175,6 +6266,13 @@
             "narcosisIndex": 0.1902942286447493,
             "ndlDroppedBelow5": true,
             "bcdGasSurface_l": 9.990465669399928,
+            "debrief": {
+              "ascentRate_mpm": 6.617466332705531,
+              "minNdlSeen_min": 3,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -6503,6 +6601,13 @@
             "narcosisIndex": 0,
             "ndlDroppedBelow5": false,
             "bcdGasSurface_l": 1,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": null,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": false,
               "remaining_min": 0,
@@ -6608,6 +6713,13 @@
             "narcosisIndex": 0.06582161970217071,
             "ndlDroppedBelow5": true,
             "bcdGasSurface_l": 16.42141716744801,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": 0,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -7114,6 +7226,13 @@
             "narcosisIndex": 0.06582161970217071,
             "ndlDroppedBelow5": true,
             "bcdGasSurface_l": 16.42141716744801,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": 0,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -7224,6 +7343,13 @@
             "narcosisIndex": 0.07226740625033659,
             "ndlDroppedBelow5": true,
             "bcdGasSurface_l": 16.42141716744801,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": 0,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -8538,6 +8664,13 @@
             "narcosisIndex": 0.07226740625033659,
             "ndlDroppedBelow5": true,
             "bcdGasSurface_l": 16.42141716744801,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": 0,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -8656,6 +8789,13 @@
             "narcosisIndex": 0.02413593819960018,
             "ndlDroppedBelow5": true,
             "bcdGasSurface_l": 11.579330766639371,
+            "debrief": {
+              "ascentRate_mpm": 6.5939561300028515,
+              "minNdlSeen_min": 0,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -8936,6 +9076,13 @@
             "narcosisIndex": 0,
             "ndlDroppedBelow5": false,
             "bcdGasSurface_l": 1,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": null,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": false,
               "remaining_min": 0,
@@ -9050,6 +9197,13 @@
             "narcosisIndex": 0.07622290829262114,
             "ndlDroppedBelow5": true,
             "bcdGasSurface_l": 16.42141716744801,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": 0,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -9777,6 +9931,13 @@
             "narcosisIndex": 0.044154701498743135,
             "ndlDroppedBelow5": true,
             "bcdGasSurface_l": 11.579330766639371,
+            "debrief": {
+              "ascentRate_mpm": 6.5939561300028515,
+              "minNdlSeen_min": 0,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -10064,6 +10225,13 @@
             "narcosisIndex": 0.044154701498743135,
             "ndlDroppedBelow5": true,
             "bcdGasSurface_l": 11.579330766639371,
+            "debrief": {
+              "ascentRate_mpm": 6.5939561300028515,
+              "minNdlSeen_min": 0,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -10195,6 +10363,13 @@
             "narcosisIndex": 0.14048971011861888,
             "ndlDroppedBelow5": true,
             "bcdGasSurface_l": 11.579330766639371,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": 0,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -10444,6 +10619,13 @@
             "narcosisIndex": 0,
             "ndlDroppedBelow5": false,
             "bcdGasSurface_l": 6.8657265399448795,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": null,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": false,
               "remaining_min": 0,
@@ -10549,6 +10731,13 @@
             "narcosisIndex": 0.0015932712000730285,
             "ndlDroppedBelow5": false,
             "bcdGasSurface_l": 0.21303313900361162,
+            "debrief": {
+              "ascentRate_mpm": -20.000000000000995,
+              "minNdlSeen_min": 83,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -10975,6 +11164,13 @@
             "narcosisIndex": 0.01820115372637446,
             "ndlDroppedBelow5": false,
             "bcdGasSurface_l": 0.21303313900361162,
+            "debrief": {
+              "ascentRate_mpm": -19.999999999998863,
+              "minNdlSeen_min": 27,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -12681,6 +12877,13 @@
             "narcosisIndex": 0.03507545921360836,
             "ndlDroppedBelow5": false,
             "bcdGasSurface_l": 13.8894759572674,
+            "debrief": {
+              "ascentRate_mpm": -5.107264486674978,
+              "minNdlSeen_min": 18,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -13667,6 +13870,13 @@
             "narcosisIndex": 0.06665865633381748,
             "ndlDroppedBelow5": false,
             "bcdGasSurface_l": 13.8894759572674,
+            "debrief": {
+              "ascentRate_mpm": 24.99999999999858,
+              "minNdlSeen_min": 18,
+              "fastAscentAccum_s": null,
+              "fastAscentPeak_mpm": 24.99999999999858,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -16179,6 +16389,13 @@
             "narcosisIndex": 0.06680241082877192,
             "ndlDroppedBelow5": false,
             "bcdGasSurface_l": 8.109219946523933,
+            "debrief": {
+              "ascentRate_mpm": 14.536319940596343,
+              "minNdlSeen_min": 18,
+              "fastAscentAccum_s": null,
+              "fastAscentPeak_mpm": 25.00000000000071,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -16337,6 +16554,13 @@
             "narcosisIndex": 0,
             "ndlDroppedBelow5": false,
             "bcdGasSurface_l": 6.8657265399448795,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": null,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": false,
               "remaining_min": 0,
@@ -16442,6 +16666,13 @@
             "narcosisIndex": 0.0007632905615125271,
             "ndlDroppedBelow5": false,
             "bcdGasSurface_l": 8.624774047059354,
+            "debrief": {
+              "ascentRate_mpm": 4.371097481828201,
+              "minNdlSeen_min": 999,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,
@@ -16708,6 +16939,13 @@
             "narcosisIndex": 0.0030550326391876495,
             "ndlDroppedBelow5": false,
             "bcdGasSurface_l": 8.624774047059354,
+            "debrief": {
+              "ascentRate_mpm": 19.086620873692794,
+              "minNdlSeen_min": 999,
+              "fastAscentAccum_s": null,
+              "fastAscentPeak_mpm": 19.086620873692794,
+              "ceilingViolationAccum_s": 0
+            },
             "safetyStop": {
               "needed": true,
               "remaining_min": 0,

@@ -11,6 +11,13 @@ import {
   type TankState,
 } from "../core/dive-state";
 import { neutralBcdSurfaceLitres } from "../core/buoyancy";
+import { NDL_UNLIMITED_MINUTES } from "../core/decompression";
+import {
+  CEILING_VIOLATION_TOLERANCE_M,
+  CEILING_VIOLATION_WINDOW_S,
+  FAST_ASCENT_RATE_MPM,
+  FAST_ASCENT_WINDOW_S,
+} from "../core/dive-model";
 import {
   DEFAULT_GF_HIGH_PERCENT,
   DEFAULT_GF_LOW_PERCENT,
@@ -570,26 +577,67 @@ function isDiveState(candidate: unknown): candidate is DiveState {
   );
 }
 
+/**
+ * A dive log the model could have produced (#201 Codex round 1), not only one
+ * of the right shape: entries in order and past their thresholds, each window
+ * consistent with its latch (the model latches the moment a window reaches
+ * its length), a peak exactly when a fast ascent is under way, a whole-minute
+ * NDL, and the below-five latch set whenever the lowest NDL is below five,
+ * since the model sets both on the same step.
+ */
 function isDiveLog(candidate: unknown, elapsedTimeS: number): candidate is DiveLog {
+  if (
+    !isRecord(candidate) ||
+    !Array.isArray(candidate.entries) ||
+    !Number.isFinite(candidate.ascentRateMpm) ||
+    !isNonNegativeFinite(candidate.fastAscentS) ||
+    !isNonNegativeFinite(candidate.fastAscentPeakMpm) ||
+    typeof candidate.fastAscentLatched !== "boolean" ||
+    !isNonNegativeFinite(candidate.ceilingViolationS) ||
+    typeof candidate.ceilingViolationLatched !== "boolean" ||
+    typeof candidate.ndlDroppedBelowFiveMinutes !== "boolean"
+  ) {
+    return false;
+  }
+  let previousS = 0;
+  for (const entry of candidate.entries as unknown[]) {
+    if (
+      !isRecord(entry) ||
+      !isNonNegativeFinite(entry.elapsedTimeS) ||
+      (entry.elapsedTimeS as number) < previousS ||
+      (entry.elapsedTimeS as number) > elapsedTimeS ||
+      !Number.isFinite(entry.value)
+    ) {
+      return false;
+    }
+    const value = entry.value as number;
+    if (entry.kind === "fast-ascent" ? value <= FAST_ASCENT_RATE_MPM
+      : entry.kind === "ceiling-violation" ? value <= CEILING_VIOLATION_TOLERANCE_M
+      : true) {
+      return false;
+    }
+    previousS = entry.elapsedTimeS as number;
+  }
+  const fastAscentS = candidate.fastAscentS as number;
+  const peakMpm = candidate.fastAscentPeakMpm as number;
+  const underWay = fastAscentS > 0 || candidate.fastAscentLatched;
+  if (
+    candidate.fastAscentLatched !== fastAscentS >= FAST_ASCENT_WINDOW_S ||
+    (underWay ? peakMpm <= FAST_ASCENT_RATE_MPM : peakMpm !== 0) ||
+    candidate.ceilingViolationLatched !==
+      (candidate.ceilingViolationS as number) >= CEILING_VIOLATION_WINDOW_S
+  ) {
+    return false;
+  }
+  const minNdlMin = candidate.minNdlMin;
+  if (minNdlMin === null) {
+    return true;
+  }
   return (
-    isRecord(candidate) &&
-    Array.isArray(candidate.entries) &&
-    candidate.entries.every(
-      (entry: unknown) =>
-        isRecord(entry) &&
-        (entry.kind === "fast-ascent" || entry.kind === "ceiling-violation") &&
-        isNonNegativeFinite(entry.elapsedTimeS) &&
-        (entry.elapsedTimeS as number) <= elapsedTimeS &&
-        Number.isFinite(entry.value),
-    ) &&
-    Number.isFinite(candidate.ascentRateMpm) &&
-    isNonNegativeFinite(candidate.fastAscentS) &&
-    isNonNegativeFinite(candidate.fastAscentPeakMpm) &&
-    typeof candidate.fastAscentLatched === "boolean" &&
-    isNonNegativeFinite(candidate.ceilingViolationS) &&
-    typeof candidate.ceilingViolationLatched === "boolean" &&
-    (candidate.minNdlMin === null || isNonNegativeFinite(candidate.minNdlMin)) &&
-    typeof candidate.ndlDroppedBelowFiveMinutes === "boolean"
+    Number.isInteger(minNdlMin) &&
+    (minNdlMin as number) >= 0 &&
+    (minNdlMin as number) <= NDL_UNLIMITED_MINUTES &&
+    ((minNdlMin as number) >= 5 || candidate.ndlDroppedBelowFiveMinutes)
   );
 }
 
@@ -619,16 +667,23 @@ function migrateLegacyLog(candidate: Record<string, unknown>): DiveLog {
       });
     }
   }
+  const minNdlMin =
+    Number.isInteger(candidate.minNdlSeen) &&
+    (candidate.minNdlSeen as number) >= 0 &&
+    (candidate.minNdlSeen as number) <= NDL_UNLIMITED_MINUTES
+      ? (candidate.minNdlSeen as number)
+      : null;
   return {
     ...createEmptyDiveLog(),
     entries,
     ascentRateMpm: Number.isFinite(candidate.ascentRate)
       ? (candidate.ascentRate as number)
       : 0,
-    minNdlMin: isNonNegativeFinite(candidate.minNdlSeen)
-      ? (candidate.minNdlSeen as number)
-      : null,
-    ndlDroppedBelowFiveMinutes: candidate.ndlDroppedBelow5 === true,
+    minNdlMin,
+    // Set with the lowest NDL on the same step, so a legacy save that has one
+    // below five but predates the flag still carries a consistent pair.
+    ndlDroppedBelowFiveMinutes:
+      candidate.ndlDroppedBelow5 === true || (minNdlMin !== null && minNdlMin < 5),
   };
 }
 
