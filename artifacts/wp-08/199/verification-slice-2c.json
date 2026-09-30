@@ -1,0 +1,72 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 199,
+  "slice": "Slice 2c: the start of the dive (each cylinder's fill, the rebreather's start pressures and scrubber total) for gas used; save v10",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "2b778ab89c30fa15ebbd164fb458284eded30a35",
+  "measuredTree": "4191be5942e0f7d2d57c1768e4e5c559b24aaf75",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-09-30T23:02:49Z",
+  "runFinishedAt": "2026-09-30T23:10:25Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "Stacked on slice 3 (#206, head 9af4d13). The full run above is on 2b778ab; the only later commit adds this file. The branch is rebased onto main once #206 merges, and the evidence is re-recorded then.",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "371 passed (363 on #206, +4 in tests/unit/start-gas.test.ts, +4 in tests/unit/save-game.test.ts)",
+    "parity": "73 passed (unchanged count; the replays now also compare the start of the dive and gas used)",
+    "e2e": "142 passed in 5.3 min (unchanged)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "boundsPortedFromTheOracle": {
+    "openCircuit": "src/state.js: t.totalGas = t.volume * t.pressure, and resetDive() refills gasRemaining = totalGas. drawPostDive() (src/renderer.js) shows totalGas - gasRemaining per cylinder.",
+    "rebreather": "resetDive() snapshots ccrState.o2CylPressureStart and dilCylPressureStart; drawPostDive() shows (start - current) * volume for O2 and diluent, and scrubberTotal - scrubberRemaining.",
+    "model": "TankState.startGasL; CcrState.oxygenCylinderStartPressureBar, diluentCylinderStartPressureBar, scrubberTotalS. createTankState and createCcrState default them to the configured fill; nothing in the dive changes them."
+  },
+  "fixtureRegeneration": {
+    "command": "npm run baseline:generate, from the capture commit before 2b778ab",
+    "legacyChange": "captureBaselineCheckpoint() gains tanks[].totalGas_l and ccr.o2PressureStart_bar, diluentPressureStart_bar, scrubberTotal_min.",
+    "additiveCheck": "All eight scenarios are identical to the fixture before regeneration once the four new fields are removed; the header differs only in referenceCommit; the trace schema accepts them (tests/baseline.spec.js 6 passed)."
+  },
+  "parity": "Each cylinder's fill equals totalGas_l and gas used equals totalGas_l - gasRemaining_l within tanks.*.gasRemaining_l's 1e-6 at every checkpoint of air-18m-30min (replayed tick by tick with the model's own life support, no breathing override) and buoyancy-vent-inflate-12m; on rebreather dives the start pressures and scrubber total equal the recorded ones at every checkpoint of ccr-30m-30min and buoyancy-ccr-inflate-12m (cylinder 0 there is the placeholder covered by the #192 departure test).",
+  "counterChecks": {
+    "method": "Each revert was applied from a backup copy, tests/unit/start-gas.test.ts, tests/unit/save-game.test.ts and tests/parity/dive-log.test.ts were run, and the file was restored.",
+    "results": [
+      {
+        "revert": "cylinder fill half the configured one",
+        "result": "2 failed: the fill and the open-circuit dive tests"
+      },
+      {
+        "revert": "save accepting a fill below the gas left",
+        "result": "1 failed: the invalid-start test"
+      },
+      {
+        "revert": "no pre-v10 migration of the start",
+        "result": "2 failed: the v1 and v9 migration tests"
+      },
+      {
+        "revert": "legacy totalGas ignored",
+        "result": "1 failed: the legacy import test"
+      }
+    ]
+  },
+  "durableProvenance": {
+    "src": "5ff6e707f7a50b32fa84eda89cfdb54706a40b21",
+    "tests": "c41618555b1c99c709733474686f8d03a9b4c90a",
+    "scripts": "9821955c9dd544534be72ffeb8eb56fbc6cc863a",
+    "docs": "144c9d8717d7600ab89af573255d94f61c36f6ba"
+  }
+}
