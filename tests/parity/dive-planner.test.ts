@@ -18,7 +18,13 @@ interface GoldenCheckpoint {
     diveMode: string;
     activeTankIndex: number;
     ndlDroppedBelow5: boolean;
-    safetyStop: { needed: boolean };
+    safetyStop: {
+      needed: boolean;
+      remaining_min: number | null;
+      countdownStarted: boolean;
+      paused: boolean;
+      complete: boolean;
+    };
   };
   configuration: {
     gfLow_percent: number;

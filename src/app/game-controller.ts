@@ -455,7 +455,14 @@ export class GameController {
 
     this.#plannerPending = true;
     void this.#plannerClient
-      .forecast(snapshot, this.#plannerSettings)
+      .forecast(snapshot, {
+        ...this.#plannerSettings,
+        // The two flags legacy's calculateTTS() reads from the dive: the
+        // stop is needed, and the NDL fell below 5 (the long stop). They
+        // were always false here until the dive kept them (#199).
+        safetyStopNeeded: snapshot.safetyStop.needed,
+        ndlDroppedBelowFiveMinutes: snapshot.log.ndlDroppedBelowFiveMinutes,
+      })
       .then((forecast) => {
         // Superseded while in flight: the state it was computed from no
         // longer describes the breathed gas, so it must not become the
