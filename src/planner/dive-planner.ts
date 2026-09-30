@@ -1,9 +1,15 @@
 import {
-  LN_2,
   WATER_VAPOR_PRESSURE_BAR,
-  ZHL16C_HE,
   ZHL16C_N2,
 } from "../core/buhlmann-constants";
+import {
+  assertTissueShape,
+  ceilingDepthM,
+  combinedCoefficients,
+  decoStopDepth,
+  ndlMinutes,
+  updateTissueArrays,
+} from "../core/decompression";
 import {
   freezeDiveState,
   type DiveState,
@@ -26,8 +32,6 @@ export const DEFAULT_GF_LOW_PERCENT = 35;
 export const DEFAULT_GF_HIGH_PERCENT = 75;
 export const DEFAULT_ASCENT_RATE_MPM = 9;
 
-const NDL_STEP_MINUTES = 0.5;
-const NDL_MAX_STEPS = 400;
 const SCHEDULE_STEP_MINUTES = 0.1;
 const SCHEDULE_MAX_STOPS = 500;
 const SCHEDULE_MAX_STOP_STEPS = 3000;
@@ -122,76 +126,28 @@ export class DivePlanner {
   }
 }
 
+/** The ceiling at the settings' GF high (src/core/decompression.ts). */
 export function calculateCeiling(
   tissues: TissueState,
   settings: Readonly<PlannerSettings> = DEFAULT_PLANNER_SETTINGS,
 ): Metres {
+  // The shape before the settings, in the order this function always
+  // checked them.
   assertTissueShape(tissues);
-  const gfHigh = validateSettings(settings).gfHighPercent / 100;
-  let maximumAmbientBar = 0;
-
-  for (let index = 0; index < ZHL16C_N2.length; index += 1) {
-    const totalLoadBar =
-      (tissues.nitrogenBar[index] ?? 0) +
-      (tissues.heliumBar[index] ?? 0);
-    const coefficients = combinedCoefficients(
-      tissues.nitrogenBar,
-      tissues.heliumBar,
-      index,
-    );
-    const ambientBar =
-      (totalLoadBar - coefficients.a * gfHigh) /
-      (gfHigh / coefficients.b + 1 - gfHigh);
-    maximumAmbientBar = Math.max(maximumAmbientBar, ambientBar);
-  }
-
-  return metres(Math.max(0, (maximumAmbientBar - 1) * 10));
+  return ceilingDepthM(tissues, validateSettings(settings).gfHighPercent / 100);
 }
 
+/**
+ * The NDL at the diver's depth on the gas the forecast breathes, at the
+ * settings' GF high (src/core/decompression.ts).
+ */
 export function calculateNdl(
   authoritativeState: DiveState,
   settings: Readonly<PlannerSettings> = DEFAULT_PLANNER_SETTINGS,
 ): Minutes {
   const state = freezeDiveState(authoritativeState);
   const gfHigh = validateSettings(settings).gfHighPercent / 100;
-  const nitrogenBar = [...state.tissues.nitrogenBar];
-  const heliumBar = [...state.tissues.heliumBar];
-  const gas = currentForecastGas(state);
-  const ambientBar = ambientPressureBar(state.depthM);
-  const inspiredN2Bar =
-    (ambientBar - WATER_VAPOR_PRESSURE_BAR) * gas.nitrogenFraction;
-  const inspiredHeBar =
-    (ambientBar - WATER_VAPOR_PRESSURE_BAR) * gas.heliumFraction;
-  let totalMinutes = 0;
-
-  for (let step = 0; step < NDL_MAX_STEPS; step += 1) {
-    updateTissueArrays(
-      nitrogenBar,
-      heliumBar,
-      inspiredN2Bar,
-      inspiredHeBar,
-      NDL_STEP_MINUTES,
-    );
-    totalMinutes += NDL_STEP_MINUTES;
-
-    for (let index = 0; index < ZHL16C_N2.length; index += 1) {
-      const coefficients = combinedCoefficients(
-        nitrogenBar,
-        heliumBar,
-        index,
-      );
-      const surfaceMValueBar = coefficients.a + 1 / coefficients.b;
-      const allowedBar = gfHigh * (surfaceMValueBar - 1) + 1;
-      const totalLoadBar =
-        (nitrogenBar[index] ?? 0) + (heliumBar[index] ?? 0);
-
-      if (totalLoadBar > allowedBar) {
-        return minutes(Math.floor(totalMinutes));
-      }
-    }
-  }
-
-  return minutes(999);
+  return ndlMinutes(state.tissues, state.depthM, currentForecastGas(state), gfHigh);
 }
 
 export function calculateDecoSchedule(
@@ -340,9 +296,7 @@ export function calculateDecoSchedule(
   });
 }
 
-export function decoStopDepth(ceilingM: Metres | number): Metres {
-  return ceilingM <= 0 ? metres(0) : metres(Math.ceil(ceilingM / 3) * 3);
-}
+export { decoStopDepth };
 
 /**
  * How close each compartment is to its M-value at a given ambient pressure
@@ -546,68 +500,6 @@ function bestForecastGas(state: DiveState, depthM: number): GasMix | null {
     }
   }
   return bestGas ?? fallbackGas;
-}
-
-function updateTissueArrays(
-  nitrogenBar: number[],
-  heliumBar: number[],
-  inspiredN2Bar: number,
-  inspiredHeBar: number,
-  elapsedMinutes: number,
-): void {
-  for (let index = 0; index < ZHL16C_N2.length; index += 1) {
-    const n2 = nitrogenBar[index];
-    const he = heliumBar[index];
-    const n2Compartment = ZHL16C_N2[index];
-    const heCompartment = ZHL16C_HE[index];
-    if (
-      n2 === undefined ||
-      he === undefined ||
-      !n2Compartment ||
-      !heCompartment
-    ) {
-      throw new RangeError("planner requires all 16 tissue compartments");
-    }
-    nitrogenBar[index] =
-      inspiredN2Bar +
-      (n2 - inspiredN2Bar) *
-        Math.exp(-(LN_2 / n2Compartment.halfTimeMin) * elapsedMinutes);
-    heliumBar[index] =
-      inspiredHeBar +
-      (he - inspiredHeBar) *
-        Math.exp(-(LN_2 / heCompartment.halfTimeMin) * elapsedMinutes);
-  }
-}
-
-function combinedCoefficients(
-  nitrogenBar: readonly number[],
-  heliumBar: readonly number[],
-  index: number,
-): { a: number; b: number } {
-  const n2 = nitrogenBar[index] ?? 0;
-  const he = heliumBar[index] ?? 0;
-  const n2Compartment = ZHL16C_N2[index];
-  const heCompartment = ZHL16C_HE[index];
-  if (!n2Compartment || !heCompartment) {
-    throw new RangeError("planner requires all 16 tissue compartments");
-  }
-  const total = n2 + he;
-  if (total < 0.0001) {
-    return { a: n2Compartment.a, b: n2Compartment.b };
-  }
-  return {
-    a: (n2Compartment.a * n2 + heCompartment.a * he) / total,
-    b: (n2Compartment.b * n2 + heCompartment.b * he) / total,
-  };
-}
-
-function assertTissueShape(tissues: TissueState): void {
-  if (
-    tissues.nitrogenBar.length !== ZHL16C_N2.length ||
-    tissues.heliumBar.length !== ZHL16C_HE.length
-  ) {
-    throw new RangeError("planner requires all 16 tissue compartments");
-  }
 }
 
 function validateSettings(settings: Readonly<PlannerSettings>): PlannerSettings {

@@ -1,0 +1,51 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 199,
+  "slice": "Slice 1: the ceiling and NDL arithmetic moved from the planner into src/core/decompression.ts, no behaviour change",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "6cef5bac57196d3edf8fd0ad53b18b3e05f271bd",
+  "measuredTree": "7278d0d1577ecd71350efc3a51bd111506594355",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-09-30T15:10:50Z",
+  "runFinishedAt": "2026-09-30T15:15:15Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "The full run above is on 6cef5ba. The only later commit updates this file, so src, tests and scripts are identical to the measured tree (see durableProvenance).",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "316 passed (312 on main, +4 in tests/unit/decompression.test.ts)",
+    "parity": "62 passed (unchanged; the planner's parity against every legacy checkpoint now runs through src/core/decompression.ts)",
+    "e2e": "142 passed in 3.2 min (unchanged)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "noBehaviourChange": {
+    "moved": "calculateCeiling's and calculateNdl's loops, decoStopDepth, updateTissueArrays, combinedCoefficients and assertTissueShape, verbatim apart from the error message ('decompression requires all 16 tissue compartments'; no test matches either message).",
+    "kept": "The planner's exported calculateCeiling(tissues, settings), calculateNdl(state, settings) and decoStopDepth keep their signatures; calculateNdl still breathes currentForecastGas(state).",
+    "check": "Five distinctive arithmetic fragments of main's planner (the ceiling ambient formula, the Haldane exponential, the surface M-value, the 3 m rounding, the combined-coefficient guard) appear unchanged in src/core/decompression.ts.",
+    "orderOfChecks": "As on main: calculateCeiling checks the tissue shape, then validates the settings, then computes (ceilingDepthM's own shape check repeats the first and cannot fail after it). calculateNdl freezes the state, validates the settings, then resolves the forecast gas; ndlMinutes adds no shape check, so a malformed tissue array fails or passes exactly as on main."
+  },
+  "tests": {
+    "added": "tests/unit/decompression.test.ts: ndlMinutes equals legacy's ndl_min (3) at air-18m-30min/bottom-30min; ceilingDepthM equals legacy's ceiling_m (11.495) at trimix-45m-20min/bottom-20min within planner.ceiling_m's tolerance; no ceiling and 999 for a fresh diver; decoStopDepth rounding."
+  },
+  "durableProvenance": {
+    "src": "c7516d24fd45a8dd5fe3fb9c6e2b7a630b1d42ae",
+    "tests": "5135a7aa8650733ac74bb9385238528b95ad1ca5",
+    "scripts": "c476b541b5fbfcff2290caf1f5d9966aef83407a"
+  },
+  "earlierRuns": [
+    "A full run on 8763451 passed (316 unit, 62 parity, 142 e2e). The pre-review of #200, pass 1, then found the move not quite verbatim: the NDL path gained a tissue shape check, and both wrappers validated in a different order from main. 6cef5ba restores main's order and checks; the run above is on that commit."
+  ]
+}
