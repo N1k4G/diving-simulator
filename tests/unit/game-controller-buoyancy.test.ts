@@ -7,6 +7,7 @@ import {
 } from "../../src/app/game-controller";
 import { neutralBcdSurfaceLitres } from "../../src/core/buoyancy";
 import { DiveModel } from "../../src/core/dive-model";
+import { createSaveGame } from "../../src/save/save-game";
 import {
   createGasMix,
   createInitialDiveState,
@@ -184,6 +185,27 @@ describe("the controller drives the buoyancy model frame by frame", () => {
     expect(state.depthM).toBe(18);
     expect(state.verticalVelocityMpm).toBe(0);
     expect(state.bcdGasSurfaceLiters).toBe(neutralBcdSurfaceLitres(18));
+    controller.destroy();
+  });
+
+  it("resets the safety stop of a dive moved down into the route (#206 pre-review)", async () => {
+    // A legacy save at 5 m with its countdown running: moved to 18 m, below
+    // 11 m, where every step resets the stop, so it resets at once and the
+    // state saves before the first step.
+    const saved = freezeDiveState({
+      ...neutralAt(5, freezeDiveState({ ...createInitialDiveState(13), maxDepthM: metres(24) })),
+      safetyStop: { needed: true, countdownStarted: true, remainingS: seconds(100), paused: false, complete: false },
+    });
+    const { controller } = await startController(saved);
+    expect(controller.authoritativeState.depthM).toBe(18);
+    expect(controller.authoritativeState.safetyStop).toEqual({
+      needed: true,
+      countdownStarted: false,
+      remainingS: 0,
+      paused: false,
+      complete: false,
+    });
+    expect(() => createSaveGame(controller.authoritativeState, { lowPercent: 35, highPercent: 75 }, 1)).not.toThrow();
     controller.destroy();
   });
 
