@@ -1,0 +1,132 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 192,
+  "slice": "PR 1 of 2: buoyancy physics in the core model, one legacy frame per call, replayed against two legacy recordings; save v5",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "13d58cdf597a85d441cb1c4ab304bb8622a41bdf",
+  "measuredTree": "e727448b686ad972826f0ee6727e6bc22877ff8f",
+  "workingTree": "clean before each run and still clean after it",
+  "recordedAt": "2026-09-30T09:10:36Z",
+  "runFinishedAt": "2026-09-30T09:49:54Z",
+  "timestampProvenance": "date -u output printed around the runs; recordedAt is the start of the first full run on 13d58cd, runFinishedAt the end of the control run on main.",
+  "provenanceNote": "All runs are on 13d58cd. The later commits change only this file and docs/decisions.md (f97fcb4, the owner decision recording the DiveModel's two ways of advancing), so src, tests and scripts are identical to the measured tree (see durableProvenance). After f97fcb4, sites:check and the unit tests were rerun and passed; no check reads the new paragraph.",
+  "earlierRuns": [
+    "A first full run on a22b0ce, the same change before an amend, failed 2 Playwright tests in tests/in-dive-controls.spec.js that pinned the save at version 4 (expected 4, received 5). They now assert the version they rely on: at least v3 for the dive mode, at least v4 for CNS. Both passed alone (14 of 14 in the gas information group) and in the full run above.",
+    "A full run on 7692e30 passed (298 unit, 56 parity, 139 e2e). The pre-review of #193, pass 1, then found that inflating from a diluent holding less than one step's draw could throw (p - (p * v) / v one ulp below zero). 8c42fed fixes it and adds a unit test that throws a RangeError without the fix; the run above is on that commit.",
+    "A full run on 8c42fed passed (299 unit, 56 parity, 139 e2e). Codex round 1 then found that the model batched a whole second of BCD controls before any motion, which legacy never does with a control held (fast-forward is off, a frame is at most 0.3 s of dive time), and that the #192 departure had no parity test. cd22afc re-records both buoyancy scenarios in 60 Hz frames and adds buoyancy-ccr-inflate-12m; 87ee573 steps the model in 0.1 s frames and adds the departure test. The run above is on 87ee573.",
+    "Full runs on 87ee573 passed (301 unit, 61 parity, 139 e2e). Codex round 2 then found that splitting every call into 0.1 s pieces departs from legacy for slow frames, which apply the controls once for up to 0.3 s. d204a72 adds a 10 fps vent segment to the recording; 13d58cd makes one call one legacy frame."
+  ],
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "302 passed (286 on main, +12 in tests/unit/buoyancy.test.ts, +4 in tests/unit/save-game.test.ts)",
+    "parity": "62 passed (49 on main, +4 in tests/parity/buoyancy.test.ts, +9 planner checkpoints the two new scenarios add to tests/parity/dive-planner.test.ts)",
+    "e2e": "137 or 138 of 139 per run; the failures are described under runsOn13d58cd and are pre-existing or unrelated",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "parity": {
+    "cadence": "Both scenarios hold keys in display frames (scripts/baseline-scenarios.cjs holdKeys): 60 Hz, 0.05 s of dive time per frame, and for the last vent-inflate segment 10 fps, 0.3 s per frame, the longest frame gameLoop() allows with a control held. The model replays one advanceWithBuoyancy() call per frame.",
+    "buoyancy-vent-inflate-12m": {
+      "recording": "rec setup on the geometry-free open site, one air cylinder, neutralizeAt(12) at rest; S held 4 s, nothing 20 s, W held 11 s, nothing 30 s. Then S held 3 s in 10 fps frames.",
+      "checkpoints": {
+        "neutral-12m": "depth 12, velocity 0, BCD 6.866 L",
+        "vented-4s": "depth 12.637, velocity 20 (the descent limit)",
+        "sinking-20s": "depth 19.303",
+        "inflated-11s": "depth 22.547, velocity 5.107 (slowed by the inflation, still descending, below both limits; the diver turns during the coast), BCD 13.889 L",
+        "coasting-30s": "depth 16.220, velocity -25 (the ascent limit, reached as the BCD expands)",
+        "vented-3s-10fps": "depth 15.150, velocity -13.835, BCD 8.109 L"
+      },
+      "compared": "Depth after each of the 1,310 frames; velocity, BCD gas, CNS, cylinder gas and the 16 N2 compartments at each checkpoint, at the fixture's absoluteEpsilon."
+    },
+    "buoyancy-ccr-inflate-12m": {
+      "recording": "CCR at 1.3 bar with air diluent, neutral at 12 m; W held 2 s, nothing 8 s.",
+      "checkpoints": {
+        "inflated-2s": "depth 11.949, velocity -4.371, BCD 8.625 L; legacy placeholder tank down 1.759 L, diluent 200 bar",
+        "rising-8s": "depth 10.212, velocity -19.087"
+      },
+      "compared": "Depth after each of the 200 frames; velocity, BCD gas, CNS, N2 compartments, loop pO2, O2 cylinder and scrubber with legacy. The departure: legacy's placeholder lost exactly the BCD gain, the migration's placeholder is untouched, and its diluent pressure equals legacy's minus that gain over the cylinder volume (0.586 bar lower)."
+    },
+    "noFailure": "Legacy does not end either dive, and the model's failure stays null throughout."
+  },
+  "fixtureRegeneration": {
+    "command": "npm run baseline:generate",
+    "legacyChange": "src/game-loop.js captureBaselineCheckpoint() gains state.bcdGasSurface_l, an additive field as docs/decisions.md 'Trace contract limits' allows.",
+    "additiveCheck": "Each regeneration was compared with the fixture before it. cd22afc: the six scenarios on main byte-identical. d204a72: every earlier scenario and every earlier buoyancy-vent-inflate-12m checkpoint byte-identical, one checkpoint appended, the scenario description extended. Both times the header differs only in referenceCommit. Against the fixture on main the six scenarios differ only by the added state.bcdGasSurface_l, checked at the first regeneration."
+  },
+  "counterChecks": {
+    "method": "Each revert was applied to src/core/buoyancy.ts or src/core/dive-model.ts from a backup copy; tests/parity/buoyancy.test.ts, tests/unit/buoyancy.test.ts and tests/unit/save-game.test.ts were run; the file was restored from the backup, and the working tree was clean afterwards. Run on the content of 13d58cd.",
+    "results": [
+      {
+        "revert": "no drag",
+        "result": "2 failed: both parity replays"
+      },
+      {
+        "revert": "no neutral dead zone",
+        "result": "2 failed: both parity replays"
+      },
+      {
+        "revert": "integrateBuoyancy() in one step instead of 0.1 s sub-steps",
+        "result": "2 failed: the vent-inflate parity replay (the 10 fps frames reach the sub-step loop) and 'integrates a longer span in legacy's 0.1 s physics sub-steps'"
+      },
+      {
+        "revert": "wetsuit lift not compressing with pressure",
+        "result": "3 failed: both parity replays and 'holds a diver at rest where it is neutral'"
+      },
+      {
+        "revert": "advanceWithBuoyancy() as in 87ee573, cutting each call into 0.1 s pieces (Codex round 2)",
+        "result": "3 failed: the vent-inflate replay at frame 2 of vented-3s-10fps (1.04e-4 m off), 'applies the controls once for the frame, then moves the diver' and 'keeps the caller's frame boundaries'"
+      },
+      {
+        "revert": "inflation drawn from tanks[activeTank] on a rebreather, as legacy",
+        "result": "1 failed: the declared-departure parity test"
+      }
+    ]
+  },
+  "departures": {
+    "ccrBcdFromDiluent": "Owner decision on #192: on a rebreather the BCD inflates from the diluent cylinder, not tanks[activeTank]. Recorded in docs/decisions.md \"Deliberate departures from the legacy client\"; proven by the declared-departure parity test on buoyancy-ccr-inflate-12m and pinned by tests/unit/buoyancy.test.ts."
+  },
+  "durableProvenance": {
+    "src": "75fb5707425bada7c6ecebfe88f0f1f249cc143b",
+    "tests": "e0a7a5d2416b98be5f04d4a3854ca7c3f8231c12",
+    "scripts": "c476b541b5fbfcff2290caf1f5d9966aef83407a"
+  },
+  "runsOn13d58cd": {
+    "first": {
+      "start": "2026-09-30T09:10:36Z",
+      "end": "2026-09-30T09:21:41Z",
+      "result": "everything through interior:check passed; Playwright 137 passed, 2 failed: tests/collision.spec.js 'no buried start position stays stuck' (timeout at 180 s) and tests/game.spec.js (one console error, Chrome's navigator.vibrate intervention)"
+    },
+    "rerunAlone": "tests/game.spec.js and tests/collision.spec.js together, three times: 10 of 10 passed each time (43.5 s, 40.8 s, 48.3 s). The collision sweep alone: 42.0 s.",
+    "second": {
+      "start": "2026-09-30T09:24:27Z",
+      "end": "2026-09-30T09:33:14Z",
+      "result": "everything through interior:check passed again; Playwright 138 passed, 1 failed: the collision sweep timeout"
+    },
+    "third": {
+      "start": "2026-09-30T09:34:30Z",
+      "end": "2026-09-30T09:41:42Z",
+      "result": "Playwright only: 137 passed, 2 failed: the collision sweep timeout and the game.spec vibrate message"
+    },
+    "controlOnMain": {
+      "commit": "06233f3",
+      "start": "2026-09-30T09:42:11Z",
+      "end": "2026-09-30T09:49:54Z",
+      "result": "Playwright on unmodified main in a separate worktree, after npm run build: 138 passed, 1 failed: the same collision sweep timeout at 3.1 min"
+    },
+    "machineLoad": "The host sat at about 45 % CPU from other programs (editor, browser, a desktop sync client) during these runs. On 2026-09-27 the same suite ran in 4.9 to 6.7 min without these failures; today 7.0 to 8.3 min.",
+    "disposition": "Both failures are outside this change. The collision sweep is the known load-bound test (#172), and it fails the same way on main today. The vibrate message comes from playAlertBeep() in src/state.js, triggered by src/renderer.js HUD warnings drawn between harness cases; neither file is touched on this branch. Tracked in #194."
+  }
+}

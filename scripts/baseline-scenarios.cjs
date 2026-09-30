@@ -78,6 +78,37 @@ function runBaselineScenarios() {
     trajectory.push({ depth_m: api.depth, dtDive_min: stepMinutes });
   }
 
+  // One updateDiving() tick with the given keys held and the buoyancy physics
+  // left to move the diver (#192). Unlike updateAtDepth(), nothing sets the
+  // depth or neutralises the BCD: the depth recorded is whatever the physics
+  // produced. The declared site is swapped for the geometry-free 'open' one,
+  // as updateAtDepth() does, so the only bounds are the surface and MAX_DEPTH.
+  function physicsTick(keys, stepMinutes) {
+    api.clearKeys();
+    api.setKeys(keys);
+    const declaredSite = api.diveSite;
+    api.diveSite = 'open';
+    try {
+      api.updateDiving(stepMinutes * 60 / api.TIME_ACCELERATION);
+    } finally {
+      api.diveSite = declaredSite;
+      api.clearKeys();
+    }
+    trajectory.push({ depth_m: api.depth, dtDive_min: stepMinutes });
+  }
+
+  // Holds keys for a span of dive time in display frames, 60 Hz unless
+  // given: one frame is 1/fps s real, TIME_ACCELERATION/fps s of dive time.
+  // Legacy applies the BCD controls once per frame, before that frame's
+  // physics, so the frame length is part of the behaviour (#193 review): with
+  // W or S held, fast-forward is off, and gameLoop() caps a frame at 0.1 s
+  // real, which is 10 fps.
+  function holdKeys(keys, diveSeconds, fps = 60) {
+    const frameMinutes = api.TIME_ACCELERATION / fps / 60;
+    const frames = Math.round(diveSeconds / (frameMinutes * 60));
+    for (let frame = 0; frame < frames; frame++) physicsTick(keys, frameMinutes);
+  }
+
   function holdDepth(depth, minutes, stepMinutes = 0.1) {
     const steps = Math.round(minutes / stepMinutes);
     for (let step = 0; step < steps; step++) {
@@ -245,6 +276,63 @@ function runBaselineScenarios() {
     holdDepth(21, 3);
     tecSwitch.checkpoints.push(checkpoint('tec-switch-21m', 'deco-gas-3min'));
     scenarios.push(tecSwitch);
+
+    // #192: vertical motion from buoyancy. Air at 12 m, BCD neutral there,
+    // then S held briefly (vent and sink), nothing held (the diver keeps
+    // sinking on momentum and compression), W held (inflate), nothing held.
+    // 11 s of W stops the sink, turns it, and lets the ascent accelerate as
+    // the BCD expands. Presses of 12 s or more, or long vents, drive the
+    // diver into the velocity limits and a barotrauma game over, which the
+    // model cannot produce yet (#189). Recorded in 60 Hz frames (holdKeys).
+    setup('rec', 'shore', [[0.21, 0, 200]]);
+    api.setDepth(12);
+    neutralizeAt(12);
+    api.verticalVelocity = 0;
+    const buoyancy = {
+      scenarioId: 'buoyancy-vent-inflate-12m',
+      description: 'Air, neutral at 12 m; S held 4 s, released 20 s, W held 11 s, released 30 s, in 60 Hz frames, then S held 3 s in 10 fps frames, with the buoyancy physics moving the diver',
+      checkpoints: [checkpoint('buoyancy-vent-inflate-12m', 'neutral-12m')]
+    };
+    holdKeys({ s: true }, 4);
+    buoyancy.checkpoints.push(checkpoint('buoyancy-vent-inflate-12m', 'vented-4s'));
+    holdKeys({}, 20);
+    buoyancy.checkpoints.push(checkpoint('buoyancy-vent-inflate-12m', 'sinking-20s'));
+    holdKeys({ w: true }, 11);
+    buoyancy.checkpoints.push(checkpoint('buoyancy-vent-inflate-12m', 'inflated-11s'));
+    holdKeys({}, 30);
+    buoyancy.checkpoints.push(checkpoint('buoyancy-vent-inflate-12m', 'coasting-30s'));
+    // S held in the slowest frames legacy runs with a control held: 10 fps,
+    // 0.3 s of dive time each, the controls applied once per frame and the
+    // physics in three 0.1 s sub-steps within it (#193 review).
+    holdKeys({ s: true }, 3, 10);
+    buoyancy.checkpoints.push(checkpoint('buoyancy-vent-inflate-12m', 'vented-3s-10fps'));
+    scenarios.push(buoyancy);
+
+    // #192, the recorded departure: a rebreather diver inflating. Legacy's
+    // inflateBCD() draws from tanks[activeTank], the setup placeholder on a
+    // CCR dive; the migration draws from the diluent (docs/decisions.md). The
+    // fixture keeps legacy's values; tests/parity/buoyancy.test.ts declares
+    // the departure. W held 2 s turns the diver upward, and the ascent stays
+    // below the velocity limits.
+    setup('ccr', 'shore', [[0.21, 0, 200]]);
+    api.ccrState.targetSP = 1.3;
+    api.ccrState.actualPO2 = 1.3;
+    api.ccrState.dilFO2 = 0.21;
+    api.ccrState.dilFHe = 0;
+    api.ccrState.dilFN2 = 0.79;
+    api.setDepth(12);
+    neutralizeAt(12);
+    api.verticalVelocity = 0;
+    const ccrInflate = {
+      scenarioId: 'buoyancy-ccr-inflate-12m',
+      description: 'CCR at 1.3 bar with air diluent, neutral at 12 m; W held 2 s, released 8 s, in 60 Hz frames with the buoyancy physics moving the diver',
+      checkpoints: [checkpoint('buoyancy-ccr-inflate-12m', 'neutral-12m')]
+    };
+    holdKeys({ w: true }, 2);
+    ccrInflate.checkpoints.push(checkpoint('buoyancy-ccr-inflate-12m', 'inflated-2s'));
+    holdKeys({}, 8);
+    ccrInflate.checkpoints.push(checkpoint('buoyancy-ccr-inflate-12m', 'rising-8s'));
+    scenarios.push(ccrInflate);
 
     return scenarios;
   } finally {

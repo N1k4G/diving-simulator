@@ -104,6 +104,12 @@ export interface DiveState {
    * lets it exceed 100 and so does this.
    */
   cnsPercent: number;
+  /**
+   * Vertical motion (#192), as legacy integrates it: velocity in m/min,
+   * positive downwards, and the BCD gas in surface-equivalent litres.
+   */
+  verticalVelocityMpm: number;
+  bcdGasSurfaceLiters: number;
   ccr: CcrState | null;
   failure: FailureState;
   events: readonly DiveEvent[];
@@ -114,6 +120,7 @@ export interface InitialDiveOptions {
   activeTankIndex?: number;
   surfaceAirConsumptionLpm?: number;
   ccr?: CcrState | null;
+  bcdGasSurfaceLiters?: number;
 }
 
 export function createGasMix(
@@ -231,6 +238,9 @@ export function createInitialDiveState(
       options.surfaceAirConsumptionLpm ?? 15,
     ),
     cnsPercent: 0,
+    verticalVelocityMpm: 0,
+    // Legacy sets 2 L when a dive leaves the surface (updateSurface).
+    bcdGasSurfaceLiters: options.bcdGasSurfaceLiters ?? 2,
     ccr: options.ccr ?? null,
     failure: {
       reason: null,

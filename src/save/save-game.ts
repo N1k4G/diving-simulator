@@ -7,6 +7,7 @@ import {
   type GasMix,
   type TankState,
 } from "../core/dive-state";
+import { neutralBcdSurfaceLitres } from "../core/buoyancy";
 import {
   DEFAULT_GF_HIGH_PERCENT,
   DEFAULT_GF_LOW_PERCENT,
@@ -33,7 +34,14 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // that did not track CNS, so they resume at 0: an underestimate of the real
 // exposure, and the only value such a save can support. Legacy saves carry
 // cnsPercent (since #10) and keep it.
-export const CURRENT_SAVE_GAME_VERSION = 4;
+//
+// v5 adds state.verticalVelocityMpm and state.bcdGasSurfaceLiters (#192).
+// Older saves resume at rest, velocity 0, with the BCD neutral at the saved
+// depth (legacy's neutralizeAt), so a resumed dive neither sinks nor rises
+// on its own. Legacy saves carry both (verticalVelocity,
+// bcdGasSurfaceLiters) and keep them.
+export const CURRENT_SAVE_GAME_VERSION = 5;
+export const FOURTH_SAVE_GAME_VERSION = 4;
 export const THIRD_SAVE_GAME_VERSION = 3;
 export const SECOND_SAVE_GAME_VERSION = 2;
 export const FIRST_SAVE_GAME_VERSION = 1;
@@ -86,6 +94,7 @@ export type SaveGameMigration =
   | "save-game-v1"
   | "save-game-v2"
   | "save-game-v3"
+  | "save-game-v4"
   | null;
 
 /**
@@ -191,12 +200,13 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
 
   if (candidate.schema === SAVE_GAME_SCHEMA) {
     const isCurrent = candidate.version === CURRENT_SAVE_GAME_VERSION;
+    const isFourth = candidate.version === FOURTH_SAVE_GAME_VERSION;
     const isThird = candidate.version === THIRD_SAVE_GAME_VERSION;
     const isSecond = candidate.version === SECOND_SAVE_GAME_VERSION;
     const isFirst = candidate.version === FIRST_SAVE_GAME_VERSION;
     if (
       !Number.isInteger(candidate.version) ||
-      (!isCurrent && !isThird && !isSecond && !isFirst)
+      (!isCurrent && !isFourth && !isThird && !isSecond && !isFirst)
     ) {
       return { ok: false, reason: "unsupported-version" };
     }
@@ -205,7 +215,19 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     // cnsPercent anyway is not a record of CNS, so it is neither kept nor a
     // reason to reject the save (#188 Codex round 1). A v4 save must carry a
     // valid one, which isDiveState checks.
+    // Before v5 there was no vertical motion in the state: resume at rest,
+    // BCD neutral at the saved depth. Unconditionally, like the CNS reset.
     if (!isCurrent && isRecord(candidate.state)) {
+      const savedDepth = isNonNegativeFinite(candidate.state.depthM)
+        ? (candidate.state.depthM as number)
+        : 0;
+      candidate.state = {
+        ...candidate.state,
+        verticalVelocityMpm: 0,
+        bcdGasSurfaceLiters: neutralBcdSurfaceLitres(savedDepth),
+      };
+    }
+    if (!isCurrent && !isFourth && isRecord(candidate.state)) {
       candidate.state = { ...candidate.state, cnsPercent: 0 };
     }
     if (
@@ -224,7 +246,7 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     // Likewise a v3 or v4 payload must carry a mode consistent with its
     // state; only saves from before the field existed are inferred.
     if (
-      (isCurrent || isThird) &&
+      (isCurrent || isFourth || isThird) &&
       !isConsistentDiveMode(candidate.diveMode, candidate.state)
     ) {
       return { ok: false, reason: "invalid-data" };
@@ -232,7 +254,7 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     const gradientFactors = isFirst
       ? DEFAULT_SAVED_GRADIENT_FACTORS
       : (candidate.gradientFactors as SavedGradientFactors);
-    const diveMode = isCurrent || isThird
+    const diveMode = isCurrent || isFourth || isThird
       ? (candidate.diveMode as SavedDiveMode)
       : inferDiveMode(candidate.state);
 
@@ -246,7 +268,9 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
       ),
       migratedFrom: isCurrent
         ? null
-        : isThird
+        : isFourth
+          ? "save-game-v4"
+          : isThird
           ? "save-game-v3"
           : isSecond
             ? "save-game-v2"
@@ -324,6 +348,13 @@ function migrateLegacyV2(candidate: Record<string, unknown>): SaveGame | null {
     cnsPercent: isNonNegativeFinite(candidate.cnsPercent)
       ? (candidate.cnsPercent as number)
       : 0,
+    // Legacy saves both since its save-state v2.
+    verticalVelocityMpm: Number.isFinite(candidate.verticalVelocity)
+      ? (candidate.verticalVelocity as number)
+      : 0,
+    bcdGasSurfaceLiters: isNonNegativeFinite(candidate.bcdGasSurfaceLiters)
+      ? (candidate.bcdGasSurfaceLiters as number)
+      : neutralBcdSurfaceLitres(candidate.depth as number),
     ccr,
     failure: {
       reason: null,
@@ -482,6 +513,8 @@ function isDiveState(candidate: unknown): candidate is DiveState {
     (candidate.activeTankIndex as number) < candidate.tanks.length &&
     isNonNegativeFinite(candidate.surfaceAirConsumptionLpm) &&
     isNonNegativeFinite(candidate.cnsPercent) &&
+    Number.isFinite(candidate.verticalVelocityMpm) &&
+    isNonNegativeFinite(candidate.bcdGasSurfaceLiters) &&
     (candidate.ccr === null || isCcrState(candidate.ccr)) &&
     isFailureState(candidate.failure) &&
     isEventHistory(

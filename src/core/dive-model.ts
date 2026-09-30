@@ -19,6 +19,12 @@ import {
 } from "./dive-state";
 import { NO_INPUT, type InputIntent } from "./inputs";
 import {
+  applyBcdControls,
+  integrateBuoyancy,
+  type BuoyancyControls,
+  type VerticalBounds,
+} from "./buoyancy";
+import {
   bars,
   fraction,
   litres,
@@ -75,6 +81,43 @@ export class DiveModel {
       remainingS = seconds(Math.max(0, remainingS - stepS));
     }
 
+    return this.#state;
+  }
+
+  /**
+   * Advances the dive by one display frame with the depth produced by
+   * buoyancy (#192), instead of a depth the caller dictates.
+   *
+   * One call is one legacy frame, in legacy's order within updateDiving():
+   * the BCD is inflated or vented for the whole frame at the current depth
+   * (inflateBCD / ventBCD), the physics moves the diver within the bounds in
+   * 0.1 s sub-steps, and the rest of the frame (tissues, CNS, gas, failures)
+   * runs once at the depth the physics left, as legacy's updateTissues()
+   * reads the depth after updateBuoyancyPhysics(). A failed dive does not
+   * move.
+   *
+   * The frame boundaries are part of the behaviour: the controls are applied
+   * once per frame, so a frame cannot be split or merged without changing
+   * the result (#193 review). The caller passes each display frame's dive
+   * time and caps it as legacy's gameLoop() does: 0.1 s real, times the
+   * time acceleration.
+   */
+  advanceWithBuoyancy(
+    bounds: Readonly<VerticalBounds>,
+    frameS: Seconds,
+    controls: Readonly<BuoyancyControls>,
+  ): DiveState {
+    if (frameS <= 0 || this.#state.failure.reason !== null) {
+      return this.#state;
+    }
+    const inflated = applyBcdControls(this.#state, controls, frameS);
+    const moved = integrateBuoyancy(inflated, bounds, frameS);
+    const withMotion = freezeDiveState({
+      ...inflated,
+      verticalVelocityMpm: moved.verticalVelocityMpm,
+      bcdGasSurfaceLiters: moved.bcdGasSurfaceLiters,
+    });
+    this.#state = advanceDiveStep(withMotion, { depthM: metres(moved.depthM) }, frameS);
     return this.#state;
   }
 

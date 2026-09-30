@@ -1078,8 +1078,8 @@ test.describe('gas information', () => {
     await expect(gasInfoHeading(page)).toHaveText('Gas information · Cylinders 1–1');
 
     const saved = await persistedSave(page);
-    // v3 added the mode; v4 (#186) keeps it and adds CNS.
-    expect(saved.version).toBe(4);
+    // v3 added the mode; every later version keeps it.
+    expect(saved.version).toBeGreaterThanOrEqual(3);
     expect(saved.diveMode).toBe('tec');
 
     // Resume: the setup screen the reload draws says recreational, the save
@@ -1097,7 +1097,8 @@ test.describe('gas information', () => {
     // persists across a resume.
     await startTwoCylinderDive(page);
     const saved = await persistedSave(page);
-    expect(saved.version).toBe(4);
+    // CNS is kept from v4; older saves reset it.
+    expect(saved.version).toBeGreaterThanOrEqual(4);
     saved.state.cnsPercent = 84.6;
     await page.goto('/dist/');
     await page.evaluate(
