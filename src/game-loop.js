@@ -1861,6 +1861,9 @@ function captureBaselineCheckpoint(scenarioId, checkpointId) {
                 volume_l: _baselineFinite(tank.volume),
                 pressure_bar: _baselineFinite(tank.pressure),
                 gasRemaining_l: _baselineFinite(tank.gasRemaining),
+                // #199: the fill a dive starts from; gas used is totalGas less
+                // gasRemaining (drawPostDive).
+                totalGas_l: _baselineFinite(tank.totalGas),
                 switchDepth_m: _baselineFinite(tank.switchDepth)
             };
         }),
@@ -1875,6 +1878,11 @@ function captureBaselineCheckpoint(scenarioId, checkpointId) {
             o2Pressure_bar: _baselineFinite(ccrState.o2CylPressure),
             diluentPressure_bar: _baselineFinite(ccrState.dilCylPressure),
             scrubberRemaining_min: _baselineFinite(ccrState.scrubberRemaining),
+            // #199: the start of the dive, snapshotted by resetDive(); O2,
+            // diluent and scrubber used are these less the current values.
+            o2PressureStart_bar: _baselineFinite(ccrState.o2CylPressureStart),
+            diluentPressureStart_bar: _baselineFinite(ccrState.dilCylPressureStart),
+            scrubberTotal_min: _baselineFinite(ccrState.scrubberTotal),
             onBailout: !!ccrState.onBailout
         },
         events: diveEvents.map(function(event) {
