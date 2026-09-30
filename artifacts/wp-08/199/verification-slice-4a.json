@@ -1,0 +1,67 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 199,
+  "slice": "Slice 4a: decompression sickness in the model (legacy's DCS timer and its surfacing check), its game-over text; save v11",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "7163f09b87408537eb03d09488bdccd5e7b80a04",
+  "measuredTree": "d9837f1961dd3aa976b8b72570fdc96bf816f4a7",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-09-30T23:47:46Z",
+  "runFinishedAt": "2026-09-30T23:57:19Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "Stacked on slice 2c (feat/199-start-gas), itself stacked on slice 3 (#206). The full run above is on 7163f09; the only later commit adds this file. The branch is rebased onto main once those merge, and the evidence is re-recorded then.",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "385 passed (371 on slice 2c, +9 in tests/unit/decompression-sickness.test.ts, +5 in tests/unit/save-game.test.ts)",
+    "parity": "83 passed (80 on slice 2c, +3 in tests/parity/decompression-sickness.test.ts)",
+    "e2e": "142 passed, 1 failed in 6.3 min. The failure is tests/game.spec.js, the legacy harness, on \"Blocked call to navigator.vibrate because user hasn't tapped on the frame\": the known flake #194, in code this slice does not touch. Re-run alone on the same commit and clean tree with --repeat-each=3: 3 passed. tests/game-over.spec.js has one new test (the DCS screen); the earlier uncommitted run of the same change had 143 passed.",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "portedFromTheOracle": {
+    "timer": "src/game-loop.js updateDiving(), after updateCCR(): `if (ceilDepth > 0 && depth < decoStop(ceilDepth)) dcsViolationTime += dtDiveSeconds; else dcsViolationTime = Math.max(0, dcsViolationTime - dtDiveSeconds);` with ceilDepth = frameCalc.ceiling. Model: failure.dcsViolationS, from the step's decompression limits and decoStopDepth().",
+    "endChecks": "Legacy's order: out of gas, O2 toxicity, `dcsViolationTime >= DCS_VIOLATION_TIME` (60), barotrauma, hypoxia, narcosis, `depth < 0.5 && ceilDepth > 3`. The model has no barotrauma or narcosis yet (#189); detectFailure() checks the rest in that order.",
+    "rebreatherFailures": "updateCCR()'s failures return from updateDiving() before the DCS check, so the model leaves the timer where it was on that step.",
+    "text": "GAME_OVER_INFO['DECOMPRESSION SICKNESS'] and STRINGS.*.gameOverReasons, English and German, as gameOver.reason.decompressionSickness and gameOver.info.decompressionSickness.*; claims register GAMEOVER-001 lists them."
+  },
+  "fixtureRegeneration": {
+    "command": "npm run baseline:generate, from the capture commit bf43532",
+    "legacyChange": "captureBaselineCheckpoint() gains state.debrief.dcsViolation_s and state.gameOverReason; two scenarios from the trimix bottom (21/35, 45 m, 20 min): trimix-dcs-above-stop holds 6 m above the 12 m stop until the timer ends the dive (checkpoints at 30 s and at the failure), trimix-dcs-surfaced goes straight to the surface with an 11.5 m ceiling.",
+    "additiveCheck": "All eight earlier scenarios are identical to the fixture before regeneration once the two new fields are removed; the header differs only in referenceCommit; tests/baseline.spec.js passes (schema, live checkpoints within tolerance)."
+  },
+  "parity": "Both scenarios replayed tick by tick through advanceDiveStep from bottom-20min, each breathing its own cylinder: the DCS timer equals dcsViolation_s at every checkpoint, the dive fails for decompression sickness exactly where legacy's gameOverReason says so and not before, and the log's entries (a ceiling violation above the stop) match legacy's diveEvents. A third replay resumes from above-stop-30s through the adapter, timer at 30, and fails on the same tick.",
+  "counterChecks": {
+    "method": "Each revert was applied from a backup copy, tests/unit/decompression-sickness.test.ts, tests/unit/save-game.test.ts and tests/parity/decompression-sickness.test.ts were run, and the file was restored. The first attempt hung on the first revert: the stop-by-stop test looped forever once the dive had failed. That loop now also stops on a failure, and the whole set was run again.",
+    "results": [
+      { "revert": "timer counts at the stop depth too (<=)", "result": "2 failed: the count-down and the surfacing-with-a-shallow-ceiling tests" },
+      { "revert": "timer resets instead of counting down", "result": "1 failed: the count-down test" },
+      { "revert": "timer never ends the dive", "result": "3 failed: the parity timer replay, the 60 s test and the check-order test" },
+      { "revert": "no DCS on surfacing", "result": "2 failed: the parity and unit surfacing tests" },
+      { "revert": "surfacing checked before hypoxia", "result": "1 failed: the surfacing-after-hypoxia test" },
+      { "revert": "a rebreather failure step still counts", "result": "1 failed: the rebreather failure test" },
+      { "revert": "save does not validate the timer", "result": "1 failed: the invalid-timer test" },
+      { "revert": "no pre-v11 migration", "result": "1 failed: the v10 migration test" },
+      { "revert": "legacy dcsViolationTime ignored", "result": "1 failed: the legacy import test" },
+      { "revert": "adapter drops the legacy timer", "result": "1 failed: the resume-from-above-stop-30s parity test (added after the first set passed this revert)" }
+    ]
+  },
+  "durableProvenance": {
+    "src": "cefb9501010dc7adee8c535444953ded3692a9cc",
+    "tests": "ee5769a934f76270bf1fb6bb998b4dcc4deca04b",
+    "scripts": "7ea5ab54c93260bbad2cf48dd04e2d235ed5d43a",
+    "docs": "54a5d3d84ecadf3c92db6778c1fc60f68f8a0a4a"
+  }
+}
