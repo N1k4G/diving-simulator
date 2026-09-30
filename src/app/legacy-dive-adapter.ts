@@ -62,7 +62,10 @@ export interface LegacyTissueCheckpoint {
       avgDepthSamples_s?: number | null;
       profileTimer_s?: number | null;
       frameCeiling_m?: number | null;
+      dcsViolation_s?: number | null;
     };
+    /** Legacy's gameOverReason once the dive has failed, else null. */
+    gameOverReason?: string | null;
   };
   /**
    * Legacy's diveProfile samples taken since the previous checkpoint (#199),
@@ -186,6 +189,10 @@ export function diveStateFromLegacyCheckpoint(
     verticalVelocityMpm: checkpoint.state.verticalVelocity_mpm ?? 0,
     bcdGasSurfaceLiters:
       checkpoint.state.bcdGasSurface_l ?? initialState.bcdGasSurfaceLiters,
+    failure: {
+      ...initialState.failure,
+      dcsViolationS: seconds(checkpoint.state.debrief?.dcsViolation_s ?? 0),
+    },
     log: logFromLegacyCheckpoint(checkpoint, earlierProfile),
     safetyStop: checkpoint.state.safetyStop
       ? {

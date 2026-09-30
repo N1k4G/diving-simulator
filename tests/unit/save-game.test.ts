@@ -929,6 +929,74 @@ describe("SaveGame gradient factors", () => {
     });
   });
 
+  // v11 adds the decompression-sickness timer (#199).
+  describe("the decompression-sickness timer", () => {
+    const aboveTheStop = () => {
+      const base = createInitialDiveState(97);
+      return freezeDiveState({
+        ...base,
+        elapsedTimeS: seconds(1500),
+        failure: { ...base.failure, dcsViolationS: seconds(42.5) },
+      });
+    };
+    const encoded = () =>
+      JSON.parse(encodeSaveGame(createSaveGame(aboveTheStop(), CONSERVATIVE_FACTORS, 1_735_689_600_000))) as {
+        version: number;
+        state: { failure: Record<string, unknown> };
+      };
+
+    it("round-trips in a current save", () => {
+      const decoded = decodeSaveGame(JSON.stringify(encoded()));
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      expect(decoded.saveGame.state.failure.dcsViolationS).toBe(42.5);
+    });
+
+    it("resumes a v10 save at zero, which never ran it", () => {
+      const v10 = encoded();
+      v10.version = 10;
+      delete v10.state.failure.dcsViolationS;
+      const result = decodeSaveGame(JSON.stringify(v10));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.migratedFrom).toBe("save-game-v10");
+      expect(result.saveGame.state.failure.dcsViolationS).toBe(0);
+    });
+
+    it("rejects a current save without a valid timer", () => {
+      for (const value of [undefined, -1, Number.NaN, "42"]) {
+        const save = encoded();
+        save.state.failure.dcsViolationS = value;
+        expect(decodeSaveGame(JSON.stringify(save)).ok, String(value)).toBe(false);
+      }
+    });
+
+    it("accepts a save of a dive decompression sickness ended", () => {
+      const save = encoded() as unknown as {
+        state: { failure: Record<string, unknown>; events: unknown[]; elapsedTimeS: number };
+      };
+      save.state.failure.reason = "decompression-sickness";
+      save.state.events.push({ type: "failure", elapsedTimeS: save.state.elapsedTimeS, failureReason: "decompression-sickness" });
+      const result = decodeSaveGame(JSON.stringify(save));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.saveGame.state.failure.reason).toBe("decompression-sickness");
+    });
+
+    it("carries legacy's dcsViolationTime over, and resumes a save without one at zero", () => {
+      const carried = decodeSaveGame(JSON.stringify({ ...legacyV2Save(), dcsViolationTime: 17.25 }));
+      expect(carried.ok).toBe(true);
+      if (!carried.ok) return;
+      expect(carried.saveGame.state.failure.dcsViolationS).toBe(17.25);
+      const without = legacyV2Save();
+      delete without.dcsViolationTime;
+      const missing = decodeSaveGame(JSON.stringify(without));
+      expect(missing.ok).toBe(true);
+      if (!missing.ok) return;
+      expect(missing.saveGame.state.failure.dcsViolationS).toBe(0);
+    });
+  });
+
   describe("the dive mode", () => {
     const singleCylinder = () =>
       createInitialDiveState(81, {

@@ -91,7 +91,13 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // fill, so they resume with the current contents as the start: gas used
 // then counts from the resume. Legacy saves carry totalGas,
 // o2CylPressureStart, dilCylPressureStart and scrubberTotal, and keep them.
-export const CURRENT_SAVE_GAME_VERSION = 10;
+//
+// v11 adds state.failure.dcsViolationS, the decompression-sickness timer
+// (#199). Older saves never ran it and resume at zero, which gives a diver
+// above the stop the full 60 seconds again. Legacy saves carry
+// dcsViolationTime and keep it.
+export const CURRENT_SAVE_GAME_VERSION = 11;
+export const TENTH_SAVE_GAME_VERSION = 10;
 export const NINTH_SAVE_GAME_VERSION = 9;
 export const EIGHTH_SAVE_GAME_VERSION = 8;
 export const SEVENTH_SAVE_GAME_VERSION = 7;
@@ -156,6 +162,7 @@ export type SaveGameMigration =
   | "save-game-v7"
   | "save-game-v8"
   | "save-game-v9"
+  | "save-game-v10"
   | null;
 
 /**
@@ -324,8 +331,19 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
       };
     }
     // Before v10 no fill was recorded: the current contents are the start.
-    if (v < CURRENT_SAVE_GAME_VERSION && isRecord(candidate.state)) {
+    if (v < TENTH_SAVE_GAME_VERSION && isRecord(candidate.state)) {
       candidate.state = withCurrentContentsAsStart(candidate.state);
+    }
+    // Before v11 there was no DCS timer: it resumes at zero.
+    if (
+      v < CURRENT_SAVE_GAME_VERSION &&
+      isRecord(candidate.state) &&
+      isRecord(candidate.state.failure)
+    ) {
+      candidate.state = {
+        ...candidate.state,
+        failure: { ...candidate.state.failure, dcsViolationS: 0 },
+      };
     }
     // A v1 payload has no gradientFactors and is filled with the defaults; a
     // v2 payload must carry a valid pair rather than fall back to them, or a
@@ -459,6 +477,11 @@ function migrateLegacyV2(candidate: Record<string, unknown>): SaveGame | null {
         candidate.ccrHypoxiaTime as DiveState["failure"]["ccrHypoxiaS"],
       ccrHyperoxiaS:
         candidate.ccrHyperoxiaTime as DiveState["failure"]["ccrHyperoxiaS"],
+      // Legacy saves it and refuses a restore without it; a save that lacks
+      // it anyway resumes at zero rather than being lost.
+      dcsViolationS: (isNonNegativeFinite(candidate.dcsViolationTime)
+        ? candidate.dcsViolationTime
+        : 0) as DiveState["failure"]["dcsViolationS"],
     },
     events: [],
     log,
@@ -1157,7 +1180,8 @@ function isFailureState(candidate: unknown): boolean {
     isNonNegativeFinite(candidate.oxygenToxicityS) &&
     isNonNegativeFinite(candidate.hypoxiaS) &&
     isNonNegativeFinite(candidate.ccrHypoxiaS) &&
-    isNonNegativeFinite(candidate.ccrHyperoxiaS)
+    isNonNegativeFinite(candidate.ccrHyperoxiaS) &&
+    isNonNegativeFinite(candidate.dcsViolationS)
   );
 }
 
@@ -1235,6 +1259,7 @@ function isFailureReason(candidate: unknown): candidate is DiveFailureReason {
     "out-of-gas",
     "oxygen-toxicity",
     "hypoxia",
+    "decompression-sickness",
     "ccr-hypoxia",
     "ccr-hyperoxia",
     "ccr-co2",
