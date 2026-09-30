@@ -3,15 +3,16 @@
   "issue": 199,
   "slice": "Slice 3: the adaptive safety stop in the core; the planner's TTS flags from the dive; save v9",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "ea4c83273d733d0bb18defbc4a4fab073c5cc8ab",
-  "measuredTree": "b22d207ad4977e4b5f60c4469e7ebe7bc499d975",
+  "measuredCommit": "12be28a23973a22bbd64feb3c2574266427fce4d",
+  "measuredTree": "1c6b04d2a7e13db749a8e603c11388968ea9f09b",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-09-30T21:52:55Z",
-  "runFinishedAt": "2026-09-30T21:59:20Z",
+  "recordedAt": "2026-09-30T22:09:04Z",
+  "runFinishedAt": "2026-09-30T22:15:23Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "The full run above is on ea4c832, slice 3 rebased onto f78aa90 (main after #204); the rebase resolved one import-list conflict in src/save/save-game.ts by keeping both sides. The only later commit adds this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "The full run above is on 12be28a. The only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "earlierRuns": [
-    "The same change before the rebase (06eb87e, on #204's head adc75a2) passed the full suite: 361 unit, 73 parity, 142 e2e."
+    "The same change before the rebase (06eb87e, on #204's head adc75a2) passed the full suite: 361 unit, 73 parity, 142 e2e.",
+    "A full run on ea4c832 (the rebased slice) passed: 362 unit, 73 parity, 142 e2e. The pre-review of #206, pass 1, then noted that withinRoute() moved a resumed dive with a running countdown below 11 m without resetting it, so a save before the first step failed v9 validation. 12be28a resets the stop in withinRoute(); the run above is on that commit."
   ],
   "environment": {
     "os": "Windows 11",
@@ -28,7 +29,7 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "362 passed (345 on main, +12 in tests/unit/safety-stop.test.ts, +4 in tests/unit/save-game.test.ts, +1 in tests/unit/game-controller-buoyancy.test.ts)",
+    "unit": "363 passed (345 on main, +12 in tests/unit/safety-stop.test.ts, +4 in tests/unit/save-game.test.ts, +2 in tests/unit/game-controller-buoyancy.test.ts)",
     "parity": "73 passed (72 on main, +1 in tests/parity/dive-log.test.ts; the replays now also compare the safety stop)",
     "e2e": "142 passed in 4.8 min (unchanged)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
@@ -68,12 +69,16 @@
       {
         "revert": "controller not passing the flags",
         "result": "1 failed: the forecast flags test"
+      },
+      {
+        "revert": "withinRoute() not resetting the safety stop",
+        "result": "1 failed: the resumed-dive reset test"
       }
     ]
   },
   "durableProvenance": {
-    "src": "ac0c9bd7b994302097099e2a11865cd61e4f1f9b",
-    "tests": "d762f67ca04731e2fc175e77373143bab011c34b",
+    "src": "b494e07b254988289493a51bdab60f15e62e65e4",
+    "tests": "9989538b38498c26ca9120ebeb4bd5a3b6c296e0",
     "scripts": "9821955c9dd544534be72ffeb8eb56fbc6cc863a",
     "docs": "e2b85248122e51b5ade838797f0eb68be5b23bd0"
   }
