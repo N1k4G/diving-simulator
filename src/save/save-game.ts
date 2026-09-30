@@ -20,6 +20,7 @@ import {
   FAST_ASCENT_RATE_MPM,
   FAST_ASCENT_WINDOW_S,
   PROFILE_SAMPLE_INTERVAL_S,
+  SUBMERGED_DEPTH_M,
 } from "../core/dive-model";
 import {
   DEFAULT_GF_HIGH_PERCENT,
@@ -656,6 +657,11 @@ function isMotionRecord(log: Record<string, unknown>, context: DiveLogContext): 
     (log.submergedS as number) > context.elapsedTimeS + SUM_ROUNDING_S ||
     (log.depthTimeMS as number) >
       context.maxDepthM * (log.submergedS as number) * (1 + 1e-9) + SUM_ROUNDING_S ||
+    // Every counted second is deeper than 0.5 m (#204 Codex round 1): no
+    // sum without time, and at least half the time in metre-seconds.
+    ((log.submergedS as number) === 0 && (log.depthTimeMS as number) !== 0) ||
+    (log.depthTimeMS as number) <
+      SUBMERGED_DEPTH_M * (log.submergedS as number) * (1 - 1e-9) - SUM_ROUNDING_S ||
     !isNonNegativeFinite(log.profileTimerS) ||
     (log.profileTimerS as number) >= PROFILE_SAMPLE_INTERVAL_S ||
     !isNonNegativeFinite(log.lastCeilingM) ||

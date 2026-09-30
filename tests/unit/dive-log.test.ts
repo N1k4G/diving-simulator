@@ -181,6 +181,17 @@ describe("the average depth and the profile", () => {
     expect(Object.isFrozen(next.log.profile[0])).toBe(true);
   });
 
+  it("copies a frozen list whose samples are not frozen (#204 Codex round 1)", () => {
+    const base = diverAt(18);
+    const sample = { elapsedTimeS: seconds(2), depthM: metres(18), ceilingM: metres(0) };
+    const frozenOutside = Object.freeze([sample]);
+    const state = freezeDiveState({ ...base, log: { ...base.log, profile: frozenOutside } });
+    expect(state.log.profile).not.toBe(frozenOutside);
+    expect(Object.isFrozen(state.log.profile[0])).toBe(true);
+    sample.depthM = metres(40);
+    expect(state.log.profile[0]?.depthM).toBe(18);
+  });
+
   it("records the ceiling of the step before each sample", () => {
     // Loaded tissues, so the ceiling moves from step to step.
     const base = diverAt(20);

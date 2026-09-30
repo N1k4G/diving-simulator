@@ -418,6 +418,9 @@ describe("SaveGame gradient factors", () => {
         ["a profile sample deeper than the dive went", (log) => { (log.profile as Record<string, unknown>[])[1]!.depthM = 40; }],
         ["more time submerged than the dive lasted", (log) => { log.submergedS = 700; }],
         ["an average deeper than the deepest point", (log) => { log.depthTimeMS = 31 * 560 + 1; }],
+        ["submerged time with no depth", (log) => { log.depthTimeMS = 0; }],
+        ["an average shallower than 0.5 m", (log) => { log.depthTimeMS = 0.4 * 560; }],
+        ["a depth sum with no submerged time", (log) => { log.submergedS = 0; }],
         ["a negative last ceiling", (log) => { log.lastCeilingM = -1; }],
       ];
       for (const [what, corrupt] of invalid) {

@@ -68,7 +68,7 @@ export const FAST_ASCENT_WINDOW_S = seconds(2);
 export const CEILING_VIOLATION_TOLERANCE_M = 0.3;
 export const CEILING_VIOLATION_WINDOW_S = seconds(2);
 /** Legacy tracks the NDL and the average depth only deeper than 0.5 m. */
-const SUBMERGED_DEPTH_M = 0.5;
+export const SUBMERGED_DEPTH_M = 0.5;
 /** src/game-loop.js: one depth profile sample every 2 dive seconds. */
 export const PROFILE_SAMPLE_INTERVAL_S = seconds(2);
 

@@ -335,6 +335,22 @@ export function createInitialDiveState(
   });
 }
 
+/**
+ * The log lists freezeDiveState() itself has built, each element frozen
+ * with it. Only these are reused: a frozen array from elsewhere may still
+ * hold mutable elements (#204 Codex round 1).
+ */
+const frozenLogLists = new WeakSet<readonly object[]>();
+
+function freezeLogList<T extends object>(list: readonly T[]): readonly T[] {
+  if (frozenLogLists.has(list)) {
+    return list;
+  }
+  const frozen = Object.freeze(list.map((item) => Object.freeze({ ...item })));
+  frozenLogLists.add(frozen);
+  return frozen;
+}
+
 export function freezeDiveState(state: DiveState): DiveState {
   const tissues = Object.freeze({
     nitrogenBar: Object.freeze([...state.tissues.nitrogenBar]),
@@ -360,21 +376,14 @@ export function freezeDiveState(state: DiveState): DiveState {
     state.events.map((event) => Object.freeze({ ...event })),
   );
   // The log's lists grow for the whole dive, so a list this function has
-  // already frozen is reused rather than copied: re-freezing the profile on
+  // already built is reused rather than copied: re-freezing the profile on
   // every call made a frame's cost grow with the dive's length (#204
-  // pre-review). A list from outside, such as a parsed save, is still copied.
+  // pre-review). Any other list, a parsed save or a caller's own, is copied
+  // with its elements frozen.
   const log = Object.freeze({
     ...state.log,
-    entries: Object.isFrozen(state.log.entries)
-      ? state.log.entries
-      : Object.freeze(
-          state.log.entries.map((entry) => Object.freeze({ ...entry })),
-        ),
-    profile: Object.isFrozen(state.log.profile)
-      ? state.log.profile
-      : Object.freeze(
-          state.log.profile.map((sample) => Object.freeze({ ...sample })),
-        ),
+    entries: freezeLogList(state.log.entries),
+    profile: freezeLogList(state.log.profile),
   });
 
   return Object.freeze({ ...state, tissues, tanks, ccr, failure, events, log });
