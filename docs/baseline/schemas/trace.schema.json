@@ -197,6 +197,33 @@
               }
             }
           }
+        },
+        "profile": {
+          "description": "Optional in v1, like trajectory and for the same reason. When present: the depth profile samples legacy's updateDiving() took since the previous checkpoint (diveProfile, one every 2 dive seconds), in order. t_min is the sample's dive time in minutes, depth_m the depth at the end of its tick, and ceiling_m the ceiling of the tick before, since legacy samples before it refreshes frameCalc. Empty for a scenario's first checkpoint. A dive continued from a checkpoint concatenates the earlier checkpoints' samples (#199).",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "t_min",
+              "depth_m",
+              "ceiling_m"
+            ],
+            "properties": {
+              "t_min": {
+                "type": "number",
+                "minimum": 0
+              },
+              "depth_m": {
+                "type": "number",
+                "minimum": 0
+              },
+              "ceiling_m": {
+                "type": "number",
+                "minimum": 0
+              }
+            }
+          }
         }
       }
     }
