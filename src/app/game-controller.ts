@@ -34,11 +34,16 @@ const FIN_SPEED_MPS = 5;
 const VERTICAL_SPEED_MPS = 1.6;
 const MAX_FRAME_SECONDS = 0.1;
 /**
- * How much faster the dive clock runs while fast-forwarding at a stop:
- * src/constants.js FAST_FORWARD_MULTIPLIER. Legacy applies it on top of
- * TIME_ACCELERATION (3x), where this client runs the dive clock at real time,
- * so the multiplier stands alone here — the stop passes ten times faster than
- * normal play in both clients.
+ * Dive seconds per real second: src/constants.js TIME_ACCELERATION, applied
+ * in src/game-loop.js updateDiving() as `dtDiveSeconds = dtReal *
+ * timeMultiplier` (#195). Only the dive clock runs faster; the view's own
+ * motion and the scene's animation stay in real time.
+ */
+const TIME_ACCELERATION = 3;
+/**
+ * How much faster still the dive clock runs while fast-forwarding at a stop:
+ * src/constants.js FAST_FORWARD_MULTIPLIER, on top of TIME_ACCELERATION as
+ * legacy's `timeMultiplier = TIME_ACCELERATION * FAST_FORWARD_MULTIPLIER`.
  */
 const FAST_FORWARD_MULTIPLIER = 10;
 
@@ -307,7 +312,9 @@ export class GameController {
       this.#fastForwardActive = false;
     }
     this.#simulationAccumulatorS +=
-      elapsedS * (this.#fastForwardActive ? FAST_FORWARD_MULTIPLIER : 1);
+      elapsedS *
+      TIME_ACCELERATION *
+      (this.#fastForwardActive ? FAST_FORWARD_MULTIPLIER : 1);
 
     while (this.#simulationAccumulatorS >= 1) {
       this.#model.advance(
