@@ -4,10 +4,11 @@ import baselineFixture from "../fixtures/traces/baseline-v1.json";
 import {
   diveStateFromLegacyCheckpoint,
   logEntriesFromLegacyEvents,
+  type LegacyProfileSample,
   type LegacyTissueCheckpoint,
 } from "../../src/app/legacy-dive-adapter";
 import { MAX_DEPTH_M, type BuoyancyControls } from "../../src/core/buoyancy";
-import { DiveModel, closedCircuit, openCircuit } from "../../src/core/dive-model";
+import { DiveModel, advanceDiveStep, closedCircuit, openCircuit } from "../../src/core/dive-model";
 import { createGasMix, type BreathingSource } from "../../src/core/dive-state";
 import { metres, seconds } from "../../src/core/units";
 
@@ -31,8 +32,13 @@ interface Checkpoint extends LegacyTissueCheckpoint {
       fastAscentAccum_s: number | null;
       fastAscentPeak_mpm: number;
       ceilingViolationAccum_s: number | null;
+      avgDepthAccum_ms: number;
+      avgDepthSamples_s: number;
+      profileTimer_s: number;
+      frameCeiling_m: number;
     };
   };
+  profile: LegacyProfileSample[];
   events: { t: number; kind: string; value: number }[];
   trajectory: { depth_m: number; dtDive_min: number }[];
 }
@@ -70,6 +76,36 @@ function expectLogToMatch(model: DiveModel, recorded: Checkpoint): void {
   expectContinuationToMatch(model, recorded);
 }
 
+/** Legacy's profile up to and including a checkpoint. */
+function profileUpTo(scenarioId: string, id: string): LegacyProfileSample[] {
+  const all = checkpoints(scenarioId);
+  const last = all.findIndex((entry) => entry.checkpointId === id);
+  return all.slice(0, last + 1).flatMap((entry) => entry.profile);
+}
+
+/**
+ * The average depth's sums, the profile sampler and its samples, against
+ * legacy's (#199 slice 2b): what legacy records with the physics, on every
+ * scenario, scripted or not.
+ */
+function expectMotionToMatch(model: DiveModel, scenarioId: string, recorded: Checkpoint): void {
+  const where = recorded.checkpointId;
+  const log = model.snapshot.log;
+  const legacy = recorded.state.debrief;
+  expect(Math.abs(log.depthTimeMS - legacy.avgDepthAccum_ms), `depth-time sum at ${where}`).toBeLessThanOrEqual(eps.default);
+  expect(Math.abs(log.submergedS - legacy.avgDepthSamples_s), `submerged time at ${where}`).toBeLessThanOrEqual(eps.default);
+  expect(Math.abs(log.profileTimerS - legacy.profileTimer_s), `profile timer at ${where}`).toBeLessThanOrEqual(eps.default);
+  expect(Math.abs(log.lastCeilingM - legacy.frameCeiling_m), `last ceiling at ${where}`).toBeLessThanOrEqual(eps["planner.ceiling_m"]);
+  const expected = profileUpTo(scenarioId, where);
+  expect(log.profile.length, `profile samples at ${where}`).toBe(expected.length);
+  log.profile.forEach((sample, index) => {
+    const legacySample = expected[index]!;
+    expect(Math.abs(sample.elapsedTimeS / 60 - legacySample.t_min), `sample ${index} time at ${where}`).toBeLessThanOrEqual(eps.default);
+    expect(Math.abs(sample.depthM - legacySample.depth_m), `sample ${index} depth at ${where}`).toBeLessThanOrEqual(eps.default);
+    expect(Math.abs(sample.ceilingM - legacySample.ceiling_m), `sample ${index} ceiling at ${where}`).toBeLessThanOrEqual(eps["planner.ceiling_m"]);
+  });
+}
+
 /**
  * What the next step continues from, against legacy's state.debrief (#201
  * Codex round 1): the ascent rate, the lowest NDL, and each window's length,
@@ -105,6 +141,7 @@ function replayBuoyancy(
       model.advanceWithBuoyancy(OPEN_WATER, seconds(frame.dtDive_min * 60), segment.controls);
     }
     expectLogToMatch(model, recorded);
+    expectMotionToMatch(model, scenarioId, recorded);
     logged = model.snapshot.log.entries.length;
   }
   return logged;
@@ -152,6 +189,41 @@ describe("the dive log against the recorded legacy dives", () => {
     }
     expectLogToMatch(model, next);
     expect(model.snapshot.log.entries).toHaveLength(1);
+  });
+
+  // The scripted scenarios are replayed tick by tick through advanceDiveStep,
+  // one step per legacy tick at the depth it read back, so each tick's
+  // profile samples carry the ceiling from before it, as legacy's do. Their
+  // entries are not compared (see the note above); their motion is.
+  it.each<[string, BreathingSource]>([
+    ["air-18m-30min", openCircuit(createGasMix(0.21, 0))],
+    ["ccr-30m-30min", closedCircuit(1.3, createGasMix(0.15, 0.45))],
+  ])("samples the %s profile and averages its depth as legacy does", (scenarioId, breathing) => {
+    const all = checkpoints(scenarioId);
+    let state = diveStateFromLegacyCheckpoint(all[0]!, 17);
+    for (const recorded of all.slice(1)) {
+      for (const tick of recorded.trajectory) {
+        if (tick.dtDive_min === 0) continue;
+        state = advanceDiveStep(
+          state,
+          { depthM: metres(tick.depth_m), breathing, gradientFactorHighPercent: 75 },
+          seconds(tick.dtDive_min * 60),
+        );
+      }
+      expectMotionToMatch(new DiveModel(state), scenarioId, recorded);
+    }
+  });
+
+  it("continues the profile from a mid-dive checkpoint", () => {
+    const start = checkpoint("buoyancy-vent-inflate-12m", "inflated-11s");
+    const earlier = profileUpTo("buoyancy-vent-inflate-12m", "sinking-20s");
+    const model = new DiveModel(diveStateFromLegacyCheckpoint(start, 501, earlier));
+    expectMotionToMatch(model, "buoyancy-vent-inflate-12m", start);
+    const next = checkpoint("buoyancy-vent-inflate-12m", "coasting-30s");
+    for (const frame of next.trajectory) {
+      model.advanceWithBuoyancy(OPEN_WATER, seconds(frame.dtDive_min * 60), NONE);
+    }
+    expectMotionToMatch(model, "buoyancy-vent-inflate-12m", next);
   });
 
   it("carries the lowest NDL across a checkpoint", () => {

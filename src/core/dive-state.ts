@@ -102,6 +102,16 @@ export interface DiveLogEntry {
 }
 
 /**
+ * One point of the depth profile (#199), legacy's diveProfile entry: taken
+ * every 2 dive seconds, with the ceiling of the step before it.
+ */
+export interface DiveProfileSample {
+  elapsedTimeS: Seconds;
+  depthM: Metres;
+  ceilingM: Metres;
+}
+
+/**
  * The dive log (#199): what legacy's updateDiving() keeps every frame for
  * the post-dive debriefing and gradeDive(), beyond the dive state itself.
  */
@@ -123,6 +133,21 @@ export interface DiveLog {
   minNdlMin: number | null;
   /** Legacy's ndlDroppedBelow5, latched for the dive. */
   ndlDroppedBelowFiveMinutes: boolean;
+  /**
+   * The time-weighted average depth's sums, legacy's avgDepthAccum (depth
+   * times dive seconds) and avgDepthSamples (dive seconds), both counted
+   * only deeper than 0.5 m. The average is their quotient.
+   */
+  depthTimeMS: number;
+  submergedS: Seconds;
+  /** The depth profile, and the dive time since its last sample. */
+  profile: readonly DiveProfileSample[];
+  profileTimerS: Seconds;
+  /**
+   * The ceiling of the last step, which the next profile sample records:
+   * legacy samples before it refreshes frameCalc.
+   */
+  lastCeilingM: Metres;
 }
 
 export function createEmptyDiveLog(): DiveLog {
@@ -136,6 +161,11 @@ export function createEmptyDiveLog(): DiveLog {
     ceilingViolationLatched: false,
     minNdlMin: null,
     ndlDroppedBelowFiveMinutes: false,
+    depthTimeMS: 0,
+    submergedS: seconds(0),
+    profile: [],
+    profileTimerS: seconds(0),
+    lastCeilingM: metres(0),
   };
 }
 
@@ -333,6 +363,9 @@ export function freezeDiveState(state: DiveState): DiveState {
     ...state.log,
     entries: Object.freeze(
       state.log.entries.map((entry) => Object.freeze({ ...entry })),
+    ),
+    profile: Object.freeze(
+      state.log.profile.map((sample) => Object.freeze({ ...sample })),
     ),
   });
 

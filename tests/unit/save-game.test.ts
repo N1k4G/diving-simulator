@@ -328,6 +328,14 @@ describe("SaveGame gradient factors", () => {
           fastAscentPeakMpm: 11,
           minNdlMin: 4,
           ndlDroppedBelowFiveMinutes: true,
+          depthTimeMS: 7200,
+          submergedS: seconds(560),
+          profile: [
+            { elapsedTimeS: seconds(2), depthM: 3 as DiveState["depthM"], ceilingM: 0 as DiveState["depthM"] },
+            { elapsedTimeS: seconds(4), depthM: 5 as DiveState["depthM"], ceilingM: 0 as DiveState["depthM"] },
+          ],
+          profileTimerS: seconds(1.5),
+          lastCeilingM: 0 as DiveState["depthM"],
         },
       });
 
@@ -337,6 +345,22 @@ describe("SaveGame gradient factors", () => {
       if (!decoded.ok) return;
       expect(decoded.saveGame.version).toBe(CURRENT_SAVE_GAME_VERSION);
       expect(decoded.saveGame.state.log).toEqual(logged().log);
+    });
+
+    it("keeps a v7 save's log, and starts its average and profile at zero", () => {
+      const v7 = JSON.parse(
+        encodeSaveGame(createSaveGame(logged(), CONSERVATIVE_FACTORS, 1_735_689_600_000)),
+      ) as { version: number; state: { log: Record<string, unknown> } };
+      v7.version = 7;
+      for (const key of ["depthTimeMS", "submergedS", "profile", "profileTimerS", "lastCeilingM"]) delete v7.state.log[key];
+      const result = decodeSaveGame(JSON.stringify(v7));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.migratedFrom).toBe("save-game-v7");
+      expect(result.saveGame.state.log.entries).toEqual(logged().log.entries);
+      expect(result.saveGame.state.log.minNdlMin).toBe(4);
+      expect(result.saveGame.state.log.profile).toEqual([]);
+      expect(result.saveGame.state.log.submergedS).toBe(0);
     });
 
     it("starts empty for a v6 save, which never recorded one", () => {
@@ -387,6 +411,14 @@ describe("SaveGame gradient factors", () => {
           (log.entries as Record<string, unknown>[])[0]!.value = 20;
         }],
         ["an open ceiling window with no ceiling over the diver", (log) => { log.ceilingViolationS = 1; }],
+        // The motion record (#199 slice 2b).
+        ["a sampler timer at the next sample", (log) => { log.profileTimerS = 2; }],
+        ["profile samples out of order", (log) => { (log.profile as Record<string, unknown>[])[1]!.elapsedTimeS = 1; }],
+        ["a profile sample after the dive time", (log) => { (log.profile as Record<string, unknown>[])[1]!.elapsedTimeS = 601; }],
+        ["a profile sample deeper than the dive went", (log) => { (log.profile as Record<string, unknown>[])[1]!.depthM = 40; }],
+        ["more time submerged than the dive lasted", (log) => { log.submergedS = 700; }],
+        ["an average deeper than the deepest point", (log) => { log.depthTimeMS = 31 * 560 + 1; }],
+        ["a negative last ceiling", (log) => { log.lastCeilingM = -1; }],
       ];
       for (const [what, corrupt] of invalid) {
         const save = JSON.parse(
@@ -491,6 +523,29 @@ describe("SaveGame gradient factors", () => {
       if (!result.ok) return;
       expect(result.saveGame.state.log.ndlDroppedBelowFiveMinutes).toBe(true);
       expect(result.saveGame.state.log.minNdlMin).toBe(4);
+    });
+
+    it("carries legacy's average depth sums and depth profile over", () => {
+      const legacy = {
+        ...legacyV2Save(),
+        avgDepthAccum: 16_200,
+        avgDepthSamples: 720,
+        diveProfile: [
+          { t: 0.0333, depth: 1.5, ceiling: 0 },
+          { t: 0.0667, depth: 3.25, ceiling: 0 },
+        ],
+      };
+      const result = decodeSaveGame(JSON.stringify(legacy));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const log = result.saveGame.state.log;
+      expect(log.depthTimeMS).toBe(16_200);
+      expect(log.submergedS).toBe(720);
+      expect(log.profile.map((sample) => sample.depthM)).toEqual([1.5, 3.25]);
+      expect(log.profile[1]?.elapsedTimeS).toBeCloseTo(4.002, 9);
+      // Legacy restores its sampler timer and frameCalc at zero.
+      expect(log.profileTimerS).toBe(0);
+      expect(log.lastCeilingM).toBe(0);
     });
 
     it("reads legacy's null minNdlSeen as no NDL seen yet", () => {

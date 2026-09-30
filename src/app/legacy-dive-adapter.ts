@@ -47,8 +47,18 @@ export interface LegacyTissueCheckpoint {
       fastAscentAccum_s: number | null;
       fastAscentPeak_mpm: number | null;
       ceilingViolationAccum_s: number | null;
+      avgDepthAccum_ms?: number | null;
+      avgDepthSamples_s?: number | null;
+      profileTimer_s?: number | null;
+      frameCeiling_m?: number | null;
     };
   };
+  /**
+   * Legacy's diveProfile samples taken since the previous checkpoint (#199),
+   * time in minutes. A dive continued from a checkpoint needs the earlier
+   * checkpoints' samples too; see diveStateFromLegacyCheckpoint.
+   */
+  profile?: readonly LegacyProfileSample[];
   /** Legacy's diveEvents: time in minutes, legacy's kind names. */
   events?: readonly { t: number; kind: string; value: unknown }[];
   configuration?: {
@@ -79,9 +89,22 @@ export interface LegacyTissueCheckpoint {
   };
 }
 
+export interface LegacyProfileSample {
+  t_min: number;
+  depth_m: number;
+  ceiling_m: number;
+}
+
+/**
+ * The model state a legacy checkpoint describes. `earlierProfile` is the
+ * profile samples of the checkpoints before this one, in order: a checkpoint
+ * records only the samples since the previous checkpoint, as it does its
+ * trajectory, so a dive continued from mid-dive passes the rest.
+ */
 export function diveStateFromLegacyCheckpoint(
   checkpoint: LegacyTissueCheckpoint,
   seed = 0,
+  earlierProfile: readonly LegacyProfileSample[] = [],
 ): DiveState {
   const tanks = checkpoint.tanks?.map((tank) => ({
     gas: createGasMix(tank.fO2, tank.fHe),
@@ -135,7 +158,7 @@ export function diveStateFromLegacyCheckpoint(
     verticalVelocityMpm: checkpoint.state.verticalVelocity_mpm ?? 0,
     bcdGasSurfaceLiters:
       checkpoint.state.bcdGasSurface_l ?? initialState.bcdGasSurfaceLiters,
-    log: logFromLegacyCheckpoint(checkpoint),
+    log: logFromLegacyCheckpoint(checkpoint, earlierProfile),
   });
 }
 
@@ -144,14 +167,23 @@ export function diveStateFromLegacyCheckpoint(
  * has fired (accumulator -Infinity, recorded as null) is latched; the log
  * holds it at its full length, as the model does once it has fired.
  */
-function logFromLegacyCheckpoint(checkpoint: LegacyTissueCheckpoint): DiveLog {
+function logFromLegacyCheckpoint(
+  checkpoint: LegacyTissueCheckpoint,
+  earlierProfile: readonly LegacyProfileSample[],
+): DiveLog {
   const debrief = checkpoint.state.debrief;
   const empty = createEmptyDiveLog();
+  const profile = [...earlierProfile, ...(checkpoint.profile ?? [])].map((sample) => ({
+    elapsedTimeS: minutesToSeconds(minutes(sample.t_min)),
+    depthM: metres(sample.depth_m),
+    ceilingM: metres(sample.ceiling_m),
+  }));
   if (!debrief) {
     return {
       ...empty,
       entries: logEntriesFromLegacyEvents(checkpoint.events ?? []),
       ndlDroppedBelowFiveMinutes: checkpoint.state.ndlDroppedBelow5 ?? false,
+      profile,
     };
   }
   const fastAscentLatched = debrief.fastAscentAccum_s === null;
@@ -170,6 +202,11 @@ function logFromLegacyCheckpoint(checkpoint: LegacyTissueCheckpoint): DiveLog {
     ceilingViolationLatched,
     minNdlMin: debrief.minNdlSeen_min,
     ndlDroppedBelowFiveMinutes: checkpoint.state.ndlDroppedBelow5 ?? false,
+    depthTimeMS: debrief.avgDepthAccum_ms ?? 0,
+    submergedS: seconds(debrief.avgDepthSamples_s ?? 0),
+    profile,
+    profileTimerS: seconds(debrief.profileTimer_s ?? 0),
+    lastCeilingM: metres(debrief.frameCeiling_m ?? 0),
   };
 }
 
