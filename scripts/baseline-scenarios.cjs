@@ -97,14 +97,14 @@ function runBaselineScenarios() {
     trajectory.push({ depth_m: api.depth, dtDive_min: stepMinutes });
   }
 
-  // Holds keys for a span of dive time in 60 Hz frames, the cadence the
-  // legacy game loop runs at: one frame is 1/60 s real, TIME_ACCELERATION/60 s
-  // of dive time. Legacy applies the BCD controls once per frame, before that
-  // frame's physics, so the frame length is part of the behaviour (#193
-  // review): with W or S held, fast-forward is off and a frame is never
-  // longer than 0.1 s real.
-  function holdKeys(keys, diveSeconds) {
-    const frameMinutes = api.TIME_ACCELERATION / 60 / 60;
+  // Holds keys for a span of dive time in display frames, 60 Hz unless
+  // given: one frame is 1/fps s real, TIME_ACCELERATION/fps s of dive time.
+  // Legacy applies the BCD controls once per frame, before that frame's
+  // physics, so the frame length is part of the behaviour (#193 review): with
+  // W or S held, fast-forward is off, and gameLoop() caps a frame at 0.1 s
+  // real, which is 10 fps.
+  function holdKeys(keys, diveSeconds, fps = 60) {
+    const frameMinutes = api.TIME_ACCELERATION / fps / 60;
     const frames = Math.round(diveSeconds / (frameMinutes * 60));
     for (let frame = 0; frame < frames; frame++) physicsTick(keys, frameMinutes);
   }
@@ -290,7 +290,7 @@ function runBaselineScenarios() {
     api.verticalVelocity = 0;
     const buoyancy = {
       scenarioId: 'buoyancy-vent-inflate-12m',
-      description: 'Air, neutral at 12 m; S held 4 s, released 20 s, W held 11 s, released 30 s, in 60 Hz frames with the buoyancy physics moving the diver',
+      description: 'Air, neutral at 12 m; S held 4 s, released 20 s, W held 11 s, released 30 s, in 60 Hz frames, then S held 3 s in 10 fps frames, with the buoyancy physics moving the diver',
       checkpoints: [checkpoint('buoyancy-vent-inflate-12m', 'neutral-12m')]
     };
     holdKeys({ s: true }, 4);
@@ -301,6 +301,11 @@ function runBaselineScenarios() {
     buoyancy.checkpoints.push(checkpoint('buoyancy-vent-inflate-12m', 'inflated-11s'));
     holdKeys({}, 30);
     buoyancy.checkpoints.push(checkpoint('buoyancy-vent-inflate-12m', 'coasting-30s'));
+    // S held in the slowest frames legacy runs with a control held: 10 fps,
+    // 0.3 s of dive time each, the controls applied once per frame and the
+    // physics in three 0.1 s sub-steps within it (#193 review).
+    holdKeys({ s: true }, 3, 10);
+    buoyancy.checkpoints.push(checkpoint('buoyancy-vent-inflate-12m', 'vented-3s-10fps'));
     scenarios.push(buoyancy);
 
     // #192, the recorded departure: a rebreather diver inflating. Legacy's
