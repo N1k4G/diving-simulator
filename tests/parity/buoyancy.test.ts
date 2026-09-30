@@ -9,9 +9,9 @@ import { seconds } from "../../src/core/units";
 // Buoyancy physics (#192) against the legacy client.
 //
 // Both scenarios drive S and W through legacy's real updateBuoyancyPhysics()
-// in 60 Hz frames, the cadence the legacy game loop runs at, with nothing
-// setting the depth (scripts/baseline-scenarios.cjs). The model replays the
-// same keys, one advanceWithBuoyancy() call per frame, and must land on the
+// in display frames, as the legacy game loop runs them, with nothing setting
+// the depth (scripts/baseline-scenarios.cjs). The model replays the same
+// keys and frames, one advanceWithBuoyancy() call per frame, and must land on the
 // depth legacy recorded after every frame. At each checkpoint the velocity,
 // BCD gas, tissues, cylinder gas and CNS are compared as well.
 //
@@ -96,6 +96,7 @@ describe("buoyancy physics against the recorded legacy dive", () => {
         { checkpointId: "sinking-20s", controls: { inflate: false, vent: false } },
         { checkpointId: "inflated-11s", controls: { inflate: true, vent: false } },
         { checkpointId: "coasting-30s", controls: { inflate: false, vent: false } },
+        { checkpointId: "vented-3s-10fps", controls: { inflate: false, vent: true } },
       ],
       (model, recorded) => {
         within(model.snapshot.tanks[0]?.gasRemainingL, recorded.tanks?.[0]?.gasRemaining_l ?? Number.NaN, eps["tanks.*.gasRemaining_l"], `cylinder gas at ${recorded.checkpointId}`);
@@ -113,10 +114,14 @@ describe("buoyancy physics against the recorded legacy dive", () => {
     expect(checkpoint(SCENARIO, "coasting-30s").state.verticalVelocity_mpm).toBe(-25);
   });
 
-  it("is recorded in 60 Hz frames, the cadence legacy applies the controls at", () => {
-    // One frame is 1/60 s real at TIME_ACCELERATION 3: 0.05 s of dive time.
+  it("is recorded in display frames, the cadence legacy applies the controls at", () => {
+    // At TIME_ACCELERATION 3, a 60 Hz frame is 0.05 s of dive time. The last
+    // segment runs at 10 fps, 0.3 s per frame, the longest frame legacy
+    // allows with a control held: the controls go in once, the physics in
+    // three sub-steps.
     for (const recorded of checkpoints(SCENARIO).slice(1)) {
-      for (const frame of recorded.trajectory) expect(frame.dtDive_min * 60).toBeCloseTo(0.05, 12);
+      const frameS = recorded.checkpointId === "vented-3s-10fps" ? 0.3 : 0.05;
+      for (const frame of recorded.trajectory) expect(frame.dtDive_min * 60, recorded.checkpointId).toBeCloseTo(frameS, 12);
     }
   });
 });

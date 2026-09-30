@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "diving-simulator-golden-traces",
-  "referenceCommit": "cd22afc0a10a37383b1ad70f4d7383a48d8f2a15",
+  "referenceCommit": "d204a72ae81f0fb1622fba88cdd62f1d67d9d928",
   "generator": "npm run baseline:generate",
   "tolerances": {
     "exact": [
@@ -10422,7 +10422,7 @@
     },
     {
       "scenarioId": "buoyancy-vent-inflate-12m",
-      "description": "Air, neutral at 12 m; S held 4 s, released 20 s, W held 11 s, released 30 s, in 60 Hz frames with the buoyancy physics moving the diver",
+      "description": "Air, neutral at 12 m; S held 4 s, released 20 s, W held 11 s, released 30 s, in 60 Hz frames, then S held 3 s in 10 fps frames, with the buoyancy physics moving the diver",
       "checkpoints": [
         {
           "schemaVersion": 1,
@@ -16156,6 +16156,158 @@
             {
               "depth_m": 16.22019743935437,
               "dtDive_min": 0.0008333333333333334
+            }
+          ]
+        },
+        {
+          "schemaVersion": 1,
+          "scenarioId": "buoyancy-vent-inflate-12m",
+          "checkpointId": "vented-3s-10fps",
+          "simulatedGeometry": "open",
+          "state": {
+            "gameState": "diving",
+            "diveMode": "rec",
+            "diveSite": "shore",
+            "depth_m": 15.150189161548507,
+            "maxDepth_m": 22.59327002494935,
+            "diveTime_min": 1.1333333333333393,
+            "diverX_m": 0,
+            "verticalVelocity_mpm": -13.835132238038186,
+            "horizontalVelocity_mps": 0,
+            "activeTankIndex": 0,
+            "cns_percent": 0.17195833333333277,
+            "narcosisIndex": 0.06680241082877192,
+            "ndlDroppedBelow5": false,
+            "bcdGasSurface_l": 8.109219946523933,
+            "safetyStop": {
+              "needed": true,
+              "remaining_min": 0,
+              "countdownStarted": false,
+              "paused": false,
+              "complete": false
+            }
+          },
+          "configuration": {
+            "gfLow_percent": 35,
+            "gfHigh_percent": 75,
+            "amv_lpm": 15,
+            "tankVolume_l": 12
+          },
+          "planner": {
+            "ceiling_m": 0,
+            "ndl_min": 52,
+            "tts_min": 5,
+            "schedule": null
+          },
+          "tissues": {
+            "n2_bar": [
+              0.9537823375939356,
+              0.8775039772526159,
+              0.8296395144567541,
+              0.8013009481375992,
+              0.7824139468778963,
+              0.7701584812189475,
+              0.7614697377866324,
+              0.755308040738838,
+              0.7509659640908908,
+              0.7483120733133433,
+              0.7465954657152831,
+              0.7452641594889917,
+              0.7442273569627282,
+              0.7434085769934193,
+              0.7427711231770098,
+              0.7422743056000964
+            ],
+            "he_bar": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "tanks": [
+            {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79,
+              "volume_l": 12,
+              "pressure_bar": 200,
+              "gasRemaining_l": 2337.8678435174015,
+              "switchDepth_m": null
+            }
+          ],
+          "ccr": {
+            "targetPO2_bar": 0.7,
+            "actualPO2_bar": 0.21,
+            "diluent": {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79
+            },
+            "o2Pressure_bar": 200,
+            "diluentPressure_bar": 200,
+            "scrubberRemaining_min": 180,
+            "onBailout": false
+          },
+          "events": [
+            {
+              "t": 0.7725000000000111,
+              "kind": "fastAscent",
+              "value": 10.011124786160508
+            }
+          ],
+          "trajectory": [
+            {
+              "depth_m": 16.095197439354365,
+              "dtDive_min": 0.005
+            },
+            {
+              "depth_m": 15.970302193278211,
+              "dtDive_min": 0.005
+            },
+            {
+              "depth_m": 15.846813708937521,
+              "dtDive_min": 0.005
+            },
+            {
+              "depth_m": 15.72650012099335,
+              "dtDive_min": 0.005
+            },
+            {
+              "depth_m": 15.610941367007339,
+              "dtDive_min": 0.005
+            },
+            {
+              "depth_m": 15.501554383774156,
+              "dtDive_min": 0.005
+            },
+            {
+              "depth_m": 15.399614715729456,
+              "dtDive_min": 0.005
+            },
+            {
+              "depth_m": 15.30627501447395,
+              "dtDive_min": 0.005
+            },
+            {
+              "depth_m": 15.222870761251489,
+              "dtDive_min": 0.005
+            },
+            {
+              "depth_m": 15.150189161548507,
+              "dtDive_min": 0.005
             }
           ]
         }

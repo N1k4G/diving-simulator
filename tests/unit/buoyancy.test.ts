@@ -110,21 +110,30 @@ describe("the bounds", () => {
 
 describe("the frame cadence", () => {
   // Legacy applies the controls once per frame, before that frame's physics,
-  // and with W or S held a frame is at most 0.3 s of dive time (#193 review).
-  // A one-second step must not inflate or vent for the whole second first.
+  // then sub-steps the physics and updates everything else once (#193
+  // review). One advanceWithBuoyancy() call is one such frame.
   const neutralAt12 = () =>
     freezeDiveState({ ...at(createInitialDiveState(10), 12), bcdGasSurfaceLiters: neutralBcdSurfaceLitres(12) });
   const OPEN = { ceilingM: 0, floorM: 300 };
   const VENT = { inflate: false, vent: true };
 
-  it("runs a one-second step as ten 0.1 s frames", () => {
-    const whole = new DiveModel(neutralAt12()).advanceWithBuoyancy(OPEN, seconds(1), VENT);
-    const frames = new DiveModel(neutralAt12());
-    for (let i = 0; i < 10; i += 1) frames.advanceWithBuoyancy(OPEN, seconds(0.1), VENT);
-    expect(whole.depthM).toBeCloseTo(frames.snapshot.depthM, 12);
-    expect(whole.verticalVelocityMpm).toBeCloseTo(frames.snapshot.verticalVelocityMpm, 12);
-    expect(whole.bcdGasSurfaceLiters).toBeCloseTo(frames.snapshot.bcdGasSurfaceLiters, 12);
-    expect(whole.elapsedTimeS).toBeCloseTo(1, 9);
+  it("applies the controls once for the frame, then moves the diver", () => {
+    // 0.3 s: the slowest frame legacy runs with a control held.
+    const frame = new DiveModel(neutralAt12()).advanceWithBuoyancy(OPEN, seconds(0.3), VENT);
+    const expected = integrateBuoyancy(applyBcdControls(neutralAt12(), VENT, seconds(0.3)), OPEN, 0.3);
+    expect(frame.depthM).toBe(expected.depthM);
+    expect(frame.verticalVelocityMpm).toBe(expected.verticalVelocityMpm);
+    expect(frame.bcdGasSurfaceLiters).toBe(expected.bcdGasSurfaceLiters);
+    expect(frame.elapsedTimeS).toBeCloseTo(0.3, 12);
+  });
+
+  it("keeps the caller's frame boundaries", () => {
+    const one = new DiveModel(neutralAt12()).advanceWithBuoyancy(OPEN, seconds(0.3), VENT);
+    const three = new DiveModel(neutralAt12());
+    for (let i = 0; i < 3; i += 1) three.advanceWithBuoyancy(OPEN, seconds(0.1), VENT);
+    // One frame vents 0.3 s before the diver moves; three vent 0.1 s each.
+    expect(one.depthM - three.snapshot.depthM).toBeGreaterThan(5e-4);
+    expect(one.verticalVelocityMpm - three.snapshot.verticalVelocityMpm).toBeGreaterThan(0.1);
   });
 
   it("integrates a longer span in legacy's 0.1 s physics sub-steps", () => {
@@ -139,12 +148,5 @@ describe("the frame cadence", () => {
     }
     expect(once.depthM).toBeCloseTo(stepped.depthM, 12);
     expect(once.verticalVelocityMpm).toBeCloseTo(stepped.verticalVelocityMpm, 12);
-  });
-
-  it("does not vent the whole second before the diver moves", () => {
-    const batched = integrateBuoyancy(applyBcdControls(neutralAt12(), VENT, seconds(1)), OPEN, 1);
-    const framed = new DiveModel(neutralAt12()).advanceWithBuoyancy(OPEN, seconds(1), VENT);
-    // Batched, the diver sinks as if empty from the start.
-    expect(batched.depthM - framed.depthM).toBeGreaterThan(0.01);
   });
 });
