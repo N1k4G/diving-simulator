@@ -1827,8 +1827,14 @@ function captureBaselineCheckpoint(scenarioId, checkpointId) {
                 avgDepthAccum_ms: _baselineFinite(avgDepthAccum),
                 avgDepthSamples_s: _baselineFinite(avgDepthSamples),
                 profileTimer_s: _baselineFinite(_profileSampleTimer),
-                frameCeiling_m: _baselineFinite(frameCalc.ceiling)
+                frameCeiling_m: _baselineFinite(frameCalc.ceiling),
+                // #199: the decompression-sickness timer (dive seconds
+                // shallower than the stop, decaying 1:1 otherwise).
+                dcsViolation_s: _baselineFinite(dcsViolationTime)
             },
+            // #199: why a failed dive ended, legacy's own wording; null while
+            // the dive is on.
+            gameOverReason: gameState === 'gameover' ? String(gameOverReason) : null,
             safetyStop: {
                 needed: safetyStopNeeded,
                 remaining_min: _baselineFinite(safetyStopRemaining),

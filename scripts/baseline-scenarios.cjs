@@ -346,6 +346,42 @@ function runBaselineScenarios() {
     ccrInflate.checkpoints.push(checkpoint('buoyancy-ccr-inflate-12m', 'rising-8s'));
     scenarios.push(ccrInflate);
 
+    // #199: decompression sickness, the two ways legacy ends a dive for it.
+    // Both start from the trimix dive's bottom (21/35 at 45 m for 20 min,
+    // a 12 m stop), then move straight up in one scripted tick, so no ascent
+    // rate is measured and barotrauma cannot intervene.
+    //
+    // Held at 6 m, above the stop: the DCS timer counts each dive second and
+    // ends the dive at DCS_VIOLATION_TIME (60 s).
+    setup('tec', 'wreck', [[0.21, 0.35, 200], [0.5, 0, 200]]);
+    const dcsTimer = {
+      scenarioId: 'trimix-dcs-above-stop',
+      description: 'Trimix 21/35 at 45 m for 20 min, then held at 6 m above the 12 m stop in one-second ticks until the DCS timer ends the dive',
+      checkpoints: [checkpoint('trimix-dcs-above-stop', 'surface')]
+    };
+    holdDepth(45, 20);
+    dcsTimer.checkpoints.push(checkpoint('trimix-dcs-above-stop', 'bottom-20min'));
+    for (let second = 0; second < 30; second++) updateAtDepth(6, 1 / 60, 0);
+    dcsTimer.checkpoints.push(checkpoint('trimix-dcs-above-stop', 'above-stop-30s'));
+    for (let second = 0; second < 40 && api.gameState === 'diving'; second++) {
+      updateAtDepth(6, 1 / 60, 0);
+    }
+    dcsTimer.checkpoints.push(checkpoint('trimix-dcs-above-stop', 'dcs'));
+    scenarios.push(dcsTimer);
+
+    // Straight to the surface with the ceiling still deep: DCS on the spot.
+    setup('tec', 'wreck', [[0.21, 0.35, 200], [0.5, 0, 200]]);
+    const dcsSurfaced = {
+      scenarioId: 'trimix-dcs-surfaced',
+      description: 'Trimix 21/35 at 45 m for 20 min, then straight to the surface with an 11.5 m ceiling',
+      checkpoints: [checkpoint('trimix-dcs-surfaced', 'surface')]
+    };
+    holdDepth(45, 20);
+    dcsSurfaced.checkpoints.push(checkpoint('trimix-dcs-surfaced', 'bottom-20min'));
+    updateAtDepth(0, 1 / 60, 0);
+    dcsSurfaced.checkpoints.push(checkpoint('trimix-dcs-surfaced', 'surfaced'));
+    scenarios.push(dcsSurfaced);
+
     return scenarios;
   } finally {
     Math.random = originalRandom;
