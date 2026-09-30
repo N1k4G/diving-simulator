@@ -1,0 +1,83 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 199,
+  "slice": "Slice 2a: the dive log in the core (ascent rate, fast-ascent and ceiling-violation entries, minimum NDL, ndlDroppedBelow5); save v7",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "13ef99bcd7af85de66dc948274f741d019b7bbea",
+  "measuredTree": "71027c2c28c5a49a72d47c145515e5bd96b82d86",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-09-30T15:46:23Z",
+  "runFinishedAt": "2026-09-30T15:51:10Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "The full run above is on 13ef99b. The only later commit adds this file, so src, tests and scripts are identical to the measured tree (see durableProvenance).",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "331 passed (316 on main, +9 in tests/unit/dive-log.test.ts, +5 in tests/unit/save-game.test.ts, +1 in tests/unit/game-controller-buoyancy.test.ts)",
+    "parity": "67 passed (62 on main, +5 in tests/parity/dive-log.test.ts)",
+    "e2e": "142 passed in 3.4 min (unchanged)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "boundsPortedFromTheOracle": {
+    "order": "src/game-loop.js updateDiving(): depth after physics -> ascentRate = -(depth - prevDepth)/dtDiveMinutes -> updateTissues -> frameCalc.ceiling/ndl -> gas use -> DCS/barotrauma timers -> 'Issue #44' capture -> minNdlSeen, ndlDroppedBelow5 -> dive-ending checks. The model evaluates the ceiling and NDL right after advanceTissues and updates the log after the gas use and bailout, before updateFailureState.",
+    "constants": "FAST_ASCENT_RATE 9 m/min, FAST_ASCENT_EVENT_SEC 2, CEILING_VIOLATION_TOL_M 0.3, CEILING_VIOLATION_EVENT_SEC 2 (src/constants.js:125-128); NDL tracked while depth > 0.5; ndlDroppedBelow5 when NDL < 5.",
+    "latches": "Legacy sets the accumulator to -Infinity after an entry and resets it when the condition lapses; the log keeps fastAscentLatched / ceilingViolationLatched instead, which a JSON save can hold.",
+    "gas": "calculateNDL(): CCR and not bailed out -> getCCRInspiredGas(depth, targetSP); otherwise activeGas(). decompressionGas() in src/core/dive-model.ts, now also the planner's forecast gas.",
+    "notCompared": "The scripted scenarios set the depth before each tick (scripts/baseline-scenarios.cjs updateAtDepth), so legacy's ascentRate there is measured against the target (about 8.8 m/min on the air ascent); a replay of their trajectories would log fast ascents legacy never recorded. Entries are compared on the two buoyancy scenarios only."
+  },
+  "parity": {
+    "fastAscent": "buoyancy-vent-inflate-12m: one entry from coasting-30s on, t 0.7725 min, peak 10.011 m/min; buoyancy-ccr-inflate-12m: one entry at rising-8s, t 0.0917 min, peak 12.726 m/min. Kind, time and value within 1e-9 at every checkpoint.",
+    "ndlDroppedBelow5": "Every buoyancy checkpoint (false) and the air, trimix and CCR bottoms (true), with the breathed gas given as tests/parity/tissue-model.test.ts gives it; no entries on those bottoms."
+  },
+  "counterChecks": {
+    "method": "Each revert was applied to src/core/dive-model.ts (or src/app/game-controller.ts) from a backup copy, the dive-log unit and parity tests (or the controller tests) were run, and the file was restored from the backup.",
+    "results": [
+      {
+        "revert": "no latch: an entry every step past the window",
+        "result": "3 failed: the once-only unit test and both buoyancy parity replays"
+      },
+      {
+        "revert": "fast-ascent window of 1 s",
+        "result": "3 failed: the window unit test and both buoyancy parity replays"
+      },
+      {
+        "revert": "ascent rate with the velocity's sign (down positive)",
+        "result": "5 failed"
+      },
+      {
+        "revert": "no ceiling tolerance",
+        "result": "1 failed: the tolerance test"
+      },
+      {
+        "revert": "NDL tracked at the surface too",
+        "result": "1 failed: the surface test"
+      },
+      {
+        "revert": "ndlDroppedBelow5 not latched",
+        "result": "1 failed: the latch-after-recovery test (added after this revert first passed everything)"
+      },
+      {
+        "revert": "controller not passing the GF high to the model",
+        "result": "1 failed: the controller GF test"
+      }
+    ]
+  },
+  "durableProvenance": {
+    "src": "29ce4f08b58a48ef43831c68ca6342d437c40a92",
+    "tests": "8240c6c2357fdfbc1c711b297bca2addc69d7d8e",
+    "scripts": "c476b541b5fbfcff2290caf1f5d9966aef83407a"
+  }
+}
