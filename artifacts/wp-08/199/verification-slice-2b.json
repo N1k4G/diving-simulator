@@ -3,16 +3,17 @@
   "issue": 199,
   "slice": "Slice 2b: the time-weighted average depth and the depth profile in the dive log; save v8; the trace records them",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "b66ae8323e254b6cdaa2484f4bf5f027f85bde2d",
-  "measuredTree": "378be5c5c3c4db69e61c095908b0ed41269056fc",
+  "measuredCommit": "4fc8e995ae318032588f9b962eaa5d08d0fdd750",
+  "measuredTree": "9c58b279c2f3773a576af09d64f5240b9f740baa",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-09-30T18:39:11Z",
-  "runFinishedAt": "2026-09-30T18:49:34Z",
+  "recordedAt": "2026-09-30T21:15:27Z",
+  "runFinishedAt": "2026-09-30T21:22:09Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "The full run above is on b66ae83. The only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "The full run above is on 4fc8e99. The only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "earlierRuns": [
     "A full run on 916d0ed, the slice commit before the schema commit, had two Playwright failures: tests/baseline.spec.js, because docs/baseline/schemas/trace.schema.json did not describe the new checkpoint profile (fixed in c552ab3), and tests/game.spec.js TC-32-BAD-AIR-TRIGGER-UNCHANGED, a boundary case that fails when the diver drifts off x = 103 during its frames. TC-32 then failed 1 of 3 and passed 5 of 5 alone on the branch, and passed 8 of 8 on main (44f2cda); the branch's only legacy change is captureBaselineCheckpoint(), which that case does not run. Tracked in #203.",
-    "A full run on c552ab3 passed (342 unit, 72 parity, 142 e2e). The pre-review of #204, pass 1, then found that a frame's cost grew with the profile (freezeDiveState re-froze it about ten times a frame), that forecast requests cloned it into the worker, and that the autosave ran every 0.17 real s under fast-forward; and that the old fixture size was misstated (0.49 MB, not 0.55). b66ae83 fixes all three; the run above is on that commit."
+    "A full run on c552ab3 passed (342 unit, 72 parity, 142 e2e). The pre-review of #204, pass 1, then found that a frame's cost grew with the profile (freezeDiveState re-froze it about ten times a frame), that forecast requests cloned it into the worker, and that the autosave ran every 0.17 real s under fast-forward; and that the old fixture size was misstated (0.49 MB, not 0.55). b66ae83 fixes all three; the run above is on that commit.",
+    "A full run on b66ae83 passed (344 unit, 72 parity, 142 e2e). Codex round 1 then found that freezeDiveState reused any frozen array, whose elements might still be mutable, and that the save accepted submerged time with no depth-time sum. 4fc8e99 tracks the lists freezeDiveState builds in a WeakSet and adds the 0.5 m lower bound; the run above is on that commit."
   ],
   "environment": {
     "os": "Windows 11",
@@ -29,9 +30,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "344 passed (337 on main, +4 in tests/unit/dive-log.test.ts, +2 in tests/unit/save-game.test.ts, +1 in tests/unit/planner-worker.test.ts)",
+    "unit": "345 passed (337 on main, +5 in tests/unit/dive-log.test.ts, +2 in tests/unit/save-game.test.ts, +1 in tests/unit/planner-worker.test.ts)",
     "parity": "72 passed (69 on main, +3 in tests/parity/dive-log.test.ts)",
-    "e2e": "142 passed in 7.4 min (unchanged count; the fast-forward test now also counts the autosaves)",
+    "e2e": "142 passed in 5.1 min (unchanged count)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -88,12 +89,20 @@
       {
         "revert": "autosave interval of 100 ms",
         "result": "1 failed: the fast-forward test counted 19 saves (limit 2)"
+      },
+      {
+        "revert": "freezeDiveState reusing any frozen array (Object.isFrozen)",
+        "result": "1 failed: the frozen-list-with-mutable-samples test"
+      },
+      {
+        "revert": "save without the 0.5 m lower bound on the depth-time sum",
+        "result": "1 failed: the invalid-log test"
       }
     ]
   },
   "durableProvenance": {
-    "src": "9b61d68e166fd6d93fceaa00d72fdf1fbbd82f0c",
-    "tests": "1981dba6d8992574147e93f33ddea1901eefdce0",
+    "src": "3dbb582be114302862b9d87da92297e6433aa74b",
+    "tests": "fb4c6af50904fd18c5bda3710d790d19fe27c467",
     "scripts": "9821955c9dd544534be72ffeb8eb56fbc6cc863a",
     "docs": "e2b85248122e51b5ade838797f0eb68be5b23bd0"
   },
