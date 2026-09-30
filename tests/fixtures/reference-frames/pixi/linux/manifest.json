@@ -19,14 +19,14 @@
     },
     "wreck-descended": {
       "statistics": {
-        "meanLuma": 43.573,
-        "sdLuma": 24.581,
+        "meanLuma": 43.54,
+        "sdLuma": 24.931,
         "meanRGB": [
-          21.918,
-          48.733,
-          56.217
+          21.892,
+          48.698,
+          56.195
         ],
-        "channelSpread": 34.3
+        "channelSpread": 34.303
       }
     },
     "wreck-torch-off": {
