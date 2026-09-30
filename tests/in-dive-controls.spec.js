@@ -211,11 +211,12 @@ test('a failed two-cylinder dive ends on the game-over screen', async ({ page })
 
 test('the dive clock runs three times faster than real time, as legacy', async ({ page }) => {
   // #195: src/constants.js TIME_ACCELERATION. Measured in the page between
-  // two changes of the save's dive time, fifteen dive seconds apart: at 3x
-  // that is five real seconds. A loaded machine can only lose time (frames
-  // are capped at 0.1 s real), so the lower bound sits well under 3 but
-  // above anything a real-time clock can reach; the upper bound excludes
-  // fast-forward.
+  // two changes of the save's dive time, fifteen dive seconds apart, against
+  // the real time the controller counts: each animation frame's interval,
+  // capped at 0.1 s as the controller and legacy's gameLoop() cap it. The
+  // poll runs on the same animation frames, so a slow frame is capped in
+  // both and the ratio is 3 up to a frame at either end (#196 pre-review:
+  // uncapped wall time only bounded it from below).
   await page.goto('/dist/');
   await page.evaluate(() => window.localStorage.clear());
   await acceptSafetyGate(page);
@@ -227,14 +228,20 @@ test('the dive clock runs three times faster than real time, as legacy', async (
       new Promise((resolve) => {
         let last = null;
         let first = null;
+        let previousMs = null;
+        let countedRealS = 0;
         const poll = (nowMs) => {
+          if (previousMs !== null && first !== null) {
+            countedRealS += Math.min(0.1, (nowMs - previousMs) / 1000);
+          }
+          previousMs = nowMs;
           const raw = window.localStorage.getItem(key);
           const elapsedS = raw === null ? null : JSON.parse(raw).state.elapsedTimeS;
           if (elapsedS !== null && elapsedS !== last) {
             if (last !== null && first === null) {
-              first = { elapsedS, nowMs };
+              first = { elapsedS };
             } else if (first !== null && elapsedS >= first.elapsedS + 15) {
-              resolve((elapsedS - first.elapsedS) / ((nowMs - first.nowMs) / 1000));
+              resolve((elapsedS - first.elapsedS) / countedRealS);
               return;
             }
             last = elapsedS;
@@ -245,8 +252,8 @@ test('the dive clock runs three times faster than real time, as legacy', async (
       }),
     SAVE_KEY,
   );
-  expect(diveSecondsPerRealSecond).toBeGreaterThan(1.5);
-  expect(diveSecondsPerRealSecond).toBeLessThan(3.3);
+  expect(diveSecondsPerRealSecond).toBeGreaterThan(2.8);
+  expect(diveSecondsPerRealSecond).toBeLessThan(3.2);
 });
 
 test('a single-cylinder dive shows no cylinder row', async ({ page }) => {
