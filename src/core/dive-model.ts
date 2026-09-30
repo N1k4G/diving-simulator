@@ -15,6 +15,7 @@ import {
   type DiveEvent,
   type DiveFailureReason,
   type DiveProfileSample,
+  type SafetyStopState,
   type DiveState,
   type GasMix,
 } from "./dive-state";
@@ -71,6 +72,42 @@ export const CEILING_VIOLATION_WINDOW_S = seconds(2);
 export const SUBMERGED_DEPTH_M = 0.5;
 /** src/game-loop.js: one depth profile sample every 2 dive seconds. */
 export const PROFILE_SAMPLE_INTERVAL_S = seconds(2);
+
+/**
+ * The adaptive safety stop's thresholds (#199): src/game-loop.js updateDiving,
+ * src/physics.js calculateSafetyStopDuration and src/constants.js
+ * SAFETY_STOP_ACTIVE_MIN_D / MAX_D.
+ */
+export const SAFETY_STOP_NEEDED_BELOW_M = 11;
+export const SAFETY_STOP_STARTS_ABOVE_M = 6;
+export const SAFETY_STOP_BAND_MIN_M = 2.4;
+export const SAFETY_STOP_BAND_MAX_M = 8.3;
+export const SAFETY_STOP_SHORT_S = seconds(3 * 60);
+export const SAFETY_STOP_LONG_S = seconds(5 * 60);
+/** A dive deeper than this, or one whose NDL fell below 5, gets the long stop. */
+export const SAFETY_STOP_LONG_BELOW_M = 30;
+
+/** legacy calculateSafetyStopDuration(), read when the countdown starts. */
+export function safetyStopDurationS(state: DiveState): Seconds {
+  return state.maxDepthM > SAFETY_STOP_LONG_BELOW_M ||
+    state.log.ndlDroppedBelowFiveMinutes
+    ? SAFETY_STOP_LONG_S
+    : SAFETY_STOP_SHORT_S;
+}
+
+/** Whether a depth is inside the band the countdown runs in. */
+export function isInSafetyStopBand(depthM: number): boolean {
+  return depthM >= SAFETY_STOP_BAND_MIN_M && depthM <= SAFETY_STOP_BAND_MAX_M;
+}
+
+/**
+ * Legacy's atSafetyStop, one half of canFastForward: a countdown under way,
+ * not complete, with the diver inside its band.
+ */
+export function isAtSafetyStop(state: DiveState): boolean {
+  const stop = state.safetyStop;
+  return stop.countdownStarted && !stop.complete && isInSafetyStopBand(state.depthM);
+}
 
 export interface DiveModelOptions {
   /** The dive's GF high, for the log's ceiling and NDL (#199). */
@@ -335,7 +372,55 @@ export function advanceDiveStep(
   ) {
     return withMotion;
   }
-  return updateDiveLog(withMotion, elapsedS, limits);
+  return updateSafetyStop(updateDiveLog(withMotion, elapsedS, limits), elapsedS);
+}
+
+/**
+ * Legacy's adaptive safety stop (#199), which updateDiving() runs right after
+ * ndlDroppedBelow5, in the part a rebreather failure returns before. It reads
+ * the step's depth, its deepest point and the below-five latch.
+ */
+function updateSafetyStop(state: DiveState, elapsedS: Seconds): DiveState {
+  let stop: SafetyStopState = { ...state.safetyStop };
+  if (state.maxDepthM > SAFETY_STOP_NEEDED_BELOW_M) {
+    stop.needed = true;
+  }
+  // Back below 11 m, the stop starts over, even one already completed (#90).
+  if (state.depthM > SAFETY_STOP_NEEDED_BELOW_M) {
+    stop = {
+      ...stop,
+      countdownStarted: false,
+      remainingS: seconds(0),
+      paused: false,
+      complete: false,
+    };
+  }
+  if (stop.needed && !stop.complete) {
+    if (
+      !stop.countdownStarted &&
+      state.depthM > 0 &&
+      state.depthM < SAFETY_STOP_STARTS_ABOVE_M
+    ) {
+      stop = {
+        ...stop,
+        countdownStarted: true,
+        remainingS: safetyStopDurationS(state),
+        paused: false,
+      };
+    }
+    if (stop.countdownStarted) {
+      if (isInSafetyStopBand(state.depthM)) {
+        const remainingS = stop.remainingS - elapsedS;
+        stop =
+          remainingS <= 0
+            ? { ...stop, paused: false, remainingS: seconds(0), complete: true }
+            : { ...stop, paused: false, remainingS: seconds(remainingS) };
+      } else {
+        stop = { ...stop, paused: true };
+      }
+    }
+  }
+  return freezeDiveState({ ...state, safetyStop: stop });
 }
 
 /**

@@ -1,9 +1,11 @@
 import {
   createEmptyDiveLog,
+  createSafetyStopState,
   freezeDiveState,
   type DiveLog,
   type DiveLogEntry,
   type DiveProfileSample,
+  type SafetyStopState,
   type CcrState,
   type DiveEvent,
   type DiveFailureReason,
@@ -20,7 +22,10 @@ import {
   FAST_ASCENT_RATE_MPM,
   FAST_ASCENT_WINDOW_S,
   PROFILE_SAMPLE_INTERVAL_S,
+  SAFETY_STOP_LONG_S,
+  SAFETY_STOP_NEEDED_BELOW_M,
   SUBMERGED_DEPTH_M,
+  isInSafetyStopBand,
 } from "../core/dive-model";
 import {
   DEFAULT_GF_HIGH_PERCENT,
@@ -71,7 +76,14 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // Legacy saves carry avgDepthAccum, avgDepthSamples and diveProfile, and
 // keep them; legacy does not save the sampler's timer or frameCalc, which it
 // restores at zero, and so does this.
-export const CURRENT_SAVE_GAME_VERSION = 8;
+//
+// v9 adds state.safetyStop, the adaptive safety stop (#199). Older saves
+// resume with the stop needed exactly when the dive has been deeper than
+// 11 m, which is when the model latches it, and the countdown not started:
+// a diver shallower than 6 m starts it on the next step, as after legacy's
+// reset. Legacy saves carry their safetyStop* fields and keep them.
+export const CURRENT_SAVE_GAME_VERSION = 9;
+export const EIGHTH_SAVE_GAME_VERSION = 8;
 export const SEVENTH_SAVE_GAME_VERSION = 7;
 export const SIXTH_SAVE_GAME_VERSION = 6;
 export const FIFTH_SAVE_GAME_VERSION = 5;
@@ -132,6 +144,7 @@ export type SaveGameMigration =
   | "save-game-v5"
   | "save-game-v6"
   | "save-game-v7"
+  | "save-game-v8"
   | null;
 
 /**
@@ -236,27 +249,17 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
   }
 
   if (candidate.schema === SAVE_GAME_SCHEMA) {
-    const isCurrent = candidate.version === CURRENT_SAVE_GAME_VERSION;
-    const isSeventh = candidate.version === SEVENTH_SAVE_GAME_VERSION;
-    const isSixth = candidate.version === SIXTH_SAVE_GAME_VERSION;
-    const isFifth = candidate.version === FIFTH_SAVE_GAME_VERSION;
-    const isFourth = candidate.version === FOURTH_SAVE_GAME_VERSION;
-    const isThird = candidate.version === THIRD_SAVE_GAME_VERSION;
-    const isSecond = candidate.version === SECOND_SAVE_GAME_VERSION;
-    const isFirst = candidate.version === FIRST_SAVE_GAME_VERSION;
+    // Each version is migrated by what it lacks, so the rules below read as
+    // "before vN". The supported versions are 1 to CURRENT_SAVE_GAME_VERSION.
+    const version = candidate.version;
     if (
-      !Number.isInteger(candidate.version) ||
-      (!isCurrent &&
-        !isSeventh &&
-        !isSixth &&
-        !isFifth &&
-        !isFourth &&
-        !isThird &&
-        !isSecond &&
-        !isFirst)
+      !Number.isInteger(version) ||
+      (version as number) < FIRST_SAVE_GAME_VERSION ||
+      (version as number) > CURRENT_SAVE_GAME_VERSION
     ) {
       return { ok: false, reason: "unsupported-version" };
     }
+    const v = version as number;
     // A save from before v4 resumes at CNS 0, the value the client that wrote
     // it was tracking (none). Unconditionally: a pre-v4 payload carrying some
     // cnsPercent anyway is not a record of CNS, so it is neither kept nor a
@@ -267,10 +270,16 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     // depth. Unconditionally, like the CNS reset.
     // Before v7 there was no dive log: resume with an empty one. A v7 log
     // resumes the fields v8 added at zero, with an empty profile.
-    if (!isCurrent && !isSeventh && isRecord(candidate.state)) {
+    // Before v9 there was no safety stop: resume with one derived from the
+    // deepest point.
+    if (v < SEVENTH_SAVE_GAME_VERSION && isRecord(candidate.state)) {
       candidate.state = { ...candidate.state, log: createEmptyDiveLog() };
     }
-    if (isSeventh && isRecord(candidate.state) && isRecord(candidate.state.log)) {
+    if (
+      v === SEVENTH_SAVE_GAME_VERSION &&
+      isRecord(candidate.state) &&
+      isRecord(candidate.state.log)
+    ) {
       const empty = createEmptyDiveLog();
       candidate.state = {
         ...candidate.state,
@@ -284,7 +293,7 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
         },
       };
     }
-    if (!isCurrent && !isSeventh && !isSixth && isRecord(candidate.state)) {
+    if (v < SIXTH_SAVE_GAME_VERSION && isRecord(candidate.state)) {
       const savedDepth = isNonNegativeFinite(candidate.state.depthM)
         ? (candidate.state.depthM as number)
         : 0;
@@ -294,44 +303,40 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
         bcdGasSurfaceLiters: neutralBcdSurfaceLitres(savedDepth),
       };
     }
-    if (
-      !isCurrent &&
-      !isSeventh &&
-      !isSixth &&
-      !isFifth &&
-      !isFourth &&
-      isRecord(candidate.state)
-    ) {
+    if (v < FOURTH_SAVE_GAME_VERSION && isRecord(candidate.state)) {
       candidate.state = { ...candidate.state, cnsPercent: 0 };
+    }
+    if (v < CURRENT_SAVE_GAME_VERSION && isRecord(candidate.state)) {
+      candidate.state = {
+        ...candidate.state,
+        safetyStop: derivedSafetyStop(candidate.state.maxDepthM),
+      };
     }
     // A v1 payload has no gradientFactors and is filled with the defaults; a
     // v2 payload must carry a valid pair rather than fall back to them, or a
     // corrupted field would silently re-plan the dive on 35/75 — the very
     // failure this version exists to stop. Read before the state, whose log
     // is checked against the GF high.
-    if (!isFirst && !isSavedGradientFactors(candidate.gradientFactors)) {
+    if (v > FIRST_SAVE_GAME_VERSION && !isSavedGradientFactors(candidate.gradientFactors)) {
       return { ok: false, reason: "invalid-data" };
     }
-    const savedFactors = isFirst
-      ? DEFAULT_SAVED_GRADIENT_FACTORS
-      : (candidate.gradientFactors as SavedGradientFactors);
+    const savedFactors =
+      v === FIRST_SAVE_GAME_VERSION
+        ? DEFAULT_SAVED_GRADIENT_FACTORS
+        : (candidate.gradientFactors as SavedGradientFactors);
     if (
       !isPositiveFinite(candidate.savedAtEpochMs) ||
       !isDiveState(candidate.state, savedFactors.highPercent)
     ) {
       return { ok: false, reason: "invalid-data" };
     }
-    // Likewise a v3 to v8 payload must carry a mode consistent with its
+    // Likewise a v3 or later payload must carry a mode consistent with its
     // state; only saves from before the field existed are inferred.
-    if (
-      (isCurrent || isSeventh || isSixth || isFifth || isFourth || isThird) &&
-      !isConsistentDiveMode(candidate.diveMode, candidate.state)
-    ) {
+    const recordsMode = v >= THIRD_SAVE_GAME_VERSION;
+    if (recordsMode && !isConsistentDiveMode(candidate.diveMode, candidate.state)) {
       return { ok: false, reason: "invalid-data" };
     }
-    const gradientFactors = savedFactors;
-    const diveMode =
-      isCurrent || isSeventh || isSixth || isFifth || isFourth || isThird
+    const diveMode = recordsMode
       ? (candidate.diveMode as SavedDiveMode)
       : inferDiveMode(candidate.state);
 
@@ -339,25 +344,14 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
       ok: true,
       saveGame: createSaveGame(
         candidate.state,
-        gradientFactors,
+        savedFactors,
         candidate.savedAtEpochMs,
         diveMode,
       ),
-      migratedFrom: isCurrent
-        ? null
-        : isSeventh
-          ? "save-game-v7"
-          : isSixth
-          ? "save-game-v6"
-          : isFifth
-          ? "save-game-v5"
-          : isFourth
-          ? "save-game-v4"
-          : isThird
-          ? "save-game-v3"
-          : isSecond
-            ? "save-game-v2"
-            : "save-game-v1",
+      migratedFrom:
+        v === CURRENT_SAVE_GAME_VERSION
+          ? null
+          : (`save-game-v${v}` as Exclude<SaveGameMigration, "legacy-v2" | null>),
     };
   }
 
@@ -451,6 +445,7 @@ function migrateLegacyV2(candidate: Record<string, unknown>): SaveGame | null {
     },
     events: [],
     log: migrateLegacyLog(candidate),
+    safetyStop: migrateLegacySafetyStop(candidate),
   };
 
   // The legacy save carries the pair too (src/game-loop.js writes `gfLow` and
@@ -612,6 +607,13 @@ function isDiveState(
         | DiveFailureReason
         | null,
     ) &&
+    isSafetyStop(candidate.safetyStop, {
+      depthM: candidate.depthM as number,
+      maxDepthM: candidate.maxDepthM as number,
+      failureReason: (candidate.failure as Record<string, unknown>).reason as
+        | DiveFailureReason
+        | null,
+    }) &&
     isDiveLog(candidate.log, {
       elapsedTimeS: candidate.elapsedTimeS as number,
       depthM: candidate.depthM as number,
@@ -875,6 +877,93 @@ function migrateLegacyLog(candidate: Record<string, unknown>): DiveLog {
       : 0) as DiveLog["submergedS"],
     profile,
   };
+}
+
+/**
+ * The safety stop a save without one resumes with: needed exactly when the
+ * dive has been deeper than 11 m, which is when the model latches it, and no
+ * countdown under way.
+ */
+function derivedSafetyStop(maxDepthM: unknown): SafetyStopState {
+  return {
+    ...createSafetyStopState(),
+    needed: isNonNegativeFinite(maxDepthM) && (maxDepthM as number) > SAFETY_STOP_NEEDED_BELOW_M,
+  };
+}
+
+/**
+ * A safety stop the model could have left (#199): needed only after the dive
+ * has been deeper than 11 m (a dive that starts deeper, as the wreck slice
+ * does, latches it on its first step, so a save before that step has it
+ * unset); no countdown deeper than 11 m, where every
+ * step resets it; an untouched countdown until it starts; a complete stop at
+ * zero; no more time left than the long stop; and, while it runs, paused
+ * exactly outside its band. The step a rebreather failure ends the dive on
+ * does not update the stop, so a dive that ended so is checked for shape only.
+ */
+function isSafetyStop(
+  candidate: unknown,
+  context: {
+    readonly depthM: number;
+    readonly maxDepthM: number;
+    readonly failureReason: DiveFailureReason | null;
+  },
+): candidate is SafetyStopState {
+  if (
+    !isRecord(candidate) ||
+    typeof candidate.needed !== "boolean" ||
+    typeof candidate.countdownStarted !== "boolean" ||
+    typeof candidate.paused !== "boolean" ||
+    typeof candidate.complete !== "boolean" ||
+    !isNonNegativeFinite(candidate.remainingS) ||
+    (candidate.remainingS as number) > SAFETY_STOP_LONG_S
+  ) {
+    return false;
+  }
+  if (
+    context.failureReason !== null &&
+    FAILURES_BEFORE_THE_LOG.has(context.failureReason)
+  ) {
+    return true;
+  }
+  const started = candidate.countdownStarted;
+  const remainingS = candidate.remainingS as number;
+  return (
+    (!candidate.needed || context.maxDepthM > SAFETY_STOP_NEEDED_BELOW_M) &&
+    (!started || candidate.needed) &&
+    (started || (remainingS === 0 && !candidate.paused && !candidate.complete)) &&
+    (!candidate.complete || remainingS === 0) &&
+    (context.depthM <= SAFETY_STOP_NEEDED_BELOW_M || !started) &&
+    (!started ||
+      candidate.complete ||
+      candidate.paused === !isInSafetyStopBand(context.depthM))
+  );
+}
+
+/**
+ * The safety stop a legacy save carries: safetyStopNeeded,
+ * safetyStopCountdownStarted, safetyStopRemaining (seconds), safetyStopPaused
+ * and safetyStopComplete. A save whose fields do not make a stop the model
+ * could have left resumes with one derived from the deepest point instead,
+ * rather than losing the dive.
+ */
+function migrateLegacySafetyStop(candidate: Record<string, unknown>): SafetyStopState {
+  const carried = {
+    needed: candidate.safetyStopNeeded === true,
+    countdownStarted: candidate.safetyStopCountdownStarted === true,
+    remainingS: (isNonNegativeFinite(candidate.safetyStopRemaining)
+      ? (candidate.safetyStopRemaining as number)
+      : 0) as SafetyStopState["remainingS"],
+    paused: candidate.safetyStopPaused === true,
+    complete: candidate.safetyStopComplete === true,
+  };
+  return isSafetyStop(carried, {
+    depthM: candidate.depth as number,
+    maxDepthM: candidate.maxDepth as number,
+    failureReason: null,
+  })
+    ? carried
+    : derivedSafetyStop(candidate.maxDepth);
 }
 
 function isTankState(candidate: unknown): candidate is TankState {

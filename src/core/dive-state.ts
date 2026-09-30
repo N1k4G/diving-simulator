@@ -169,6 +169,30 @@ export function createEmptyDiveLog(): DiveLog {
   };
 }
 
+/**
+ * The adaptive safety stop (#199), legacy's safetyStop* globals: needed once
+ * the dive has gone deeper than 11 m; a countdown that starts shallower than
+ * 6 m, runs inside 2.4-8.3 m and pauses outside; complete when it reaches
+ * zero; and reset whenever the diver goes back below 11 m.
+ */
+export interface SafetyStopState {
+  needed: boolean;
+  countdownStarted: boolean;
+  remainingS: Seconds;
+  paused: boolean;
+  complete: boolean;
+}
+
+export function createSafetyStopState(): SafetyStopState {
+  return {
+    needed: false,
+    countdownStarted: false,
+    remainingS: seconds(0),
+    paused: false,
+    complete: false,
+  };
+}
+
 export interface DiveState {
   elapsedTimeS: Seconds;
   depthM: Metres;
@@ -194,6 +218,7 @@ export interface DiveState {
   failure: FailureState;
   events: readonly DiveEvent[];
   log: DiveLog;
+  safetyStop: SafetyStopState;
 }
 
 export interface InitialDiveOptions {
@@ -332,6 +357,7 @@ export function createInitialDiveState(
     },
     events: [],
     log: createEmptyDiveLog(),
+    safetyStop: createSafetyStopState(),
   });
 }
 
@@ -386,5 +412,16 @@ export function freezeDiveState(state: DiveState): DiveState {
     profile: freezeLogList(state.log.profile),
   });
 
-  return Object.freeze({ ...state, tissues, tanks, ccr, failure, events, log });
+  const safetyStop = Object.freeze({ ...state.safetyStop });
+
+  return Object.freeze({
+    ...state,
+    tissues,
+    tanks,
+    ccr,
+    failure,
+    events,
+    log,
+    safetyStop,
+  });
 }

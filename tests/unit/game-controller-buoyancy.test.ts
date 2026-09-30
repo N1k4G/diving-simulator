@@ -218,6 +218,42 @@ describe("the controller drives the buoyancy model frame by frame", () => {
     controller.destroy();
   });
 
+  it("asks the forecast for the safety stop the dive keeps (#199)", async () => {
+    // legacy calculateTTS() reads safetyStopNeeded and ndlDroppedBelow5 from
+    // the dive; the forecast used to be sent false for both.
+    const requested: PlannerSettings[] = [];
+    const base = neutralAt(26);
+    const initial = freezeDiveState({
+      ...base,
+      log: { ...base.log, minNdlMin: 4, ndlDroppedBelowFiveMinutes: true },
+      safetyStop: { ...base.safetyStop, needed: true },
+    });
+    const controller = new GameController({
+      renderer: {
+        kind: "pixi",
+        mount: () => Promise.resolve(),
+        render: () => undefined,
+        resize: () => undefined,
+        destroy: () => undefined,
+      },
+      onFrame: () => undefined,
+      initialState: initial,
+      plannerClient: {
+        forecast: (_state: DiveState, settings: PlannerSettings) => {
+          requested.push(settings);
+          return new Promise(() => undefined);
+        },
+        dispose: () => undefined,
+      } as unknown as ConstructorParameters<typeof GameController>[0]["plannerClient"],
+    });
+    await controller.start({} as HTMLElement);
+    expect(requested[0]?.safetyStopNeeded).toBe(true);
+    expect(requested[0]?.ndlDroppedBelowFiveMinutes).toBe(true);
+    // The configured gradient factors travel unchanged beside them.
+    expect(requested[0]?.gfHighPercent).toBe(DEFAULT_PLANNER_SETTINGS.gfHighPercent);
+    controller.destroy();
+  });
+
   it("hands the model ten times that while fast-forwarding at a stop", async () => {
     // Every compartment at 3.0 bar puts the stop at 18 m under the default
     // gradient factors (tests/unit/game-controller-fast-forward.test.ts).
