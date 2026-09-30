@@ -168,6 +168,33 @@ describe("the controller drives the buoyancy model frame by frame", () => {
     controller.destroy();
   });
 
+  it("starts a dive saved above the route at its ceiling, at rest and neutral", async () => {
+    // A legacy save at 12 m, neutral there and rising: moved to 18 m with that
+    // gas it would arrive heavy and sink to the floor (#198 pre-review).
+    const saved = freezeDiveState({ ...neutralAt(12), verticalVelocityMpm: -6 });
+    const { controller, frames } = await startController(saved);
+    expect(frames[0]?.scene.diverDepthM).toBe(18);
+    step(120);
+    const state = controller.authoritativeState;
+    expect(state.depthM).toBe(18);
+    expect(state.verticalVelocityMpm).toBe(0);
+    expect(state.bcdGasSurfaceLiters).toBe(neutralBcdSurfaceLitres(18));
+    controller.destroy();
+  });
+
+  it("starts a dive saved below the route at its floor, at rest and neutral", async () => {
+    const saved = freezeDiveState({ ...neutralAt(40), verticalVelocityMpm: 8 });
+    const { controller, frames } = await startController(saved);
+    expect(frames[0]?.scene.diverDepthM).toBe(34);
+    step(120);
+    const state = controller.authoritativeState;
+    expect(state.depthM).toBe(34);
+    expect(state.verticalVelocityMpm).toBe(0);
+    // The deepest point stays the one the save recorded.
+    expect(state.maxDepthM).toBe(40);
+    controller.destroy();
+  });
+
   it("hands the model ten times that while fast-forwarding at a stop", async () => {
     // Every compartment at 3.0 bar puts the stop at 18 m under the default
     // gradient factors (tests/unit/game-controller-fast-forward.test.ts).

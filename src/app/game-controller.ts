@@ -131,7 +131,7 @@ export class GameController {
     this.#plannerClient = options.plannerClient ?? new PlannerWorkerClient();
     this.#plannerSettings = options.plannerSettings ?? DEFAULT_PLANNER_SETTINGS;
     this.#model = new DiveModel(
-      options.initialState ?? createWreckInitialState(),
+      withinRoute(options.initialState ?? createWreckInitialState()),
     );
   }
 
@@ -625,6 +625,28 @@ function controlForKey(key: string): ContinuousControl | null {
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
+}
+
+/**
+ * A resumed dive saved outside the route's bounds, such as a legacy save at
+ * 12 m, starts at the nearest bound, at rest and neutral there (#198
+ * pre-review). The physics would clamp the depth on the first frame but keep
+ * the saved BCD gas, so a diver moved from 12 m to 18 m would arrive heavy and
+ * sink to the floor on its own. At rest and neutral is how a save without
+ * live motion resumes (src/save/save-game.ts, v6).
+ */
+function withinRoute(state: DiveState): DiveState {
+  const depthM = clamp(state.depthM, ROUTE_BOUNDS.ceilingM, ROUTE_BOUNDS.floorM);
+  if (depthM === state.depthM) {
+    return state;
+  }
+  return freezeDiveState({
+    ...state,
+    depthM: metres(depthM),
+    maxDepthM: metres(Math.max(state.maxDepthM, depthM)),
+    verticalVelocityMpm: 0,
+    bcdGasSurfaceLiters: neutralBcdSurfaceLitres(depthM),
+  });
 }
 
 /**
