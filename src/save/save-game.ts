@@ -15,6 +15,7 @@ import { NDL_UNLIMITED_MINUTES } from "../core/decompression";
 import {
   CEILING_VIOLATION_TOLERANCE_M,
   CEILING_VIOLATION_WINDOW_S,
+  FAILURES_BEFORE_THE_LOG,
   FAST_ASCENT_RATE_MPM,
   FAST_ASCENT_WINDOW_S,
 } from "../core/dive-model";
@@ -573,7 +574,13 @@ function isDiveState(candidate: unknown): candidate is DiveState {
         | DiveFailureReason
         | null,
     ) &&
-    isDiveLog(candidate.log, candidate.elapsedTimeS as number)
+    isDiveLog(
+      candidate.log,
+      candidate.elapsedTimeS as number,
+      (candidate.failure as Record<string, unknown>).reason as
+        | DiveFailureReason
+        | null,
+    )
   );
 }
 
@@ -585,7 +592,11 @@ function isDiveState(candidate: unknown): candidate is DiveState {
  * NDL, and the below-five latch set whenever the lowest NDL is below five,
  * since the model sets both on the same step.
  */
-function isDiveLog(candidate: unknown, elapsedTimeS: number): candidate is DiveLog {
+function isDiveLog(
+  candidate: unknown,
+  elapsedTimeS: number,
+  failureReason: DiveFailureReason | null,
+): candidate is DiveLog {
   if (
     !isRecord(candidate) ||
     !Array.isArray(candidate.entries) ||
@@ -621,6 +632,20 @@ function isDiveLog(candidate: unknown, elapsedTimeS: number): candidate is DiveL
   const fastAscentS = candidate.fastAscentS as number;
   const peakMpm = candidate.fastAscentPeakMpm as number;
   const underWay = fastAscentS > 0 || candidate.fastAscentLatched;
+  // A window stays open only while the step's rate is fast, and its peak
+  // includes that rate: the model resets both on the first slower step, as
+  // legacy does (#201 pre-review). The step a rebreather failure ends the
+  // dive on moves the rate and nothing else, so a failed CCR dive is exempt.
+  const rateMpm = candidate.ascentRateMpm as number;
+  const rateMovedAlone =
+    failureReason !== null && FAILURES_BEFORE_THE_LOG.has(failureReason);
+  if (
+    underWay &&
+    !rateMovedAlone &&
+    (rateMpm <= FAST_ASCENT_RATE_MPM || peakMpm < rateMpm)
+  ) {
+    return false;
+  }
   if (
     candidate.fastAscentLatched !== fastAscentS >= FAST_ASCENT_WINDOW_S ||
     (underWay ? peakMpm <= FAST_ASCENT_RATE_MPM : peakMpm !== 0) ||

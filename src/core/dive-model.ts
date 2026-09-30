@@ -341,7 +341,7 @@ export function advanceDiveStep(
 }
 
 /** The failures legacy detects in updateCCR(), before the "Issue #44" capture. */
-const FAILURES_BEFORE_THE_LOG: ReadonlySet<DiveFailureReason> = new Set([
+export const FAILURES_BEFORE_THE_LOG: ReadonlySet<DiveFailureReason> = new Set([
   "ccr-hypoxia",
   "ccr-hyperoxia",
   "ccr-co2",

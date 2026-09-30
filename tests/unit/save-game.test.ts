@@ -323,9 +323,9 @@ describe("SaveGame gradient factors", () => {
             { kind: "fast-ascent", elapsedTimeS: seconds(312.5), value: 11.25 },
             { kind: "ceiling-violation", elapsedTimeS: seconds(480), value: 0.75 },
           ],
-          ascentRateMpm: 4.5,
+          ascentRateMpm: 10.5,
           fastAscentS: seconds(1.25),
-          fastAscentPeakMpm: 9.5,
+          fastAscentPeakMpm: 11,
           minNdlMin: 4,
           ndlDroppedBelowFiveMinutes: true,
         },
@@ -372,6 +372,8 @@ describe("SaveGame gradient factors", () => {
         ["entries out of order", (log) => { (log.entries as Record<string, unknown>[])[1]!.elapsedTimeS = 300; }],
         ["a fractional NDL", (log) => { log.minNdlMin = 4.5; }],
         ["an NDL below five without the latch", (log) => { log.ndlDroppedBelowFiveMinutes = false; }],
+        ["a window under way at a slow rate", (log) => { log.ascentRateMpm = 4.5; }],
+        ["a peak below the step's rate", (log) => { log.fastAscentPeakMpm = 10; }],
       ];
       for (const [what, corrupt] of invalid) {
         const save = JSON.parse(
@@ -404,6 +406,22 @@ describe("SaveGame gradient factors", () => {
       expect(result.saveGame.state.log.minNdlMin).toBe(6);
       expect(result.saveGame.state.log.ndlDroppedBelowFiveMinutes).toBe(false);
       expect(result.saveGame.state.log.ascentRateMpm).toBe(-3.25);
+    });
+
+    it("accepts a slow rate over an open window on a dive a rebreather failure ended", () => {
+      // That step moves the ascent rate and nothing else (#201 Codex round 1).
+      const loop = createCcrState(createGasMix(0.21, 0));
+      const failed = freezeDiveState({
+        ...createInitialDiveState(87, { ccr: loop }),
+        elapsedTimeS: seconds(600),
+        depthM: 14 as DiveState["depthM"],
+        maxDepthM: 31 as DiveState["maxDepthM"],
+        failure: { ...createInitialDiveState(87).failure, reason: "ccr-co2" },
+        events: [{ type: "failure", elapsedTimeS: seconds(600), failureReason: "ccr-co2" }],
+        log: { ...logged().log, ascentRateMpm: 4.5 },
+      });
+      const decoded = decodeSaveGame(encodeSaveGame(createSaveGame(failed, CONSERVATIVE_FACTORS, 1_735_689_600_000)));
+      expect(decoded.ok).toBe(true);
     });
 
     it("keeps a legacy save whose lowest NDL is below five but predates the flag", () => {
