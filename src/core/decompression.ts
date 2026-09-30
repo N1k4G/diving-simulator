@@ -56,7 +56,6 @@ export function ndlMinutes(
   gas: GasMix,
   gradientFactor: number,
 ): Minutes {
-  assertTissueShape(tissues);
   const nitrogenBar = [...tissues.nitrogenBar];
   const heliumBar = [...tissues.heliumBar];
   const ambientBar = 1 + depthM / 10;

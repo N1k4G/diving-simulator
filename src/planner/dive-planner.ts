@@ -131,6 +131,9 @@ export function calculateCeiling(
   tissues: TissueState,
   settings: Readonly<PlannerSettings> = DEFAULT_PLANNER_SETTINGS,
 ): Metres {
+  // The shape before the settings, in the order this function always
+  // checked them.
+  assertTissueShape(tissues);
   return ceilingDepthM(tissues, validateSettings(settings).gfHighPercent / 100);
 }
 
@@ -143,12 +146,8 @@ export function calculateNdl(
   settings: Readonly<PlannerSettings> = DEFAULT_PLANNER_SETTINGS,
 ): Minutes {
   const state = freezeDiveState(authoritativeState);
-  return ndlMinutes(
-    state.tissues,
-    state.depthM,
-    currentForecastGas(state),
-    validateSettings(settings).gfHighPercent / 100,
-  );
+  const gfHigh = validateSettings(settings).gfHighPercent / 100;
+  return ndlMinutes(state.tissues, state.depthM, currentForecastGas(state), gfHigh);
 }
 
 export function calculateDecoSchedule(
