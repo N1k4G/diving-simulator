@@ -84,7 +84,14 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // 11 m, which is when the model latches it, and the countdown not started:
 // a diver shallower than 6 m starts it on the next step, as after legacy's
 // reset. Legacy saves carry their safetyStop* fields and keep them.
-export const CURRENT_SAVE_GAME_VERSION = 9;
+//
+// v10 adds each cylinder's startGasL and the rebreather's start pressures
+// and scrubber total (#199), for gas used. Older saves never recorded the
+// fill, so they resume with the current contents as the start: gas used
+// then counts from the resume. Legacy saves carry totalGas,
+// o2CylPressureStart, dilCylPressureStart and scrubberTotal, and keep them.
+export const CURRENT_SAVE_GAME_VERSION = 10;
+export const NINTH_SAVE_GAME_VERSION = 9;
 export const EIGHTH_SAVE_GAME_VERSION = 8;
 export const SEVENTH_SAVE_GAME_VERSION = 7;
 export const SIXTH_SAVE_GAME_VERSION = 6;
@@ -147,6 +154,7 @@ export type SaveGameMigration =
   | "save-game-v6"
   | "save-game-v7"
   | "save-game-v8"
+  | "save-game-v9"
   | null;
 
 /**
@@ -308,11 +316,15 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     if (v < FOURTH_SAVE_GAME_VERSION && isRecord(candidate.state)) {
       candidate.state = { ...candidate.state, cnsPercent: 0 };
     }
-    if (v < CURRENT_SAVE_GAME_VERSION && isRecord(candidate.state)) {
+    if (v < NINTH_SAVE_GAME_VERSION && isRecord(candidate.state)) {
       candidate.state = {
         ...candidate.state,
         safetyStop: derivedSafetyStop(candidate.state.maxDepthM),
       };
+    }
+    // Before v10 no fill was recorded: the current contents are the start.
+    if (v < CURRENT_SAVE_GAME_VERSION && isRecord(candidate.state)) {
+      candidate.state = withCurrentContentsAsStart(candidate.state);
     }
     // A v1 payload has no gradientFactors and is filled with the defaults; a
     // v2 payload must carry a valid pair rather than fall back to them, or a
@@ -512,6 +524,13 @@ function migrateLegacyTank(candidate: unknown): TankState | null {
     return null;
   }
 
+  // Legacy's totalGas is the fill the dive started from; a save without a
+  // usable one counts gas used from the resume.
+  const startGasL =
+    isPositiveFinite(candidate.totalGas) &&
+    (candidate.totalGas as number) >= (candidate.gasRemaining as number)
+      ? candidate.totalGas
+      : candidate.gasRemaining;
   return {
     gas: {
       oxygenFraction: candidate.fO2,
@@ -520,7 +539,15 @@ function migrateLegacyTank(candidate: unknown): TankState | null {
     },
     volumeL: candidate.volume,
     gasRemainingL: candidate.gasRemaining,
+    startGasL,
   } as TankState;
+}
+
+/** A legacy start value, or the current one when it is missing or below it. */
+function legacyStartOr(start: unknown, current: number): number {
+  return isNonNegativeFinite(start) && (start as number) >= current
+    ? (start as number)
+    : current;
 }
 
 function migrateLegacyCcr(candidate: unknown): CcrState | null {
@@ -562,8 +589,18 @@ function migrateLegacyCcr(candidate: unknown): CcrState | null {
     oxygenCylinderPressureBar: candidate.o2CylPressure,
     diluentCylinderVolumeL: candidate.dilCylVolume,
     diluentCylinderPressureBar: candidate.dilCylPressure,
+    oxygenCylinderStartPressureBar: legacyStartOr(
+      candidate.o2CylPressureStart,
+      candidate.o2CylPressure as number,
+    ),
+    diluentCylinderStartPressureBar: legacyStartOr(
+      candidate.dilCylPressureStart,
+      candidate.dilCylPressure as number,
+    ),
     loopVolumeL: candidate.loopVolume,
     scrubberRemainingS: (candidate.scrubberRemaining as number) * 60,
+    scrubberTotalS:
+      legacyStartOr(candidate.scrubberTotal, candidate.scrubberRemaining as number) * 60,
     metabolicOxygenLpm: candidate.metabolicO2Rate,
     po2ResponseBarPerSecond: candidate.po2ResponseRate,
     onBailout: candidate.onBailout,
@@ -886,6 +923,29 @@ function migrateLegacyLog(candidate: Record<string, unknown>): DiveLog {
 }
 
 /**
+ * A pre-v10 state with its current contents as the start of the dive: each
+ * cylinder's startGasL its gasRemainingL, and the rebreather's start
+ * pressures and scrubber total its current ones. Anything malformed is left
+ * for validation to reject.
+ */
+function withCurrentContentsAsStart(state: Record<string, unknown>): Record<string, unknown> {
+  const tanks = Array.isArray(state.tanks)
+    ? state.tanks.map((tank: unknown) =>
+        isRecord(tank) ? { ...tank, startGasL: tank.gasRemainingL } : tank,
+      )
+    : state.tanks;
+  const ccr = isRecord(state.ccr)
+    ? {
+        ...state.ccr,
+        oxygenCylinderStartPressureBar: state.ccr.oxygenCylinderPressureBar,
+        diluentCylinderStartPressureBar: state.ccr.diluentCylinderPressureBar,
+        scrubberTotalS: state.ccr.scrubberRemainingS,
+      }
+    : state.ccr;
+  return { ...state, tanks, ccr };
+}
+
+/**
  * The safety stop a save without one resumes with: needed exactly when the
  * dive has been deeper than 11 m, which is when the model latches it, and no
  * countdown under way.
@@ -1015,7 +1075,10 @@ function isTankState(candidate: unknown): candidate is TankState {
     isRecord(candidate) &&
     isGasMix(candidate.gas) &&
     isPositiveFinite(candidate.volumeL) &&
-    isNonNegativeFinite(candidate.gasRemainingL)
+    isNonNegativeFinite(candidate.gasRemainingL) &&
+    // A cylinder is only ever drawn from during a dive (#199).
+    isNonNegativeFinite(candidate.startGasL) &&
+    (candidate.startGasL as number) >= (candidate.gasRemainingL as number)
   );
 }
 
@@ -1035,9 +1098,18 @@ function isCcrState(candidate: unknown): candidate is CcrState {
     "metabolicOxygenLpm",
     "po2ResponseBarPerSecond",
     "co2BuildupS",
+    "oxygenCylinderStartPressureBar",
+    "diluentCylinderStartPressureBar",
+    "scrubberTotalS",
   ] as const;
   return (
     numericFields.every((field) => isNonNegativeFinite(candidate[field])) &&
+    // The cylinders and the scrubber are only ever drawn down (#199).
+    (candidate.oxygenCylinderStartPressureBar as number) >=
+      (candidate.oxygenCylinderPressureBar as number) &&
+    (candidate.diluentCylinderStartPressureBar as number) >=
+      (candidate.diluentCylinderPressureBar as number) &&
+    (candidate.scrubberTotalS as number) >= (candidate.scrubberRemainingS as number) &&
     isGasMix(candidate.diluent) &&
     typeof candidate.onBailout === "boolean" &&
     typeof candidate.scrubberFailed === "boolean"
