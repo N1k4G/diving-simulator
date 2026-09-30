@@ -10,6 +10,26 @@ const {
 // rather than clicks, and Playwright refuses tap without it.
 const MOBILE_VIEWPORT = { viewport: { width: 390, height: 844 }, hasTouch: true };
 
+/**
+ * The configured loop, without what the dive's elapsed time changes. The
+ * first save lands on the first display frame past five dive seconds, and
+ * since the model advances frame by frame (#192) that is a few hundredths of
+ * a second later on one run than on another, so the loop pO2, the cylinder
+ * pressures, the scrubber and the CO2 timer differ with it. The comparisons
+ * below are about configuration.
+ */
+function loopConfiguration(ccr) {
+  const {
+    actualPo2Bar: _actualPo2Bar,
+    oxygenCylinderPressureBar: _oxygenCylinderPressureBar,
+    diluentCylinderPressureBar: _diluentCylinderPressureBar,
+    scrubberRemainingS: _scrubberRemainingS,
+    co2BuildupS: _co2BuildupS,
+    ...configuration
+  } = ccr;
+  return configuration;
+}
+
 const oxygenValue = (page) => page.locator('[data-setup-value=oxygen]');
 const pressureValue = (page) => page.locator('[data-setup-value=pressure]');
 const stepButton = (page, stepper, direction) =>
@@ -665,7 +685,7 @@ test.describe('closed-circuit mode', () => {
           return raw === null ? null : JSON.parse(raw);
         })
         .then((handle) => handle.jsonValue());
-      return saved.state.ccr;
+      return loopConfiguration(saved.state.ccr);
     };
 
     const byKeyboard = await loopAfter(async (p) => {
@@ -830,7 +850,7 @@ test.describe('mobile viewport', () => {
           return raw === null ? null : JSON.parse(raw);
         })
         .then((handle) => handle.jsonValue());
-      return saved.state.ccr;
+      return loopConfiguration(saved.state.ccr);
     };
 
     const byTouch = await loopFrom(async (p) => {
