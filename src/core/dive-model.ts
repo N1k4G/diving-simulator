@@ -14,6 +14,7 @@ import {
   type CcrState,
   type DiveEvent,
   type DiveFailureReason,
+  type DiveProfileSample,
   type DiveState,
   type GasMix,
 } from "./dive-state";
@@ -352,15 +353,20 @@ function recordMotion(
 ): DiveState {
   const log = state.log;
   const submerged = state.depthM > SUBMERGED_DEPTH_M;
-  const profile = [...log.profile];
+  // Copied only on a step that samples, once per 2 dive seconds, not every
+  // frame (#204 pre-review).
+  let profile: readonly DiveProfileSample[] = log.profile;
   let profileTimerS: number = log.profileTimerS + elapsedS;
   while (profileTimerS >= PROFILE_SAMPLE_INTERVAL_S) {
     profileTimerS -= PROFILE_SAMPLE_INTERVAL_S;
-    profile.push({
-      elapsedTimeS: seconds(state.elapsedTimeS - profileTimerS),
-      depthM: state.depthM,
-      ceilingM: log.lastCeilingM,
-    });
+    profile = [
+      ...profile,
+      {
+        elapsedTimeS: seconds(state.elapsedTimeS - profileTimerS),
+        depthM: state.depthM,
+        ceilingM: log.lastCeilingM,
+      },
+    ];
   }
   return freezeDiveState({
     ...state,

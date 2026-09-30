@@ -359,14 +359,22 @@ export function freezeDiveState(state: DiveState): DiveState {
   const events = Object.freeze(
     state.events.map((event) => Object.freeze({ ...event })),
   );
+  // The log's lists grow for the whole dive, so a list this function has
+  // already frozen is reused rather than copied: re-freezing the profile on
+  // every call made a frame's cost grow with the dive's length (#204
+  // pre-review). A list from outside, such as a parsed save, is still copied.
   const log = Object.freeze({
     ...state.log,
-    entries: Object.freeze(
-      state.log.entries.map((entry) => Object.freeze({ ...entry })),
-    ),
-    profile: Object.freeze(
-      state.log.profile.map((sample) => Object.freeze({ ...sample })),
-    ),
+    entries: Object.isFrozen(state.log.entries)
+      ? state.log.entries
+      : Object.freeze(
+          state.log.entries.map((entry) => Object.freeze({ ...entry })),
+        ),
+    profile: Object.isFrozen(state.log.profile)
+      ? state.log.profile
+      : Object.freeze(
+          state.log.profile.map((sample) => Object.freeze({ ...sample })),
+        ),
   });
 
   return Object.freeze({ ...state, tissues, tanks, ccr, failure, events, log });

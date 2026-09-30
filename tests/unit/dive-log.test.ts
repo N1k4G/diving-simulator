@@ -170,6 +170,17 @@ describe("the average depth and the profile", () => {
     expect(after.log.profileTimerS).toBe(0);
   });
 
+  it("reuses the profile on a step that takes no sample", () => {
+    // The profile grows for the whole dive; copying it every frame made a
+    // frame's cost grow with the dive's length (#204 pre-review).
+    const sampled = advanceDiveStep(diverAt(18), { depthM: metres(18) }, seconds(2));
+    expect(sampled.log.profile).toHaveLength(1);
+    const next = advanceDiveStep(sampled, { depthM: metres(18) }, seconds(0.05));
+    expect(next.log.profile).toBe(sampled.log.profile);
+    expect(freezeDiveState(next).log.profile).toBe(next.log.profile);
+    expect(Object.isFrozen(next.log.profile[0])).toBe(true);
+  });
+
   it("records the ceiling of the step before each sample", () => {
     // Loaded tissues, so the ceiling moves from step to step.
     const base = diverAt(20);

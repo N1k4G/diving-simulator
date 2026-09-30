@@ -1,4 +1,8 @@
-import { freezeDiveState, type DiveState } from "../core/dive-state";
+import {
+  createEmptyDiveLog,
+  freezeDiveState,
+  type DiveState,
+} from "../core/dive-state";
 import type {
   PlannerForecast,
   PlannerSettings,
@@ -41,7 +45,9 @@ export function createPlannerForecastRequest(
   return {
     type: "forecast",
     requestId,
-    state: freezeDiveState(state),
+    // The forecast reads nothing of the dive log, whose profile grows for the
+    // whole dive; it is not cloned into the worker (#204 pre-review).
+    state: freezeDiveState({ ...state, log: createEmptyDiveLog() }),
     settings: { ...settings },
   };
 }
