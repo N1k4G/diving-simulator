@@ -15,6 +15,7 @@ import {
   type DiveState,
 } from "../../src/core/dive-state";
 import { bars, metres, seconds } from "../../src/core/units";
+import { DEFAULT_PLANNER_SETTINGS, type PlannerSettings } from "../../src/planner/dive-planner";
 
 // The controller's buoyancy wiring (#192 PR 2), on a stubbed animation-frame
 // loop. The physics itself is replayed against legacy in
@@ -57,7 +58,10 @@ function step(frames: number, frameMs = FRAME_MS): void {
   }
 }
 
-async function startController(initialState: DiveState) {
+async function startController(
+  initialState: DiveState,
+  plannerSettings: Readonly<PlannerSettings> = DEFAULT_PLANNER_SETTINGS,
+) {
   const frames: GameFrame[] = [];
   const controller = new GameController({
     renderer: {
@@ -71,6 +75,7 @@ async function startController(initialState: DiveState) {
       frames.push(frame);
     },
     initialState,
+    plannerSettings,
     plannerClient: {
       forecast: () => new Promise(() => undefined),
       dispose: () => undefined,
@@ -192,6 +197,24 @@ describe("the controller drives the buoyancy model frame by frame", () => {
     expect(state.verticalVelocityMpm).toBe(0);
     // The deepest point stays the one the save recorded.
     expect(state.maxDepthM).toBe(40);
+    controller.destroy();
+  });
+
+  it("evaluates the dive log at the dive's GF high (#199)", async () => {
+    // A fresh diver at 26 m on air: the NDL is some minutes away, and GF 75
+    // and GF 100 put it at different minutes.
+    const loaded = neutralAt(26);
+    const at100 = { ...DEFAULT_PLANNER_SETTINGS, gfHighPercent: 100 };
+    const { controller } = await startController(loaded, at100);
+    step(5);
+    const expected = new DiveModel(loaded, { gradientFactorHighPercent: 100 });
+    for (let i = 0; i < 5; i += 1) {
+      expected.advanceWithBuoyancy(ROUTE, seconds((FRAME_MS / 1000) * 3 * 1), { inflate: false, vent: false });
+    }
+    expect(controller.authoritativeState.log).toEqual(expected.snapshot.log);
+    const atDefault = new DiveModel(loaded);
+    atDefault.advanceWithBuoyancy(ROUTE, seconds((FRAME_MS / 1000) * 3 * 1), { inflate: false, vent: false });
+    expect(controller.authoritativeState.log.minNdlMin ?? 0).toBeGreaterThan(atDefault.snapshot.log.minNdlMin ?? 0);
     controller.destroy();
   });
 

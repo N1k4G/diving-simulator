@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createCcrState,
+  createEmptyDiveLog,
   createGasMix,
   createInitialDiveState,
   createTankState,
@@ -244,7 +245,7 @@ describe("SaveGame gradient factors", () => {
       const decoded = decodeSaveGame(encodeSaveGame(createSaveGame(moving(), CONSERVATIVE_FACTORS, 1_735_689_600_000)));
       expect(decoded.ok).toBe(true);
       if (!decoded.ok) return;
-      expect(decoded.saveGame.version).toBe(6);
+      expect(decoded.saveGame.version).toBe(CURRENT_SAVE_GAME_VERSION);
       expect(decoded.saveGame.state.verticalVelocityMpm).toBe(-12.25);
       expect(decoded.saveGame.state.bcdGasSurfaceLiters).toBe(13.9);
     });
@@ -279,7 +280,7 @@ describe("SaveGame gradient factors", () => {
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.migratedFrom).toBe("save-game-v5");
-      expect(result.saveGame.version).toBe(6);
+      expect(result.saveGame.version).toBe(CURRENT_SAVE_GAME_VERSION);
       expect(result.saveGame.state.verticalVelocityMpm).toBe(0);
       expect(result.saveGame.state.bcdGasSurfaceLiters).toBeCloseTo(neutralBcdSurfaceLitres(26), 12);
       // v5 already tracked CNS and the mode, and keeps both.
@@ -305,6 +306,101 @@ describe("SaveGame gradient factors", () => {
       if (!result.ok) return;
       expect(result.saveGame.state.verticalVelocityMpm).toBe(6.5);
       expect(result.saveGame.state.bcdGasSurfaceLiters).toBe(9.25);
+    });
+  });
+
+  // v7 adds the dive log (#199).
+  describe("the dive log", () => {
+    const logged = () =>
+      freezeDiveState({
+        ...createInitialDiveState(86),
+        elapsedTimeS: seconds(600),
+        depthM: 14 as DiveState["depthM"],
+        maxDepthM: 31 as DiveState["maxDepthM"],
+        log: {
+          ...createEmptyDiveLog(),
+          entries: [
+            { kind: "fast-ascent", elapsedTimeS: seconds(312.5), value: 11.25 },
+            { kind: "ceiling-violation", elapsedTimeS: seconds(480), value: 0.75 },
+          ],
+          ascentRateMpm: 4.5,
+          fastAscentS: seconds(1.25),
+          fastAscentPeakMpm: 9.5,
+          minNdlMin: 4,
+          ndlDroppedBelowFiveMinutes: true,
+        },
+      });
+
+    it("round-trips in a current save", () => {
+      const decoded = decodeSaveGame(encodeSaveGame(createSaveGame(logged(), CONSERVATIVE_FACTORS, 1_735_689_600_000)));
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      expect(decoded.saveGame.version).toBe(CURRENT_SAVE_GAME_VERSION);
+      expect(decoded.saveGame.state.log).toEqual(logged().log);
+    });
+
+    it("starts empty for a v6 save, which never recorded one", () => {
+      const v6 = JSON.parse(
+        encodeSaveGame(createSaveGame(logged(), CONSERVATIVE_FACTORS, 1_735_689_600_000)),
+      ) as { version: number; state: Record<string, unknown> };
+      v6.version = 6;
+      delete v6.state.log;
+      const result = decodeSaveGame(JSON.stringify(v6));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.migratedFrom).toBe("save-game-v6");
+      expect(result.saveGame.state.log).toEqual(createEmptyDiveLog());
+      // v6 already carried live motion, and keeps it.
+      expect(result.saveGame.state.bcdGasSurfaceLiters).toBe(logged().bcdGasSurfaceLiters);
+    });
+
+    it("rejects a current save with an invalid log", () => {
+      const invalid: [string, (log: Record<string, unknown>) => void][] = [
+        ["no log", (log) => { for (const key of Object.keys(log)) delete log[key]; }],
+        ["unknown entry kind", (log) => { (log.entries as Record<string, unknown>[])[0]!.kind = "shark"; }],
+        ["entry after the dive time", (log) => { (log.entries as Record<string, unknown>[])[0]!.elapsedTimeS = 601; }],
+        ["negative window", (log) => { log.fastAscentS = -1; }],
+        ["NDL not a number", (log) => { log.minNdlMin = "4"; }],
+        ["latch not a boolean", (log) => { log.ceilingViolationLatched = 1; }],
+      ];
+      for (const [what, corrupt] of invalid) {
+        const save = JSON.parse(
+          encodeSaveGame(createSaveGame(logged(), CONSERVATIVE_FACTORS, 1_735_689_600_000)),
+        ) as { state: { log: Record<string, unknown> } };
+        corrupt(save.state.log);
+        expect(decodeSaveGame(JSON.stringify(save)).ok, what).toBe(false);
+      }
+    });
+
+    it("carries legacy's diveEvents, minNdlSeen, ndlDroppedBelow5 and ascentRate over", () => {
+      const legacy = {
+        ...legacyV2Save(),
+        diveEvents: [
+          { t: 5.25, kind: "fastAscent", value: 10.5 },
+          { t: 7, kind: "drillOutcome", value: { id: "freeflow", option: 1, correct: true } },
+          { t: 9.5, kind: "ceilingViolation", value: 0.4 },
+        ],
+        minNdlSeen: 6,
+        ndlDroppedBelow5: false,
+        ascentRate: -3.25,
+      };
+      const result = decodeSaveGame(JSON.stringify(legacy));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.saveGame.state.log.entries).toEqual([
+        { kind: "fast-ascent", elapsedTimeS: 315, value: 10.5 },
+        { kind: "ceiling-violation", elapsedTimeS: 570, value: 0.4 },
+      ]);
+      expect(result.saveGame.state.log.minNdlMin).toBe(6);
+      expect(result.saveGame.state.log.ndlDroppedBelowFiveMinutes).toBe(false);
+      expect(result.saveGame.state.log.ascentRateMpm).toBe(-3.25);
+    });
+
+    it("reads legacy's null minNdlSeen as no NDL seen yet", () => {
+      const result = decodeSaveGame(JSON.stringify({ ...legacyV2Save(), minNdlSeen: null }));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.saveGame.state.log.minNdlMin).toBeNull();
     });
   });
 

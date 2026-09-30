@@ -1,5 +1,8 @@
 import {
+  createEmptyDiveLog,
   freezeDiveState,
+  type DiveLog,
+  type DiveLogEntry,
   type CcrState,
   type DiveEvent,
   type DiveFailureReason,
@@ -46,7 +49,12 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // holds the model's untouched defaults, 2 L of BCD gas at any depth, which
 // would sink a resumed diver to the floor. v5 saves resume at rest and
 // neutral, as older ones do.
-export const CURRENT_SAVE_GAME_VERSION = 6;
+//
+// v7 adds state.log, the dive log (#199). Older saves never recorded one and
+// resume with an empty log: no entries, no NDL seen yet. Legacy saves carry
+// diveEvents, minNdlSeen, ndlDroppedBelow5 and ascentRate, and keep them.
+export const CURRENT_SAVE_GAME_VERSION = 7;
+export const SIXTH_SAVE_GAME_VERSION = 6;
 export const FIFTH_SAVE_GAME_VERSION = 5;
 export const FOURTH_SAVE_GAME_VERSION = 4;
 export const THIRD_SAVE_GAME_VERSION = 3;
@@ -103,6 +111,7 @@ export type SaveGameMigration =
   | "save-game-v3"
   | "save-game-v4"
   | "save-game-v5"
+  | "save-game-v6"
   | null;
 
 /**
@@ -208,6 +217,7 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
 
   if (candidate.schema === SAVE_GAME_SCHEMA) {
     const isCurrent = candidate.version === CURRENT_SAVE_GAME_VERSION;
+    const isSixth = candidate.version === SIXTH_SAVE_GAME_VERSION;
     const isFifth = candidate.version === FIFTH_SAVE_GAME_VERSION;
     const isFourth = candidate.version === FOURTH_SAVE_GAME_VERSION;
     const isThird = candidate.version === THIRD_SAVE_GAME_VERSION;
@@ -215,7 +225,13 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     const isFirst = candidate.version === FIRST_SAVE_GAME_VERSION;
     if (
       !Number.isInteger(candidate.version) ||
-      (!isCurrent && !isFifth && !isFourth && !isThird && !isSecond && !isFirst)
+      (!isCurrent &&
+        !isSixth &&
+        !isFifth &&
+        !isFourth &&
+        !isThird &&
+        !isSecond &&
+        !isFirst)
     ) {
       return { ok: false, reason: "unsupported-version" };
     }
@@ -227,7 +243,11 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     // Before v6 the state's vertical motion was not live (none before v5,
     // untouched defaults in v5): resume at rest, BCD neutral at the saved
     // depth. Unconditionally, like the CNS reset.
+    // Before v7 there was no dive log: resume with an empty one.
     if (!isCurrent && isRecord(candidate.state)) {
+      candidate.state = { ...candidate.state, log: createEmptyDiveLog() };
+    }
+    if (!isCurrent && !isSixth && isRecord(candidate.state)) {
       const savedDepth = isNonNegativeFinite(candidate.state.depthM)
         ? (candidate.state.depthM as number)
         : 0;
@@ -237,7 +257,13 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
         bcdGasSurfaceLiters: neutralBcdSurfaceLitres(savedDepth),
       };
     }
-    if (!isCurrent && !isFifth && !isFourth && isRecord(candidate.state)) {
+    if (
+      !isCurrent &&
+      !isSixth &&
+      !isFifth &&
+      !isFourth &&
+      isRecord(candidate.state)
+    ) {
       candidate.state = { ...candidate.state, cnsPercent: 0 };
     }
     if (
@@ -253,10 +279,10 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     if (!isFirst && !isSavedGradientFactors(candidate.gradientFactors)) {
       return { ok: false, reason: "invalid-data" };
     }
-    // Likewise a v3 to v6 payload must carry a mode consistent with its
+    // Likewise a v3 to v7 payload must carry a mode consistent with its
     // state; only saves from before the field existed are inferred.
     if (
-      (isCurrent || isFifth || isFourth || isThird) &&
+      (isCurrent || isSixth || isFifth || isFourth || isThird) &&
       !isConsistentDiveMode(candidate.diveMode, candidate.state)
     ) {
       return { ok: false, reason: "invalid-data" };
@@ -264,7 +290,7 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     const gradientFactors = isFirst
       ? DEFAULT_SAVED_GRADIENT_FACTORS
       : (candidate.gradientFactors as SavedGradientFactors);
-    const diveMode = isCurrent || isFifth || isFourth || isThird
+    const diveMode = isCurrent || isSixth || isFifth || isFourth || isThird
       ? (candidate.diveMode as SavedDiveMode)
       : inferDiveMode(candidate.state);
 
@@ -278,7 +304,9 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
       ),
       migratedFrom: isCurrent
         ? null
-        : isFifth
+        : isSixth
+          ? "save-game-v6"
+          : isFifth
           ? "save-game-v5"
           : isFourth
           ? "save-game-v4"
@@ -379,6 +407,7 @@ function migrateLegacyV2(candidate: Record<string, unknown>): SaveGame | null {
         candidate.ccrHyperoxiaTime as DiveState["failure"]["ccrHyperoxiaS"],
     },
     events: [],
+    log: migrateLegacyLog(candidate),
   };
 
   // The legacy save carries the pair too (src/game-loop.js writes `gfLow` and
@@ -536,8 +565,71 @@ function isDiveState(candidate: unknown): candidate is DiveState {
       (candidate.failure as Record<string, unknown>).reason as
         | DiveFailureReason
         | null,
-    )
+    ) &&
+    isDiveLog(candidate.log, candidate.elapsedTimeS as number)
   );
+}
+
+function isDiveLog(candidate: unknown, elapsedTimeS: number): candidate is DiveLog {
+  return (
+    isRecord(candidate) &&
+    Array.isArray(candidate.entries) &&
+    candidate.entries.every(
+      (entry: unknown) =>
+        isRecord(entry) &&
+        (entry.kind === "fast-ascent" || entry.kind === "ceiling-violation") &&
+        isNonNegativeFinite(entry.elapsedTimeS) &&
+        (entry.elapsedTimeS as number) <= elapsedTimeS &&
+        Number.isFinite(entry.value),
+    ) &&
+    Number.isFinite(candidate.ascentRateMpm) &&
+    isNonNegativeFinite(candidate.fastAscentS) &&
+    isNonNegativeFinite(candidate.fastAscentPeakMpm) &&
+    typeof candidate.fastAscentLatched === "boolean" &&
+    isNonNegativeFinite(candidate.ceilingViolationS) &&
+    typeof candidate.ceilingViolationLatched === "boolean" &&
+    (candidate.minNdlMin === null || isNonNegativeFinite(candidate.minNdlMin)) &&
+    typeof candidate.ndlDroppedBelowFiveMinutes === "boolean"
+  );
+}
+
+/**
+ * The log a legacy save carries (src/game-loop.js saveDiveState): its
+ * diveEvents in minutes, minNdlSeen (null for none), ndlDroppedBelow5 and
+ * ascentRate. Of the event kinds, the two this log records are kept;
+ * safetyStopSkipped is only ever pushed at the surface, after legacy has
+ * stopped saving, and drillOutcome belongs to drills, which the migration
+ * client does not have. The debounce accumulators are not saved by legacy
+ * either, so a resumed window starts over, as it does there.
+ */
+function migrateLegacyLog(candidate: Record<string, unknown>): DiveLog {
+  const events = Array.isArray(candidate.diveEvents) ? candidate.diveEvents : [];
+  const entries: DiveLogEntry[] = [];
+  for (const event of events as unknown[]) {
+    if (
+      isRecord(event) &&
+      (event.kind === "fastAscent" || event.kind === "ceilingViolation") &&
+      isNonNegativeFinite(event.t) &&
+      Number.isFinite(event.value)
+    ) {
+      entries.push({
+        kind: event.kind === "fastAscent" ? "fast-ascent" : "ceiling-violation",
+        elapsedTimeS: ((event.t as number) * 60) as DiveLogEntry["elapsedTimeS"],
+        value: event.value as number,
+      });
+    }
+  }
+  return {
+    ...createEmptyDiveLog(),
+    entries,
+    ascentRateMpm: Number.isFinite(candidate.ascentRate)
+      ? (candidate.ascentRate as number)
+      : 0,
+    minNdlMin: isNonNegativeFinite(candidate.minNdlSeen)
+      ? (candidate.minNdlSeen as number)
+      : null,
+    ndlDroppedBelowFiveMinutes: candidate.ndlDroppedBelow5 === true,
+  };
 }
 
 function isTankState(candidate: unknown): candidate is TankState {

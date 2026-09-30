@@ -1,8 +1,10 @@
 import {
   createCcrState,
+  createEmptyDiveLog,
   createGasMix,
   createInitialDiveState,
   freezeDiveState,
+  type DiveLogEntry,
   type DiveState,
   type TissueState,
 } from "../core/dive-state";
@@ -26,7 +28,10 @@ export interface LegacyTissueCheckpoint {
     cns_percent?: number;
     verticalVelocity_mpm?: number;
     bcdGasSurface_l?: number;
+    ndlDroppedBelow5?: boolean;
   };
+  /** Legacy's diveEvents: time in minutes, legacy's kind names. */
+  events?: readonly { t: number; kind: string; value: unknown }[];
   configuration?: {
     amv_lpm?: number;
   };
@@ -111,5 +116,31 @@ export function diveStateFromLegacyCheckpoint(
     verticalVelocityMpm: checkpoint.state.verticalVelocity_mpm ?? 0,
     bcdGasSurfaceLiters:
       checkpoint.state.bcdGasSurface_l ?? initialState.bcdGasSurfaceLiters,
+    log: {
+      ...createEmptyDiveLog(),
+      entries: logEntriesFromLegacyEvents(checkpoint.events ?? []),
+      ndlDroppedBelowFiveMinutes: checkpoint.state.ndlDroppedBelow5 ?? false,
+    },
   });
+}
+
+/**
+ * The entries of the dive log (#199) among legacy's recorded diveEvents: the
+ * kinds the log keeps, renamed, with the time in seconds.
+ */
+export function logEntriesFromLegacyEvents(
+  events: readonly { t: number; kind: string; value: unknown }[],
+): DiveLogEntry[] {
+  const entries: DiveLogEntry[] = [];
+  for (const event of events) {
+    if (event.kind !== "fastAscent" && event.kind !== "ceilingViolation") {
+      continue;
+    }
+    entries.push({
+      kind: event.kind === "fastAscent" ? "fast-ascent" : "ceiling-violation",
+      elapsedTimeS: minutesToSeconds(minutes(event.t)),
+      value: Number(event.value),
+    });
+  }
+  return entries;
 }

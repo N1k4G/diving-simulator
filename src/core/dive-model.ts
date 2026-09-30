@@ -25,6 +25,11 @@ import {
   type VerticalBounds,
 } from "./buoyancy";
 import {
+  DEFAULT_GF_HIGH_PERCENT,
+  ceilingDepthM,
+  ndlMinutes,
+} from "./decompression";
+import {
   bars,
   fraction,
   litres,
@@ -48,13 +53,36 @@ export interface DiveEnvironment {
   depthM: Metres;
   breathing?: BreathingSource;
   exertionMultiplier?: number;
+  /**
+   * The GF high the dive log's ceiling and NDL are evaluated at (#199), as
+   * legacy's frameCalc uses gfHigh. DEFAULT_GF_HIGH_PERCENT when absent.
+   */
+  gradientFactorHighPercent?: number;
+}
+
+/** src/constants.js FAST_ASCENT_RATE and FAST_ASCENT_EVENT_SEC. */
+export const FAST_ASCENT_RATE_MPM = 9;
+export const FAST_ASCENT_WINDOW_S = seconds(2);
+/** src/constants.js CEILING_VIOLATION_TOL_M and CEILING_VIOLATION_EVENT_SEC. */
+export const CEILING_VIOLATION_TOLERANCE_M = 0.3;
+export const CEILING_VIOLATION_WINDOW_S = seconds(2);
+/** Legacy tracks the NDL only while submerged: `depth > 0.5`. */
+const SUBMERGED_DEPTH_M = 0.5;
+
+export interface DiveModelOptions {
+  /** The dive's GF high, for the log's ceiling and NDL (#199). */
+  readonly gradientFactorHighPercent?: number;
 }
 
 export class DiveModel {
   #state: DiveState;
 
-  constructor(initialState: DiveState) {
+  readonly #gradientFactorHighPercent: number;
+
+  constructor(initialState: DiveState, options: Readonly<DiveModelOptions> = {}) {
     this.#state = freezeDiveState(initialState);
+    this.#gradientFactorHighPercent =
+      options.gradientFactorHighPercent ?? DEFAULT_GF_HIGH_PERCENT;
   }
 
   get snapshot(): DiveState {
@@ -73,7 +101,10 @@ export class DiveModel {
       const stepS = seconds(Math.min(remainingS, FIXED_STEP_SECONDS));
       this.#state = advanceDiveStep(
         this.#state,
-        environment,
+        {
+          gradientFactorHighPercent: this.#gradientFactorHighPercent,
+          ...environment,
+        },
         stepS,
         pendingIntent,
       );
@@ -117,7 +148,14 @@ export class DiveModel {
       verticalVelocityMpm: moved.verticalVelocityMpm,
       bcdGasSurfaceLiters: moved.bcdGasSurfaceLiters,
     });
-    this.#state = advanceDiveStep(withMotion, { depthM: metres(moved.depthM) }, frameS);
+    this.#state = advanceDiveStep(
+      withMotion,
+      {
+        depthM: metres(moved.depthM),
+        gradientFactorHighPercent: this.#gradientFactorHighPercent,
+      },
+      frameS,
+    );
     return this.#state;
   }
 
@@ -261,6 +299,12 @@ export function advanceDiveStep(
     { ...environment, breathing },
     elapsedS,
   );
+  // Legacy refreshes frameCalc right after updateTissues(), before the
+  // frame's gas use, and its log reads that frameCalc.
+  const limits = decompressionLimits(
+    nextState,
+    environment.gradientFactorHighPercent ?? DEFAULT_GF_HIGH_PERCENT,
+  );
   nextState = accumulateCns(nextState, breathing, environment.depthM, elapsedS);
   nextState = updateLifeSupport(
     nextState,
@@ -269,12 +313,146 @@ export function advanceDiveStep(
     elapsedS,
   );
   nextState = applyBailoutIntent(nextState, intent.bailout);
+  // Legacy's debriefing capture runs after the gas use and before the
+  // dive-ending checks.
+  nextState = updateDiveLog(nextState, previousDepthM, elapsedS, limits);
 
   return updateFailureState(
     nextState,
     elapsedS,
     environment.breathing ?? breathingSourceForState(nextState),
   );
+}
+
+interface DecompressionLimits {
+  readonly ceilingM: number;
+  readonly ndlMin: number;
+}
+
+/**
+ * The gas the decompression limits are evaluated on: legacy's calculateNDL()
+ * breathes the loop at the target setpoint on a rebreather, the diluent after
+ * a bailout, and the active cylinder on open circuit. The planner's forecast
+ * starts from the same gas.
+ */
+export function decompressionGas(state: DiveState): GasMix {
+  if (state.ccr && !state.ccr.onBailout) {
+    return resolveInspiredGas(
+      {
+        kind: "ccr",
+        actualPo2Bar: state.ccr.targetPo2Bar,
+        diluent: state.ccr.diluent,
+        onBailout: false,
+      },
+      state.depthM,
+    );
+  }
+  if (state.ccr?.onBailout) {
+    return state.ccr.diluent;
+  }
+  const tank = state.tanks[state.activeTankIndex];
+  if (!tank) {
+    throw new RangeError("active tank index is outside the tank list");
+  }
+  return tank.gas;
+}
+
+function decompressionLimits(
+  state: DiveState,
+  gradientFactorHighPercent: number,
+): DecompressionLimits {
+  const gradientFactor = gradientFactorHighPercent / 100;
+  return {
+    ceilingM: ceilingDepthM(state.tissues, gradientFactor),
+    ndlMin: ndlMinutes(
+      state.tissues,
+      state.depthM,
+      decompressionGas(state),
+      gradientFactor,
+    ),
+  };
+}
+
+/**
+ * The debriefing capture of legacy's updateDiving() (#199, src/game-loop.js
+ * "Issue #44"): the step's ascent rate, a fast ascent or a broken ceiling
+ * held past its window, each logged once until it lapses, and the NDL
+ * tracking the adaptive safety stop and the grading read.
+ */
+function updateDiveLog(
+  state: DiveState,
+  previousDepthM: number,
+  elapsedS: Seconds,
+  limits: DecompressionLimits,
+): DiveState {
+  const log = state.log;
+  const entries = [...log.entries];
+  const ascentRateMpm = -(state.depthM - previousDepthM) / (elapsedS / 60);
+
+  let { fastAscentS, fastAscentPeakMpm, fastAscentLatched } = log;
+  if (ascentRateMpm > FAST_ASCENT_RATE_MPM) {
+    fastAscentPeakMpm = Math.max(fastAscentPeakMpm, ascentRateMpm);
+    if (!fastAscentLatched) {
+      fastAscentS = seconds(fastAscentS + elapsedS);
+      if (fastAscentS >= FAST_ASCENT_WINDOW_S && fastAscentPeakMpm > 0) {
+        entries.push({
+          kind: "fast-ascent",
+          elapsedTimeS: state.elapsedTimeS,
+          value: fastAscentPeakMpm,
+        });
+        fastAscentLatched = true;
+      }
+    }
+  } else {
+    fastAscentS = seconds(0);
+    fastAscentPeakMpm = 0;
+    fastAscentLatched = false;
+  }
+
+  let { ceilingViolationS, ceilingViolationLatched } = log;
+  if (
+    limits.ceilingM > 0 &&
+    state.depthM < limits.ceilingM - CEILING_VIOLATION_TOLERANCE_M
+  ) {
+    if (!ceilingViolationLatched) {
+      ceilingViolationS = seconds(ceilingViolationS + elapsedS);
+      if (ceilingViolationS >= CEILING_VIOLATION_WINDOW_S) {
+        entries.push({
+          kind: "ceiling-violation",
+          elapsedTimeS: state.elapsedTimeS,
+          value: limits.ceilingM - state.depthM,
+        });
+        ceilingViolationLatched = true;
+      }
+    }
+  } else {
+    ceilingViolationS = seconds(0);
+    ceilingViolationLatched = false;
+  }
+
+  const submerged = state.depthM > SUBMERGED_DEPTH_M;
+  const minNdlMin =
+    submerged &&
+    Number.isFinite(limits.ndlMin) &&
+    (log.minNdlMin === null || limits.ndlMin < log.minNdlMin)
+      ? limits.ndlMin
+      : log.minNdlMin;
+
+  return freezeDiveState({
+    ...state,
+    log: {
+      entries,
+      ascentRateMpm,
+      fastAscentS,
+      fastAscentPeakMpm,
+      fastAscentLatched,
+      ceilingViolationS,
+      ceilingViolationLatched,
+      minNdlMin,
+      ndlDroppedBelowFiveMinutes:
+        log.ndlDroppedBelowFiveMinutes || (submerged && limits.ndlMin < 5),
+    },
+  });
 }
 
 export function breathingSourceForState(state: DiveState): BreathingSource {
