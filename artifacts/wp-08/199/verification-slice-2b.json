@@ -1,0 +1,87 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 199,
+  "slice": "Slice 2b: the time-weighted average depth and the depth profile in the dive log; save v8; the trace records them",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "c552ab3802ce34988990e2370aa4e8d22a307804",
+  "measuredTree": "4efbe980ed925e77cbd464666e1f33876f445bde",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-09-30T18:07:24Z",
+  "runFinishedAt": "2026-09-30T18:15:26Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "The full run above is on c552ab3. The only later commit adds this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "earlierRuns": [
+    "A full run on 916d0ed (4f4df1e's content before the schema commit) had two Playwright failures: tests/baseline.spec.js, because docs/baseline/schemas/trace.schema.json did not describe the new checkpoint profile (fixed in c552ab3), and tests/game.spec.js TC-32-BAD-AIR-TRIGGER-UNCHANGED, a boundary case that fails when the diver drifts off x = 103 during its frames. TC-32 then failed 1 of 3 and passed 5 of 5 alone on the branch, and passed 8 of 8 on main (44f2cda); the branch's only legacy change is captureBaselineCheckpoint(), which that case does not run. Tracked in #203."
+  ],
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "342 passed (337 on main, +3 in tests/unit/dive-log.test.ts, +2 in tests/unit/save-game.test.ts)",
+    "parity": "72 passed (69 on main, +3 in tests/parity/dive-log.test.ts)",
+    "e2e": "142 passed in 5.9 min (unchanged count)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "boundsPortedFromTheOracle": {
+    "average": "src/game-loop.js updateDiving(): if (depth > 0.5) { avgDepthAccum += depth * dtDiveSeconds; avgDepthSamples += dtDiveSeconds; } after the depth clamp (#26).",
+    "profile": "_profileSampleTimer += dtDiveSeconds; while (_profileSampleTimer >= 2) { _profileSampleTimer -= 2; diveProfile.push({t: diveTime - _profileSampleTimer / 60, depth, ceiling: frameCalc.ceiling}); } before updateTissues() and the frameCalc refresh, so each sample carries the previous tick's ceiling (#71 catch-up).",
+    "order": "Both run with the physics, before updateCCR() can return on a rebreather failure; the model records them on that step too and skips only the 'Issue #44' capture.",
+    "restore": "restoreDiveState() reads avgDepthAccum, avgDepthSamples and diveProfile and does not restore _profileSampleTimer or frameCalc; the save import resumes both at zero."
+  },
+  "fixtureRegeneration": {
+    "command": "npm run baseline:generate, from 31804ac",
+    "legacyChange": "captureBaselineCheckpoint() gains state.debrief.avgDepthAccum_ms, avgDepthSamples_s, profileTimer_s and frameCeiling_m; scripts/baseline-scenarios.cjs checkpoint() adds each checkpoint's profile samples since the previous one ({t_min, depth_m, ceiling_m}).",
+    "additiveCheck": "All eight scenarios are identical to the fixture before regeneration once the five new fields are removed; the header differs only in referenceCommit. The fixture grows from about 0.55 MB to 1.05 MB.",
+    "schema": "docs/baseline/schemas/trace.schema.json describes profile as optional in v1, like trajectory; tests/baseline.spec.js asserts it on every checkpoint of this fixture."
+  },
+  "parity": {
+    "motion": "Every profile sample (time within 1e-9 min, depth 1e-9, ceiling at planner.ceiling_m's tolerance), both sums (1e-9), the sampler timer (1e-9) and the last ceiling, at every checkpoint of buoyancy-vent-inflate-12m and buoyancy-ccr-inflate-12m, and of air-18m-30min and ccr-30m-30min replayed one advanceDiveStep per legacy tick; plus a replay continued from buoyancy-vent-inflate-12m/inflated-11s with the earlier samples."
+  },
+  "counterChecks": {
+    "method": "Each revert was applied to src/core/dive-model.ts or src/save/save-game.ts from a backup copy, the dive-log unit and parity tests and the save tests were run, and the file was restored from the backup.",
+    "results": [
+      {
+        "revert": "one profile sample per step, no catch-up",
+        "result": "3 failed: TC-71 port and both scripted parity replays"
+      },
+      {
+        "revert": "samples recording their own step's ceiling",
+        "result": "2 failed: the previous-ceiling unit test and the CCR scripted replay"
+      },
+      {
+        "revert": "average weighted per step instead of by time",
+        "result": "5 failed: all parity replays of the motion"
+      },
+      {
+        "revert": "average counted at the surface too",
+        "result": "2 failed: TC-26 port and the air scripted replay"
+      },
+      {
+        "revert": "motion skipped on a rebreather failure step",
+        "result": "1 failed: the rebreather failure-step test"
+      },
+      {
+        "revert": "save accepting a sampler timer of 2 s",
+        "result": "1 failed: the invalid-log test"
+      }
+    ]
+  },
+  "durableProvenance": {
+    "src": "ea161029734187ee71d5a4851334967c63c062f8",
+    "tests": "a09a418f0650a8a6fe0398b0010f84c0b1aa302f",
+    "scripts": "9821955c9dd544534be72ffeb8eb56fbc6cc863a",
+    "docs": "e2b85248122e51b5ade838797f0eb68be5b23bd0"
+  }
+}
