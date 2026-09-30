@@ -89,6 +89,56 @@ export interface DiveEvent {
   failureReason?: DiveFailureReason;
 }
 
+/**
+ * What the dive log records for the debriefing (#199), in legacy's own
+ * vocabulary (src/state.js diveEvents): a fast ascent held past its window,
+ * and a ceiling broken for longer than its window. `value` is legacy's:
+ * the peak ascent rate in m/min, or how far above the ceiling in metres.
+ */
+export interface DiveLogEntry {
+  kind: "fast-ascent" | "ceiling-violation";
+  elapsedTimeS: Seconds;
+  value: number;
+}
+
+/**
+ * The dive log (#199): what legacy's updateDiving() keeps every frame for
+ * the post-dive debriefing and gradeDive(), beyond the dive state itself.
+ */
+export interface DiveLog {
+  entries: readonly DiveLogEntry[];
+  /** Legacy's ascentRate: the last step's depth change, m/min, positive up. */
+  ascentRateMpm: number;
+  /**
+   * How long the current fast ascent has lasted, and its peak. Legacy latches
+   * a fired window by setting the accumulator to -Infinity until the rate
+   * drops back; `fastAscentLatched` says the same in a form a save can hold.
+   */
+  fastAscentS: Seconds;
+  fastAscentPeakMpm: number;
+  fastAscentLatched: boolean;
+  ceilingViolationS: Seconds;
+  ceilingViolationLatched: boolean;
+  /** The lowest NDL seen while submerged, whole minutes; null before any. */
+  minNdlMin: number | null;
+  /** Legacy's ndlDroppedBelow5, latched for the dive. */
+  ndlDroppedBelowFiveMinutes: boolean;
+}
+
+export function createEmptyDiveLog(): DiveLog {
+  return {
+    entries: [],
+    ascentRateMpm: 0,
+    fastAscentS: seconds(0),
+    fastAscentPeakMpm: 0,
+    fastAscentLatched: false,
+    ceilingViolationS: seconds(0),
+    ceilingViolationLatched: false,
+    minNdlMin: null,
+    ndlDroppedBelowFiveMinutes: false,
+  };
+}
+
 export interface DiveState {
   elapsedTimeS: Seconds;
   depthM: Metres;
@@ -113,6 +163,7 @@ export interface DiveState {
   ccr: CcrState | null;
   failure: FailureState;
   events: readonly DiveEvent[];
+  log: DiveLog;
 }
 
 export interface InitialDiveOptions {
@@ -250,6 +301,7 @@ export function createInitialDiveState(
       ccrHyperoxiaS: seconds(0),
     },
     events: [],
+    log: createEmptyDiveLog(),
   });
 }
 
@@ -277,6 +329,12 @@ export function freezeDiveState(state: DiveState): DiveState {
   const events = Object.freeze(
     state.events.map((event) => Object.freeze({ ...event })),
   );
+  const log = Object.freeze({
+    ...state.log,
+    entries: Object.freeze(
+      state.log.entries.map((entry) => Object.freeze({ ...entry })),
+    ),
+  });
 
-  return Object.freeze({ ...state, tissues, tanks, ccr, failure, events });
+  return Object.freeze({ ...state, tissues, tanks, ccr, failure, events, log });
 }

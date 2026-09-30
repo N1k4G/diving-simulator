@@ -14,6 +14,10 @@ import {
 import type { GasMix, TissueState } from "./dive-state";
 import { metres, minutes, type Metres, type Minutes } from "./units";
 
+/** src/constants.js GF_LOW_DEFAULT and GF_HIGH_DEFAULT. */
+export const DEFAULT_GF_LOW_PERCENT = 35;
+export const DEFAULT_GF_HIGH_PERCENT = 75;
+
 const NDL_STEP_MINUTES = 0.5;
 const NDL_MAX_STEPS = 400;
 /** What calculateNdl reports when no limit is reached: legacy's 999. */

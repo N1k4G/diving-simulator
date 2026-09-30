@@ -3,6 +3,8 @@ import {
   ZHL16C_N2,
 } from "../core/buhlmann-constants";
 import {
+  DEFAULT_GF_HIGH_PERCENT,
+  DEFAULT_GF_LOW_PERCENT,
   assertTissueShape,
   ceilingDepthM,
   combinedCoefficients,
@@ -19,6 +21,7 @@ import {
 import {
   PO2_HIGH_BAR,
   PO2_HYPOXIA_BAR,
+  decompressionGas,
   resolveInspiredGas,
 } from "../core/dive-model";
 import {
@@ -28,8 +31,7 @@ import {
   type Minutes,
 } from "../core/units";
 
-export const DEFAULT_GF_LOW_PERCENT = 35;
-export const DEFAULT_GF_HIGH_PERCENT = 75;
+export { DEFAULT_GF_HIGH_PERCENT, DEFAULT_GF_LOW_PERCENT };
 export const DEFAULT_ASCENT_RATE_MPM = 9;
 
 const SCHEDULE_STEP_MINUTES = 0.1;
@@ -147,7 +149,7 @@ export function calculateNdl(
 ): Minutes {
   const state = freezeDiveState(authoritativeState);
   const gfHigh = validateSettings(settings).gfHighPercent / 100;
-  return ndlMinutes(state.tissues, state.depthM, currentForecastGas(state), gfHigh);
+  return ndlMinutes(state.tissues, state.depthM, decompressionGas(state), gfHigh);
 }
 
 export function calculateDecoSchedule(
@@ -167,7 +169,7 @@ export function calculateDecoSchedule(
   const nitrogenBar = [...state.tissues.nitrogenBar];
   const heliumBar = [...state.tissues.heliumBar];
   let simulatedDepthM = state.depthM;
-  let gas = currentForecastGas(state);
+  let gas = decompressionGas(state);
   let totalMinutes = 0;
   const stops: DecoStop[] = [];
   const firstStopM = decoStopDepth(ceilingM);
@@ -426,28 +428,6 @@ function calculateTts(
       state.maxDepthM > 30 || settings.ndlDroppedBelowFiveMinutes ? 5 : 3;
   }
   return minutes(Math.ceil(ascentMinutes + safetyStopMinutes));
-}
-
-function currentForecastGas(state: DiveState): GasMix {
-  if (state.ccr && !state.ccr.onBailout) {
-    return resolveInspiredGas(
-      {
-        kind: "ccr",
-        actualPo2Bar: state.ccr.targetPo2Bar,
-        diluent: state.ccr.diluent,
-        onBailout: false,
-      },
-      state.depthM,
-    );
-  }
-  if (state.ccr?.onBailout) {
-    return state.ccr.diluent;
-  }
-  const tank = state.tanks[state.activeTankIndex];
-  if (!tank) {
-    throw new RangeError("active tank index is outside the tank list");
-  }
-  return tank.gas;
 }
 
 function bestForecastGas(state: DiveState, depthM: number): GasMix | null {

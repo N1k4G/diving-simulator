@@ -1812,6 +1812,16 @@ function captureBaselineCheckpoint(scenarioId, checkpointId) {
             // #192: BCD gas in surface-equivalent litres, the state the
             // buoyancy physics integrates. Needed to replay vertical motion.
             bcdGasSurface_l: _baselineFinite(bcdGasSurfaceLiters),
+            // #199: the debriefing capture's continuation state (Issue #44).
+            // A fired window's accumulator is -Infinity until the condition
+            // lapses, recorded as null; minNdlSeen is null while Infinity.
+            debrief: {
+                ascentRate_mpm: _baselineFinite(ascentRate),
+                minNdlSeen_min: _baselineFinite(minNdlSeen),
+                fastAscentAccum_s: _baselineFinite(_fastAscentAccum),
+                fastAscentPeak_mpm: _baselineFinite(_fastAscentPeak),
+                ceilingViolationAccum_s: _baselineFinite(_ceilingViolationAccum)
+            },
             safetyStop: {
                 needed: safetyStopNeeded,
                 remaining_min: _baselineFinite(safetyStopRemaining),

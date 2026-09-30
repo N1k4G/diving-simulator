@@ -1,5 +1,8 @@
 import {
+  createEmptyDiveLog,
   freezeDiveState,
+  type DiveLog,
+  type DiveLogEntry,
   type CcrState,
   type DiveEvent,
   type DiveFailureReason,
@@ -8,6 +11,14 @@ import {
   type TankState,
 } from "../core/dive-state";
 import { neutralBcdSurfaceLitres } from "../core/buoyancy";
+import { NDL_UNLIMITED_MINUTES, ceilingDepthM } from "../core/decompression";
+import {
+  CEILING_VIOLATION_TOLERANCE_M,
+  CEILING_VIOLATION_WINDOW_S,
+  FAILURES_BEFORE_THE_LOG,
+  FAST_ASCENT_RATE_MPM,
+  FAST_ASCENT_WINDOW_S,
+} from "../core/dive-model";
 import {
   DEFAULT_GF_HIGH_PERCENT,
   DEFAULT_GF_LOW_PERCENT,
@@ -46,7 +57,12 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // holds the model's untouched defaults, 2 L of BCD gas at any depth, which
 // would sink a resumed diver to the floor. v5 saves resume at rest and
 // neutral, as older ones do.
-export const CURRENT_SAVE_GAME_VERSION = 6;
+//
+// v7 adds state.log, the dive log (#199). Older saves never recorded one and
+// resume with an empty log: no entries, no NDL seen yet. Legacy saves carry
+// diveEvents, minNdlSeen, ndlDroppedBelow5 and ascentRate, and keep them.
+export const CURRENT_SAVE_GAME_VERSION = 7;
+export const SIXTH_SAVE_GAME_VERSION = 6;
 export const FIFTH_SAVE_GAME_VERSION = 5;
 export const FOURTH_SAVE_GAME_VERSION = 4;
 export const THIRD_SAVE_GAME_VERSION = 3;
@@ -103,6 +119,7 @@ export type SaveGameMigration =
   | "save-game-v3"
   | "save-game-v4"
   | "save-game-v5"
+  | "save-game-v6"
   | null;
 
 /**
@@ -154,13 +171,13 @@ export function createSaveGame(
   }
 
   const frozenState = freezeDiveState(state);
-  if (!isDiveState(frozenState)) {
-    throw new TypeError("cannot serialize an invalid DiveState");
-  }
   if (!isSavedGradientFactors(gradientFactors)) {
     throw new RangeError(
       "gradient factors must be within 30-100 with low no greater than high",
     );
+  }
+  if (!isDiveState(frozenState, gradientFactors.highPercent)) {
+    throw new TypeError("cannot serialize an invalid DiveState");
   }
   if (!isConsistentDiveMode(diveMode, frozenState)) {
     throw new RangeError("dive mode must be ccr exactly when the dive has a loop");
@@ -208,6 +225,7 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
 
   if (candidate.schema === SAVE_GAME_SCHEMA) {
     const isCurrent = candidate.version === CURRENT_SAVE_GAME_VERSION;
+    const isSixth = candidate.version === SIXTH_SAVE_GAME_VERSION;
     const isFifth = candidate.version === FIFTH_SAVE_GAME_VERSION;
     const isFourth = candidate.version === FOURTH_SAVE_GAME_VERSION;
     const isThird = candidate.version === THIRD_SAVE_GAME_VERSION;
@@ -215,7 +233,13 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     const isFirst = candidate.version === FIRST_SAVE_GAME_VERSION;
     if (
       !Number.isInteger(candidate.version) ||
-      (!isCurrent && !isFifth && !isFourth && !isThird && !isSecond && !isFirst)
+      (!isCurrent &&
+        !isSixth &&
+        !isFifth &&
+        !isFourth &&
+        !isThird &&
+        !isSecond &&
+        !isFirst)
     ) {
       return { ok: false, reason: "unsupported-version" };
     }
@@ -227,7 +251,11 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     // Before v6 the state's vertical motion was not live (none before v5,
     // untouched defaults in v5): resume at rest, BCD neutral at the saved
     // depth. Unconditionally, like the CNS reset.
+    // Before v7 there was no dive log: resume with an empty one.
     if (!isCurrent && isRecord(candidate.state)) {
+      candidate.state = { ...candidate.state, log: createEmptyDiveLog() };
+    }
+    if (!isCurrent && !isSixth && isRecord(candidate.state)) {
       const savedDepth = isNonNegativeFinite(candidate.state.depthM)
         ? (candidate.state.depthM as number)
         : 0;
@@ -237,34 +265,42 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
         bcdGasSurfaceLiters: neutralBcdSurfaceLitres(savedDepth),
       };
     }
-    if (!isCurrent && !isFifth && !isFourth && isRecord(candidate.state)) {
-      candidate.state = { ...candidate.state, cnsPercent: 0 };
-    }
     if (
-      !isPositiveFinite(candidate.savedAtEpochMs) ||
-      !isDiveState(candidate.state)
+      !isCurrent &&
+      !isSixth &&
+      !isFifth &&
+      !isFourth &&
+      isRecord(candidate.state)
     ) {
-      return { ok: false, reason: "invalid-data" };
+      candidate.state = { ...candidate.state, cnsPercent: 0 };
     }
     // A v1 payload has no gradientFactors and is filled with the defaults; a
     // v2 payload must carry a valid pair rather than fall back to them, or a
     // corrupted field would silently re-plan the dive on 35/75 — the very
-    // failure this version exists to stop.
+    // failure this version exists to stop. Read before the state, whose log
+    // is checked against the GF high.
     if (!isFirst && !isSavedGradientFactors(candidate.gradientFactors)) {
       return { ok: false, reason: "invalid-data" };
     }
-    // Likewise a v3 to v6 payload must carry a mode consistent with its
+    const savedFactors = isFirst
+      ? DEFAULT_SAVED_GRADIENT_FACTORS
+      : (candidate.gradientFactors as SavedGradientFactors);
+    if (
+      !isPositiveFinite(candidate.savedAtEpochMs) ||
+      !isDiveState(candidate.state, savedFactors.highPercent)
+    ) {
+      return { ok: false, reason: "invalid-data" };
+    }
+    // Likewise a v3 to v7 payload must carry a mode consistent with its
     // state; only saves from before the field existed are inferred.
     if (
-      (isCurrent || isFifth || isFourth || isThird) &&
+      (isCurrent || isSixth || isFifth || isFourth || isThird) &&
       !isConsistentDiveMode(candidate.diveMode, candidate.state)
     ) {
       return { ok: false, reason: "invalid-data" };
     }
-    const gradientFactors = isFirst
-      ? DEFAULT_SAVED_GRADIENT_FACTORS
-      : (candidate.gradientFactors as SavedGradientFactors);
-    const diveMode = isCurrent || isFifth || isFourth || isThird
+    const gradientFactors = savedFactors;
+    const diveMode = isCurrent || isSixth || isFifth || isFourth || isThird
       ? (candidate.diveMode as SavedDiveMode)
       : inferDiveMode(candidate.state);
 
@@ -278,7 +314,9 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
       ),
       migratedFrom: isCurrent
         ? null
-        : isFifth
+        : isSixth
+          ? "save-game-v6"
+          : isFifth
           ? "save-game-v5"
           : isFourth
           ? "save-game-v4"
@@ -379,6 +417,7 @@ function migrateLegacyV2(candidate: Record<string, unknown>): SaveGame | null {
         candidate.ccrHyperoxiaTime as DiveState["failure"]["ccrHyperoxiaS"],
     },
     events: [],
+    log: migrateLegacyLog(candidate),
   };
 
   // The legacy save carries the pair too (src/game-loop.js writes `gfLow` and
@@ -501,7 +540,10 @@ function migrateLegacyCcr(candidate: unknown): CcrState | null {
   } as CcrState;
 }
 
-function isDiveState(candidate: unknown): candidate is DiveState {
+function isDiveState(
+  candidate: unknown,
+  gradientFactorHighPercent: number,
+): candidate is DiveState {
   if (!isRecord(candidate)) {
     return false;
   }
@@ -536,8 +578,193 @@ function isDiveState(candidate: unknown): candidate is DiveState {
       (candidate.failure as Record<string, unknown>).reason as
         | DiveFailureReason
         | null,
-    )
+    ) &&
+    isDiveLog(candidate.log, {
+      elapsedTimeS: candidate.elapsedTimeS as number,
+      depthM: candidate.depthM as number,
+      ceilingM: ceilingDepthM(
+        candidate.tissues as unknown as DiveState["tissues"],
+        gradientFactorHighPercent / 100,
+      ),
+      failureReason: (candidate.failure as Record<string, unknown>).reason as
+        | DiveFailureReason
+        | null,
+    })
   );
+}
+
+/**
+ * A dive log the model could have produced (#201 Codex round 1), not only one
+ * of the right shape: entries in order and past their thresholds, each window
+ * consistent with its latch (the model latches the moment a window reaches
+ * its length), a peak exactly when a fast ascent is under way, a whole-minute
+ * NDL, and the below-five latch set whenever the lowest NDL is below five,
+ * since the model sets both on the same step.
+ */
+/** What a saved log is checked against, from the rest of the saved state. */
+interface DiveLogContext {
+  readonly elapsedTimeS: number;
+  readonly depthM: number;
+  /** The ceiling the saved tissues give at the save's GF high. */
+  readonly ceilingM: number;
+  readonly failureReason: DiveFailureReason | null;
+}
+
+function isDiveLog(candidate: unknown, context: DiveLogContext): candidate is DiveLog {
+  const { elapsedTimeS, failureReason } = context;
+  if (
+    !isRecord(candidate) ||
+    !Array.isArray(candidate.entries) ||
+    !Number.isFinite(candidate.ascentRateMpm) ||
+    !isNonNegativeFinite(candidate.fastAscentS) ||
+    !isNonNegativeFinite(candidate.fastAscentPeakMpm) ||
+    typeof candidate.fastAscentLatched !== "boolean" ||
+    !isNonNegativeFinite(candidate.ceilingViolationS) ||
+    typeof candidate.ceilingViolationLatched !== "boolean" ||
+    typeof candidate.ndlDroppedBelowFiveMinutes !== "boolean"
+  ) {
+    return false;
+  }
+  let previousS = 0;
+  for (const entry of candidate.entries as unknown[]) {
+    if (
+      !isRecord(entry) ||
+      !isNonNegativeFinite(entry.elapsedTimeS) ||
+      (entry.elapsedTimeS as number) < previousS ||
+      (entry.elapsedTimeS as number) > elapsedTimeS ||
+      !Number.isFinite(entry.value)
+    ) {
+      return false;
+    }
+    const value = entry.value as number;
+    if (entry.kind === "fast-ascent" ? value <= FAST_ASCENT_RATE_MPM
+      : entry.kind === "ceiling-violation" ? value <= CEILING_VIOLATION_TOLERANCE_M
+      : true) {
+      return false;
+    }
+    previousS = entry.elapsedTimeS as number;
+  }
+  const fastAscentS = candidate.fastAscentS as number;
+  const peakMpm = candidate.fastAscentPeakMpm as number;
+  const underWay = fastAscentS > 0 || candidate.fastAscentLatched;
+  // A window stays open only while the step's rate is fast, and its peak
+  // includes that rate: the model resets both on the first slower step, as
+  // legacy does (#201 pre-review). The step a rebreather failure ends the
+  // dive on moves the rate and nothing else, so a failed CCR dive is exempt.
+  const rateMpm = candidate.ascentRateMpm as number;
+  const rateMovedAlone =
+    failureReason !== null && FAILURES_BEFORE_THE_LOG.has(failureReason);
+  if (
+    underWay &&
+    !rateMovedAlone &&
+    (rateMpm <= FAST_ASCENT_RATE_MPM || peakMpm < rateMpm)
+  ) {
+    return false;
+  }
+  // Likewise a ceiling window is open only while the diver is above the
+  // ceiling less the tolerance, which the saved tissues and depth say.
+  const ceilingWindowOpen =
+    (candidate.ceilingViolationS as number) > 0 ||
+    candidate.ceilingViolationLatched === true;
+  if (
+    ceilingWindowOpen &&
+    !rateMovedAlone &&
+    !(
+      context.ceilingM > 0 &&
+      context.depthM < context.ceilingM - CEILING_VIOLATION_TOLERANCE_M
+    )
+  ) {
+    return false;
+  }
+  // A window latches on the step its entry is logged, and the latest fast
+  // ascent's peak never exceeds the window's, which keeps rising. The reverse
+  // is not required: legacy does not save the windows, so a resumed legacy
+  // dive restarts them over a fast rate or a broken ceiling, and so may this.
+  const entries = candidate.entries as { kind: string; value: number }[];
+  const lastFastAscent = entries.filter((entry) => entry.kind === "fast-ascent").at(-1);
+  if (
+    (candidate.fastAscentLatched === true &&
+      (lastFastAscent === undefined || lastFastAscent.value > peakMpm)) ||
+    (candidate.ceilingViolationLatched === true &&
+      !entries.some((entry) => entry.kind === "ceiling-violation"))
+  ) {
+    return false;
+  }
+  if (
+    candidate.fastAscentLatched !== fastAscentS >= FAST_ASCENT_WINDOW_S ||
+    (underWay ? peakMpm <= FAST_ASCENT_RATE_MPM : peakMpm !== 0) ||
+    candidate.ceilingViolationLatched !==
+      (candidate.ceilingViolationS as number) >= CEILING_VIOLATION_WINDOW_S
+  ) {
+    return false;
+  }
+  // The model sets the below-five latch on the step it records a lowest NDL
+  // below five, and the lowest NDL never rises again: the two agree exactly
+  // (#201 Codex round 2).
+  const minNdlMin = candidate.minNdlMin;
+  if (minNdlMin === null) {
+    return candidate.ndlDroppedBelowFiveMinutes === false;
+  }
+  return (
+    Number.isInteger(minNdlMin) &&
+    (minNdlMin as number) >= 0 &&
+    (minNdlMin as number) <= NDL_UNLIMITED_MINUTES &&
+    candidate.ndlDroppedBelowFiveMinutes === (minNdlMin as number) < 5
+  );
+}
+
+/**
+ * The log a legacy save carries (src/game-loop.js saveDiveState): its
+ * diveEvents in minutes, minNdlSeen (null for none), ndlDroppedBelow5 and
+ * ascentRate. Of the event kinds, the two this log records are kept;
+ * safetyStopSkipped is only ever pushed at the surface, after legacy has
+ * stopped saving, and drillOutcome belongs to drills, which the migration
+ * client does not have. The debounce accumulators are not saved by legacy
+ * either, so a resumed window starts over, as it does there.
+ */
+/** The lowest NDL a legacy ndlDroppedBelow5 without minNdlSeen implies. */
+const LEGACY_FLAG_ONLY_MIN_NDL = 4;
+
+function migrateLegacyLog(candidate: Record<string, unknown>): DiveLog {
+  const events = Array.isArray(candidate.diveEvents) ? candidate.diveEvents : [];
+  const entries: DiveLogEntry[] = [];
+  for (const event of events as unknown[]) {
+    if (
+      isRecord(event) &&
+      (event.kind === "fastAscent" || event.kind === "ceilingViolation") &&
+      isNonNegativeFinite(event.t) &&
+      Number.isFinite(event.value)
+    ) {
+      entries.push({
+        kind: event.kind === "fastAscent" ? "fast-ascent" : "ceiling-violation",
+        elapsedTimeS: ((event.t as number) * 60) as DiveLogEntry["elapsedTimeS"],
+        value: event.value as number,
+      });
+    }
+  }
+  // Legacy sets minNdlSeen and ndlDroppedBelow5 on the same frame, so the
+  // pair agrees in any save that has both. A save from before minNdlSeen was
+  // added carries only the flag; it keeps it, since the flag picks the long
+  // safety stop, with the highest lowest-NDL it implies, 4 minutes.
+  const savedMinimum =
+    Number.isInteger(candidate.minNdlSeen) &&
+    (candidate.minNdlSeen as number) >= 0 &&
+    (candidate.minNdlSeen as number) <= NDL_UNLIMITED_MINUTES
+      ? (candidate.minNdlSeen as number)
+      : null;
+  const minNdlMin =
+    candidate.ndlDroppedBelow5 === true && (savedMinimum === null || savedMinimum >= 5)
+      ? LEGACY_FLAG_ONLY_MIN_NDL
+      : savedMinimum;
+  return {
+    ...createEmptyDiveLog(),
+    entries,
+    ascentRateMpm: Number.isFinite(candidate.ascentRate)
+      ? (candidate.ascentRate as number)
+      : 0,
+    minNdlMin,
+    ndlDroppedBelowFiveMinutes: minNdlMin !== null && minNdlMin < 5,
+  };
 }
 
 function isTankState(candidate: unknown): candidate is TankState {

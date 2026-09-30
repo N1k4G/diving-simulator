@@ -132,6 +132,8 @@ export class GameController {
     this.#plannerSettings = options.plannerSettings ?? DEFAULT_PLANNER_SETTINGS;
     this.#model = new DiveModel(
       withinRoute(options.initialState ?? createWreckInitialState()),
+      // The log's ceiling and NDL at the dive's GF high, as the forecast.
+      { gradientFactorHighPercent: this.#plannerSettings.gfHighPercent },
     );
   }
 
