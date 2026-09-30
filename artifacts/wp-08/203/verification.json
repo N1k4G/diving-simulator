@@ -1,0 +1,47 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 203,
+  "slice": "TC-32-BAD-AIR-TRIGGER-UNCHANGED: the two boundary cases evaluate the trigger at a fixed position instead of through physics frames",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "3335f1996334f16101591a585341e4874101ef4d",
+  "measuredTree": "92f8fd89d6099fd6e98234c60c7387fee9ad5700",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-09-30T21:33:28Z",
+  "runFinishedAt": "2026-09-30T21:40:29Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "The full run above is on 3335f19, the change on top of 44f2cda. It was then rebased onto f78aa90 (main after #204) as 5bd6690, with the same one-file change to src/diving-simulator-tests.html; on 5bd6690, tests/game.spec.js passed 3 of 3 and tests/baseline.spec.js 6 of 6 (rebasedChecks). The PR's CI runs the full verify on the rebased head.",
+  "rebasedChecks": {
+    "commit": "5bd66909d43bfa512b170420fc5794bef71af880",
+    "tree": "0fd534cede0f42becc282d65f0629e217f32e06f",
+    "recordedAt": "2026-09-30T21:41:01Z",
+    "runFinishedAt": "2026-09-30T21:42:09Z",
+    "results": {
+      "gameSpec": "3 of 3 passed",
+      "baselineSpec": "6 passed"
+    }
+  },
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "337 passed (unchanged)",
+    "parity": "69 passed (unchanged)",
+    "e2e": "142 passed in 4.3 min (unchanged)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "cause": "Case 4 set api.diverX = 103, exactly the pocket's x1, then ran two physics frames (runFrames(2, 0.033, 12)) before asserting. updateDiving() moves the diver horizontally; leftover horizontalVelocity or the harness's unseeded Math.random could leave the diver just left of x1, where the warning is correctly off. Observed on 2026-09-30: 2 failures in 9 runs on a branch whose only legacy change did not run in this case.",
+  "fix": "Cases 4 and 5 (the edges) set the position and depth and call iframe.contentWindow.updateOverheadState(0). src/physics.js updateOverheadState() sets inOverhead, silt visibility (unchanged with dt 0) and badAirWarning from badAirAt(diverX) and depth, so the assertion now tests the trigger alone. Cases 1 to 3 still run through the frames. The test's ID and name, which docs/baseline/test-inventory.json lists, are unchanged.",
+  "repeatRuns": "tests/game.spec.js: 6 of 6 passed on the change before the rebase, 3 of 3 after."
+}
