@@ -1,15 +1,15 @@
 {
   "schema": "issue-evidence/1",
   "issue": 199,
-  "slice": "Slice 2a: the dive log in the core (ascent rate, fast-ascent and ceiling-violation entries, minimum NDL, ndlDroppedBelow5); save v7",
+  "slice": "Slice 2a: the dive log in the core (ascent rate, fast-ascent and ceiling-violation entries, minimum NDL, ndlDroppedBelow5); save v7; checkpoint continuation state",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "13ef99bcd7af85de66dc948274f741d019b7bbea",
-  "measuredTree": "71027c2c28c5a49a72d47c145515e5bd96b82d86",
+  "measuredCommit": "0e5aec78731ed3990e2f07c6b3d075ad52adaad0",
+  "measuredTree": "ba5aaefbfdac3493aa36246a89dc720aba0c23c1",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-09-30T15:46:23Z",
-  "runFinishedAt": "2026-09-30T15:51:10Z",
+  "recordedAt": "2026-09-30T16:19:18Z",
+  "runFinishedAt": "2026-09-30T16:24:09Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "The full run above is on 13ef99b. The only later commit adds this file, so src, tests and scripts are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "The full run executed on 0db12af, whose message was then corrected (a wrong commit reference) without touching the tree: 0e5aec7 has the same tree, ba5aaef. The only later commit updates this file, so src, tests and scripts are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -25,9 +25,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "331 passed (316 on main, +9 in tests/unit/dive-log.test.ts, +5 in tests/unit/save-game.test.ts, +1 in tests/unit/game-controller-buoyancy.test.ts)",
-    "parity": "67 passed (62 on main, +5 in tests/parity/dive-log.test.ts)",
-    "e2e": "142 passed in 3.4 min (unchanged)",
+    "unit": "334 passed (316 on main, +11 in tests/unit/dive-log.test.ts, +6 in tests/unit/save-game.test.ts, +1 in tests/unit/game-controller-buoyancy.test.ts)",
+    "parity": "69 passed (62 on main, +7 in tests/parity/dive-log.test.ts)",
+    "e2e": "142 passed in 3.5 min (unchanged)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -36,11 +36,13 @@
     "constants": "FAST_ASCENT_RATE 9 m/min, FAST_ASCENT_EVENT_SEC 2, CEILING_VIOLATION_TOL_M 0.3, CEILING_VIOLATION_EVENT_SEC 2 (src/constants.js:125-128); NDL tracked while depth > 0.5; ndlDroppedBelow5 when NDL < 5.",
     "latches": "Legacy sets the accumulator to -Infinity after an entry and resets it when the condition lapses; the log keeps fastAscentLatched / ceilingViolationLatched instead, which a JSON save can hold.",
     "gas": "calculateNDL(): CCR and not bailed out -> getCCRInspiredGas(depth, targetSP); otherwise activeGas(). decompressionGas() in src/core/dive-model.ts, now also the planner's forecast gas.",
-    "notCompared": "The scripted scenarios set the depth before each tick (scripts/baseline-scenarios.cjs updateAtDepth), so legacy's ascentRate there is measured against the target (about 8.8 m/min on the air ascent); a replay of their trajectories would log fast ascents legacy never recorded. Entries are compared on the two buoyancy scenarios only."
+    "notCompared": "The scripted scenarios set the depth before each tick (scripts/baseline-scenarios.cjs updateAtDepth), so legacy's ascentRate there is measured against the target (about 8.8 m/min on the air ascent); a replay of their trajectories would log fast ascents legacy never recorded. Entries are compared on the two buoyancy scenarios only.",
+    "failureOrder": "updateCCR() detects CCR hypoxia, hyperoxia and CO2 and returns from updateDiving() before the 'Issue #44' capture; out of gas, O2 toxicity, OC hypoxia and the others are checked after it. ascentRate is computed with the physics, before either. The model settles the failure first, skips the log for the three rebreather reasons (moving only the ascent rate), and logs otherwise."
   },
   "parity": {
     "fastAscent": "buoyancy-vent-inflate-12m: one entry from coasting-30s on, t 0.7725 min, peak 10.011 m/min; buoyancy-ccr-inflate-12m: one entry at rising-8s, t 0.0917 min, peak 12.726 m/min. Kind, time and value within 1e-9 at every checkpoint.",
-    "ndlDroppedBelow5": "Every buoyancy checkpoint (false) and the air, trimix and CCR bottoms (true), with the breathed gas given as tests/parity/tissue-model.test.ts gives it; no entries on those bottoms."
+    "ndlDroppedBelow5": "Every buoyancy checkpoint (false) and the air, trimix and CCR bottoms (true), with the breathed gas given as tests/parity/tissue-model.test.ts gives it; no entries on those bottoms.",
+    "continuation": "At every checkpoint of both buoyancy scenarios and the three bottoms: ascent rate (1e-9), lowest NDL (exact), each window's latch (null in the fixture) and, when not latched, its length (1e-9), and the fast-ascent peak (1e-9). Mid-dive: from coasting-30s (latched) through vented-3s-10fps, one entry only; from air-18m-30min/bottom-30min, the lowest NDL of 3 is carried up."
   },
   "counterChecks": {
     "method": "Each revert was applied to src/core/dive-model.ts (or src/app/game-controller.ts) from a backup copy, the dive-log unit and parity tests (or the controller tests) were run, and the file was restored from the backup.",
@@ -72,12 +74,39 @@
       {
         "revert": "controller not passing the GF high to the model",
         "result": "1 failed: the controller GF test"
+      },
+      {
+        "revert": "adapter ignoring state.debrief",
+        "result": "2 failed: the mid-dive latched replay and the carried lowest NDL"
+      },
+      {
+        "revert": "log written on a rebreather failure step",
+        "result": "1 failed: the rebreather failure-step test"
+      },
+      {
+        "revert": "ascent rate frozen on a rebreather failure step",
+        "result": "1 failed: the rebreather failure-step test"
+      },
+      {
+        "revert": "save accepting an unlatched full window",
+        "result": "1 failed: the invalid-log test"
       }
     ]
   },
   "durableProvenance": {
-    "src": "29ce4f08b58a48ef43831c68ca6342d437c40a92",
-    "tests": "8240c6c2357fdfbc1c711b297bca2addc69d7d8e",
+    "src": "9655713e95225a097a4fd59ec090d5622bff3e65",
+    "tests": "1308cb24a3fe3b78a417cae82ca74a4513753827",
     "scripts": "c476b541b5fbfcff2290caf1f5d9966aef83407a"
+  },
+  "earlierRuns": [
+    "A full run on 13ef99b passed (331 unit, 67 parity, 142 e2e). Codex round 1 then found: checkpoints did not carry the log's continuation state; the step a rebreather failure ends the dive on was logged; in-dive controls act one frame early (deferred to #202); and saves accepted impossible logs. 5864172 adds state.debrief to captureBaselineCheckpoint(); 0e5aec7 fixes the rest; the run above is on that tree."
+  ],
+  "fixtureRegeneration": {
+    "command": "npm run baseline:generate, from 5864172",
+    "legacyChange": "src/game-loop.js captureBaselineCheckpoint() gains state.debrief: ascentRate_mpm, minNdlSeen_min, fastAscentAccum_s, fastAscentPeak_mpm, ceilingViolationAccum_s; non-finite values (a fired window's -Infinity, minNdlSeen's Infinity) recorded as null through _baselineFinite.",
+    "additiveCheck": "All eight scenarios are identical to the fixture before regeneration once state.debrief is removed; every checkpoint carries it; the header differs only in referenceCommit."
+  },
+  "deferred": {
+    "controlsTiming": "In-dive switches, setpoint changes and bailout act between frames, one frame before legacy applies them (after the frame's tissues and frameCalc), for the tissues as well as the log's NDL. From #163; tracked in #202."
   }
 }
