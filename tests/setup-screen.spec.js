@@ -93,7 +93,12 @@ test('keyboard and pointer reach the same configuration and the same dive', asyn
 
   expect(pointerOxygen).toBe(keyboardOxygen);
   expect(pointerPressure).toBe(keyboardPressure);
-  expect(pointerGas).toBe(keyboardGas);
+  // The same cylinder, read from the HUD. The model now advances every
+  // display frame (#192), so the diver has breathed for however many frames
+  // ran before each read: a tenth of a bar either way, not the same string.
+  const bar = (text) => Number.parseFloat((text ?? '').replace(',', '.'));
+  expect(Math.abs(bar(pointerGas) - bar(keyboardGas))).toBeLessThanOrEqual(0.5);
+  expect(bar(keyboardGas)).toBeGreaterThan(209);
 
   // And the values are the configured ones, not merely equal to each other:
   // two broken paths agreeing on a default would satisfy the three above.
