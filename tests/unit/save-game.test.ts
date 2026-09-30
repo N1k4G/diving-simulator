@@ -372,6 +372,8 @@ describe("SaveGame gradient factors", () => {
         ["entries out of order", (log) => { (log.entries as Record<string, unknown>[])[1]!.elapsedTimeS = 300; }],
         ["a fractional NDL", (log) => { log.minNdlMin = 4.5; }],
         ["an NDL below five without the latch", (log) => { log.ndlDroppedBelowFiveMinutes = false; }],
+        ["the latch with no NDL seen", (log) => { log.minNdlMin = null; }],
+        ["the latch with an NDL of five or more", (log) => { log.minNdlMin = 5; }],
         ["a window under way at a slow rate", (log) => { log.ascentRateMpm = 4.5; }],
         ["a peak below the step's rate", (log) => { log.fastAscentPeakMpm = 10; }],
         ["a latched fast ascent with no entry", (log) => {
@@ -471,7 +473,7 @@ describe("SaveGame gradient factors", () => {
       expect(decoded.ok).toBe(true);
     });
 
-    it("keeps a legacy save whose lowest NDL is below five but predates the flag", () => {
+    it("keeps a legacy save whose lowest NDL is below five without the flag", () => {
       const older: Record<string, unknown> = { ...legacyV2Save(), minNdlSeen: 3 };
       delete older.ndlDroppedBelow5;
       const result = decodeSaveGame(JSON.stringify(older));
@@ -479,6 +481,16 @@ describe("SaveGame gradient factors", () => {
       if (!result.ok) return;
       expect(result.saveGame.state.log.minNdlMin).toBe(3);
       expect(result.saveGame.state.log.ndlDroppedBelowFiveMinutes).toBe(true);
+    });
+
+    it("keeps the flag of a legacy save that predates minNdlSeen, at the 4 minutes it implies", () => {
+      const older: Record<string, unknown> = { ...legacyV2Save(), ndlDroppedBelow5: true };
+      delete older.minNdlSeen;
+      const result = decodeSaveGame(JSON.stringify(older));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.saveGame.state.log.ndlDroppedBelowFiveMinutes).toBe(true);
+      expect(result.saveGame.state.log.minNdlMin).toBe(4);
     });
 
     it("reads legacy's null minNdlSeen as no NDL seen yet", () => {

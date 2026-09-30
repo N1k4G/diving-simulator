@@ -698,15 +698,18 @@ function isDiveLog(candidate: unknown, context: DiveLogContext): candidate is Di
   ) {
     return false;
   }
+  // The model sets the below-five latch on the step it records a lowest NDL
+  // below five, and the lowest NDL never rises again: the two agree exactly
+  // (#201 Codex round 2).
   const minNdlMin = candidate.minNdlMin;
   if (minNdlMin === null) {
-    return true;
+    return candidate.ndlDroppedBelowFiveMinutes === false;
   }
   return (
     Number.isInteger(minNdlMin) &&
     (minNdlMin as number) >= 0 &&
     (minNdlMin as number) <= NDL_UNLIMITED_MINUTES &&
-    ((minNdlMin as number) >= 5 || candidate.ndlDroppedBelowFiveMinutes)
+    candidate.ndlDroppedBelowFiveMinutes === (minNdlMin as number) < 5
   );
 }
 
@@ -719,6 +722,9 @@ function isDiveLog(candidate: unknown, context: DiveLogContext): candidate is Di
  * client does not have. The debounce accumulators are not saved by legacy
  * either, so a resumed window starts over, as it does there.
  */
+/** The lowest NDL a legacy ndlDroppedBelow5 without minNdlSeen implies. */
+const LEGACY_FLAG_ONLY_MIN_NDL = 4;
+
 function migrateLegacyLog(candidate: Record<string, unknown>): DiveLog {
   const events = Array.isArray(candidate.diveEvents) ? candidate.diveEvents : [];
   const entries: DiveLogEntry[] = [];
@@ -736,12 +742,20 @@ function migrateLegacyLog(candidate: Record<string, unknown>): DiveLog {
       });
     }
   }
-  const minNdlMin =
+  // Legacy sets minNdlSeen and ndlDroppedBelow5 on the same frame, so the
+  // pair agrees in any save that has both. A save from before minNdlSeen was
+  // added carries only the flag; it keeps it, since the flag picks the long
+  // safety stop, with the highest lowest-NDL it implies, 4 minutes.
+  const savedMinimum =
     Number.isInteger(candidate.minNdlSeen) &&
     (candidate.minNdlSeen as number) >= 0 &&
     (candidate.minNdlSeen as number) <= NDL_UNLIMITED_MINUTES
       ? (candidate.minNdlSeen as number)
       : null;
+  const minNdlMin =
+    candidate.ndlDroppedBelow5 === true && (savedMinimum === null || savedMinimum >= 5)
+      ? LEGACY_FLAG_ONLY_MIN_NDL
+      : savedMinimum;
   return {
     ...createEmptyDiveLog(),
     entries,
@@ -749,10 +763,7 @@ function migrateLegacyLog(candidate: Record<string, unknown>): DiveLog {
       ? (candidate.ascentRate as number)
       : 0,
     minNdlMin,
-    // Set with the lowest NDL on the same step, so a legacy save that has one
-    // below five but predates the flag still carries a consistent pair.
-    ndlDroppedBelowFiveMinutes:
-      candidate.ndlDroppedBelow5 === true || (minNdlMin !== null && minNdlMin < 5),
+    ndlDroppedBelowFiveMinutes: minNdlMin !== null && minNdlMin < 5,
   };
 }
 
