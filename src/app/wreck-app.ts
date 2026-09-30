@@ -35,6 +35,9 @@ import {
 import { renderSetupScreen } from "./setup/setup-screen";
 import { renderGameOverScreen } from "./game-over";
 import { siteGameplay } from "../sites/site-resources";
+
+/** src/game-loop.js SAVE_INTERVAL_MS: an autosave at most every 3 real seconds. */
+const SAVE_INTERVAL_MS = 3000;
 import { createGasInfo, syncGasInfo, type GasInfoElements } from "./gas-info";
 import {
   gasInfoAvailable,
@@ -294,7 +297,11 @@ async function startWreckSimulation(
   // The mode travels like the gradient factors: from the save when the dive
   // is resumed, from the setup screen when it is new (#185 review).
   const diveMode: DiveMode = resumed ? resumed.diveMode : setup.mode;
-  let nextSaveAtS = 5;
+  // Legacy saves every 3 real seconds (src/game-loop.js SAVE_INTERVAL_MS).
+  // Counting dive seconds instead saved every 0.17 real seconds under
+  // fast-forward, and the save now carries the depth profile (#204
+  // pre-review).
+  let lastSaveMs = performance.now();
   let gasInfoPage: GasInfoPage | null = null;
   let lastPresentation: PresentationState | null = null;
   // Set when the dive ends in a failure. From then on nothing is saved: legacy
@@ -316,9 +323,10 @@ async function startWreckSimulation(
       if (gameOver) {
         return;
       }
-      if (state.elapsedTimeS >= nextSaveAtS) {
+      const nowMs = performance.now();
+      if (nowMs - lastSaveMs > SAVE_INTERVAL_MS) {
         saveState(repository, state, plannerSettings, diveMode);
-        nextSaveAtS = state.elapsedTimeS + 5;
+        lastSaveMs = nowMs;
       }
     },
     onFrame: (frame) => {

@@ -3,6 +3,7 @@ import {
   freezeDiveState,
   type DiveLog,
   type DiveLogEntry,
+  type DiveProfileSample,
   type CcrState,
   type DiveEvent,
   type DiveFailureReason,
@@ -18,6 +19,8 @@ import {
   FAILURES_BEFORE_THE_LOG,
   FAST_ASCENT_RATE_MPM,
   FAST_ASCENT_WINDOW_S,
+  PROFILE_SAMPLE_INTERVAL_S,
+  SUBMERGED_DEPTH_M,
 } from "../core/dive-model";
 import {
   DEFAULT_GF_HIGH_PERCENT,
@@ -61,7 +64,15 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // v7 adds state.log, the dive log (#199). Older saves never recorded one and
 // resume with an empty log: no entries, no NDL seen yet. Legacy saves carry
 // diveEvents, minNdlSeen, ndlDroppedBelow5 and ascentRate, and keep them.
-export const CURRENT_SAVE_GAME_VERSION = 7;
+//
+// v8 adds the average depth's sums, the depth profile, its sampler's timer
+// and the last step's ceiling to state.log (#199). A v7 save keeps its log
+// and resumes these at zero with an empty profile, as does every older one.
+// Legacy saves carry avgDepthAccum, avgDepthSamples and diveProfile, and
+// keep them; legacy does not save the sampler's timer or frameCalc, which it
+// restores at zero, and so does this.
+export const CURRENT_SAVE_GAME_VERSION = 8;
+export const SEVENTH_SAVE_GAME_VERSION = 7;
 export const SIXTH_SAVE_GAME_VERSION = 6;
 export const FIFTH_SAVE_GAME_VERSION = 5;
 export const FOURTH_SAVE_GAME_VERSION = 4;
@@ -120,6 +131,7 @@ export type SaveGameMigration =
   | "save-game-v4"
   | "save-game-v5"
   | "save-game-v6"
+  | "save-game-v7"
   | null;
 
 /**
@@ -225,6 +237,7 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
 
   if (candidate.schema === SAVE_GAME_SCHEMA) {
     const isCurrent = candidate.version === CURRENT_SAVE_GAME_VERSION;
+    const isSeventh = candidate.version === SEVENTH_SAVE_GAME_VERSION;
     const isSixth = candidate.version === SIXTH_SAVE_GAME_VERSION;
     const isFifth = candidate.version === FIFTH_SAVE_GAME_VERSION;
     const isFourth = candidate.version === FOURTH_SAVE_GAME_VERSION;
@@ -234,6 +247,7 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     if (
       !Number.isInteger(candidate.version) ||
       (!isCurrent &&
+        !isSeventh &&
         !isSixth &&
         !isFifth &&
         !isFourth &&
@@ -251,11 +265,26 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     // Before v6 the state's vertical motion was not live (none before v5,
     // untouched defaults in v5): resume at rest, BCD neutral at the saved
     // depth. Unconditionally, like the CNS reset.
-    // Before v7 there was no dive log: resume with an empty one.
-    if (!isCurrent && isRecord(candidate.state)) {
+    // Before v7 there was no dive log: resume with an empty one. A v7 log
+    // resumes the fields v8 added at zero, with an empty profile.
+    if (!isCurrent && !isSeventh && isRecord(candidate.state)) {
       candidate.state = { ...candidate.state, log: createEmptyDiveLog() };
     }
-    if (!isCurrent && !isSixth && isRecord(candidate.state)) {
+    if (isSeventh && isRecord(candidate.state) && isRecord(candidate.state.log)) {
+      const empty = createEmptyDiveLog();
+      candidate.state = {
+        ...candidate.state,
+        log: {
+          ...candidate.state.log,
+          depthTimeMS: empty.depthTimeMS,
+          submergedS: empty.submergedS,
+          profile: empty.profile,
+          profileTimerS: empty.profileTimerS,
+          lastCeilingM: empty.lastCeilingM,
+        },
+      };
+    }
+    if (!isCurrent && !isSeventh && !isSixth && isRecord(candidate.state)) {
       const savedDepth = isNonNegativeFinite(candidate.state.depthM)
         ? (candidate.state.depthM as number)
         : 0;
@@ -267,6 +296,7 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     }
     if (
       !isCurrent &&
+      !isSeventh &&
       !isSixth &&
       !isFifth &&
       !isFourth &&
@@ -291,16 +321,17 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     ) {
       return { ok: false, reason: "invalid-data" };
     }
-    // Likewise a v3 to v7 payload must carry a mode consistent with its
+    // Likewise a v3 to v8 payload must carry a mode consistent with its
     // state; only saves from before the field existed are inferred.
     if (
-      (isCurrent || isSixth || isFifth || isFourth || isThird) &&
+      (isCurrent || isSeventh || isSixth || isFifth || isFourth || isThird) &&
       !isConsistentDiveMode(candidate.diveMode, candidate.state)
     ) {
       return { ok: false, reason: "invalid-data" };
     }
     const gradientFactors = savedFactors;
-    const diveMode = isCurrent || isSixth || isFifth || isFourth || isThird
+    const diveMode =
+      isCurrent || isSeventh || isSixth || isFifth || isFourth || isThird
       ? (candidate.diveMode as SavedDiveMode)
       : inferDiveMode(candidate.state);
 
@@ -314,7 +345,9 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
       ),
       migratedFrom: isCurrent
         ? null
-        : isSixth
+        : isSeventh
+          ? "save-game-v7"
+          : isSixth
           ? "save-game-v6"
           : isFifth
           ? "save-game-v5"
@@ -582,6 +615,7 @@ function isDiveState(
     isDiveLog(candidate.log, {
       elapsedTimeS: candidate.elapsedTimeS as number,
       depthM: candidate.depthM as number,
+      maxDepthM: candidate.maxDepthM as number,
       ceilingM: ceilingDepthM(
         candidate.tissues as unknown as DiveState["tissues"],
         gradientFactorHighPercent / 100,
@@ -601,10 +635,63 @@ function isDiveState(
  * NDL, and the below-five latch set whenever the lowest NDL is below five,
  * since the model sets both on the same step.
  */
+/**
+ * Two sums the model and legacy accumulate differently may disagree by
+ * rounding: legacy counts the dive clock in minutes and the average depth's
+ * time in seconds.
+ */
+const SUM_ROUNDING_S = 1e-6;
+
+/**
+ * The log's motion record (#199 slice 2b): average-depth sums a dive of this
+ * length and depth can reach, profile samples in order within the dive and
+ * its deepest point, a sampler timer short of the next sample, and a
+ * non-negative last ceiling. The sampler is not required to account for the
+ * whole dive: saves from before v8 and legacy saves resume it at zero with
+ * the profile they had, as legacy does.
+ */
+function isMotionRecord(log: Record<string, unknown>, context: DiveLogContext): boolean {
+  if (
+    !isNonNegativeFinite(log.depthTimeMS) ||
+    !isNonNegativeFinite(log.submergedS) ||
+    (log.submergedS as number) > context.elapsedTimeS + SUM_ROUNDING_S ||
+    (log.depthTimeMS as number) >
+      context.maxDepthM * (log.submergedS as number) * (1 + 1e-9) + SUM_ROUNDING_S ||
+    // Every counted second is deeper than 0.5 m (#204 Codex round 1): no
+    // sum without time, and at least half the time in metre-seconds.
+    ((log.submergedS as number) === 0 && (log.depthTimeMS as number) !== 0) ||
+    (log.depthTimeMS as number) <
+      SUBMERGED_DEPTH_M * (log.submergedS as number) * (1 - 1e-9) - SUM_ROUNDING_S ||
+    !isNonNegativeFinite(log.profileTimerS) ||
+    (log.profileTimerS as number) >= PROFILE_SAMPLE_INTERVAL_S ||
+    !isNonNegativeFinite(log.lastCeilingM) ||
+    !Array.isArray(log.profile)
+  ) {
+    return false;
+  }
+  let previousS = 0;
+  for (const sample of log.profile as unknown[]) {
+    if (
+      !isRecord(sample) ||
+      !isNonNegativeFinite(sample.elapsedTimeS) ||
+      (sample.elapsedTimeS as number) < previousS ||
+      (sample.elapsedTimeS as number) > context.elapsedTimeS ||
+      !isNonNegativeFinite(sample.depthM) ||
+      (sample.depthM as number) > context.maxDepthM ||
+      !isNonNegativeFinite(sample.ceilingM)
+    ) {
+      return false;
+    }
+    previousS = sample.elapsedTimeS as number;
+  }
+  return true;
+}
+
 /** What a saved log is checked against, from the rest of the saved state. */
 interface DiveLogContext {
   readonly elapsedTimeS: number;
   readonly depthM: number;
+  readonly maxDepthM: number;
   /** The ceiling the saved tissues give at the save's GF high. */
   readonly ceilingM: number;
   readonly failureReason: DiveFailureReason | null;
@@ -621,7 +708,8 @@ function isDiveLog(candidate: unknown, context: DiveLogContext): candidate is Di
     typeof candidate.fastAscentLatched !== "boolean" ||
     !isNonNegativeFinite(candidate.ceilingViolationS) ||
     typeof candidate.ceilingViolationLatched !== "boolean" ||
-    typeof candidate.ndlDroppedBelowFiveMinutes !== "boolean"
+    typeof candidate.ndlDroppedBelowFiveMinutes !== "boolean" ||
+    !isMotionRecord(candidate, context)
   ) {
     return false;
   }
@@ -756,6 +844,21 @@ function migrateLegacyLog(candidate: Record<string, unknown>): DiveLog {
     candidate.ndlDroppedBelow5 === true && (savedMinimum === null || savedMinimum >= 5)
       ? LEGACY_FLAG_ONLY_MIN_NDL
       : savedMinimum;
+  const profile: DiveProfileSample[] = [];
+  for (const sample of Array.isArray(candidate.diveProfile) ? (candidate.diveProfile as unknown[]) : []) {
+    if (
+      isRecord(sample) &&
+      isNonNegativeFinite(sample.t) &&
+      isNonNegativeFinite(sample.depth) &&
+      isNonNegativeFinite(sample.ceiling)
+    ) {
+      profile.push({
+        elapsedTimeS: ((sample.t as number) * 60) as DiveProfileSample["elapsedTimeS"],
+        depthM: sample.depth as DiveProfileSample["depthM"],
+        ceilingM: sample.ceiling as DiveProfileSample["ceilingM"],
+      });
+    }
+  }
   return {
     ...createEmptyDiveLog(),
     entries,
@@ -764,6 +867,13 @@ function migrateLegacyLog(candidate: Record<string, unknown>): DiveLog {
       : 0,
     minNdlMin,
     ndlDroppedBelowFiveMinutes: minNdlMin !== null && minNdlMin < 5,
+    depthTimeMS: isNonNegativeFinite(candidate.avgDepthAccum)
+      ? (candidate.avgDepthAccum as number)
+      : 0,
+    submergedS: (isNonNegativeFinite(candidate.avgDepthSamples)
+      ? (candidate.avgDepthSamples as number)
+      : 0) as DiveLog["submergedS"],
+    profile,
   };
 }
 

@@ -163,6 +163,12 @@ test('baseline: generated contracts are complete and internally consistent', asy
         Array.isArray(checkpoint.trajectory),
         `${scenario.scenarioId}/${checkpoint.checkpointId} has no trajectory`
       ).toBe(true);
+      // #199: likewise the profile samples, which the pure suite replays
+      // the dive log's profile against.
+      expect(
+        Array.isArray(checkpoint.profile),
+        `${scenario.scenarioId}/${checkpoint.checkpointId} has no profile`
+      ).toBe(true);
       for (const step of checkpoint.trajectory) {
         expect(Number.isFinite(step.depth_m)).toBe(true);
         expect(step.depth_m).toBeGreaterThanOrEqual(0);

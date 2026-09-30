@@ -102,6 +102,16 @@ export interface DiveLogEntry {
 }
 
 /**
+ * One point of the depth profile (#199), legacy's diveProfile entry: taken
+ * every 2 dive seconds, with the ceiling of the step before it.
+ */
+export interface DiveProfileSample {
+  elapsedTimeS: Seconds;
+  depthM: Metres;
+  ceilingM: Metres;
+}
+
+/**
  * The dive log (#199): what legacy's updateDiving() keeps every frame for
  * the post-dive debriefing and gradeDive(), beyond the dive state itself.
  */
@@ -123,6 +133,21 @@ export interface DiveLog {
   minNdlMin: number | null;
   /** Legacy's ndlDroppedBelow5, latched for the dive. */
   ndlDroppedBelowFiveMinutes: boolean;
+  /**
+   * The time-weighted average depth's sums, legacy's avgDepthAccum (depth
+   * times dive seconds) and avgDepthSamples (dive seconds), both counted
+   * only deeper than 0.5 m. The average is their quotient.
+   */
+  depthTimeMS: number;
+  submergedS: Seconds;
+  /** The depth profile, and the dive time since its last sample. */
+  profile: readonly DiveProfileSample[];
+  profileTimerS: Seconds;
+  /**
+   * The ceiling of the last step, which the next profile sample records:
+   * legacy samples before it refreshes frameCalc.
+   */
+  lastCeilingM: Metres;
 }
 
 export function createEmptyDiveLog(): DiveLog {
@@ -136,6 +161,11 @@ export function createEmptyDiveLog(): DiveLog {
     ceilingViolationLatched: false,
     minNdlMin: null,
     ndlDroppedBelowFiveMinutes: false,
+    depthTimeMS: 0,
+    submergedS: seconds(0),
+    profile: [],
+    profileTimerS: seconds(0),
+    lastCeilingM: metres(0),
   };
 }
 
@@ -305,6 +335,22 @@ export function createInitialDiveState(
   });
 }
 
+/**
+ * The log lists freezeDiveState() itself has built, each element frozen
+ * with it. Only these are reused: a frozen array from elsewhere may still
+ * hold mutable elements (#204 Codex round 1).
+ */
+const frozenLogLists = new WeakSet<readonly object[]>();
+
+function freezeLogList<T extends object>(list: readonly T[]): readonly T[] {
+  if (frozenLogLists.has(list)) {
+    return list;
+  }
+  const frozen = Object.freeze(list.map((item) => Object.freeze({ ...item })));
+  frozenLogLists.add(frozen);
+  return frozen;
+}
+
 export function freezeDiveState(state: DiveState): DiveState {
   const tissues = Object.freeze({
     nitrogenBar: Object.freeze([...state.tissues.nitrogenBar]),
@@ -329,11 +375,15 @@ export function freezeDiveState(state: DiveState): DiveState {
   const events = Object.freeze(
     state.events.map((event) => Object.freeze({ ...event })),
   );
+  // The log's lists grow for the whole dive, so a list this function has
+  // already built is reused rather than copied: re-freezing the profile on
+  // every call made a frame's cost grow with the dive's length (#204
+  // pre-review). Any other list, a parsed save or a caller's own, is copied
+  // with its elements frozen.
   const log = Object.freeze({
     ...state.log,
-    entries: Object.freeze(
-      state.log.entries.map((entry) => Object.freeze({ ...entry })),
-    ),
+    entries: freezeLogList(state.log.entries),
+    profile: freezeLogList(state.log.profile),
   });
 
   return Object.freeze({ ...state, tissues, tanks, ccr, failure, events, log });

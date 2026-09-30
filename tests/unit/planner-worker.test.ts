@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import deployedHeaders from "../../src/_headers?raw";
 import { PlannerWorkerClient } from "../../src/app/planner-worker-client";
-import { createInitialDiveState } from "../../src/core/dive-state";
+import { createEmptyDiveLog, createInitialDiveState, freezeDiveState } from "../../src/core/dive-state";
+import { metres, seconds } from "../../src/core/units";
 import {
   DEFAULT_PLANNER_SETTINGS,
   type PlannerForecast,
@@ -60,6 +61,27 @@ class FakePlannerWorker {
 }
 
 describe("planner Worker boundary", () => {
+  it("leaves the dive log out of a forecast request", () => {
+    // The forecast reads nothing of the log, and its profile grows for the
+    // whole dive, so it is not cloned into the worker (#204 pre-review).
+    const base = createInitialDiveState(61);
+    const state = freezeDiveState({
+      ...base,
+      elapsedTimeS: seconds(3600),
+      log: {
+        ...base.log,
+        profile: Array.from({ length: 1800 }, (_, index) => ({
+          elapsedTimeS: seconds(index * 2),
+          depthM: metres(18),
+          ceilingM: metres(0),
+        })),
+      },
+    });
+    const request = createPlannerForecastRequest(8, state, DEFAULT_PLANNER_SETTINGS);
+    expect(request.state.log).toEqual(createEmptyDiveLog());
+    expect(request.state.tissues).toEqual(state.tissues);
+  });
+
   it("creates a copied typed request and returns a pure forecast", () => {
     const state = createInitialDiveState(60);
     const request = createPlannerForecastRequest(

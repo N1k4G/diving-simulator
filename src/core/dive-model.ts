@@ -14,6 +14,7 @@ import {
   type CcrState,
   type DiveEvent,
   type DiveFailureReason,
+  type DiveProfileSample,
   type DiveState,
   type GasMix,
 } from "./dive-state";
@@ -66,8 +67,10 @@ export const FAST_ASCENT_WINDOW_S = seconds(2);
 /** src/constants.js CEILING_VIOLATION_TOL_M and CEILING_VIOLATION_EVENT_SEC. */
 export const CEILING_VIOLATION_TOLERANCE_M = 0.3;
 export const CEILING_VIOLATION_WINDOW_S = seconds(2);
-/** Legacy tracks the NDL only while submerged: `depth > 0.5`. */
-const SUBMERGED_DEPTH_M = 0.5;
+/** Legacy tracks the NDL and the average depth only deeper than 0.5 m. */
+export const SUBMERGED_DEPTH_M = 0.5;
+/** src/game-loop.js: one depth profile sample every 2 dive seconds. */
+export const PROFILE_SAMPLE_INTERVAL_S = seconds(2);
 
 export interface DiveModelOptions {
   /** The dive's GF high, for the log's ceiling and NDL (#199). */
@@ -325,19 +328,58 @@ export function advanceDiveStep(
   // with the physics, before either, so it still moves on that step. The log
   // reads nothing the failure update changes, so applying it afterwards is
   // the same step.
+  const withMotion = recordMotion(settled, previousDepthM, elapsedS, limits);
   if (
     settled.failure.reason !== null &&
     FAILURES_BEFORE_THE_LOG.has(settled.failure.reason)
   ) {
-    return freezeDiveState({
-      ...settled,
-      log: {
-        ...settled.log,
-        ascentRateMpm: stepAscentRateMpm(settled, previousDepthM, elapsedS),
-      },
-    });
+    return withMotion;
   }
-  return updateDiveLog(settled, previousDepthM, elapsedS, limits);
+  return updateDiveLog(withMotion, elapsedS, limits);
+}
+
+/**
+ * What legacy records with the physics, before any check can end the dive:
+ * the ascent rate, the time-weighted average depth, and a depth profile
+ * sample for every 2 dive seconds the step crossed, each with the ceiling of
+ * the step before. Then the step's own ceiling, which frameCalc holds after
+ * updateTissues(), becomes the one the next sample records.
+ */
+function recordMotion(
+  state: DiveState,
+  previousDepthM: number,
+  elapsedS: Seconds,
+  limits: DecompressionLimits,
+): DiveState {
+  const log = state.log;
+  const submerged = state.depthM > SUBMERGED_DEPTH_M;
+  // Copied only on a step that samples, once per 2 dive seconds, not every
+  // frame (#204 pre-review).
+  let profile: readonly DiveProfileSample[] = log.profile;
+  let profileTimerS: number = log.profileTimerS + elapsedS;
+  while (profileTimerS >= PROFILE_SAMPLE_INTERVAL_S) {
+    profileTimerS -= PROFILE_SAMPLE_INTERVAL_S;
+    profile = [
+      ...profile,
+      {
+        elapsedTimeS: seconds(state.elapsedTimeS - profileTimerS),
+        depthM: state.depthM,
+        ceilingM: log.lastCeilingM,
+      },
+    ];
+  }
+  return freezeDiveState({
+    ...state,
+    log: {
+      ...log,
+      ascentRateMpm: stepAscentRateMpm(state, previousDepthM, elapsedS),
+      depthTimeMS: submerged ? log.depthTimeMS + state.depthM * elapsedS : log.depthTimeMS,
+      submergedS: submerged ? seconds(log.submergedS + elapsedS) : log.submergedS,
+      profile,
+      profileTimerS: seconds(profileTimerS),
+      lastCeilingM: metres(limits.ceilingM),
+    },
+  });
 }
 
 /** The failures legacy detects in updateCCR(), before the "Issue #44" capture. */
@@ -413,13 +455,12 @@ function stepAscentRateMpm(
  */
 function updateDiveLog(
   state: DiveState,
-  previousDepthM: number,
   elapsedS: Seconds,
   limits: DecompressionLimits,
 ): DiveState {
   const log = state.log;
   const entries = [...log.entries];
-  const ascentRateMpm = stepAscentRateMpm(state, previousDepthM, elapsedS);
+  const ascentRateMpm = log.ascentRateMpm;
 
   let { fastAscentS, fastAscentPeakMpm, fastAscentLatched } = log;
   if (ascentRateMpm > FAST_ASCENT_RATE_MPM) {
@@ -473,8 +514,8 @@ function updateDiveLog(
   return freezeDiveState({
     ...state,
     log: {
+      ...log,
       entries,
-      ascentRateMpm,
       fastAscentS,
       fastAscentPeakMpm,
       fastAscentLatched,

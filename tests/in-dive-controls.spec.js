@@ -564,6 +564,17 @@ test.describe('fast-forward', () => {
     await expect(fastForwardIndicator(page)).toBeHidden();
 
     const before = await persistedSave(page);
+    // Count the saves from here: legacy autosaves every 3 real seconds
+    // (SAVE_INTERVAL_MS), not every few dive seconds, which at 30x would
+    // write the whole save several times a second (#204 pre-review).
+    await page.evaluate((key) => {
+      window.__saveWrites = 0;
+      const setItem = window.localStorage.setItem.bind(window.localStorage);
+      window.localStorage.setItem = (name, value) => {
+        if (name === key) window.__saveWrites += 1;
+        setItem(name, value);
+      };
+    }, SAVE_KEY);
     await page.keyboard.press('f');
 
     await expect(fastForwardButton(page)).toHaveAttribute('aria-pressed', 'true');
@@ -584,6 +595,9 @@ test.describe('fast-forward', () => {
       [SAVE_KEY, before.state.elapsedTimeS],
       { timeout: 6_000 },
     );
+    // Sixty dive seconds at 30x take two real seconds: one autosave, two at
+    // most. Counting dive time, it would have been a dozen.
+    expect(await page.evaluate(() => window.__saveWrites)).toBeLessThanOrEqual(2);
 
     // And off again on the next press.
     await page.keyboard.press('f');

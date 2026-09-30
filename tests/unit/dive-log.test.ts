@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import baselineFixture from "../fixtures/traces/baseline-v1.json";
 import { ceilingDepthM, ndlMinutes } from "../../src/core/decompression";
-import { DiveModel } from "../../src/core/dive-model";
+import { DiveModel, advanceDiveStep } from "../../src/core/dive-model";
 import {
   createCcrState,
   createGasMix,
@@ -127,6 +127,8 @@ describe("the step a dive ends on", () => {
     expect(model.snapshot.log.entries).toEqual([]);
     expect(model.snapshot.log.fastAscentS).toBe(1.5);
     expect(model.snapshot.log.ascentRateMpm).toBeCloseTo(12, 9);
+    // What legacy records with the physics moves too: the average depth.
+    expect(model.snapshot.log.submergedS).toBe(1);
   });
 
   it("is logged when an open-circuit failure ends the dive on it", () => {
@@ -139,6 +141,70 @@ describe("the step a dive ends on", () => {
     stepThrough(model, [29.8]);
     expect(model.snapshot.failure.reason).toBe("hypoxia");
     expect(model.snapshot.log.entries.map((entry) => entry.kind)).toEqual(["fast-ascent"]);
+  });
+});
+
+describe("the average depth and the profile", () => {
+  it("averages the depth by time, and only deeper than 0.5 m", () => {
+    // Legacy TC-26-AVG-DEPTH-TIME-WEIGHTED: weighted by dive seconds, so a
+    // long step counts for its length, not as one sample.
+    const model = new DiveModel(diverAt(20));
+    model.advance({ depthM: metres(20) }, seconds(10));
+    model.advance({ depthM: metres(0.4) }, seconds(5));
+    model.advance({ depthM: metres(30) }, seconds(10));
+    expect(model.snapshot.log.submergedS).toBe(20);
+    expect(model.snapshot.log.depthTimeMS).toBeCloseTo(20 * 10 + 30 * 10, 9);
+  });
+
+  it("samples every 2 dive seconds, catching up across a long step", () => {
+    // Legacy TC-71-PROFILE-SAMPLE-CATCH-UP: after 1 s, a 7 s step crosses
+    // four sample times, each logged 2 s apart with the step's depth and the
+    // ceiling of the step before it.
+    const start = diverAt(18);
+    const before = advanceDiveStep(start, { depthM: metres(18) }, seconds(1));
+    const after = advanceDiveStep(before, { depthM: metres(20) }, seconds(7));
+    const samples = after.log.profile;
+    expect(samples.map((sample) => sample.elapsedTimeS)).toEqual([2, 4, 6, 8]);
+    expect(samples.every((sample) => sample.depthM === 20)).toBe(true);
+    expect(samples.every((sample) => sample.ceilingM === before.log.lastCeilingM)).toBe(true);
+    expect(after.log.profileTimerS).toBe(0);
+  });
+
+  it("reuses the profile on a step that takes no sample", () => {
+    // The profile grows for the whole dive; copying it every frame made a
+    // frame's cost grow with the dive's length (#204 pre-review).
+    const sampled = advanceDiveStep(diverAt(18), { depthM: metres(18) }, seconds(2));
+    expect(sampled.log.profile).toHaveLength(1);
+    const next = advanceDiveStep(sampled, { depthM: metres(18) }, seconds(0.05));
+    expect(next.log.profile).toBe(sampled.log.profile);
+    expect(freezeDiveState(next).log.profile).toBe(next.log.profile);
+    expect(Object.isFrozen(next.log.profile[0])).toBe(true);
+  });
+
+  it("copies a frozen list whose samples are not frozen (#204 Codex round 1)", () => {
+    const base = diverAt(18);
+    const sample = { elapsedTimeS: seconds(2), depthM: metres(18), ceilingM: metres(0) };
+    const frozenOutside = Object.freeze([sample]);
+    const state = freezeDiveState({ ...base, log: { ...base.log, profile: frozenOutside } });
+    expect(state.log.profile).not.toBe(frozenOutside);
+    expect(Object.isFrozen(state.log.profile[0])).toBe(true);
+    sample.depthM = metres(40);
+    expect(state.log.profile[0]?.depthM).toBe(18);
+  });
+
+  it("records the ceiling of the step before each sample", () => {
+    // Loaded tissues, so the ceiling moves from step to step.
+    const base = diverAt(20);
+    const loaded = freezeDiveState({
+      ...base,
+      tissues: { nitrogenBar: base.tissues.nitrogenBar.map(() => bars(3)), heliumBar: base.tissues.heliumBar },
+    });
+    const first = advanceDiveStep(loaded, { depthM: metres(20) }, seconds(1));
+    const second = advanceDiveStep(first, { depthM: metres(20) }, seconds(1));
+    expect(second.log.profile).toHaveLength(1);
+    expect(second.log.profile[0]?.ceilingM).toBe(first.log.lastCeilingM);
+    expect(second.log.lastCeilingM).toBe(ceilingDepthM(second.tissues, 0.75));
+    expect(second.log.lastCeilingM).not.toBe(first.log.lastCeilingM);
   });
 });
 
