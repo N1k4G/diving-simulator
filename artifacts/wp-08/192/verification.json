@@ -9,7 +9,7 @@
   "recordedAt": "2026-09-30T09:10:36Z",
   "runFinishedAt": "2026-09-30T09:49:54Z",
   "timestampProvenance": "date -u output printed around the runs; recordedAt is the start of the first full run on 13d58cd, runFinishedAt the end of the control run on main.",
-  "provenanceNote": "All runs are on 13d58cd. The only later commit updates this file, so src, tests and scripts are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "All runs are on 13d58cd. The later commits change only this file and docs/decisions.md (f97fcb4, the owner decision recording the DiveModel's two ways of advancing), so src, tests and scripts are identical to the measured tree (see durableProvenance). After f97fcb4, sites:check and the unit tests were rerun and passed; no check reads the new paragraph.",
   "earlierRuns": [
     "A first full run on a22b0ce, the same change before an amend, failed 2 Playwright tests in tests/in-dive-controls.spec.js that pinned the save at version 4 (expected 4, received 5). They now assert the version they rely on: at least v3 for the dive mode, at least v4 for CNS. Both passed alone (14 of 14 in the gas information group) and in the full run above.",
     "A full run on 7692e30 passed (298 unit, 56 parity, 139 e2e). The pre-review of #193, pass 1, then found that inflating from a diluent holding less than one step's draw could throw (p - (p * v) / v one ulp below zero). 8c42fed fixes it and adds a unit test that throws a RangeError without the fix; the run above is on that commit.",
