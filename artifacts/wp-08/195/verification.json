@@ -1,0 +1,63 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 195,
+  "slice": "The migration client's dive clock at legacy's 3x time acceleration, with fast-forward on top",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "e23c47d214dc606117ccef17c73674ad4516abb4",
+  "measuredTree": "1f1f7fe08d7ea0f1189144718a599d1f91406f77",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-09-30T11:17:06Z",
+  "runFinishedAt": "2026-09-30T11:22:49Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "The full run above is on e23c47d. The only later commit updates this file, so src, tests and scripts are identical to the measured tree (see durableProvenance).",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "302 passed (unchanged)",
+    "parity": "62 passed (unchanged)",
+    "e2e": "140 passed in 4.1 min (139 on main, +1 in tests/in-dive-controls.spec.js)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "boundsPortedFromTheOracle": {
+    "clock": "src/constants.js TIME_ACCELERATION = 3; src/game-loop.js updateDiving(): timeMultiplier = fastForwardActive ? TIME_ACCELERATION * FAST_FORWARD_MULTIPLIER : TIME_ACCELERATION; dtDiveSeconds = dtReal * timeMultiplier. gameLoop() caps dtReal at 0.1 s, as the controller's MAX_FRAME_SECONDS does.",
+    "unchanged": "The scene's animation (elapsedRealS) and the view's own motion (VERTICAL_SPEED_MPS, replaced in #192 PR 2; FIN_SPEED_MPS, view-only) stay in real time."
+  },
+  "tests": {
+    "added": "tests/in-dive-controls.spec.js 'the dive clock runs three times faster than real time, as legacy': between two changes of the save's dive time 15 dive seconds apart, divides the dive seconds by the real time the controller counts (each animation frame's interval capped at 0.1 s, on the same frames) and expects 2.8 to 3.2. Measured 3.010, 2.961 and 2.961 in three runs alone, and passed in the full run.",
+    "changed": "'F runs the dive clock ten times faster while the stop is held' waits for 60 dive seconds (2 s real at 30x, 20 s at 3x) within 6 s, instead of 20 dive seconds, which normal speed at 3x reaches in 6.7 s."
+  },
+  "counterChecks": {
+    "method": "TIME_ACCELERATION changed in src/app/game-controller.ts from a backup copy, dist rebuilt, the tests run, the file restored and dist rebuilt.",
+    "results": [
+      {
+        "revert": "dive clock at 1x (on 1a062f5)",
+        "result": "2 failed: the rate test and the fast-forward test (6 s timeout exceeded)"
+      },
+      {
+        "revert": "dive clock at 2x (on e23c47d)",
+        "result": "1 failed: the rate test, measured 2.00005"
+      }
+    ]
+  },
+  "durableProvenance": {
+    "src": "5797529ab41a7a918966f403e1f668ea0d9521fe",
+    "tests": "0074c705d5144ab0b597d3351656fa3d227533f6",
+    "scripts": "c476b541b5fbfcff2290caf1f5d9966aef83407a"
+  },
+  "earlierRuns": [
+    "A full run on 1a062f5 passed (302 unit, 62 parity, 140 e2e). The pre-review of #196, pass 1, then found that the rate test's window (1.5 to 3.3) also accepted a 2x or 2.5x clock. e23c47d measures against the capped real time the controller counts and expects 2.8 to 3.2; the run above is on that commit."
+  ]
+}

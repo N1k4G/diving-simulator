@@ -209,6 +209,53 @@ test('a failed two-cylinder dive ends on the game-over screen', async ({ page })
     expect(await page.evaluate((key) => window.localStorage.getItem(key), SAVE_KEY)).toBeNull();
 });
 
+test('the dive clock runs three times faster than real time, as legacy', async ({ page }) => {
+  // #195: src/constants.js TIME_ACCELERATION. Measured in the page between
+  // two changes of the save's dive time, fifteen dive seconds apart, against
+  // the real time the controller counts: each animation frame's interval,
+  // capped at 0.1 s as the controller and legacy's gameLoop() cap it. The
+  // poll runs on the same animation frames, so a slow frame is capped in
+  // both and the ratio is 3 up to a frame at either end (#196 pre-review:
+  // uncapped wall time only bounded it from below).
+  await page.goto('/dist/');
+  await page.evaluate(() => window.localStorage.clear());
+  await acceptSafetyGate(page);
+  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+
+  const diveSecondsPerRealSecond = await page.evaluate(
+    (key) =>
+      new Promise((resolve) => {
+        let last = null;
+        let first = null;
+        let previousMs = null;
+        let countedRealS = 0;
+        const poll = (nowMs) => {
+          if (previousMs !== null && first !== null) {
+            countedRealS += Math.min(0.1, (nowMs - previousMs) / 1000);
+          }
+          previousMs = nowMs;
+          const raw = window.localStorage.getItem(key);
+          const elapsedS = raw === null ? null : JSON.parse(raw).state.elapsedTimeS;
+          if (elapsedS !== null && elapsedS !== last) {
+            if (last !== null && first === null) {
+              first = { elapsedS };
+            } else if (first !== null && elapsedS >= first.elapsedS + 15) {
+              resolve((elapsedS - first.elapsedS) / countedRealS);
+              return;
+            }
+            last = elapsedS;
+          }
+          requestAnimationFrame(poll);
+        };
+        requestAnimationFrame(poll);
+      }),
+    SAVE_KEY,
+  );
+  expect(diveSecondsPerRealSecond).toBeGreaterThan(2.8);
+  expect(diveSecondsPerRealSecond).toBeLessThan(3.2);
+});
+
 test('a single-cylinder dive shows no cylinder row', async ({ page }) => {
   // Nothing to switch between. Legacy shows the slots only where the mode
   // has more than one cylinder.
@@ -510,6 +557,8 @@ test.describe('fast-forward', () => {
   });
 
   test('F runs the dive clock ten times faster while the stop is held', async ({ page }) => {
+    // Ten times the normal clock, which is itself three times real time
+    // (#195): legacy's TIME_ACCELERATION * FAST_FORWARD_MULTIPLIER.
     await startDiveAtDecoStop(page);
     await expect(fastForwardButton(page)).toHaveAttribute('aria-pressed', 'false');
     await expect(fastForwardIndicator(page)).toBeHidden();
@@ -523,14 +572,14 @@ test.describe('fast-forward', () => {
     await expect(fastForwardIndicator(page)).toBeVisible();
     await expect(fastForwardIndicator(page)).toHaveText('Fast-forward ×10');
 
-    // Twenty dive seconds would take twenty real seconds at normal speed
-    // and two at ten times. Six seconds of wall clock is the margin for a
-    // loaded test machine, and still a third of what normal speed needs —
-    // so a clock that did not actually speed up fails here.
+    // Sixty dive seconds take twenty real seconds at normal speed and two
+    // at ten times. Six seconds of wall clock is the margin for a loaded
+    // test machine, and still under a third of what normal speed needs — so
+    // a clock that did not actually speed up fails here.
     await page.waitForFunction(
       ([key, startS]) => {
         const raw = window.localStorage.getItem(key);
-        return raw !== null && JSON.parse(raw).state.elapsedTimeS >= startS + 20;
+        return raw !== null && JSON.parse(raw).state.elapsedTimeS >= startS + 60;
       },
       [SAVE_KEY, before.state.elapsedTimeS],
       { timeout: 6_000 },
