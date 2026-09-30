@@ -9,9 +9,9 @@
   "recordedAt": "2026-09-30T18:07:24Z",
   "runFinishedAt": "2026-09-30T18:15:26Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "The full run above is on c552ab3. The only later commit adds this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "The full run above is on c552ab3. The later commits only add and correct this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "earlierRuns": [
-    "A full run on 916d0ed (4f4df1e's content before the schema commit) had two Playwright failures: tests/baseline.spec.js, because docs/baseline/schemas/trace.schema.json did not describe the new checkpoint profile (fixed in c552ab3), and tests/game.spec.js TC-32-BAD-AIR-TRIGGER-UNCHANGED, a boundary case that fails when the diver drifts off x = 103 during its frames. TC-32 then failed 1 of 3 and passed 5 of 5 alone on the branch, and passed 8 of 8 on main (44f2cda); the branch's only legacy change is captureBaselineCheckpoint(), which that case does not run. Tracked in #203."
+    "A full run on 916d0ed, the slice commit before the schema commit, had two Playwright failures: tests/baseline.spec.js, because docs/baseline/schemas/trace.schema.json did not describe the new checkpoint profile (fixed in c552ab3), and tests/game.spec.js TC-32-BAD-AIR-TRIGGER-UNCHANGED, a boundary case that fails when the diver drifts off x = 103 during its frames. TC-32 then failed 1 of 3 and passed 5 of 5 alone on the branch, and passed 8 of 8 on main (44f2cda); the branch's only legacy change is captureBaselineCheckpoint(), which that case does not run. Tracked in #203."
   ],
   "environment": {
     "os": "Windows 11",
