@@ -70,7 +70,7 @@ snapshot, audio, and render coordination.
 flowchart TB
     Platform[Browser / Capacitor services] --> Controller[Game controller]
     Input[DOM / touch input adapter] --> Controller
-    Controller --> Sim[Fixed-step DiveModel]
+    Controller --> Sim[DiveModel]
     Controller --> Planner[DivePlanner on copied state]
     Controller --> Save[Versioned save repository]
     Controller --> Audio[Semantic audio service]
@@ -87,6 +87,14 @@ flowchart TB
 must not import PixiJS, DOM APIs, or Capacitor. Input adapters emit intents and
 must not mutate model fields directly. Rendering consumes immutable
 presentation snapshots.
+
+`DiveModel` advances in two ways (owner decision on #192, 2026-09-30).
+`advance()` takes a dictated depth and integrates in fixed one-second steps.
+`advanceWithBuoyancy()` lets the buoyancy physics move the diver and advances
+exactly one display frame per call, of the length the controller passes,
+capped as legacy's `gameLoop()` caps it. Legacy applies the BCD controls once
+per frame and sub-steps only the physics within it, so the frame boundaries are
+part of its behaviour; a fixed step would match legacy at one frame rate only.
 
 ## Engineering defaults
 
