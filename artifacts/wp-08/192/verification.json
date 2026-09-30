@@ -44,7 +44,7 @@
         "neutral-12m": "depth 12, velocity 0, BCD 6.866 L",
         "vented-4s": "depth 12.637, velocity 20 (the descent limit)",
         "sinking-20s": "depth 19.303",
-        "inflated-11s": "depth 22.547, velocity 5.107 (turned, below both limits), BCD 13.889 L",
+        "inflated-11s": "depth 22.547, velocity 5.107 (slowed by the inflation, still descending, below both limits; the diver turns during the coast), BCD 13.889 L",
         "coasting-30s": "depth 16.220, velocity -25 (the ascent limit, reached as the BCD expands)"
       },
       "compared": "Depth after each of the 1,300 frames; velocity, BCD gas, CNS, cylinder gas and the 16 N2 compartments at each checkpoint, at the fixture's absoluteEpsilon."
