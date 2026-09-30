@@ -1,0 +1,80 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 199,
+  "slice": "Slice 3: the adaptive safety stop in the core; the planner's TTS flags from the dive; save v9",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "ea4c83273d733d0bb18defbc4a4fab073c5cc8ab",
+  "measuredTree": "b22d207ad4977e4b5f60c4469e7ebe7bc499d975",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-09-30T21:52:55Z",
+  "runFinishedAt": "2026-09-30T21:59:20Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "The full run above is on ea4c832, slice 3 rebased onto f78aa90 (main after #204); the rebase resolved one import-list conflict in src/save/save-game.ts by keeping both sides. The only later commit adds this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "earlierRuns": [
+    "The same change before the rebase (06eb87e, on #204's head adc75a2) passed the full suite: 361 unit, 73 parity, 142 e2e."
+  ],
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "362 passed (345 on main, +12 in tests/unit/safety-stop.test.ts, +4 in tests/unit/save-game.test.ts, +1 in tests/unit/game-controller-buoyancy.test.ts)",
+    "parity": "73 passed (72 on main, +1 in tests/parity/dive-log.test.ts; the replays now also compare the safety stop)",
+    "e2e": "142 passed in 4.8 min (unchanged)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "boundsPortedFromTheOracle": {
+    "rules": "src/game-loop.js updateDiving(), after ndlDroppedBelow5: maxDepth > 11 latches safetyStopNeeded; depth > 11 resets countdownStarted, remaining, paused and complete (#90); when needed and not complete, 0 < depth < 6 starts the countdown at calculateSafetyStopDuration() (src/physics.js: 300 s if maxDepth > 30 or ndlDroppedBelow5, else 180 s); inside SAFETY_STOP_ACTIVE_MIN_D..MAX_D (2.4..8.3 m) it counts down by dtDiveSeconds and completes at zero, outside it pauses.",
+    "order": "The block sits in the part of updateDiving() that updateCCR() returns before on a rebreather failure, so the model does not update the stop on that step.",
+    "planner": "calculateTTS() reads safetyStopNeeded and ndlDroppedBelow5; the controller now sends both from the dive state (they were constant false).",
+    "fastForward": "atSafetyStop = countdownStarted && !complete && depth in 2.4..8.3 is exported as isAtSafetyStop(); the wreck route (18..34 m) cannot reach it until the client surfaces, so the fast-forward band is wired in that slice.",
+    "fixture": "state.safetyStop was already recorded at every checkpoint (remaining_min in seconds despite its name); no regeneration."
+  },
+  "parity": "needed, countdownStarted, paused and complete exactly, remaining within state.safetyStop.remaining_min's 1e-6, at every checkpoint of both buoyancy recordings and of air-18m-30min and ccr-30m-30min replayed tick by tick, including air-18m-30min/surfaced (countdown started at 300 s, 282 left, paused at the surface).",
+  "counterChecks": {
+    "method": "Each revert was applied to src/core/dive-model.ts or src/app/game-controller.ts from a backup copy, tests/unit/safety-stop.test.ts, tests/parity/dive-log.test.ts and tests/unit/game-controller-buoyancy.test.ts were run, and the file was restored. Run on the change before the rebase (06eb87e); the rebase changed no line of these files.",
+    "results": [
+      {
+        "revert": "no reset back below 11 m",
+        "result": "2 failed: TC-29 and #90 ports"
+      },
+      {
+        "revert": "always the short stop",
+        "result": "3 failed: TC-24, TC-25 and the air parity replay"
+      },
+      {
+        "revert": "counting outside the band",
+        "result": "2 failed: TC-28 and the air parity replay"
+      },
+      {
+        "revert": "starting at 8.3 m instead of below 6 m",
+        "result": "2 failed: TC-26 and the air parity replay"
+      },
+      {
+        "revert": "stop updated on a rebreather failure step",
+        "result": "1 failed: the failure-step test"
+      },
+      {
+        "revert": "controller not passing the flags",
+        "result": "1 failed: the forecast flags test"
+      }
+    ]
+  },
+  "durableProvenance": {
+    "src": "ac0c9bd7b994302097099e2a11865cd61e4f1f9b",
+    "tests": "d762f67ca04731e2fc175e77373143bab011c34b",
+    "scripts": "9821955c9dd544534be72ffeb8eb56fbc6cc863a",
+    "docs": "e2b85248122e51b5ade838797f0eb68be5b23bd0"
+  }
+}
