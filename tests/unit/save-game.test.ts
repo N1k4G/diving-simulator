@@ -374,6 +374,17 @@ describe("SaveGame gradient factors", () => {
         ["an NDL below five without the latch", (log) => { log.ndlDroppedBelowFiveMinutes = false; }],
         ["a window under way at a slow rate", (log) => { log.ascentRateMpm = 4.5; }],
         ["a peak below the step's rate", (log) => { log.fastAscentPeakMpm = 10; }],
+        ["a latched fast ascent with no entry", (log) => {
+          log.fastAscentS = 2;
+          log.fastAscentLatched = true;
+          log.entries = (log.entries as Record<string, unknown>[]).filter((entry) => entry.kind !== "fast-ascent");
+        }],
+        ["a latched fast ascent whose entry is above its peak", (log) => {
+          log.fastAscentS = 2;
+          log.fastAscentLatched = true;
+          (log.entries as Record<string, unknown>[])[0]!.value = 20;
+        }],
+        ["an open ceiling window with no ceiling over the diver", (log) => { log.ceilingViolationS = 1; }],
       ];
       for (const [what, corrupt] of invalid) {
         const save = JSON.parse(
@@ -406,6 +417,42 @@ describe("SaveGame gradient factors", () => {
       expect(result.saveGame.state.log.minNdlMin).toBe(6);
       expect(result.saveGame.state.log.ndlDroppedBelowFiveMinutes).toBe(false);
       expect(result.saveGame.state.log.ascentRateMpm).toBe(-3.25);
+    });
+
+    it("checks an open ceiling window against the ceiling the saved tissues give", () => {
+      // 3 bar of nitrogen in every compartment puts the ceiling near 18 m,
+      // and the diver is at 14 m: a broken ceiling the window may record.
+      const loaded = logged();
+      const aboveTheCeiling = freezeDiveState({
+        ...loaded,
+        tissues: {
+          nitrogenBar: loaded.tissues.nitrogenBar.map(() => bars(3)),
+          heliumBar: loaded.tissues.heliumBar,
+        },
+        log: { ...loaded.log, ceilingViolationS: seconds(2), ceilingViolationLatched: true },
+      });
+      const decoded = decodeSaveGame(
+        encodeSaveGame(createSaveGame(aboveTheCeiling, CONSERVATIVE_FACTORS, 1_735_689_600_000)),
+      );
+      expect(decoded.ok).toBe(true);
+      // The same window over clean tissues has no ceiling to break.
+      expect(() =>
+        createSaveGame(freezeDiveState({ ...aboveTheCeiling, tissues: loaded.tissues }), CONSERVATIVE_FACTORS, 1_735_689_600_000),
+      ).toThrow(TypeError);
+      // And a latched window must have logged its entry.
+      expect(() =>
+        createSaveGame(
+          freezeDiveState({
+            ...aboveTheCeiling,
+            log: {
+              ...aboveTheCeiling.log,
+              entries: aboveTheCeiling.log.entries.filter((entry) => entry.kind !== "ceiling-violation"),
+            },
+          }),
+          CONSERVATIVE_FACTORS,
+          1_735_689_600_000,
+        ),
+      ).toThrow(TypeError);
     });
 
     it("accepts a slow rate over an open window on a dive a rebreather failure ended", () => {

@@ -11,7 +11,7 @@ import {
   type TankState,
 } from "../core/dive-state";
 import { neutralBcdSurfaceLitres } from "../core/buoyancy";
-import { NDL_UNLIMITED_MINUTES } from "../core/decompression";
+import { NDL_UNLIMITED_MINUTES, ceilingDepthM } from "../core/decompression";
 import {
   CEILING_VIOLATION_TOLERANCE_M,
   CEILING_VIOLATION_WINDOW_S,
@@ -171,13 +171,13 @@ export function createSaveGame(
   }
 
   const frozenState = freezeDiveState(state);
-  if (!isDiveState(frozenState)) {
-    throw new TypeError("cannot serialize an invalid DiveState");
-  }
   if (!isSavedGradientFactors(gradientFactors)) {
     throw new RangeError(
       "gradient factors must be within 30-100 with low no greater than high",
     );
+  }
+  if (!isDiveState(frozenState, gradientFactors.highPercent)) {
+    throw new TypeError("cannot serialize an invalid DiveState");
   }
   if (!isConsistentDiveMode(diveMode, frozenState)) {
     throw new RangeError("dive mode must be ccr exactly when the dive has a loop");
@@ -274,17 +274,21 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     ) {
       candidate.state = { ...candidate.state, cnsPercent: 0 };
     }
-    if (
-      !isPositiveFinite(candidate.savedAtEpochMs) ||
-      !isDiveState(candidate.state)
-    ) {
-      return { ok: false, reason: "invalid-data" };
-    }
     // A v1 payload has no gradientFactors and is filled with the defaults; a
     // v2 payload must carry a valid pair rather than fall back to them, or a
     // corrupted field would silently re-plan the dive on 35/75 — the very
-    // failure this version exists to stop.
+    // failure this version exists to stop. Read before the state, whose log
+    // is checked against the GF high.
     if (!isFirst && !isSavedGradientFactors(candidate.gradientFactors)) {
+      return { ok: false, reason: "invalid-data" };
+    }
+    const savedFactors = isFirst
+      ? DEFAULT_SAVED_GRADIENT_FACTORS
+      : (candidate.gradientFactors as SavedGradientFactors);
+    if (
+      !isPositiveFinite(candidate.savedAtEpochMs) ||
+      !isDiveState(candidate.state, savedFactors.highPercent)
+    ) {
       return { ok: false, reason: "invalid-data" };
     }
     // Likewise a v3 to v7 payload must carry a mode consistent with its
@@ -295,9 +299,7 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     ) {
       return { ok: false, reason: "invalid-data" };
     }
-    const gradientFactors = isFirst
-      ? DEFAULT_SAVED_GRADIENT_FACTORS
-      : (candidate.gradientFactors as SavedGradientFactors);
+    const gradientFactors = savedFactors;
     const diveMode = isCurrent || isSixth || isFifth || isFourth || isThird
       ? (candidate.diveMode as SavedDiveMode)
       : inferDiveMode(candidate.state);
@@ -538,7 +540,10 @@ function migrateLegacyCcr(candidate: unknown): CcrState | null {
   } as CcrState;
 }
 
-function isDiveState(candidate: unknown): candidate is DiveState {
+function isDiveState(
+  candidate: unknown,
+  gradientFactorHighPercent: number,
+): candidate is DiveState {
   if (!isRecord(candidate)) {
     return false;
   }
@@ -574,13 +579,17 @@ function isDiveState(candidate: unknown): candidate is DiveState {
         | DiveFailureReason
         | null,
     ) &&
-    isDiveLog(
-      candidate.log,
-      candidate.elapsedTimeS as number,
-      (candidate.failure as Record<string, unknown>).reason as
+    isDiveLog(candidate.log, {
+      elapsedTimeS: candidate.elapsedTimeS as number,
+      depthM: candidate.depthM as number,
+      ceilingM: ceilingDepthM(
+        candidate.tissues as unknown as DiveState["tissues"],
+        gradientFactorHighPercent / 100,
+      ),
+      failureReason: (candidate.failure as Record<string, unknown>).reason as
         | DiveFailureReason
         | null,
-    )
+    })
   );
 }
 
@@ -592,11 +601,17 @@ function isDiveState(candidate: unknown): candidate is DiveState {
  * NDL, and the below-five latch set whenever the lowest NDL is below five,
  * since the model sets both on the same step.
  */
-function isDiveLog(
-  candidate: unknown,
-  elapsedTimeS: number,
-  failureReason: DiveFailureReason | null,
-): candidate is DiveLog {
+/** What a saved log is checked against, from the rest of the saved state. */
+interface DiveLogContext {
+  readonly elapsedTimeS: number;
+  readonly depthM: number;
+  /** The ceiling the saved tissues give at the save's GF high. */
+  readonly ceilingM: number;
+  readonly failureReason: DiveFailureReason | null;
+}
+
+function isDiveLog(candidate: unknown, context: DiveLogContext): candidate is DiveLog {
+  const { elapsedTimeS, failureReason } = context;
   if (
     !isRecord(candidate) ||
     !Array.isArray(candidate.entries) ||
@@ -643,6 +658,35 @@ function isDiveLog(
     underWay &&
     !rateMovedAlone &&
     (rateMpm <= FAST_ASCENT_RATE_MPM || peakMpm < rateMpm)
+  ) {
+    return false;
+  }
+  // Likewise a ceiling window is open only while the diver is above the
+  // ceiling less the tolerance, which the saved tissues and depth say.
+  const ceilingWindowOpen =
+    (candidate.ceilingViolationS as number) > 0 ||
+    candidate.ceilingViolationLatched === true;
+  if (
+    ceilingWindowOpen &&
+    !rateMovedAlone &&
+    !(
+      context.ceilingM > 0 &&
+      context.depthM < context.ceilingM - CEILING_VIOLATION_TOLERANCE_M
+    )
+  ) {
+    return false;
+  }
+  // A window latches on the step its entry is logged, and the latest fast
+  // ascent's peak never exceeds the window's, which keeps rising. The reverse
+  // is not required: legacy does not save the windows, so a resumed legacy
+  // dive restarts them over a fast rate or a broken ceiling, and so may this.
+  const entries = candidate.entries as { kind: string; value: number }[];
+  const lastFastAscent = entries.filter((entry) => entry.kind === "fast-ascent").at(-1);
+  if (
+    (candidate.fastAscentLatched === true &&
+      (lastFastAscent === undefined || lastFastAscent.value > peakMpm)) ||
+    (candidate.ceilingViolationLatched === true &&
+      !entries.some((entry) => entry.kind === "ceiling-violation"))
   ) {
     return false;
   }
