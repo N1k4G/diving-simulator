@@ -6954,13 +6954,21 @@ tests = [
                 runFrames(2, 0.033, 11);         // above pocket's floor at d=12
                 assert(api.badAirWarning === true,
                     'badAirWarning must fire when both in-x AND at/above pocket depth');
+                // Cases 4 and 5 sit exactly on the pocket's edges. Physics
+                // frames can carry the diver a hair across an edge (leftover
+                // horizontal velocity, the unseeded harness random), which
+                // made case 4 fail now and then (#203). They evaluate the
+                // trigger itself at a fixed position instead; dt 0 leaves the
+                // silt visibility, its only other effect, unchanged.
                 // Case 4: at pocket x1 boundary should still fire when at depth
                 api.diverX = 103;
-                runFrames(2, 0.033, 12);
+                api.setDepth(12);
+                iframe.contentWindow.updateOverheadState(0);
                 assert(api.badAirWarning === true, 'badAirWarning must fire at x1 boundary');
                 // Case 5: just outside x2 boundary should NOT fire
                 api.diverX = 110;
-                runFrames(2, 0.033, 12);
+                api.setDepth(12);
+                iframe.contentWindow.updateOverheadState(0);
                 assert(api.badAirWarning === false, 'badAirWarning must NOT fire just outside x2');
             } catch (e) { threw = e; }
             finally { api.diveSite = savedSite; }
