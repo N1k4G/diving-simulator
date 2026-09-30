@@ -3,15 +3,16 @@
   "issue": 199,
   "slice": "Slice 2b: the time-weighted average depth and the depth profile in the dive log; save v8; the trace records them",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "c552ab3802ce34988990e2370aa4e8d22a307804",
-  "measuredTree": "4efbe980ed925e77cbd464666e1f33876f445bde",
+  "measuredCommit": "b66ae8323e254b6cdaa2484f4bf5f027f85bde2d",
+  "measuredTree": "378be5c5c3c4db69e61c095908b0ed41269056fc",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-09-30T18:07:24Z",
-  "runFinishedAt": "2026-09-30T18:15:26Z",
+  "recordedAt": "2026-09-30T18:39:11Z",
+  "runFinishedAt": "2026-09-30T18:49:34Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "The full run above is on c552ab3. The later commits only add and correct this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "The full run above is on b66ae83. The only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "earlierRuns": [
-    "A full run on 916d0ed, the slice commit before the schema commit, had two Playwright failures: tests/baseline.spec.js, because docs/baseline/schemas/trace.schema.json did not describe the new checkpoint profile (fixed in c552ab3), and tests/game.spec.js TC-32-BAD-AIR-TRIGGER-UNCHANGED, a boundary case that fails when the diver drifts off x = 103 during its frames. TC-32 then failed 1 of 3 and passed 5 of 5 alone on the branch, and passed 8 of 8 on main (44f2cda); the branch's only legacy change is captureBaselineCheckpoint(), which that case does not run. Tracked in #203."
+    "A full run on 916d0ed, the slice commit before the schema commit, had two Playwright failures: tests/baseline.spec.js, because docs/baseline/schemas/trace.schema.json did not describe the new checkpoint profile (fixed in c552ab3), and tests/game.spec.js TC-32-BAD-AIR-TRIGGER-UNCHANGED, a boundary case that fails when the diver drifts off x = 103 during its frames. TC-32 then failed 1 of 3 and passed 5 of 5 alone on the branch, and passed 8 of 8 on main (44f2cda); the branch's only legacy change is captureBaselineCheckpoint(), which that case does not run. Tracked in #203.",
+    "A full run on c552ab3 passed (342 unit, 72 parity, 142 e2e). The pre-review of #204, pass 1, then found that a frame's cost grew with the profile (freezeDiveState re-froze it about ten times a frame), that forecast requests cloned it into the worker, and that the autosave ran every 0.17 real s under fast-forward; and that the old fixture size was misstated (0.49 MB, not 0.55). b66ae83 fixes all three; the run above is on that commit."
   ],
   "environment": {
     "os": "Windows 11",
@@ -28,9 +29,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "342 passed (337 on main, +3 in tests/unit/dive-log.test.ts, +2 in tests/unit/save-game.test.ts)",
+    "unit": "344 passed (337 on main, +4 in tests/unit/dive-log.test.ts, +2 in tests/unit/save-game.test.ts, +1 in tests/unit/planner-worker.test.ts)",
     "parity": "72 passed (69 on main, +3 in tests/parity/dive-log.test.ts)",
-    "e2e": "142 passed in 5.9 min (unchanged count)",
+    "e2e": "142 passed in 7.4 min (unchanged count; the fast-forward test now also counts the autosaves)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -43,7 +44,7 @@
   "fixtureRegeneration": {
     "command": "npm run baseline:generate, from 31804ac",
     "legacyChange": "captureBaselineCheckpoint() gains state.debrief.avgDepthAccum_ms, avgDepthSamples_s, profileTimer_s and frameCeiling_m; scripts/baseline-scenarios.cjs checkpoint() adds each checkpoint's profile samples since the previous one ({t_min, depth_m, ceiling_m}).",
-    "additiveCheck": "All eight scenarios are identical to the fixture before regeneration once the five new fields are removed; the header differs only in referenceCommit. The fixture grows from about 0.55 MB to 1.05 MB.",
+    "additiveCheck": "All eight scenarios are identical to the fixture before regeneration once the five new fields are removed; the header differs only in referenceCommit. The fixture grows from 488,816 bytes (0.49 MB) to 1,047,268 bytes (1.05 MB).",
     "schema": "docs/baseline/schemas/trace.schema.json describes profile as optional in v1, like trajectory; tests/baseline.spec.js asserts it on every checkpoint of this fixture."
   },
   "parity": {
@@ -75,13 +76,30 @@
       {
         "revert": "save accepting a sampler timer of 2 s",
         "result": "1 failed: the invalid-log test"
+      },
+      {
+        "revert": "freezeDiveState copying the profile every call",
+        "result": "1 failed: the profile reuse test"
+      },
+      {
+        "revert": "the log sent to the planner worker",
+        "result": "1 failed: the forecast request test"
+      },
+      {
+        "revert": "autosave interval of 100 ms",
+        "result": "1 failed: the fast-forward test counted 19 saves (limit 2)"
       }
     ]
   },
   "durableProvenance": {
-    "src": "ea161029734187ee71d5a4851334967c63c062f8",
-    "tests": "a09a418f0650a8a6fe0398b0010f84c0b1aa302f",
+    "src": "9b61d68e166fd6d93fceaa00d72fdf1fbbd82f0c",
+    "tests": "1981dba6d8992574147e93f33ddea1901eefdce0",
     "scripts": "9821955c9dd544534be72ffeb8eb56fbc6cc863a",
     "docs": "e2b85248122e51b5ade838797f0eb68be5b23bd0"
+  },
+  "performance": {
+    "measured": "advanceWithBuoyancy() per 0.05 s frame, in Node on this host, 600 frames: 0.222 ms at 0 samples, 0.208 ms at 1,800, 0.227 ms at 7,200 (the pre-review measured 0.54 / 2.8 / 9.2 ms before the fix). A forecast request built and structured-cloned: 0.04 ms at 1,800 samples (4.3 ms before).",
+    "changes": "freezeDiveState() reuses a log list it has already frozen; recordMotion() copies the profile only on a sampling step; createPlannerForecastRequest() sends an empty log; wreck-app autosaves every 3 real seconds (legacy SAVE_INTERVAL_MS) instead of every 5 dive seconds.",
+    "tests": "tests/unit/dive-log.test.ts 'reuses the profile on a step that takes no sample' (array identity); tests/unit/planner-worker.test.ts 'leaves the dive log out of a forecast request'; tests/in-dive-controls.spec.js fast-forward test: at most 2 autosaves while 60 dive seconds pass at 30x."
   }
 }
