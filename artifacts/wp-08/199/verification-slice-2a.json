@@ -3,13 +3,13 @@
   "issue": 199,
   "slice": "Slice 2a: the dive log in the core (ascent rate, fast-ascent and ceiling-violation entries, minimum NDL, ndlDroppedBelow5); save v7; checkpoint continuation state",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "866c6621cb715ae7043f667a00f8971a3f0a5577",
-  "measuredTree": "5af82dadeade227f9047efe3170279ae98656341",
+  "measuredCommit": "6b0aa1b718077db0327a4324abd32443f616253c",
+  "measuredTree": "728190ea13b7bf62ee9da4edc526c16bcf3d3dbf",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-09-30T16:32:31Z",
-  "runFinishedAt": "2026-09-30T16:37:43Z",
+  "recordedAt": "2026-09-30T16:48:39Z",
+  "runFinishedAt": "2026-09-30T16:53:41Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "The full run above is on 866c662. The only later commit updates this file, so src, tests and scripts are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "The full run above is on 6b0aa1b. The only later commit updates this file, so src, tests and scripts are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -25,9 +25,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "335 passed (316 on main, +11 in tests/unit/dive-log.test.ts, +7 in tests/unit/save-game.test.ts, +1 in tests/unit/game-controller-buoyancy.test.ts)",
+    "unit": "336 passed (316 on main, +11 in tests/unit/dive-log.test.ts, +8 in tests/unit/save-game.test.ts, +1 in tests/unit/game-controller-buoyancy.test.ts)",
     "parity": "69 passed (62 on main, +7 in tests/parity/dive-log.test.ts)",
-    "e2e": "142 passed in 3.7 min (unchanged)",
+    "e2e": "142 passed in 3.7 min (unchanged); the client saves every 5 dive seconds through the same validation, so live model states pass the new rules",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -98,17 +98,26 @@
       {
         "revert": "no exemption for a dive a rebreather failure ended",
         "result": "1 failed: the exemption test"
+      },
+      {
+        "revert": "save not checking an open ceiling window against the saved ceiling",
+        "result": "2 failed: the invalid-log test and the ceiling-window test"
+      },
+      {
+        "revert": "save not requiring a latched window's entry",
+        "result": "2 failed: the invalid-log test and the ceiling-window test"
       }
     ]
   },
   "durableProvenance": {
-    "src": "1e5c150a7d085eab8bb982546277f0b350005fae",
-    "tests": "43a93d0e05c1ad89d5ee78666f245cd931100e29",
+    "src": "0962b910792c709c786dfc4e682d0232e1d7a90e",
+    "tests": "54d0e1859b50e4fa04569708094992b0d2374b52",
     "scripts": "c476b541b5fbfcff2290caf1f5d9966aef83407a"
   },
   "earlierRuns": [
     "A full run on 13ef99b passed (331 unit, 67 parity, 142 e2e). Codex round 1 then found: checkpoints did not carry the log's continuation state; the step a rebreather failure ends the dive on was logged; in-dive controls act one frame early (deferred to #202); and saves accepted impossible logs. 5864172 adds state.debrief to captureBaselineCheckpoint(); 0e5aec7 fixes the rest; the run above is on that tree.",
-    "A full run on the tree of 0e5aec7 passed (334 unit, 69 parity, 142 e2e). The pre-review re-check then found that isDiveLog did not compare the fast-ascent window with the saved ascent rate; 866c662 adds that rule, exempting a dive a rebreather failure ended. The run above is on that commit."
+    "A full run on the tree of 0e5aec7 passed (334 unit, 69 parity, 142 e2e). The pre-review re-check then found that isDiveLog did not compare the fast-ascent window with the saved ascent rate; 866c662 adds that rule, exempting a dive a rebreather failure ended. The run above is on that commit.",
+    "A full run on 866c662 passed (335 unit, 69 parity, 142 e2e). The next pre-review pass found that a latched window needed no entry and that an open ceiling window was not checked against the saved ceiling; 6b0aa1b adds both rules (the gradient factors are now validated before the state). The run above is on that commit."
   ],
   "fixtureRegeneration": {
     "command": "npm run baseline:generate, from 5864172",
@@ -117,5 +126,6 @@
   },
   "deferred": {
     "controlsTiming": "In-dive switches, setpoint changes and bailout act between frames, one frame before legacy applies them (after the frame's tissues and frameCalc), for the tissues as well as the log's NDL. From #163; tracked in #202."
-  }
+  },
+  "saveInvariants": "A v7 log must be one the model could produce: entries in order, not after the dive time, fast ascents above 9 m/min and ceiling violations above 0.3 m; each window latched exactly at 2 s; an open fast-ascent window over a fast rate with the peak at least that rate; an open ceiling window with the diver more than 0.3 m above the ceiling the saved tissues give at the save's GF high; a latched window with its entry (the latest fast ascent no higher than the peak); a whole-minute NDL within 0..999; the below-five latch whenever the lowest NDL is below five. A dive a rebreather failure ended is exempt from the two window-versus-state rules. The reverse (a fast rate or a broken ceiling implying an open window) is not required: legacy does not save its windows, so a resumed legacy dive restarts them."
 }
