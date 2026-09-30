@@ -43,5 +43,12 @@
   },
   "cause": "Case 4 set api.diverX = 103, exactly the pocket's x1, then ran two physics frames (runFrames(2, 0.033, 12)) before asserting. updateDiving() moves the diver horizontally, and a current rolled with the harness's unseeded Math.random (src/game-loop.js, once per dive below 5 m; the cave's chance is small but real) can drift the diver just left of x1, where the warning is correctly off. horizontalVelocity itself starts at 0 (resetDive) and nothing kicks. Observed on 2026-09-30: 2 failures in 9 runs on a branch whose only legacy change did not run in this case.",
   "fix": "Cases 4 and 5 (the edges) set the position and depth and call iframe.contentWindow.updateOverheadState(0). src/physics.js updateOverheadState() recomputes inOverhead (as every frame does), leaves silt visibility unchanged with dt 0, and sets badAirWarning from badAirAt(diverX) and depth, so the assertion now tests the trigger alone. Cases 1 to 3 still run through the frames. The test's ID and name, which docs/baseline/test-inventory.json lists, are unchanged.",
-  "repeatRuns": "tests/game.spec.js: 6 of 6 passed on the change before the rebase, 3 of 3 after."
+  "repeatRuns": "tests/game.spec.js: 6 of 6 passed on the change before the rebase, 3 of 3 after.",
+  "commentFollowUp": {
+    "commit": "ea9d2269a3ba296d19a797240fd2dedb7f3b10a3",
+    "change": "The test comment in src/diving-simulator-tests.html corrected (the drift comes from a rolled current; updateOverheadState also recomputes inOverhead); no code changed.",
+    "results": {
+      "gameSpec": "3 of 3 passed on ea9d226"
+    }
+  }
 }
