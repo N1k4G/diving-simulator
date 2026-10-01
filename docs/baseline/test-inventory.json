@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "referenceCommit": "5a2ef7df48b7b83251fe2de12cba901c46ef2dd0",
+  "referenceCommit": "0f61a9d60744703a4cbd33e4a81c57e60b4057b3",
   "legacyHarness": {
     "path": "src/diving-simulator-tests.html",
     "disposition": "Parity oracle until WP-12; port assertions incrementally",

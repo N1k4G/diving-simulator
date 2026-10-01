@@ -64,6 +64,10 @@ export interface LegacyTissueCheckpoint {
       profileTimer_s?: number | null;
       frameCeiling_m?: number | null;
       dcsViolation_s?: number | null;
+      inOverhead?: boolean;
+      thirdsStartingGas_l?: number | null;
+      thirdsTurnWarned?: boolean;
+      thirdsReserveHit?: boolean;
     };
     /** Legacy's gameState: diving, gameover or post-dive. */
     gameState?: string;
@@ -194,6 +198,11 @@ export function diveStateFromLegacyCheckpoint(
     verticalVelocityMpm: checkpoint.state.verticalVelocity_mpm ?? 0,
     bcdGasSurfaceLiters:
       checkpoint.state.bcdGasSurface_l ?? initialState.bcdGasSurfaceLiters,
+    thirds: {
+      startingGasL: litres(checkpoint.state.debrief?.thirdsStartingGas_l ?? 0),
+      turnWarned: checkpoint.state.debrief?.thirdsTurnWarned ?? false,
+      reserveHit: checkpoint.state.debrief?.thirdsReserveHit ?? false,
+    },
     // Legacy's post-dive screen is the end of a completed dive.
     completed: checkpoint.state.gameState === "post-dive",
     failure: {

@@ -1164,6 +1164,69 @@ describe("SaveGame gradient factors", () => {
     });
   });
 
+  // v13 adds the rule of thirds (#199).
+  describe("the rule of thirds", () => {
+    type Encoded = {
+      version: number;
+      state: { thirds: Record<string, unknown>; tanks: { gasRemainingL: number }[] };
+    };
+    /** Under an overhead, a 2400 L plan with 1500 L left: past the turn. */
+    const underway = () => {
+      const base = createInitialDiveState(107);
+      return freezeDiveState({
+        ...base,
+        tanks: base.tanks.map((tank) => ({ ...tank, gasRemainingL: litres(1500) })),
+        thirds: { startingGasL: litres(2400), turnWarned: true, reserveHit: false },
+      });
+    };
+    const encode = (state: DiveState) =>
+      JSON.parse(encodeSaveGame(createSaveGame(state, CONSERVATIVE_FACTORS, 1_735_689_600_000))) as Encoded;
+
+    it("round-trips in a current save", () => {
+      const decoded = decodeSaveGame(JSON.stringify(encode(underway())));
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      expect(decoded.saveGame.state.thirds).toEqual({ startingGasL: 2400, turnWarned: true, reserveHit: false });
+    });
+
+    it("resumes a v12 save with no plan and no reserve reached", () => {
+      const v12 = encode(underway());
+      v12.version = 12;
+      delete (v12.state as Record<string, unknown>).thirds;
+      const result = decodeSaveGame(JSON.stringify(v12));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.migratedFrom).toBe("save-game-v12");
+      expect(result.saveGame.state.thirds).toEqual({ startingGasL: 0, turnWarned: false, reserveHit: false });
+    });
+
+    it("rejects a plan the model could not have left", () => {
+      const invalid: [string, (save: Encoded) => void][] = [
+        ["no plan state", (save) => { delete (save.state as Record<string, unknown>).thirds; }],
+        ["a plan smaller than the gas carried", (save) => { save.state.thirds.startingGasL = 1000; }],
+        ["a turn with no plan open", (save) => { save.state.thirds.startingGasL = 0; }],
+        ["a negative plan", (save) => { save.state.thirds.startingGasL = -1; }],
+        ["a reserve latch that is not a boolean", (save) => { save.state.thirds.reserveHit = 1; }],
+      ];
+      for (const [what, corrupt] of invalid) {
+        const save = encode(underway());
+        corrupt(save);
+        expect(decodeSaveGame(JSON.stringify(save)).ok, what).toBe(false);
+      }
+    });
+
+    it("carries legacy's reserve latch over, with no plan, as legacy restores it", () => {
+      const carried = decodeSaveGame(JSON.stringify({ ...legacyV2Save(), thirdsReserveHitThisDive: true }));
+      expect(carried.ok).toBe(true);
+      if (!carried.ok) return;
+      expect(carried.saveGame.state.thirds).toEqual({ startingGasL: 0, turnWarned: false, reserveHit: true });
+      const without = decodeSaveGame(JSON.stringify(legacyV2Save()));
+      expect(without.ok).toBe(true);
+      if (!without.ok) return;
+      expect(without.saveGame.state.thirds.reserveHit).toBe(false);
+    });
+  });
+
   describe("the dive mode", () => {
     const singleCylinder = () =>
       createInitialDiveState(81, {
