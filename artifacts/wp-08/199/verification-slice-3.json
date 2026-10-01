@@ -3,16 +3,21 @@
   "issue": 199,
   "slice": "Slice 3: the adaptive safety stop in the core; the planner's TTS flags from the dive; save v9",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "12be28a23973a22bbd64feb3c2574266427fce4d",
-  "measuredTree": "1c6b04d2a7e13db749a8e603c11388968ea9f09b",
+  "measuredCommit": "580087d540290e1f91f29f49031440c4a6417d10",
+  "measuredTree": "2702b15a8a12aaa95f8428a8d848b397c50ddff8",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-09-30T22:09:04Z",
-  "runFinishedAt": "2026-09-30T22:15:23Z",
+  "recordedAt": "2026-10-01T08:34:01Z",
+  "runFinishedAt": "2026-10-01T08:40:59Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "The full run above is on 12be28a. The only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "The full run above is on 580087d, the Codex round 1 fix. The only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "earlierRuns": [
     "The same change before the rebase (06eb87e, on #204's head adc75a2) passed the full suite: 361 unit, 73 parity, 142 e2e.",
-    "A full run on ea4c832 (the rebased slice) passed: 362 unit, 73 parity, 142 e2e. The pre-review of #206, pass 1, then noted that withinRoute() moved a resumed dive with a running countdown below 11 m without resetting it, so a save before the first step failed v9 validation. 12be28a resets the stop in withinRoute(); the run above is on that commit."
+    "A full run on ea4c832 (the rebased slice) passed: 362 unit, 73 parity, 142 e2e. The pre-review of #206, pass 1, then noted that withinRoute() moved a resumed dive with a running countdown below 11 m without resetting it, so a save before the first step failed v9 validation. 12be28a resets the stop in withinRoute(); the run above is on that commit.",
+    {
+      "measuredCommit": "12be28a23973a22bbd64feb3c2574266427fce4d",
+      "recordedAt": "2026-09-30T22:09:04Z",
+      "note": "Before the Codex round 1 fix; superseded by the run above."
+    }
   ],
   "environment": {
     "os": "Windows 11",
@@ -29,9 +34,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "363 passed (345 on main, +12 in tests/unit/safety-stop.test.ts, +4 in tests/unit/save-game.test.ts, +2 in tests/unit/game-controller-buoyancy.test.ts)",
+    "unit": "365 passed (345 on main, +12 in tests/unit/safety-stop.test.ts, +6 in tests/unit/save-game.test.ts, +2 in tests/unit/game-controller-buoyancy.test.ts)",
     "parity": "73 passed (72 on main, +1 in tests/parity/dive-log.test.ts; the replays now also compare the safety stop)",
-    "e2e": "142 passed in 4.8 min (unchanged)",
+    "e2e": "142 passed in 5.2 min (unchanged)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -74,11 +79,32 @@
         "revert": "withinRoute() not resetting the safety stop",
         "result": "1 failed: the resumed-dive reset test"
       }
-    ]
+    ],
+    "codexRound1": {
+      "method": "Each new save-validation rule was removed from src/save/save-game.ts from a backup copy, tests/unit/save-game.test.ts was run, and the file was restored.",
+      "results": [
+        {
+          "revert": "no bound on the time left",
+          "result": "1 failed: the rejection test, on more than the short stop on a dive that needs only it"
+        },
+        {
+          "revert": "a countdown at zero need not complete",
+          "result": "2 failed: the rejection test and the legacy zero-countdown test"
+        },
+        {
+          "revert": "a completed stop may be paused",
+          "result": "1 failed: the rejection test, on complete and paused"
+        },
+        {
+          "revert": "the below-five latch ignored for the length",
+          "result": "1 failed: the long-stop test"
+        }
+      ]
+    }
   },
   "durableProvenance": {
-    "src": "b494e07b254988289493a51bdab60f15e62e65e4",
-    "tests": "9989538b38498c26ca9120ebeb4bd5a3b6c296e0",
+    "src": "6137d2a805386c8f875989229c6a390491d0d493",
+    "tests": "f1414b3543dbf498400977ef9171234b7134d77b",
     "scripts": "9821955c9dd544534be72ffeb8eb56fbc6cc863a",
     "docs": "e2b85248122e51b5ade838797f0eb68be5b23bd0"
   }
