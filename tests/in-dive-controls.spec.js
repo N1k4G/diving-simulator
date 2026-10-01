@@ -135,10 +135,14 @@ test('a digit beyond the cylinder count is not a dive key', async ({ page }) => 
   // a two-cylinder dive `3` names nothing and the client leaves the key
   // alone rather than claiming and discarding it.
   await startTwoCylinderDive(page);
+  // A save written before the press, so the one read below is written after
+  // it rather than being the save that preceded it (#207).
+  const savedAtS = (await persistedSave(page)).state.elapsedTimeS;
   await page.keyboard.press('3');
 
   await expect(page.locator('[data-tank="0"]')).toHaveAttribute('aria-pressed', 'true');
-  const saved = await persistedSave(page);
+  const saved = await savedStateWhere(page, (state) => state.elapsedTimeS > savedAtS);
+  expect(saved.state.elapsedTimeS).toBeGreaterThan(savedAtS);
   expect(saved.state.events.filter((e) => e.type === 'gas-switch')).toHaveLength(0);
 });
 
