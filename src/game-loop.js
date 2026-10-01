@@ -1830,8 +1830,27 @@ function captureBaselineCheckpoint(scenarioId, checkpointId) {
                 frameCeiling_m: _baselineFinite(frameCalc.ceiling),
                 // #199: the decompression-sickness timer (dive seconds
                 // shallower than the stop, decaying 1:1 otherwise).
-                dcsViolation_s: _baselineFinite(dcsViolationTime)
+                dcsViolation_s: _baselineFinite(dcsViolationTime),
+                // #199: the rule of thirds (Issue #27): whether the diver is
+                // under an overhead, the gas snapshotted on entering it (0
+                // outside), the turn beep's latch, and the reserve latch
+                // gradeDive() reads.
+                inOverhead: inOverhead,
+                thirdsStartingGas_l: _baselineFinite(thirdsStartingGas),
+                thirdsTurnWarned: thirdsTurnWarned,
+                thirdsReserveHit: thirdsReserveHitThisDive
             },
+            // #199: gradeDive() as the post-dive screen would show it now,
+            // in English: the five sub-scores and notes, overall and stars.
+            grade: (function () {
+                var graded = gradeDive();
+                return {
+                    scores: graded.subs.map(function (sub) { return sub.score; }),
+                    notes: graded.subs.map(function (sub) { return sub.note; }),
+                    overall: graded.overall,
+                    stars: graded.stars
+                };
+            })(),
             // #199: why a failed dive ended, legacy's own wording; null while
             // the dive is on.
             gameOverReason: gameState === 'gameover' ? String(gameOverReason) : null,

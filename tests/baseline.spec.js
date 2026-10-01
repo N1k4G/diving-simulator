@@ -144,7 +144,8 @@ test('baseline: generated contracts are complete and internally consistent', asy
     'buoyancy-vent-inflate-12m',
     'buoyancy-ccr-inflate-12m',
     'trimix-dcs-above-stop',
-    'trimix-dcs-surfaced'
+    'trimix-dcs-surfaced',
+    'wreck-thirds'
   ]);
   for (const scenario of traces.scenarios) {
     expect(scenario.checkpoints.length).toBeGreaterThan(0);

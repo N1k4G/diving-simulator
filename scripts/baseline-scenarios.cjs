@@ -121,6 +121,18 @@ function runBaselineScenarios() {
     for (let frame = 0; frame < frames; frame++) physicsTick(keys, frameMinutes);
   }
 
+  // #199: one tick against the declared site itself, at a fixed position,
+  // for the rule of thirds: updateAtDepth() runs every tick on open water,
+  // where nothing is ever under an overhead.
+  function updateInSite(depth, stepMinutes) {
+    api.setDepth(depth);
+    neutralizeAt(depth);
+    api.verticalVelocity = 0;
+    api.horizontalVelocity = 0;
+    api.updateDiving(stepMinutes * 60 / api.TIME_ACCELERATION);
+    trajectory.push({ depth_m: api.depth, dtDive_min: stepMinutes });
+  }
+
   function holdDepth(depth, minutes, stepMinutes = 0.1) {
     const steps = Math.round(minutes / stepMinutes);
     for (let step = 0; step < steps; step++) {
@@ -381,6 +393,29 @@ function runBaselineScenarios() {
     updateAtDepth(0, 1 / 60, 0);
     dcsSurfaced.checkpoints.push(checkpoint('trimix-dcs-surfaced', 'surfaced'));
     scenarios.push(dcsSurfaced);
+
+    // #199: the rule of thirds. Inside the wreck, on the vehicle deck under
+    // the main deck (x 50 m, 32 m: overheadAt() is true), breathing one
+    // 12 L cylinder of 21/35 until past the reserve third, then out over the
+    // open seabed beside the hull, which clears the snapshot but not the
+    // reserve latch gradeDive() reads.
+    setup('tec', 'wreck', [[0.21, 0.35, 200]]);
+    api.diverX = 50;
+    const thirds = {
+      scenarioId: 'wreck-thirds',
+      description: 'Trimix 21/35, one 12 L cylinder, held at 32 m inside the wreck through the outbound, turn and reserve thirds, then out of the overhead',
+      checkpoints: [checkpoint('wreck-thirds', 'surface')]
+    };
+    for (let tick = 0; tick < 100; tick++) updateInSite(32, 0.1);
+    thirds.checkpoints.push(checkpoint('wreck-thirds', 'outbound-10min'));
+    for (let tick = 0; tick < 100; tick++) updateInSite(32, 0.1);
+    thirds.checkpoints.push(checkpoint('wreck-thirds', 'turn-20min'));
+    for (let tick = 0; tick < 80; tick++) updateInSite(32, 0.1);
+    thirds.checkpoints.push(checkpoint('wreck-thirds', 'reserve-28min'));
+    api.diverX = -20;
+    for (let tick = 0; tick < 10; tick++) updateInSite(32, 0.1);
+    thirds.checkpoints.push(checkpoint('wreck-thirds', 'outside-29min'));
+    scenarios.push(thirds);
 
     return scenarios;
   } finally {
