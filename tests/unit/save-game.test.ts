@@ -1080,6 +1080,90 @@ describe("SaveGame gradient factors", () => {
     });
   });
 
+  // v12 adds the end of a dive at the surface (#199).
+  describe("a dive ended at the surface", () => {
+    type Encoded = {
+      version: number;
+      state: {
+        completed: unknown;
+        depthM: number;
+        failure: Record<string, unknown>;
+        events: unknown[];
+        safetyStop: Record<string, unknown>;
+        log: { entries: Record<string, unknown>[] };
+      };
+    };
+    /** Ten minutes at 12 m on air, then up without the safety stop. */
+    // Built once: the state is frozen, and each test encodes its own copy.
+    let surfaced: DiveState | undefined;
+    const surfacedWithoutStop = () => {
+      if (!surfaced) {
+        const model = new DiveModel(createInitialDiveState(101));
+        model.advance({ depthM: metres(12) }, seconds(600));
+        model.advance({ depthM: metres(0) }, seconds(1));
+        surfaced = model.snapshot;
+      }
+      return surfaced;
+    };
+    const encode = (state: DiveState) =>
+      JSON.parse(encodeSaveGame(createSaveGame(state, CONSERVATIVE_FACTORS, 1_735_689_600_000))) as Encoded;
+
+    it("round-trips in a current save, with its skipped safety stop", () => {
+      const state = surfacedWithoutStop();
+      expect(state.completed).toBe(true);
+      const decoded = decodeSaveGame(JSON.stringify(encode(state)));
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      expect(decoded.saveGame.state.completed).toBe(true);
+      expect(decoded.saveGame.state.log.entries.at(-1)?.kind).toBe("safety-stop-skipped");
+    });
+
+    it("resumes a v11 save not completed", () => {
+      const v11 = encode(createInitialDiveState(103));
+      v11.version = 11;
+      delete v11.state.completed;
+      const result = decodeSaveGame(JSON.stringify(v11));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.migratedFrom).toBe("save-game-v11");
+      expect(result.saveGame.state.completed).toBe(false);
+    });
+
+    it("rejects an end the model could not have reached", () => {
+      const invalid: [string, (save: Encoded) => void][] = [
+        ["no flag", (save) => { delete save.state.completed; }],
+        ["a flag that is not a boolean", (save) => { save.state.completed = "yes"; }],
+        ["a failed dive", (save) => {
+          save.state.failure.reason = "hypoxia";
+          save.state.events.push({ type: "failure", elapsedTimeS: 0, failureReason: "hypoxia" });
+        }],
+        ["below the surface", (save) => { save.state.depthM = 1; }],
+        ["no skipped stop for a stop not done", (save) => { save.state.log.entries.pop(); }],
+        ["a skipped stop for a stop done", (save) => { save.state.safetyStop.complete = true; }],
+        ["a skipped stop with a value", (save) => { save.state.log.entries.at(-1)!.value = 1; }],
+        ["a skipped stop before the end", (save) => { save.state.log.entries.at(-1)!.elapsedTimeS = 1; }],
+      ];
+      for (const [what, corrupt] of invalid) {
+        const save = encode(surfacedWithoutStop());
+        corrupt(save);
+        expect(decodeSaveGame(JSON.stringify(save)).ok, what).toBe(false);
+      }
+    });
+
+    it("rejects a skipped safety stop on a dive still going", () => {
+      const going = encode(surfacedWithoutStop());
+      going.state.completed = false;
+      expect(decodeSaveGame(JSON.stringify(going)).ok).toBe(false);
+    });
+
+    it("resumes a legacy save not completed", () => {
+      const result = decodeSaveGame(JSON.stringify(legacyV2Save()));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.saveGame.state.completed).toBe(false);
+    });
+  });
+
   describe("the dive mode", () => {
     const singleCylinder = () =>
       createInitialDiveState(81, {

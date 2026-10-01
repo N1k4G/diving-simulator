@@ -113,9 +113,11 @@ export interface DiveEvent {
  * vocabulary (src/state.js diveEvents): a fast ascent held past its window,
  * and a ceiling broken for longer than its window. `value` is legacy's:
  * the peak ascent rate in m/min, or how far above the ceiling in metres.
+ * A dive that surfaces with its safety stop needed and not done ends with a
+ * safety-stop-skipped entry, value 0.
  */
 export interface DiveLogEntry {
-  kind: "fast-ascent" | "ceiling-violation";
+  kind: "fast-ascent" | "ceiling-violation" | "safety-stop-skipped";
   elapsedTimeS: Seconds;
   value: number;
 }
@@ -235,6 +237,11 @@ export interface DiveState {
   bcdGasSurfaceLiters: number;
   ccr: CcrState | null;
   failure: FailureState;
+  /**
+   * The dive ended at the surface (#199): legacy's switch to its post-dive
+   * screen. Like a failure, it ends the dive; the model moves no further.
+   */
+  completed: boolean;
   events: readonly DiveEvent[];
   log: DiveLog;
   safetyStop: SafetyStopState;
@@ -385,6 +392,7 @@ export function createInitialDiveState(
     // Legacy sets 2 L when a dive leaves the surface (updateSurface).
     bcdGasSurfaceLiters: options.bcdGasSurfaceLiters ?? 2,
     ccr: options.ccr ?? null,
+    completed: false,
     failure: {
       reason: null,
       oxygenToxicityS: seconds(0),
