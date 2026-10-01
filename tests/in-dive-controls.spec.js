@@ -73,7 +73,7 @@ test('a cylinder can be chosen with its digit key', async ({ page }) => {
   await expect(page.locator('[data-tank="1"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('[data-tank="0"]')).toHaveAttribute('aria-pressed', 'false');
 
-  const saved = await persistedSave(page);
+  const saved = await savedStateWhere(page, (state) => state.activeTankIndex === 1);
   expect(saved.state.activeTankIndex).toBe(1);
   // The model records the switch as an event, which is what the parity trace
   // compares. One switch, one event.
@@ -89,7 +89,7 @@ test('a cylinder can be chosen with its button, reaching the same state', async 
   await page.locator('[data-tank="1"]').click();
 
   await expect(page.locator('[data-tank="1"]')).toHaveAttribute('aria-pressed', 'true');
-  const saved = await persistedSave(page);
+  const saved = await savedStateWhere(page, (state) => state.activeTankIndex === 1);
   expect(saved.state.activeTankIndex).toBe(1);
   expect(saved.state.events.filter((e) => e.type === 'gas-switch')).toHaveLength(1);
 });
@@ -121,7 +121,7 @@ test('a second press in the same second does not swallow the first switch', asyn
   await page.keyboard.press('3');
 
   await expect(page.locator('[data-tank="2"]')).toHaveAttribute('aria-pressed', 'true');
-  const saved = await persistedSave(page);
+  const saved = await savedStateWhere(page, (state) => state.activeTankIndex === 2);
   expect(saved.state.activeTankIndex).toBe(2);
 
   // Both decisions are recorded, in order. The old design produced only the
@@ -358,7 +358,7 @@ test.describe('mobile viewport', () => {
     await page.locator('[data-tank="1"]').tap();
 
     await expect(page.locator('[data-tank="1"]')).toHaveAttribute('aria-pressed', 'true');
-    const saved = await persistedSave(page);
+    const saved = await savedStateWhere(page, (state) => state.activeTankIndex === 1);
     expect(saved.state.activeTankIndex).toBe(1);
   });
 
@@ -716,10 +716,10 @@ async function resumeCcrDiveWith(page, mutate) {
  * `timeoutMs` so the caller's own expect reports the mismatch.
  *
  * persistedSave() waits only for a save to exist. The app writes one every
- * five simulated seconds, so a read right after a second key press can
- * return the save made before it — a real ordering in the app, not a bug in
- * it, and one the HUD assertion just before does not cover because the HUD
- * is fed by the frame, not the save.
+ * 3 real seconds (#204), so a read right after a key press, a click or a
+ * tap can return the save made before it — a real ordering in the app, not
+ * a bug in it, and one the HUD assertion just before does not cover because
+ * the HUD is fed by the frame, not the save (#207).
  */
 async function savedStateWhere(page, predicate, timeoutMs = 15_000) {
   const deadline = Date.now() + timeoutMs;
