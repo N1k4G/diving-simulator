@@ -575,6 +575,7 @@ test.describe('fast-forward', () => {
         setItem(name, value);
       };
     }, SAVE_KEY);
+    const pressedAtMs = Date.now();
     await page.keyboard.press('f');
 
     await expect(fastForwardButton(page)).toHaveAttribute('aria-pressed', 'true');
@@ -584,20 +585,25 @@ test.describe('fast-forward', () => {
     await expect(fastForwardIndicator(page)).toHaveText('Fast-forward ×10');
 
     // Sixty dive seconds take twenty real seconds at normal speed and two
-    // at ten times. Six seconds of wall clock is the margin for a loaded
-    // test machine, and still under a third of what normal speed needs — so
-    // a clock that did not actually speed up fails here.
+    // at ten times. The clock is read from the save, which is written every
+    // 3 real seconds, so the save showing them can come up to 3 s after
+    // them; and a loaded machine drops frames, each counting at most 0.1 s
+    // (legacy's cap), which slows the clock itself (#207). Twelve seconds
+    // leave room for both and are still well under the twenty that normal
+    // speed needs, so a clock that did not actually speed up fails here.
     await page.waitForFunction(
       ([key, startS]) => {
         const raw = window.localStorage.getItem(key);
         return raw !== null && JSON.parse(raw).state.elapsedTimeS >= startS + 60;
       },
       [SAVE_KEY, before.state.elapsedTimeS],
-      { timeout: 6_000 },
+      { timeout: 12_000 },
     );
-    // Sixty dive seconds at 30x take two real seconds: one autosave, two at
-    // most. Counting dive time, it would have been a dozen.
-    expect(await page.evaluate(() => window.__saveWrites)).toBeLessThanOrEqual(2);
+    // One autosave per 3 real seconds, whatever the dive clock does: at most
+    // one more than the intervals that passed. Counting dive time, sixty
+    // dive seconds would have been a dozen.
+    const realS = (Date.now() - pressedAtMs) / 1000;
+    expect(await page.evaluate(() => window.__saveWrites)).toBeLessThanOrEqual(Math.floor(realS / 3) + 1);
 
     // And off again on the next press.
     await page.keyboard.press('f');
