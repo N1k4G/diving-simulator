@@ -26,6 +26,13 @@ interface Checkpoint extends LegacyTissueCheckpoint {
   checkpointId: string;
   state: LegacyTissueCheckpoint["state"] & {
     ndlDroppedBelow5: boolean;
+    safetyStop: {
+      needed: boolean;
+      remaining_min: number;
+      countdownStarted: boolean;
+      paused: boolean;
+      complete: boolean;
+    };
     debrief: {
       ascentRate_mpm: number;
       minNdlSeen_min: number | null;
@@ -74,6 +81,22 @@ function expectLogToMatch(model: DiveModel, recorded: Checkpoint): void {
   });
   expect(model.snapshot.log.ndlDroppedBelowFiveMinutes, `ndlDroppedBelow5 at ${where}`).toBe(recorded.state.ndlDroppedBelow5);
   expectContinuationToMatch(model, recorded);
+}
+
+/**
+ * The adaptive safety stop against legacy's state.safetyStop (#199), whose
+ * remaining_min is in seconds despite its name.
+ */
+function expectSafetyStopToMatch(model: DiveModel, recorded: Checkpoint): void {
+  const where = recorded.checkpointId;
+  const stop = model.snapshot.safetyStop;
+  const legacy = recorded.state.safetyStop;
+  expect(
+    { needed: stop.needed, countdownStarted: stop.countdownStarted, paused: stop.paused, complete: stop.complete },
+    `safety stop at ${where}`,
+  ).toEqual({ needed: legacy.needed, countdownStarted: legacy.countdownStarted, paused: legacy.paused, complete: legacy.complete });
+  expect(Math.abs(stop.remainingS - legacy.remaining_min), `safety stop remaining at ${where}`)
+    .toBeLessThanOrEqual(eps["state.safetyStop.remaining_min"]);
 }
 
 /** Legacy's profile up to and including a checkpoint. */
@@ -142,6 +165,7 @@ function replayBuoyancy(
     }
     expectLogToMatch(model, recorded);
     expectMotionToMatch(model, scenarioId, recorded);
+    expectSafetyStopToMatch(model, recorded);
     logged = model.snapshot.log.entries.length;
   }
   return logged;
@@ -211,7 +235,17 @@ describe("the dive log against the recorded legacy dives", () => {
         );
       }
       expectMotionToMatch(new DiveModel(state), scenarioId, recorded);
+      expectSafetyStopToMatch(new DiveModel(state), recorded);
     }
+  });
+
+  it("has a recorded countdown for the air replay above to compare against", () => {
+    // The only recorded countdown, which the air replay above matches: 300 s
+    // (the NDL fell below 5 at the bottom), 18 s of it ticked in the band on
+    // the ascent, then paused at the surface. Guards the comparison against
+    // a fixture that no longer holds one.
+    const surfaced = checkpoint("air-18m-30min", "surfaced");
+    expect(surfaced.state.safetyStop).toMatchObject({ countdownStarted: true, paused: true, remaining_min: 282 });
   });
 
   it("continues the profile from a mid-dive checkpoint", () => {

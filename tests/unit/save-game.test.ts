@@ -152,6 +152,8 @@ describe("SaveGame gradient factors", () => {
       ...representativeState(),
       verticalVelocityMpm: 0,
       bcdGasSurfaceLiters: neutralBcdSurfaceLitres(representativeState().depthM),
+      // Before v9 there was no safety stop: it is needed from the deepest point.
+      safetyStop: { ...representativeState().safetyStop, needed: representativeState().maxDepthM > 11 },
     });
   });
 
@@ -556,6 +558,150 @@ describe("SaveGame gradient factors", () => {
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.saveGame.state.log.minNdlMin).toBeNull();
+    });
+  });
+
+  // v9 adds the adaptive safety stop (#199).
+  describe("the safety stop", () => {
+    const atTheStop = () =>
+      freezeDiveState({
+        ...createInitialDiveState(88),
+        elapsedTimeS: seconds(1800),
+        depthM: 5 as DiveState["depthM"],
+        maxDepthM: 24 as DiveState["maxDepthM"],
+        safetyStop: {
+          needed: true,
+          countdownStarted: true,
+          remainingS: seconds(120),
+          paused: false,
+          complete: false,
+        },
+      });
+
+    it("round-trips in a current save", () => {
+      const decoded = decodeSaveGame(encodeSaveGame(createSaveGame(atTheStop(), CONSERVATIVE_FACTORS, 1_735_689_600_000)));
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      expect(decoded.saveGame.version).toBe(CURRENT_SAVE_GAME_VERSION);
+      expect(decoded.saveGame.state.safetyStop).toEqual(atTheStop().safetyStop);
+    });
+
+    it("derives the stop of a v8 save from its deepest point, with no countdown", () => {
+      const v8 = JSON.parse(
+        encodeSaveGame(createSaveGame(atTheStop(), CONSERVATIVE_FACTORS, 1_735_689_600_000)),
+      ) as { version: number; state: Record<string, unknown> };
+      v8.version = 8;
+      delete v8.state.safetyStop;
+      const result = decodeSaveGame(JSON.stringify(v8));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.migratedFrom).toBe("save-game-v8");
+      expect(result.saveGame.state.safetyStop).toEqual({
+        needed: true,
+        countdownStarted: false,
+        remainingS: 0,
+        paused: false,
+        complete: false,
+      });
+    });
+
+    it("rejects a stop the model could not have left", () => {
+      const invalid: [string, (stop: Record<string, unknown>, state: Record<string, unknown>) => void][] = [
+        ["no stop", (stop) => { for (const key of Object.keys(stop)) delete stop[key]; }],
+        ["needed on a shallow dive", (_stop, state) => { state.maxDepthM = 10; }],
+        ["a countdown below 11 m", (_stop, state) => { state.depthM = 12; }],
+        ["time left before the countdown starts", (stop) => { stop.countdownStarted = false; }],
+        ["complete with time left", (stop) => { stop.complete = true; }],
+        ["more time than the long stop", (stop) => { stop.remainingS = 301; }],
+        ["paused inside the band", (stop) => { stop.paused = true; }],
+        ["running outside the band", (_stop, state) => { state.depthM = 1.5; }],
+        // #206 Codex round 1: a countdown that reaches zero completes on that
+        // step, unpaused, and never holds more than the stop's length.
+        ["a countdown at zero, not complete", (stop) => { stop.remainingS = 0; }],
+        ["complete and paused", (stop, state) => {
+          stop.remainingS = 0;
+          stop.complete = true;
+          stop.paused = true;
+          state.depthM = 1.5;
+        }],
+        ["more than the short stop on a dive that needs only it", (stop) => { stop.remainingS = 181; }],
+      ];
+      for (const [what, corrupt] of invalid) {
+        const save = JSON.parse(
+          encodeSaveGame(createSaveGame(atTheStop(), CONSERVATIVE_FACTORS, 1_735_689_600_000)),
+        ) as { state: Record<string, unknown> & { safetyStop: Record<string, unknown> } };
+        corrupt(save.state.safetyStop, save.state);
+        expect(decodeSaveGame(JSON.stringify(save)).ok, what).toBe(false);
+      }
+    });
+
+    it("allows the long stop's time on a dive that needs it", () => {
+      const deep = (maxDepthM: number, below5: boolean) => {
+        const state = atTheStop();
+        return freezeDiveState({
+          ...state,
+          maxDepthM: maxDepthM as DiveState["maxDepthM"],
+          safetyStop: { ...state.safetyStop, remainingS: seconds(300) },
+          log: { ...state.log, ndlDroppedBelowFiveMinutes: below5, minNdlMin: below5 ? 4 : null },
+        });
+      };
+      for (const [maxDepthM, below5] of [[31, false], [24, true]] as const) {
+        const decoded = decodeSaveGame(encodeSaveGame(createSaveGame(deep(maxDepthM, below5), CONSERVATIVE_FACTORS, 1)));
+        expect(decoded.ok, `${maxDepthM} m, below five ${below5}`).toBe(true);
+      }
+    });
+
+    it("derives legacy's stop when its countdown is at zero but not complete", () => {
+      const contradictory = decodeSaveGame(JSON.stringify({
+        ...legacyV2Save(),
+        depth: 5,
+        safetyStopNeeded: true,
+        safetyStopCountdownStarted: true,
+        safetyStopRemaining: 0,
+        safetyStopPaused: false,
+        safetyStopComplete: false,
+      }));
+      expect(contradictory.ok).toBe(true);
+      if (!contradictory.ok) return;
+      expect(contradictory.saveGame.state.safetyStop).toEqual({
+        needed: true,
+        countdownStarted: false,
+        remainingS: 0,
+        paused: false,
+        complete: false,
+      });
+    });
+
+    it("carries legacy's safety stop over, and derives one when its fields disagree", () => {
+      const carried = decodeSaveGame(JSON.stringify({
+        ...legacyV2Save(),
+        depth: 5,
+        safetyStopNeeded: true,
+        safetyStopCountdownStarted: true,
+        safetyStopRemaining: 95,
+        safetyStopPaused: false,
+        safetyStopComplete: false,
+      }));
+      expect(carried.ok).toBe(true);
+      if (!carried.ok) return;
+      expect(carried.saveGame.state.safetyStop).toEqual({
+        needed: true,
+        countdownStarted: true,
+        remainingS: 95,
+        paused: false,
+        complete: false,
+      });
+      const disagreeing = decodeSaveGame(JSON.stringify({
+        ...legacyV2Save(),
+        safetyStopNeeded: true,
+        safetyStopCountdownStarted: true,
+        safetyStopRemaining: 95,
+      }));
+      expect(disagreeing.ok).toBe(true);
+      if (!disagreeing.ok) return;
+      // Legacy's fixture diver is at 24 m, below 11 m, where a countdown cannot run.
+      expect(disagreeing.saveGame.state.safetyStop.countdownStarted).toBe(false);
+      expect(disagreeing.saveGame.state.safetyStop.needed).toBe(true);
     });
   });
 

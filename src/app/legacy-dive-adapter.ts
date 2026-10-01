@@ -36,6 +36,17 @@ export interface LegacyTissueCheckpoint {
     bcdGasSurface_l?: number;
     ndlDroppedBelow5?: boolean;
     /**
+     * The adaptive safety stop (#199). remaining_min is legacy's
+     * safetyStopRemaining, which is in seconds despite the recorded name.
+     */
+    safetyStop?: {
+      needed: boolean;
+      remaining_min: number | null;
+      countdownStarted: boolean;
+      paused: boolean;
+      complete: boolean;
+    };
+    /**
      * The debriefing capture's continuation state (#199): legacy's
      * ascentRate, minNdlSeen, and the two windows' accumulators and the fast
      * ascent's peak. A fired window's -Infinity and an Infinity minNdlSeen
@@ -159,6 +170,15 @@ export function diveStateFromLegacyCheckpoint(
     bcdGasSurfaceLiters:
       checkpoint.state.bcdGasSurface_l ?? initialState.bcdGasSurfaceLiters,
     log: logFromLegacyCheckpoint(checkpoint, earlierProfile),
+    safetyStop: checkpoint.state.safetyStop
+      ? {
+          needed: checkpoint.state.safetyStop.needed,
+          countdownStarted: checkpoint.state.safetyStop.countdownStarted,
+          remainingS: seconds(checkpoint.state.safetyStop.remaining_min ?? 0),
+          paused: checkpoint.state.safetyStop.paused,
+          complete: checkpoint.state.safetyStop.complete,
+        }
+      : initialState.safetyStop,
   });
 }
 
