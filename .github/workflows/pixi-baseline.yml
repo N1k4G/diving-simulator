@@ -254,7 +254,7 @@ jobs:
           ref: ${{ needs.record.outputs.recorded_sha }}
 
       - name: Download the recorded baseline
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: pixi-baseline-linux
           path: tests/fixtures/reference-frames/pixi/linux
