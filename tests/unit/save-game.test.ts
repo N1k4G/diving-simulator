@@ -615,6 +615,16 @@ describe("SaveGame gradient factors", () => {
         ["more time than the long stop", (stop) => { stop.remainingS = 301; }],
         ["paused inside the band", (stop) => { stop.paused = true; }],
         ["running outside the band", (_stop, state) => { state.depthM = 1.5; }],
+        // #206 Codex round 1: a countdown that reaches zero completes on that
+        // step, unpaused, and never holds more than the stop's length.
+        ["a countdown at zero, not complete", (stop) => { stop.remainingS = 0; }],
+        ["complete and paused", (stop, state) => {
+          stop.remainingS = 0;
+          stop.complete = true;
+          stop.paused = true;
+          state.depthM = 1.5;
+        }],
+        ["more than the short stop on a dive that needs only it", (stop) => { stop.remainingS = 181; }],
       ];
       for (const [what, corrupt] of invalid) {
         const save = JSON.parse(
@@ -623,6 +633,43 @@ describe("SaveGame gradient factors", () => {
         corrupt(save.state.safetyStop, save.state);
         expect(decodeSaveGame(JSON.stringify(save)).ok, what).toBe(false);
       }
+    });
+
+    it("allows the long stop's time on a dive that needs it", () => {
+      const deep = (maxDepthM: number, below5: boolean) => {
+        const state = atTheStop();
+        return freezeDiveState({
+          ...state,
+          maxDepthM: maxDepthM as DiveState["maxDepthM"],
+          safetyStop: { ...state.safetyStop, remainingS: seconds(300) },
+          log: { ...state.log, ndlDroppedBelowFiveMinutes: below5, minNdlMin: below5 ? 4 : null },
+        });
+      };
+      for (const [maxDepthM, below5] of [[31, false], [24, true]] as const) {
+        const decoded = decodeSaveGame(encodeSaveGame(createSaveGame(deep(maxDepthM, below5), CONSERVATIVE_FACTORS, 1)));
+        expect(decoded.ok, `${maxDepthM} m, below five ${below5}`).toBe(true);
+      }
+    });
+
+    it("derives legacy's stop when its countdown is at zero but not complete", () => {
+      const contradictory = decodeSaveGame(JSON.stringify({
+        ...legacyV2Save(),
+        depth: 5,
+        safetyStopNeeded: true,
+        safetyStopCountdownStarted: true,
+        safetyStopRemaining: 0,
+        safetyStopPaused: false,
+        safetyStopComplete: false,
+      }));
+      expect(contradictory.ok).toBe(true);
+      if (!contradictory.ok) return;
+      expect(contradictory.saveGame.state.safetyStop).toEqual({
+        needed: true,
+        countdownStarted: false,
+        remainingS: 0,
+        paused: false,
+        complete: false,
+      });
     });
 
     it("carries legacy's safety stop over, and derives one when its fields disagree", () => {

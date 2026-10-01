@@ -22,7 +22,9 @@ import {
   FAST_ASCENT_RATE_MPM,
   FAST_ASCENT_WINDOW_S,
   PROFILE_SAMPLE_INTERVAL_S,
+  SAFETY_STOP_LONG_BELOW_M,
   SAFETY_STOP_LONG_S,
+  SAFETY_STOP_SHORT_S,
   SAFETY_STOP_NEEDED_BELOW_M,
   SUBMERGED_DEPTH_M,
   isInSafetyStopBand,
@@ -407,6 +409,8 @@ function migrateLegacyV2(candidate: Record<string, unknown>): SaveGame | null {
     return null;
   }
 
+  // The safety stop is checked against the log's below-five latch.
+  const log = migrateLegacyLog(candidate);
   const state: DiveState = {
     elapsedTimeS:
       ((candidate.diveTime as number) * 60) as DiveState["elapsedTimeS"],
@@ -444,8 +448,8 @@ function migrateLegacyV2(candidate: Record<string, unknown>): SaveGame | null {
         candidate.ccrHyperoxiaTime as DiveState["failure"]["ccrHyperoxiaS"],
     },
     events: [],
-    log: migrateLegacyLog(candidate),
-    safetyStop: migrateLegacySafetyStop(candidate),
+    log,
+    safetyStop: migrateLegacySafetyStop(candidate, log.ndlDroppedBelowFiveMinutes),
   };
 
   // The legacy save carries the pair too (src/game-loop.js writes `gfLow` and
@@ -610,6 +614,8 @@ function isDiveState(
     isSafetyStop(candidate.safetyStop, {
       depthM: candidate.depthM as number,
       maxDepthM: candidate.maxDepthM as number,
+      ndlDroppedBelowFiveMinutes:
+        isRecord(candidate.log) && candidate.log.ndlDroppedBelowFiveMinutes === true,
       failureReason: (candidate.failure as Record<string, unknown>).reason as
         | DiveFailureReason
         | null,
@@ -906,6 +912,8 @@ function isSafetyStop(
   context: {
     readonly depthM: number;
     readonly maxDepthM: number;
+    /** The dive log's below-five latch, which with the depth sets the stop's length. */
+    readonly ndlDroppedBelowFiveMinutes: boolean;
     readonly failureReason: DiveFailureReason | null;
   },
 ): candidate is SafetyStopState {
@@ -928,7 +936,19 @@ function isSafetyStop(
   }
   const started = candidate.countdownStarted;
   const remainingS = candidate.remainingS as number;
+  // The countdown starts at legacy's calculateSafetyStopDuration() and only
+  // runs down. Its inputs, the deepest point and the below-five latch, only
+  // ever grow, so the length they give now bounds what is left (#206 Codex
+  // round 1).
+  const longestS =
+    context.maxDepthM > SAFETY_STOP_LONG_BELOW_M || context.ndlDroppedBelowFiveMinutes
+      ? SAFETY_STOP_LONG_S
+      : SAFETY_STOP_SHORT_S;
   return (
+    remainingS <= longestS &&
+    // A countdown that reaches zero completes on that step, unpaused.
+    (!started || candidate.complete === (remainingS === 0)) &&
+    (!candidate.complete || !candidate.paused) &&
     (!candidate.needed || context.maxDepthM > SAFETY_STOP_NEEDED_BELOW_M) &&
     (!started || candidate.needed) &&
     (started || (remainingS === 0 && !candidate.paused && !candidate.complete)) &&
@@ -947,7 +967,10 @@ function isSafetyStop(
  * could have left resumes with one derived from the deepest point instead,
  * rather than losing the dive.
  */
-function migrateLegacySafetyStop(candidate: Record<string, unknown>): SafetyStopState {
+function migrateLegacySafetyStop(
+  candidate: Record<string, unknown>,
+  ndlDroppedBelowFiveMinutes: boolean,
+): SafetyStopState {
   const carried = {
     needed: candidate.safetyStopNeeded === true,
     countdownStarted: candidate.safetyStopCountdownStarted === true,
@@ -960,6 +983,7 @@ function migrateLegacySafetyStop(candidate: Record<string, unknown>): SafetyStop
   return isSafetyStop(carried, {
     depthM: candidate.depth as number,
     maxDepthM: candidate.maxDepth as number,
+    ndlDroppedBelowFiveMinutes,
     failureReason: null,
   })
     ? carried
