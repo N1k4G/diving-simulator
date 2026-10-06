@@ -1170,11 +1170,12 @@ describe("SaveGame gradient factors", () => {
       version: number;
       state: { thirds: Record<string, unknown>; tanks: { gasRemainingL: number }[] };
     };
-    /** Under an overhead, a 2400 L plan with 1500 L left: past the turn. */
+    /** Twenty minutes in under an overhead, a 2400 L plan with 1500 L left: past the turn. */
     const underway = () => {
       const base = createInitialDiveState(107);
       return freezeDiveState({
         ...base,
+        elapsedTimeS: seconds(1200),
         tanks: base.tanks.map((tank) => ({ ...tank, gasRemainingL: litres(1500) })),
         thirds: { startingGasL: litres(2400), turnWarned: true, reserveHit: false },
       });
