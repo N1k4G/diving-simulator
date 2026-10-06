@@ -3,13 +3,13 @@
   "issue": 199,
   "slice": "Slice 6b: the post-dive grade, a pure port of legacy's gradeDive(), with its text in English and German",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "eb812f9a148fcabda6ed14eaab3a7109a9929307",
-  "measuredTree": "dd7e5a5bf3916f1f8fabcbb8134e3fe23cef8352",
+  "measuredCommit": "8e2ce9eb7050f32f07c9f47a7139be2e560a950f",
+  "measuredTree": "39abb5bd0993857c3cdcbcc96518b4b911406fec",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-06T20:01:51Z",
-  "runFinishedAt": "2026-10-06T20:08:47Z",
+  "recordedAt": "2026-10-06T20:22:16Z",
+  "runFinishedAt": "2026-10-06T20:28:59Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "On main 1760ce4 (#214, slice 6a). The full run above is on eb812f9; the only later commit adds this file.",
+  "provenanceNote": "On main 1760ce4 (#214, slice 6a). The full run above is on 8e2ce9e, whose last commit is the previous version of this file; src, tests, scripts and docs are identical to eb812f9, the slice's code commit. The only later commit updates this file.",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -27,7 +27,7 @@
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
     "unit": "436 passed (424 on main, +12 in tests/unit/dive-grade.test.ts)",
     "parity": "142 passed (95 on main, +47 in tests/parity/dive-grade.test.ts: one per recorded checkpoint, 46, and a guard)",
-    "e2e": "142 passed, 1 failed in 5.2 min. The failure is tests/setup-screen.spec.js › technical mode › a resumed dive is planned on its save, a 60 s test timeout while waiting for the canvas after a dive start under the suite's load; this slice changes no client code. Re-run alone on the same commit and clean tree: 5 of 5 passed with --repeat-each=5, and the whole spec file 37 of 37.",
+    "e2e": "143 passed in 5.1 min (unchanged; this slice changes no client code)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -91,5 +91,12 @@
     "tests": "eb51b8a38db704796f18740769585e42af43db7b",
     "scripts": "6b40e24c03f7c63b0f9bf818108d20a6f6f2244f",
     "docs": "2cf0bb4f463fc5b6fb9ebc81e7dfee3c846a7b15"
-  }
+  },
+  "earlierRuns": [
+    {
+      "measuredCommit": "eb812f9a148fcabda6ed14eaab3a7109a9929307",
+      "recordedAt": "2026-10-06T20:01:51Z",
+      "note": "142 passed, 1 failed (a 60 s timeout in tests/setup-screen.spec.js under load); superseded by the passing run above, on the same source (Codex round 1 on #215)."
+    }
+  ]
 }
