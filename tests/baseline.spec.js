@@ -144,13 +144,26 @@ test('baseline: generated contracts are complete and internally consistent', asy
     'buoyancy-vent-inflate-12m',
     'buoyancy-ccr-inflate-12m',
     'trimix-dcs-above-stop',
-    'trimix-dcs-surfaced'
+    'trimix-dcs-surfaced',
+    'wreck-thirds'
   ]);
+  // #199: the one scenario simulated against its declared site. Legacy's
+  // rule of thirds reads overheadAt(), which only a site with an overhead
+  // can make true. What the open-geometry rule protects still holds there:
+  // the depth stays pinned at every tick and nothing is logged.
+  const SITE_GEOMETRY_SCENARIOS = new Map([['wreck-thirds', 32]]);
   for (const scenario of traces.scenarios) {
     expect(scenario.checkpoints.length).toBeGreaterThan(0);
+    const pinnedDepthM = SITE_GEOMETRY_SCENARIOS.get(scenario.scenarioId);
     for (const checkpoint of scenario.checkpoints) {
       expect(checkpoint.scenarioId).toBe(scenario.scenarioId);
-      expect(checkpoint.simulatedGeometry).toBe('open');
+      if (pinnedDepthM === undefined || checkpoint.trajectory.length === 0) {
+        expect(checkpoint.simulatedGeometry).toBe('open');
+      } else {
+        expect(checkpoint.simulatedGeometry).toBe(checkpoint.state.diveSite);
+        expect(checkpoint.trajectory.every((tick) => tick.depth_m === pinnedDepthM)).toBe(true);
+        expect(checkpoint.events).toEqual([]);
+      }
       expect(checkpoint.tissues.n2_bar).toHaveLength(16);
       expect(checkpoint.tissues.he_bar).toHaveLength(16);
 

@@ -123,6 +123,24 @@ export interface DiveLogEntry {
 }
 
 /**
+ * The rule of thirds (#199), legacy's gas plan under an overhead (Issue #27):
+ * the gas carried when the diver went under it, the turn third's latch (one
+ * beep per penetration), and whether the reserve third was ever reached on
+ * this dive, which gradeDive() reads. Leaving the overhead clears the first
+ * two; the reserve latch stays for the dive.
+ */
+export interface RuleOfThirdsState {
+  /** All cylinders' gas on entering the overhead; 0 outside one. */
+  startingGasL: Litres;
+  turnWarned: boolean;
+  reserveHit: boolean;
+}
+
+export function createRuleOfThirdsState(): RuleOfThirdsState {
+  return { startingGasL: litres(0), turnWarned: false, reserveHit: false };
+}
+
+/**
  * One point of the depth profile (#199), legacy's diveProfile entry: taken
  * every 2 dive seconds, with the ceiling of the step before it.
  */
@@ -242,6 +260,7 @@ export interface DiveState {
    * screen. Like a failure, it ends the dive; the model moves no further.
    */
   completed: boolean;
+  thirds: RuleOfThirdsState;
   events: readonly DiveEvent[];
   log: DiveLog;
   safetyStop: SafetyStopState;
@@ -393,6 +412,7 @@ export function createInitialDiveState(
     bcdGasSurfaceLiters: options.bcdGasSurfaceLiters ?? 2,
     ccr: options.ccr ?? null,
     completed: false,
+    thirds: createRuleOfThirdsState(),
     failure: {
       reason: null,
       oxygenToxicityS: seconds(0),
@@ -459,6 +479,7 @@ export function freezeDiveState(state: DiveState): DiveState {
   });
 
   const safetyStop = Object.freeze({ ...state.safetyStop });
+  const thirds = Object.freeze({ ...state.thirds });
 
   return Object.freeze({
     ...state,
@@ -469,5 +490,6 @@ export function freezeDiveState(state: DiveState): DiveState {
     events,
     log,
     safetyStop,
+    thirds,
   });
 }

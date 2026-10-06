@@ -1,6 +1,7 @@
 import {
   DEFAULT_SCRUBBER_DURATION_S,
   createEmptyDiveLog,
+  createRuleOfThirdsState,
   createSafetyStopState,
   freezeDiveState,
   type DiveLog,
@@ -108,7 +109,14 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // log's safety-stop-skipped entry that can end one. Older saves were written
 // by clients that could not end a dive that way and resume with it false.
 // Legacy saves only diving states and resumes them the same way.
-export const CURRENT_SAVE_GAME_VERSION = 12;
+//
+// v13 adds state.thirds, the rule of thirds (#199). Older saves never
+// tracked it and resume outside any plan with the reserve never reached; a
+// diver under an overhead plans afresh from the gas left on the next step.
+// Legacy saves carry thirdsReserveHitThisDive and keep it; legacy does not
+// save the plan itself and restores it empty, as this does.
+export const CURRENT_SAVE_GAME_VERSION = 13;
+export const TWELFTH_SAVE_GAME_VERSION = 12;
 export const ELEVENTH_SAVE_GAME_VERSION = 11;
 export const TENTH_SAVE_GAME_VERSION = 10;
 export const NINTH_SAVE_GAME_VERSION = 9;
@@ -177,6 +185,7 @@ export type SaveGameMigration =
   | "save-game-v9"
   | "save-game-v10"
   | "save-game-v11"
+  | "save-game-v12"
   | null;
 
 /**
@@ -365,8 +374,12 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
       };
     }
     // Before v12 no dive ended at the surface.
-    if (v < CURRENT_SAVE_GAME_VERSION && isRecord(candidate.state)) {
+    if (v < TWELFTH_SAVE_GAME_VERSION && isRecord(candidate.state)) {
       candidate.state = { ...candidate.state, completed: false };
+    }
+    // Before v13 there was no rule of thirds.
+    if (v < CURRENT_SAVE_GAME_VERSION && isRecord(candidate.state)) {
+      candidate.state = { ...candidate.state, thirds: createRuleOfThirdsState() };
     }
     // A v1 payload has no gradientFactors and is filled with the defaults; a
     // v2 payload must carry a valid pair rather than fall back to them, or a
@@ -492,6 +505,10 @@ function migrateLegacyV2(candidate: Record<string, unknown>): SaveGame | null {
       : neutralBcdSurfaceLitres(candidate.depth as number),
     ccr,
     completed: false,
+    thirds: {
+      ...createRuleOfThirdsState(),
+      reserveHit: candidate.thirdsReserveHitThisDive === true,
+    },
     failure: {
       reason: null,
       oxygenToxicityS:
@@ -710,6 +727,7 @@ function isDiveState(
       depthM: candidate.depthM as number,
       ceilingM,
     }) &&
+    isRuleOfThirds(candidate.thirds, candidate.tanks as unknown[]) &&
     isEventHistory(
       candidate.events,
       (candidate.tanks as unknown[]).length,
@@ -1238,6 +1256,28 @@ function isCcrState(candidate: unknown, elapsedTimeS: number): candidate is CcrS
     typeof candidate.onBailout === "boolean" &&
     typeof candidate.scrubberFailed === "boolean"
   );
+}
+
+/**
+ * A rule of thirds the model could have left (#199): a plan, if any, no
+ * smaller than the gas carried now, since the dive only draws gas down, and
+ * the turn latch only while a plan is open.
+ */
+function isRuleOfThirds(candidate: unknown, tanks: readonly unknown[]): boolean {
+  if (
+    !isRecord(candidate) ||
+    !isNonNegativeFinite(candidate.startingGasL) ||
+    typeof candidate.turnWarned !== "boolean" ||
+    typeof candidate.reserveHit !== "boolean"
+  ) {
+    return false;
+  }
+  const gasL = tanks.reduce<number>(
+    (sum, tank) => sum + ((tank as { gasRemainingL: number }).gasRemainingL),
+    0,
+  );
+  const startingGasL = candidate.startingGasL as number;
+  return startingGasL === 0 ? !candidate.turnWarned : startingGasL >= gasL;
 }
 
 /**

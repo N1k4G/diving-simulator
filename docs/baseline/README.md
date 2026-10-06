@@ -21,7 +21,12 @@ Schema validation is enforced with Ajv Draft 2020-12. Model updates use the
 legacy open-water geometry so site collision and overhead effects cannot turn
 pinned depth profiles into artificial ascent events; each checkpoint still
 records its declared shore, wreck, or cave site and independently records
-`simulatedGeometry: "open"`.
+`simulatedGeometry: "open"`. The one exception is `wreck-thirds` (#199): the
+rule of thirds runs only under an overhead, which legacy finds from the site's
+geometry, so that scenario is simulated against the wreck and its checkpoints
+after the first tick record `simulatedGeometry: "wreck"`. Its depth is pinned at 32 m with no horizontal
+motion, and `tests/baseline.spec.js` checks that every tick stayed at that depth
+and that nothing was logged.
 
 ## Collect performance evidence
 

@@ -15,6 +15,7 @@ import {
   type DiveEvent,
   type DiveFailureReason,
   type DiveProfileSample,
+  type RuleOfThirdsState,
   type SafetyStopState,
   type DiveState,
   type GasMix,
@@ -60,6 +61,11 @@ export const SURFACE_DCS_CEILING_M = 3;
 // than half a dive minute, the ceiling cleared to 0.1 m, the dive deeper
 // than 2 m (#199).
 export const SURFACED_DEPTH_M = 0.3;
+// src/constants.js THIRDS_TURN_FRACTION and THIRDS_RESERVE_FRACTION: more
+// than two thirds left is outbound, more than one third the turn, the rest
+// the reserve.
+export const THIRDS_TURN_FRACTION = 2 / 3;
+export const THIRDS_RESERVE_FRACTION = 1 / 3;
 export const COMPLETION_MIN_ELAPSED_S = seconds(30);
 export const COMPLETION_MAX_CEILING_M = 0.1;
 export const COMPLETION_MIN_MAX_DEPTH_M = 2;
@@ -78,6 +84,12 @@ export interface DiveEnvironment {
    * legacy's frameCalc uses gfHigh. DEFAULT_GF_HIGH_PERCENT when absent.
    */
   gradientFactorHighPercent?: number;
+  /**
+   * The diver is under an overhead (#199), legacy's inOverhead from
+   * overheadAt(): no straight way up. The rule of thirds runs only here.
+   * False when absent.
+   */
+  inOverhead?: boolean;
 }
 
 /** src/constants.js FAST_ASCENT_RATE and FAST_ASCENT_EVENT_SEC. */
@@ -195,6 +207,7 @@ export class DiveModel {
     bounds: Readonly<VerticalBounds>,
     frameS: Seconds,
     controls: Readonly<BuoyancyControls>,
+    inOverhead = false,
   ): DiveState {
     if (frameS <= 0 || isDiveOver(this.#state)) {
       return this.#state;
@@ -211,6 +224,7 @@ export class DiveModel {
       {
         depthM: metres(moved.depthM),
         gradientFactorHighPercent: this.#gradientFactorHighPercent,
+        inOverhead,
       },
       frameS,
     );
@@ -364,6 +378,9 @@ export function advanceDiveStep(
     environment.gradientFactorHighPercent ?? DEFAULT_GF_HIGH_PERCENT,
   );
   nextState = accumulateCns(nextState, breathing, environment.depthM, elapsedS);
+  // Legacy's rule of thirds runs after updateCNS(), before the tick's gas
+  // use and before any check can end the dive.
+  nextState = updateRuleOfThirds(nextState, environment.inOverhead ?? false);
   nextState = updateLifeSupport(
     nextState,
     environment,
@@ -423,6 +440,35 @@ function updateCompletion(state: DiveState, limits: DecompressionLimits): DiveSt
         }
       : state.log,
   });
+}
+
+/**
+ * Legacy's rule of thirds (#199, Issue #27 in src/game-loop.js): on going
+ * under an overhead, all cylinders' gas is the plan's whole; each step the
+ * gas left against it is outbound, turn (latching the beep) or reserve
+ * (latching the reserve for the dive). Out from under it, the plan and the
+ * turn latch clear, so the next penetration plans from the gas left then.
+ */
+function updateRuleOfThirds(state: DiveState, inOverhead: boolean): DiveState {
+  const thirds = state.thirds;
+  if (!inOverhead) {
+    return thirds.startingGasL > 0
+      ? freezeDiveState({
+          ...state,
+          thirds: { ...thirds, startingGasL: litres(0), turnWarned: false },
+        })
+      : state;
+  }
+  const gasL = state.tanks.reduce((sum, tank) => sum + tank.gasRemainingL, 0);
+  const startingGasL = thirds.startingGasL > 0 ? thirds.startingGasL : gasL;
+  const fraction = startingGasL > 0 ? Math.min(1, Math.max(0, gasL / startingGasL)) : 0;
+  const next: RuleOfThirdsState =
+    fraction > THIRDS_TURN_FRACTION
+      ? { ...thirds, startingGasL: litres(startingGasL) }
+      : fraction > THIRDS_RESERVE_FRACTION
+        ? { ...thirds, startingGasL: litres(startingGasL), turnWarned: true }
+        : { ...thirds, startingGasL: litres(startingGasL), reserveHit: true };
+  return freezeDiveState({ ...state, thirds: next });
 }
 
 /**
