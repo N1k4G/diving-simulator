@@ -7,6 +7,7 @@ import {
 } from "../../src/app/game-controller";
 import { neutralBcdSurfaceLitres } from "../../src/core/buoyancy";
 import { DiveModel } from "../../src/core/dive-model";
+import { createSaveGame } from "../../src/save/save-game";
 import {
   createGasMix,
   createInitialDiveState,
@@ -187,6 +188,27 @@ describe("the controller drives the buoyancy model frame by frame", () => {
     controller.destroy();
   });
 
+  it("resets the safety stop of a dive moved down into the route (#206 pre-review)", async () => {
+    // A legacy save at 5 m with its countdown running: moved to 18 m, below
+    // 11 m, where every step resets the stop, so it resets at once and the
+    // state saves before the first step.
+    const saved = freezeDiveState({
+      ...neutralAt(5, freezeDiveState({ ...createInitialDiveState(13), maxDepthM: metres(24) })),
+      safetyStop: { needed: true, countdownStarted: true, remainingS: seconds(100), paused: false, complete: false },
+    });
+    const { controller } = await startController(saved);
+    expect(controller.authoritativeState.depthM).toBe(18);
+    expect(controller.authoritativeState.safetyStop).toEqual({
+      needed: true,
+      countdownStarted: false,
+      remainingS: 0,
+      paused: false,
+      complete: false,
+    });
+    expect(() => createSaveGame(controller.authoritativeState, { lowPercent: 35, highPercent: 75 }, 1)).not.toThrow();
+    controller.destroy();
+  });
+
   it("starts a dive saved below the route at its floor, at rest and neutral", async () => {
     const saved = freezeDiveState({ ...neutralAt(40), verticalVelocityMpm: 8 });
     const { controller, frames } = await startController(saved);
@@ -215,6 +237,42 @@ describe("the controller drives the buoyancy model frame by frame", () => {
     const atDefault = new DiveModel(loaded);
     atDefault.advanceWithBuoyancy(ROUTE, seconds((FRAME_MS / 1000) * 3 * 1), { inflate: false, vent: false });
     expect(controller.authoritativeState.log.minNdlMin ?? 0).toBeGreaterThan(atDefault.snapshot.log.minNdlMin ?? 0);
+    controller.destroy();
+  });
+
+  it("asks the forecast for the safety stop the dive keeps (#199)", async () => {
+    // legacy calculateTTS() reads safetyStopNeeded and ndlDroppedBelow5 from
+    // the dive; the forecast used to be sent false for both.
+    const requested: PlannerSettings[] = [];
+    const base = neutralAt(26);
+    const initial = freezeDiveState({
+      ...base,
+      log: { ...base.log, minNdlMin: 4, ndlDroppedBelowFiveMinutes: true },
+      safetyStop: { ...base.safetyStop, needed: true },
+    });
+    const controller = new GameController({
+      renderer: {
+        kind: "pixi",
+        mount: () => Promise.resolve(),
+        render: () => undefined,
+        resize: () => undefined,
+        destroy: () => undefined,
+      },
+      onFrame: () => undefined,
+      initialState: initial,
+      plannerClient: {
+        forecast: (_state: DiveState, settings: PlannerSettings) => {
+          requested.push(settings);
+          return new Promise(() => undefined);
+        },
+        dispose: () => undefined,
+      } as unknown as ConstructorParameters<typeof GameController>[0]["plannerClient"],
+    });
+    await controller.start({} as HTMLElement);
+    expect(requested[0]?.safetyStopNeeded).toBe(true);
+    expect(requested[0]?.ndlDroppedBelowFiveMinutes).toBe(true);
+    // The configured gradient factors travel unchanged beside them.
+    expect(requested[0]?.gfHighPercent).toBe(DEFAULT_PLANNER_SETTINGS.gfHighPercent);
     controller.destroy();
   });
 

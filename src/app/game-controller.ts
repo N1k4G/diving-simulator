@@ -1,11 +1,12 @@
 import {
+  createSafetyStopState,
   CCR_SETPOINT_STEP_BAR,
   createInitialDiveState,
   type InitialDiveOptions,
   freezeDiveState,
   type DiveState,
 } from "../core/dive-state";
-import { DiveModel } from "../core/dive-model";
+import { DiveModel, SAFETY_STOP_NEEDED_BELOW_M } from "../core/dive-model";
 import {
   neutralBcdSurfaceLitres,
   type BuoyancyControls,
@@ -455,7 +456,14 @@ export class GameController {
 
     this.#plannerPending = true;
     void this.#plannerClient
-      .forecast(snapshot, this.#plannerSettings)
+      .forecast(snapshot, {
+        ...this.#plannerSettings,
+        // The two flags legacy's calculateTTS() reads from the dive: the
+        // stop is needed, and the NDL fell below 5 (the long stop). They
+        // were always false here until the dive kept them (#199).
+        safetyStopNeeded: snapshot.safetyStop.needed,
+        ndlDroppedBelowFiveMinutes: snapshot.log.ndlDroppedBelowFiveMinutes,
+      })
       .then((forecast) => {
         // Superseded while in flight: the state it was computed from no
         // longer describes the breathed gas, so it must not become the
@@ -642,12 +650,23 @@ function withinRoute(state: DiveState): DiveState {
   if (depthM === state.depthM) {
     return state;
   }
+  const maxDepthM = Math.max(state.maxDepthM, depthM);
   return freezeDiveState({
     ...state,
     depthM: metres(depthM),
-    maxDepthM: metres(Math.max(state.maxDepthM, depthM)),
+    maxDepthM: metres(maxDepthM),
     verticalVelocityMpm: 0,
     bcdGasSurfaceLiters: neutralBcdSurfaceLitres(depthM),
+    // Moved below 11 m, where the model resets the safety stop on every
+    // step: reset it now, as the first step would, so the moved state is one
+    // the model could have left and saves before that step (#206 pre-review).
+    safetyStop:
+      depthM > SAFETY_STOP_NEEDED_BELOW_M
+        ? {
+            ...createSafetyStopState(),
+            needed: maxDepthM > SAFETY_STOP_NEEDED_BELOW_M,
+          }
+        : state.safetyStop,
   });
 }
 
