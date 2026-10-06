@@ -1,0 +1,95 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 199,
+  "slice": "Slice 6b: the post-dive grade, a pure port of legacy's gradeDive(), with its text in English and German",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "eb812f9a148fcabda6ed14eaab3a7109a9929307",
+  "measuredTree": "dd7e5a5bf3916f1f8fabcbb8134e3fe23cef8352",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-10-06T20:01:51Z",
+  "runFinishedAt": "2026-10-06T20:08:47Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "On main 1760ce4 (#214, slice 6a). The full run above is on eb812f9; the only later commit adds this file.",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "436 passed (424 on main, +12 in tests/unit/dive-grade.test.ts)",
+    "parity": "142 passed (95 on main, +47 in tests/parity/dive-grade.test.ts: one per recorded checkpoint, 46, and a guard)",
+    "e2e": "142 passed, 1 failed in 5.2 min. The failure is tests/setup-screen.spec.js › technical mode › a resumed dive is planned on its save, a 60 s test timeout while waiting for the canvas after a dive start under the suite's load; this slice changes no client code. Re-run alone on the same commit and clean tree: 5 of 5 passed with --repeat-each=5, and the whole spec file 37 of 37.",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "portedFromTheOracle": {
+    "grade": "src/physics.js gradeDive() and src/constants.js GRADE_*: ascent 100 - 15 per fastAscent (note with the peak), safety stop 100 if done or not needed else 30, gas reserve by the rule of thirds on an overhead site (40 after the reserve third, else 100) or else the emptiest cylinder's bar (a rebreather's diluent) over 50 bar, deco 100 - 30 per ceilingViolation (a hint below a 3 min NDL), trim from the spread of depth around its rolling 60 s mean where the window held within 1 m (100 at 0.5 m, 0 at 3 m, 100 with fewer than three held samples); each rounded, the overall their rounded mean, stars from 50, 75 and 92.",
+    "text": "STRINGS.{en,de}.gradeNotes, gradeLabels (English in the catalogue's sentence case) and debriefStarLabel, taken verbatim from src/constants.js by evaluating it, as debrief.grade.*; the numbers keep legacy's toFixed (peak 1, bar 0, NDL 0, spread 2 decimals). The claims register anchors the notes with the legacy gradeNotes sources (SAFETY-STOP-001, DECOMPRESSION-001, GAS-001, ASCENT-001, and the trim notes under PHYSICS-001)."
+  },
+  "parity": "Every checkpoint of all eleven recorded dives (46): the adapter's state at the checkpoint, with the profile so far, grades as legacy's recorded state.grade: the five scores, the five English notes word for word, the overall and the stars. The recordings reach fast ascents, a skipped safety stop, a broken ceiling, the reserve third, and both gas-reserve rules.",
+  "counterChecks": {
+    "method": "Each revert was applied from a backup copy, tests/unit/dive-grade.test.ts and tests/parity/dive-grade.test.ts were run, and the file was restored.",
+    "results": [
+      {
+        "revert": "fast-ascent penalty 10 instead of 15",
+        "result": "5 failed, parity among them"
+      },
+      {
+        "revert": "gas graded on the fullest cylinder",
+        "result": "1 failed: the emptiest-cylinder test"
+      },
+      {
+        "revert": "a rebreather graded on its oxygen cylinder",
+        "result": "9 failed, parity among them"
+      },
+      {
+        "revert": "overhead site ignored",
+        "result": "25 failed, parity among them"
+      },
+      {
+        "revert": "NDL hint at 3 minutes too",
+        "result": "4 failed, parity among them"
+      },
+      {
+        "revert": "trim window of 30 s",
+        "result": "3 failed: parity"
+      },
+      {
+        "revert": "trim hold band of 2 m",
+        "result": "14 failed: parity"
+      },
+      {
+        "revert": "two stars from 70",
+        "result": "2 failed: parity"
+      },
+      {
+        "revert": "overall not rounded",
+        "result": "1 failed: the rounding test, added after the first set let this revert pass"
+      },
+      {
+        "revert": "peak shown with two decimals",
+        "result": "4 failed, parity among them"
+      },
+      {
+        "revert": "trim spread shown with one decimal",
+        "result": "29 failed, parity among them"
+      }
+    ]
+  },
+  "deferred": "Showing the grade: the post-dive screen, #159 PR 2 (slice 8), which needs slice 7's way to the surface first.",
+  "durableProvenance": {
+    "src": "fb1fb5b8676912847818d288597a8181c60b6c7b",
+    "tests": "eb51b8a38db704796f18740769585e42af43db7b",
+    "scripts": "6b40e24c03f7c63b0f9bf818108d20a6f6f2244f",
+    "docs": "2cf0bb4f463fc5b6fb9ebc81e7dfee3c846a7b15"
+  }
+}
