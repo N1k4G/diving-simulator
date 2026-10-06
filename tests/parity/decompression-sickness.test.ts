@@ -98,6 +98,23 @@ describe("decompression sickness against the recorded legacy dives", () => {
     expect(state.failure.reason).toBe("decompression-sickness");
   });
 
+  it("reads legacy's two game overs as dives decompression sickness ended, which go no further", () => {
+    for (const scenarioId of ["trimix-dcs-above-stop", "trimix-dcs-surfaced"]) {
+      const recorded = checkpoints(scenarioId).at(-1)!;
+      expect(recorded.state.gameOverReason).toBe(LEGACY_REASON);
+      const state = diveStateFromLegacyCheckpoint(recorded, 23);
+      expect(state.failure.reason, scenarioId).toBe("decompression-sickness");
+      expect(state.events.at(-1), scenarioId).toMatchObject({ type: "failure", failureReason: "decompression-sickness" });
+      expect(advanceDiveStep(state, { depthM: metres(6) }, seconds(1)), scenarioId).toBe(state);
+    }
+  });
+
+  it("refuses a recorded game over it has no failure for, rather than read it as a dive going on", () => {
+    const recorded = checkpoints("trimix-dcs-surfaced").at(-1)!;
+    const unknown = { ...recorded, state: { ...recorded.state, gameOverReason: "SHARK ATTACK" } };
+    expect(() => diveStateFromLegacyCheckpoint(unknown, 23)).toThrow(/SHARK ATTACK/);
+  });
+
   it("ends a dive that surfaces with a ceiling deeper than 3 m on that tick", () => {
     const state = replayFrom("trimix-dcs-surfaced", "bottom-20min");
     const surfaced = checkpoints("trimix-dcs-surfaced").at(-1)!;

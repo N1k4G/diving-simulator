@@ -1029,6 +1029,13 @@ describe("SaveGame gradient factors", () => {
         // The step that takes the timer to 60 counted it up: a ceiling, and
         // the diver above its stop. This dive has no ceiling.
         ["out of gas with the timer at 60 and no ceiling", endedIn("out-of-gas", 60)],
+        // That surfacing ends the dive on the step: none goes on from it.
+        ["a dive going on at the surface with a ceiling deeper than 3 m", (() => {
+          const save = JSON.parse(encodeSaveGame(createSaveGame(surfacedWithDcs(), CONSERVATIVE_FACTORS, 1))) as Failed;
+          save.state.failure.reason = null;
+          save.state.events = save.state.events.filter((event) => (event as { type: string }).type !== "failure");
+          return save;
+        })()],
         ["the surfacing end with the timer at zero", (() => {
           const save = JSON.parse(encodeSaveGame(createSaveGame(surfacedWithDcs(), CONSERVATIVE_FACTORS, 1))) as Failed;
           save.state.failure.dcsViolationS = 0;
