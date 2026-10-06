@@ -928,12 +928,15 @@ function isSafetyStop(
   ) {
     return false;
   }
-  if (
+  // A rebreather failure returns before legacy's safety-stop block, so the
+  // stop is the step before's while the depth has moved on: only the two
+  // rules that tie the stop to the current depth do not hold there. The rest
+  // does, since the deepest point only grows and the latch is the step
+  // before's too.
+  const followsDepth = !(
     context.failureReason !== null &&
     FAILURES_BEFORE_THE_LOG.has(context.failureReason)
-  ) {
-    return true;
-  }
+  );
   const started = candidate.countdownStarted;
   const remainingS = candidate.remainingS as number;
   // The countdown starts at legacy's calculateSafetyStopDuration() and only
@@ -953,10 +956,11 @@ function isSafetyStop(
     (!started || candidate.needed) &&
     (started || (remainingS === 0 && !candidate.paused && !candidate.complete)) &&
     (!candidate.complete || remainingS === 0) &&
-    (context.depthM <= SAFETY_STOP_NEEDED_BELOW_M || !started) &&
-    (!started ||
-      candidate.complete ||
-      candidate.paused === !isInSafetyStopBand(context.depthM))
+    (!followsDepth ||
+      ((context.depthM <= SAFETY_STOP_NEEDED_BELOW_M || !started) &&
+        (!started ||
+          candidate.complete ||
+          candidate.paused === !isInSafetyStopBand(context.depthM))))
   );
 }
 

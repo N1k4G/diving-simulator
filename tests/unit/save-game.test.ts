@@ -635,6 +635,36 @@ describe("SaveGame gradient factors", () => {
       }
     });
 
+    it("holds a dive a rebreather failure ended to every rule but the two that follow the depth", () => {
+      // The failure step keeps the step before's stop while the depth moves
+      // on, so a running countdown may now sit outside the band or below
+      // 11 m; nothing else about the stop changes on that step.
+      const failed = (stop: Partial<DiveState["safetyStop"]>, depthM: number) => {
+        const state = atTheStop();
+        return JSON.stringify({
+          ...JSON.parse(encodeSaveGame(createSaveGame(state, CONSERVATIVE_FACTORS, 1))),
+          state: {
+            ...JSON.parse(encodeSaveGame(createSaveGame(state, CONSERVATIVE_FACTORS, 1))).state,
+            depthM,
+            failure: { ...state.failure, reason: "ccr-co2" },
+            events: [{ type: "failure", elapsedTimeS: state.elapsedTimeS, failureReason: "ccr-co2" }],
+            safetyStop: { ...state.safetyStop, ...stop },
+          },
+        });
+      };
+      expect(decodeSaveGame(failed({}, 12)).ok, "a countdown the depth left").toBe(true);
+      expect(decodeSaveGame(failed({}, 1.5)).ok, "a running countdown outside the band").toBe(true);
+      const impossible: [string, Partial<DiveState["safetyStop"]>][] = [
+        ["complete and paused", { remainingS: seconds(0), complete: true, paused: true }],
+        ["a countdown at zero, not complete", { remainingS: seconds(0) }],
+        ["more than the short stop", { remainingS: seconds(250) }],
+        ["time left before the countdown starts", { countdownStarted: false }],
+      ];
+      for (const [what, stop] of impossible) {
+        expect(decodeSaveGame(failed(stop, 5)).ok, what).toBe(false);
+      }
+    });
+
     it("allows the long stop's time on a dive that needs it", () => {
       const deep = (maxDepthM: number, below5: boolean) => {
         const state = atTheStop();
