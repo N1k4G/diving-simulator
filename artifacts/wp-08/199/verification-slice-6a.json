@@ -3,13 +3,13 @@
   "issue": 199,
   "slice": "Slice 6a: the rule of thirds under an overhead; save v13",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "7900344164a1c29455dac152db031b885700361a",
-  "measuredTree": "e735241c78aea80f4d53af2b4665d5bed3d0006c",
+  "measuredCommit": "7621709c13c01018114500a0afe7d447f839ec2d",
+  "measuredTree": "39ad607df799f9a9806579411f3713bdcd09e6f2",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-06T15:10:41Z",
-  "runFinishedAt": "2026-10-06T15:17:56Z",
+  "recordedAt": "2026-10-06T19:14:35Z",
+  "runFinishedAt": "2026-10-06T19:23:34Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "Stacked on slice 4b (#213, feat/199-dive-end), itself on main 74c61a7. The full run above is on 7900344; the only later commit adds this file. The branch is rebased onto main once #213 merges, and the evidence is re-recorded then.",
+  "provenanceNote": "On main 20eab28 (#213, slice 4b). The full run above is on 7621709, with the fixture regenerated from the rebased capture commit; the only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -25,8 +25,8 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "423 passed (410 on slice 4b, +9 in tests/unit/rule-of-thirds.test.ts, +4 in tests/unit/save-game.test.ts)",
-    "parity": "95 passed (87 on slice 4b, +3 in tests/parity/rule-of-thirds.test.ts, the rest in the tissue and dive-log replays over the new scenario)",
+    "unit": "423 passed (410 on main, +9 in tests/unit/rule-of-thirds.test.ts, +4 in tests/unit/save-game.test.ts)",
+    "parity": "95 passed (87 on main, +3 in tests/parity/rule-of-thirds.test.ts, the rest in the tissue and dive-log replays over the new scenario)",
     "e2e": "143 passed in 5.6 min (unchanged; the client does not yet tell the model when the diver is under the overhead)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
@@ -37,14 +37,14 @@
     "save": "Save v13 carries the plan and both latches. Older saves resume with no plan and the reserve not reached; legacy saves keep thirdsReserveHitThisDive and, like legacy's restore, no plan."
   },
   "fixtureRegeneration": {
-    "command": "npm run baseline:generate, from the capture commit 0f61a9d",
+    "command": "npm run baseline:generate, from the capture commit 369d6d5",
     "legacyChange": "captureBaselineCheckpoint() gains state.debrief.inOverhead, thirdsStartingGas_l, thirdsTurnWarned and thirdsReserveHit, and state.grade (gradeDive()'s scores, notes, overall and stars, for slice 6b). A new scenario, wreck-thirds, holds 32 m inside the wreck (x 50 m, under the main deck) on one 12 L cylinder of 21/35 through the outbound, turn and reserve thirds, then leaves the overhead.",
     "additiveCheck": "Every scenario on main is identical once the new fields are removed; wreck-thirds is added; the header differs only in referenceCommit. Regenerated after each rebase, identical each time apart from referenceCommit.",
     "geometryException": "wreck-thirds is the one scenario simulated against its declared site, since legacy finds an overhead from the site's geometry. docs/baseline/README.md records the exception, and tests/baseline.spec.js checks that every tick stays at the pinned 32 m and nothing is logged."
   },
   "parity": "wreck-thirds replayed tick by tick through advanceDiveStep with its own cylinder, under the overhead exactly when its checkpoint is: the plan (within 1e-6 L), the turn latch, the reserve latch and the gas left match legacy at every checkpoint. A replay resumed through the adapter from turn-20min continues legacy's plan.",
   "counterChecks": {
-    "method": "Each revert was applied from a backup copy, tests/unit/rule-of-thirds.test.ts, tests/unit/save-game.test.ts and tests/parity/rule-of-thirds.test.ts were run, and the file was restored; src was compared with a copy taken before the set. Run on 7900344.",
+    "method": "Each revert was applied from a backup copy, tests/unit/rule-of-thirds.test.ts, tests/unit/save-game.test.ts and tests/parity/rule-of-thirds.test.ts were run, and the file was restored; src was compared with a copy taken before the set. Run on 07c3d06 before the rebase onto main; src and the three test files they run are unchanged since.",
     "results": [
       {
         "revert": "thirds never run",
@@ -103,8 +103,15 @@
   "deferred": "The client does not yet tell the model when the diver is inside the wreck (the zones exterior, cargo hold and engine room exist in the renderer), nor show the thirds gauge or beep: slice 7 with the route rework.",
   "durableProvenance": {
     "src": "edcee69d006c82efe7e6130ac2a7172680185e71",
-    "tests": "40a69ad6cf30e463795d5b13b100d0fb395c34bc",
+    "tests": "cfa6267596ed3147ed604d45d58ace60c3db3f68",
     "scripts": "6b40e24c03f7c63b0f9bf818108d20a6f6f2244f",
-    "docs": "3e62419c8be84d2cbeeacf451353bc2d0c70f339"
-  }
+    "docs": "b7a915f25655ebfcfcfdd88fc03e37cbdbfcbfa1"
+  },
+  "earlierRuns": [
+    {
+      "measuredCommit": "7900344164a1c29455dac152db031b885700361a",
+      "recordedAt": "2026-10-06T15:10:41Z",
+      "note": "Stacked on slice 4b before it merged; superseded by the run above on main."
+    }
+  ]
 }
