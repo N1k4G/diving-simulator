@@ -3,13 +3,13 @@
   "issue": 199,
   "slice": "Slice 4a: decompression sickness in the model (legacy's DCS timer and its surfacing check), its game-over text; save v11",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "06750a9e981fa79659905f55fcd05945ff9119fb",
-  "measuredTree": "6d366dfff9fc4cd7be0b70f6a8c54d9973d9d312",
+  "measuredCommit": "d669e2e18373dec5835d518ded6c7636c25fcd7c",
+  "measuredTree": "66f624e7cee625a03138d7567cee71dd0a660e3b",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-06T13:31:48Z",
-  "runFinishedAt": "2026-10-06T13:40:23Z",
+  "recordedAt": "2026-10-06T14:10:24Z",
+  "runFinishedAt": "2026-10-06T14:16:02Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "On main 46c96ac (#211, slice 2c). The full run above is on 06750a9, the fix for the second #212 pre-review pass; the only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "On main 46c96ac (#211, slice 2c). The full run above is on d669e2e, the fix for Codex round 1; the only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -26,8 +26,8 @@
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
     "unit": "395 passed (378 on main, +9 in tests/unit/decompression-sickness.test.ts, +8 in tests/unit/save-game.test.ts)",
-    "parity": "83 passed (73 on main, +3 in tests/parity/decompression-sickness.test.ts, the rest in the tissue and dive-log replays over the two new scenarios)",
-    "e2e": "143 passed in 5.7 min (142 on main, +1 in tests/game-over.spec.js: the DCS screen, from a state the model can reach: a minute in, the timer at 60, tissues loaded to a 27 m ceiling with the diver above its 30 m stop)",
+    "parity": "85 passed (73 on main, +5 in tests/parity/decompression-sickness.test.ts, the rest in the tissue and dive-log replays over the two new scenarios)",
+    "e2e": "143 passed in 4.3 min (142 on main, +1 in tests/game-over.spec.js: the DCS screen, from a state the model can reach)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -115,11 +115,24 @@
           "result": "1 failed: the invalid-timer test, on the surfacing end at zero"
         }
       ]
+    },
+    "codexRound1": {
+      "method": "Each fix was reverted from a backup copy, tests/unit/save-game.test.ts and tests/parity/decompression-sickness.test.ts were run, and the file was restored.",
+      "results": [
+        {
+          "revert": "a dive going on at the surface with a ceiling deeper than 3 m accepted",
+          "result": "1 failed: the invalid-timer test, on that state"
+        },
+        {
+          "revert": "the adapter dropping the recorded game over",
+          "result": "2 failed: the terminal-checkpoint and unknown-game-over parity tests"
+        }
+      ]
     }
   },
   "durableProvenance": {
-    "src": "c1c360a4e825820a338f586d9ce7abe9faefe8e4",
-    "tests": "5ecd264bfad9563f7974e44676002d97aa9c9e1a",
+    "src": "d66710c02a86f10e06b184f55e456d79dacc7435",
+    "tests": "9715f56414714ffc4246f55eb113a913d620b8fb",
     "scripts": "7ea5ab54c93260bbad2cf48dd04e2d235ed5d43a",
     "docs": "7cafbf82931c083dcd7926a1c79a62da1cf06f53"
   },
@@ -138,6 +151,11 @@
       "measuredCommit": "99022dbe393125efccd04b482229c87964224bfd",
       "recordedAt": "2026-10-06T13:14:32Z",
       "note": "The first #212 pre-review fix; superseded by the run above."
+    },
+    {
+      "measuredCommit": "06750a9e981fa79659905f55fcd05945ff9119fb",
+      "recordedAt": "2026-10-06T13:31:48Z",
+      "note": "The second #212 pre-review fix; superseded by the run above."
     }
   ]
 }
