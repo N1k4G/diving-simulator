@@ -681,6 +681,42 @@ describe("SaveGame gradient factors", () => {
       }
     });
 
+    it("derives legacy's stop when a field is missing or malformed, or it is not needed past 11 m", () => {
+      // legacyV2Save() dives to 31 m.
+      const fields = {
+        safetyStopNeeded: true,
+        safetyStopCountdownStarted: false,
+        safetyStopRemaining: 0,
+        safetyStopPaused: false,
+        safetyStopComplete: false,
+      };
+      const derived = { needed: true, countdownStarted: false, remainingS: 0, paused: false, complete: false };
+      const cases: [string, Record<string, unknown>][] = [
+        ["not needed past 11 m", { ...fields, safetyStopNeeded: false }],
+        ["no fields at all", {}],
+        ["a missing field", { ...fields, safetyStopPaused: undefined }],
+        ["a malformed field", { ...fields, safetyStopComplete: "no" }],
+        ["a negative time left", { ...fields, safetyStopRemaining: -1 }],
+      ];
+      for (const [what, stop] of cases) {
+        const result = decodeSaveGame(JSON.stringify({ ...legacyV2Save(), ...stop }));
+        expect(result.ok, what).toBe(true);
+        if (!result.ok) return;
+        expect(result.saveGame.state.safetyStop, what).toEqual(derived);
+      }
+      // Not needed is a record legacy can save on a dive that stayed above 11 m.
+      const shallow = decodeSaveGame(JSON.stringify({
+        ...legacyV2Save(),
+        ...fields,
+        safetyStopNeeded: false,
+        depth: 9,
+        maxDepth: 10,
+      }));
+      expect(shallow.ok).toBe(true);
+      if (!shallow.ok) return;
+      expect(shallow.saveGame.state.safetyStop.needed).toBe(false);
+    });
+
     it("derives legacy's stop when its countdown is at zero but not complete", () => {
       const contradictory = decodeSaveGame(JSON.stringify({
         ...legacyV2Save(),

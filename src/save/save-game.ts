@@ -975,14 +975,30 @@ function migrateLegacySafetyStop(
   candidate: Record<string, unknown>,
   ndlDroppedBelowFiveMinutes: boolean,
 ): SafetyStopState {
+  // Carried only when all five fields are there with their types: a missing
+  // or malformed one is not a record of the stop (#206 Codex round 2).
+  if (
+    typeof candidate.safetyStopNeeded !== "boolean" ||
+    typeof candidate.safetyStopCountdownStarted !== "boolean" ||
+    typeof candidate.safetyStopPaused !== "boolean" ||
+    typeof candidate.safetyStopComplete !== "boolean" ||
+    !isNonNegativeFinite(candidate.safetyStopRemaining)
+  ) {
+    return derivedSafetyStop(candidate.maxDepth);
+  }
+  // Legacy sets safetyStopNeeded on the tick that takes maxDepth past 11 m
+  // and saves only between ticks, so a deeper dive without it contradicts
+  // itself. The model's own pre-first-step exception, a dive that starts
+  // deeper, does not apply to a saved legacy dive.
+  if ((candidate.maxDepth as number) > SAFETY_STOP_NEEDED_BELOW_M && !candidate.safetyStopNeeded) {
+    return derivedSafetyStop(candidate.maxDepth);
+  }
   const carried = {
-    needed: candidate.safetyStopNeeded === true,
-    countdownStarted: candidate.safetyStopCountdownStarted === true,
-    remainingS: (isNonNegativeFinite(candidate.safetyStopRemaining)
-      ? (candidate.safetyStopRemaining as number)
-      : 0) as SafetyStopState["remainingS"],
-    paused: candidate.safetyStopPaused === true,
-    complete: candidate.safetyStopComplete === true,
+    needed: candidate.safetyStopNeeded,
+    countdownStarted: candidate.safetyStopCountdownStarted,
+    remainingS: candidate.safetyStopRemaining as SafetyStopState["remainingS"],
+    paused: candidate.safetyStopPaused,
+    complete: candidate.safetyStopComplete,
   };
   return isSafetyStop(carried, {
     depthM: candidate.depth as number,
