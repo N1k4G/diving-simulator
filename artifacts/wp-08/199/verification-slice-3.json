@@ -3,13 +3,13 @@
   "issue": 199,
   "slice": "Slice 3: the adaptive safety stop in the core; the planner's TTS flags from the dive; save v9",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "435b0281180f50bed9e0fe767ec834614fcf8d8c",
-  "measuredTree": "704b018334285c65b4f1f797497710bdadbf9a6f",
+  "measuredCommit": "6314ce9ecb377a777c8ef2b2dbb7876ab810e0b3",
+  "measuredTree": "9a45a1e6557852abf9ec651da159df5c8ecb38fd",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-06T06:54:45Z",
-  "runFinishedAt": "2026-10-06T07:03:23Z",
+  "recordedAt": "2026-10-06T07:19:54Z",
+  "runFinishedAt": "2026-10-06T07:26:56Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "The full run above is on 435b028: the branch rebased onto main 2ef29db (#205) after Codex round 1, with the fix for the pre-review that followed. The only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "The full run above is on 6314ce9, the Codex round 2 fix, on main 2ef29db (#205). The only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "earlierRuns": [
     "The same change before the rebase (06eb87e, on #204's head adc75a2) passed the full suite: 361 unit, 73 parity, 142 e2e.",
     "A full run on ea4c832 (the rebased slice) passed: 362 unit, 73 parity, 142 e2e. The pre-review of #206, pass 1, then noted that withinRoute() moved a resumed dive with a running countdown below 11 m without resetting it, so a save before the first step failed v9 validation. 12be28a resets the stop in withinRoute(); that commit has its own full run, the next entry.",
@@ -27,6 +27,11 @@
       "measuredCommit": "bd079e5c5ca4270d6d59cc153798ca7ead68d913",
       "recordedAt": "2026-10-06T06:34:11Z",
       "note": "The Codex round 1 fix rebased onto main 2ef29db (#205); superseded by the run on the pre-review fix."
+    },
+    {
+      "measuredCommit": "435b0281180f50bed9e0fe767ec834614fcf8d8c",
+      "recordedAt": "2026-10-06T06:54:45Z",
+      "note": "The pre-review fix after Codex round 1, with the known #194 flake in its e2e run; superseded by the run on the Codex round 2 fix."
     }
   ],
   "environment": {
@@ -44,9 +49,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "366 passed (345 on main, +12 in tests/unit/safety-stop.test.ts, +7 in tests/unit/save-game.test.ts, +2 in tests/unit/game-controller-buoyancy.test.ts)",
+    "unit": "367 passed (345 on main, +12 in tests/unit/safety-stop.test.ts, +8 in tests/unit/save-game.test.ts, +2 in tests/unit/game-controller-buoyancy.test.ts)",
     "parity": "73 passed (72 on main, +1 in tests/parity/dive-log.test.ts; the replays now also compare the safety stop)",
-    "e2e": "141 passed, 1 failed in 5.6 min. The failure is tests/game.spec.js, the legacy harness, on \"Blocked call to navigator.vibrate because user hasn't tapped on the frame\": the known flake #194, in code this PR does not touch. Re-run alone on the same commit and clean tree with --repeat-each=3: 3 passed.",
+    "e2e": "142 passed in 5.4 min (unchanged)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -123,11 +128,28 @@
           "result": "1 failed: the rebreather-failed dive test, on a countdown the depth left"
         }
       ]
+    },
+    "codexRound2": {
+      "method": "Each new legacy-import rule was removed from src/save/save-game.ts from a backup copy, tests/unit/save-game.test.ts was run, and the file was restored; then the new test was run against the migration before the fix.",
+      "results": [
+        {
+          "revert": "a deep legacy dive carried with needed false",
+          "result": "1 failed: the legacy derivation test, on not needed past 11 m"
+        },
+        {
+          "revert": "missing or malformed fields carried (the type check removed)",
+          "result": "none failed: isSafetyStop's own shape check rejects the raw values, so the stop is derived either way; the type check states the rule where the fields are read"
+        },
+        {
+          "revert": "the whole migration before the fix (fields coerced to false)",
+          "result": "1 failed: the legacy derivation test"
+        }
+      ]
     }
   },
   "durableProvenance": {
-    "src": "86945051e3a7ad1d03c93aad8a455d1ed9627ba8",
-    "tests": "807dd0ee08eea697b37a1f9bbcb6521dec41561e",
+    "src": "e151d7d7e8c01ae15e4e455e8fa0c9b979b0ff6e",
+    "tests": "cf1fd9d3a2ef17067a65f612a685fb0f4884018d",
     "scripts": "9821955c9dd544534be72ffeb8eb56fbc6cc863a",
     "docs": "e2b85248122e51b5ade838797f0eb68be5b23bd0"
   }
