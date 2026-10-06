@@ -1,0 +1,124 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 199,
+  "slice": "Slice 2c: the start of the dive (each cylinder's fill, the rebreather's start pressures and scrubber total) for gas used; save v10",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "40bf9df72d0675ff4a646e93f3f6068a4d33315e",
+  "measuredTree": "2f2aee22cd4f6b4b19af5a55c653b18c087ae738",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-10-06T12:29:19Z",
+  "runFinishedAt": "2026-10-06T12:34:44Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "On main b192ee4 (#210, which changed only tests/in-dive-controls.spec.js). The full run above is on 40bf9df, with the fixes for both #211 pre-review passes and the fixture regenerated from the rebased capture commit; the only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "378 passed (367 on main, +4 in tests/unit/start-gas.test.ts, +7 in tests/unit/save-game.test.ts)",
+    "parity": "73 passed (unchanged count; the replays now also compare the start of the dive and gas used)",
+    "e2e": "142 passed in 4.1 min (unchanged count; three rebreather scrubber edits in tests/in-dive-controls.spec.js now keep the scrubber's start with the value they set)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "boundsPortedFromTheOracle": {
+    "openCircuit": "src/state.js: t.totalGas = t.volume * t.pressure, and resetDive() refills gasRemaining = totalGas. drawPostDive() (src/renderer.js) shows totalGas - gasRemaining per cylinder.",
+    "rebreather": "resetDive() snapshots ccrState.o2CylPressureStart and dilCylPressureStart; drawPostDive() shows (start - current) * volume for O2 and diluent, and scrubberTotal - scrubberRemaining.",
+    "model": "TankState.startGasL; CcrState.oxygenCylinderStartPressureBar, diluentCylinderStartPressureBar, scrubberTotalS. createTankState and createCcrState default them to the configured fill; nothing in the dive changes them.",
+    "dive": "The model draws gas and runs the scrubber down only in a step that adds that step's time to elapsedTimeS (legacy: diveTime += before scrubberRemaining -= in the same tick), so the scrubber is never used for longer than the dive, and at elapsed time 0 nothing has been drawn."
+  },
+  "fixtureRegeneration": {
+    "command": "npm run baseline:generate, from the rebased capture commit ded994b",
+    "legacyChange": "captureBaselineCheckpoint() gains tanks[].totalGas_l and ccr.o2PressureStart_bar, diluentPressureStart_bar, scrubberTotal_min.",
+    "additiveCheck": "All eight scenarios are identical to main's fixture once the four new fields are removed; the header differs only in referenceCommit. Regenerated after each rebase from the rebased capture commit, identical each time apart from referenceCommit."
+  },
+  "parity": "Each cylinder's fill equals totalGas_l and gas used equals totalGas_l - gasRemaining_l within tanks.*.gasRemaining_l's 1e-6 at every checkpoint of air-18m-30min (replayed tick by tick with the model's own life support, no breathing override) and buoyancy-vent-inflate-12m; on rebreather dives the start pressures and scrubber total equal the recorded ones at every checkpoint of ccr-30m-30min and buoyancy-ccr-inflate-12m (cylinder 0 there is the placeholder covered by the #192 departure test).",
+  "counterChecks": {
+    "method": "Each revert was applied from a backup copy, tests/unit/start-gas.test.ts, tests/unit/save-game.test.ts and tests/parity/dive-log.test.ts were run, and the file was restored. Run again after the rebase, on the measured commit; the results are from that run.",
+    "results": [
+      {
+        "revert": "cylinder fill half the configured one",
+        "result": "2 failed: the fill and the open-circuit dive tests"
+      },
+      {
+        "revert": "save accepting a fill below the gas left",
+        "result": "1 failed: the invalid-start test"
+      },
+      {
+        "revert": "no pre-v10 migration of the start",
+        "result": "2 failed: the v1 and v9 migration tests"
+      },
+      {
+        "revert": "legacy totalGas ignored",
+        "result": "1 failed: the legacy import test"
+      }
+    ],
+    "preReview": {
+      "method": "Each rule added after the #211 pre-review was removed from src/save/save-game.ts from a backup copy, tests/unit/save-game.test.ts was run, and the file was restored.",
+      "results": [
+        {
+          "revert": "scrubber use not bound by the dive's time",
+          "result": "2 failed: the invalid-start test and the before-the-first-step test"
+        },
+        {
+          "revert": "cylinder gas drawn before the first step",
+          "result": "1 failed: the before-the-first-step test, on cylinder gas"
+        },
+        {
+          "revert": "loop cylinders drawn before the first step",
+          "result": "1 failed: the before-the-first-step test, on oxygen"
+        },
+        {
+          "revert": "pre-v10 scrubber started from what is left",
+          "result": "2 failed: the v1 and v9 migration tests"
+        },
+        {
+          "revert": "legacy scrubber total not bound by the dive's time",
+          "result": "1 failed: the legacy scrubber test"
+        },
+        {
+          "revert": "pre-v10 diluent started at 200 bar (the first fix)",
+          "result": "3 failed: the v1 and v9 migration tests and the below-200-bar v9 save before its first step"
+        }
+      ]
+    }
+  },
+  "durableProvenance": {
+    "src": "684de74322f2e7eb1455a8e112673e50dabc5cc1",
+    "tests": "95d6a5f3c51619f2775455ade3cd1d01dffa399e",
+    "scripts": "9821955c9dd544534be72ffeb8eb56fbc6cc863a",
+    "docs": "7f7ac0cba392c9849e39297d6538ecf2d28a8854"
+  },
+  "earlierRuns": [
+    {
+      "measuredCommit": "2b778ab89c30fa15ebbd164fb458284eded30a35",
+      "recordedAt": "2026-09-30T23:02:49Z",
+      "note": "Stacked on slice 3 before #206 merged; superseded by the run above on main."
+    },
+    {
+      "measuredCommit": "8f6d2d9dfc2bde1b863af256f31a0023b410462e",
+      "recordedAt": "2026-10-06T09:00:58Z",
+      "note": "Rebased onto main, before the #211 pre-review fix; superseded by the run above."
+    },
+    {
+      "measuredCommit": "cdb099a46822d75deeff521275b60cbf2bc32808",
+      "recordedAt": "2026-10-06T09:31:36Z",
+      "note": "The first fix for the #211 pre-review, which started a pre-v10 diluent at 200 bar; superseded by the run above."
+    },
+    {
+      "measuredCommit": "acfad07708be1e50ee0a3f0f801783562b66068a",
+      "recordedAt": "2026-10-06T09:55:28Z",
+      "note": "On main ea2d3b0, before the rebase onto #210; superseded by the run above."
+    }
+  ]
+}

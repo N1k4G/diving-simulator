@@ -106,6 +106,9 @@ function diluentOnlyOpenCircuit(state: DiveState): DiveState {
         gasRemainingL: litres(
           ccr.diluentCylinderPressureBar * ccr.diluentCylinderVolumeL,
         ),
+        startGasL: litres(
+          ccr.diluentCylinderStartPressureBar * ccr.diluentCylinderVolumeL,
+        ),
       },
     ],
   });

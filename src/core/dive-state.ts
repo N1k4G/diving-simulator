@@ -47,6 +47,11 @@ export interface TankState {
   gas: GasMix;
   volumeL: Litres;
   gasRemainingL: Litres;
+  /**
+   * The fill the dive started with (#199), legacy's totalGas: volume times
+   * the configured pressure. Gas used is this less gasRemainingL.
+   */
+  startGasL: Litres;
 }
 
 export interface CcrState {
@@ -57,6 +62,14 @@ export interface CcrState {
   oxygenCylinderPressureBar: Bars;
   diluentCylinderVolumeL: Litres;
   diluentCylinderPressureBar: Bars;
+  /**
+   * The start of the dive (#199), legacy's o2CylPressureStart,
+   * dilCylPressureStart and scrubberTotal: O2, diluent and scrubber time
+   * used are these less the current values.
+   */
+  oxygenCylinderStartPressureBar: Bars;
+  diluentCylinderStartPressureBar: Bars;
+  scrubberTotalS: Seconds;
   loopVolumeL: Litres;
   scrubberRemainingS: Seconds;
   metabolicOxygenLpm: LitresPerMinute;
@@ -255,6 +268,7 @@ export function createTankState(
     gas,
     volumeL: litres(volumeL),
     gasRemainingL: litres(volumeL * pressureBar),
+    startGasL: litres(volumeL * pressureBar),
   });
 }
 
@@ -268,6 +282,15 @@ export const CCR_SETPOINT_MIN_BAR = 0.5;
 export const CCR_SETPOINT_MAX_BAR = 1.6;
 export const CCR_SETPOINT_STEP_BAR = 0.1;
 
+/**
+ * Legacy's CCR_DEFAULTS for the two rebreather values no setup screen sets,
+ * legacy's or this client's: the diluent cylinder's fill and the scrubber's
+ * duration. Legacy restarts the scrubber at its duration every dive, but
+ * not the diluent, which one session's dives share.
+ */
+export const DEFAULT_DILUENT_CYLINDER_PRESSURE_BAR = bars(200);
+export const DEFAULT_SCRUBBER_DURATION_S = seconds(180 * 60);
+
 export function createCcrState(
   diluent: GasMix,
   overrides: Partial<
@@ -275,6 +298,11 @@ export function createCcrState(
   > = {},
 ): CcrState {
   const targetPo2Bar = overrides.targetPo2Bar ?? bars(0.7);
+  const oxygenCylinderPressureBar =
+    overrides.oxygenCylinderPressureBar ?? bars(200);
+  const diluentCylinderPressureBar =
+    overrides.diluentCylinderPressureBar ?? DEFAULT_DILUENT_CYLINDER_PRESSURE_BAR;
+  const scrubberRemainingS = overrides.scrubberRemainingS ?? DEFAULT_SCRUBBER_DURATION_S;
   const po2ResponseBarPerSecond = overrides.po2ResponseBarPerSecond ?? 0.05;
 
   if (
@@ -293,13 +321,16 @@ export function createCcrState(
       bars(targetPo2Bar < 1 ? targetPo2Bar : 0.21),
     diluent,
     oxygenCylinderVolumeL: overrides.oxygenCylinderVolumeL ?? litres(2),
-    oxygenCylinderPressureBar:
-      overrides.oxygenCylinderPressureBar ?? bars(200),
+    oxygenCylinderPressureBar,
     diluentCylinderVolumeL: overrides.diluentCylinderVolumeL ?? litres(3),
-    diluentCylinderPressureBar:
-      overrides.diluentCylinderPressureBar ?? bars(200),
+    diluentCylinderPressureBar,
+    oxygenCylinderStartPressureBar:
+      overrides.oxygenCylinderStartPressureBar ?? oxygenCylinderPressureBar,
+    diluentCylinderStartPressureBar:
+      overrides.diluentCylinderStartPressureBar ?? diluentCylinderPressureBar,
     loopVolumeL: overrides.loopVolumeL ?? litres(6),
-    scrubberRemainingS: overrides.scrubberRemainingS ?? seconds(180 * 60),
+    scrubberRemainingS,
+    scrubberTotalS: overrides.scrubberTotalS ?? scrubberRemainingS,
     metabolicOxygenLpm:
       overrides.metabolicOxygenLpm ?? litresPerMinute(0.8),
     po2ResponseBarPerSecond,

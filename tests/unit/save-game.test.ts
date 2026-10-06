@@ -154,6 +154,16 @@ describe("SaveGame gradient factors", () => {
       bcdGasSurfaceLiters: neutralBcdSurfaceLitres(representativeState().depthM),
       // Before v9 there was no safety stop: it is needed from the deepest point.
       safetyStop: { ...representativeState().safetyStop, needed: representativeState().maxDepthM > 11 },
+      // Before v10 no fill was recorded: the current contents are the start,
+      // except for the scrubber, which no setup screen sets and every dive
+      // restarts.
+      tanks: representativeState().tanks.map((tank) => ({ ...tank, startGasL: tank.gasRemainingL })),
+      ccr: {
+        ...representativeState().ccr!,
+        oxygenCylinderStartPressureBar: representativeState().ccr!.oxygenCylinderPressureBar,
+        diluentCylinderStartPressureBar: representativeState().ccr!.diluentCylinderPressureBar,
+        scrubberTotalS: Math.max(180 * 60, representativeState().ccr!.scrubberRemainingS),
+      },
     });
   });
 
@@ -771,6 +781,154 @@ describe("SaveGame gradient factors", () => {
     });
   });
 
+  // v10 adds the start of the dive, for gas used (#199).
+  describe("the start of the dive", () => {
+    const halfway = () => {
+      const base = createInitialDiveState(89, {
+        ccr: createCcrState(createGasMix(0.21, 0), { oxygenCylinderPressureBar: bars(200) }),
+      });
+      return freezeDiveState({
+        ...base,
+        elapsedTimeS: seconds(900),
+        tanks: base.tanks.map((tank) => ({ ...tank, gasRemainingL: litres(1800) })),
+        ccr: {
+          ...base.ccr!,
+          oxygenCylinderPressureBar: bars(170),
+          diluentCylinderPressureBar: bars(190),
+          scrubberRemainingS: seconds(165 * 60),
+        },
+      });
+    };
+
+    it("round-trips in a current save", () => {
+      const decoded = decodeSaveGame(encodeSaveGame(createSaveGame(halfway(), CONSERVATIVE_FACTORS, 1_735_689_600_000)));
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      expect(decoded.saveGame.state.tanks[0]?.startGasL).toBe(2400);
+      expect(decoded.saveGame.state.ccr?.oxygenCylinderStartPressureBar).toBe(200);
+      expect(decoded.saveGame.state.ccr?.scrubberTotalS).toBe(180 * 60);
+    });
+
+    it("starts a v9 save from its current contents, and the scrubber from its default", () => {
+      const v9 = JSON.parse(
+        encodeSaveGame(createSaveGame(halfway(), CONSERVATIVE_FACTORS, 1_735_689_600_000)),
+      ) as { version: number; state: { tanks: Record<string, unknown>[]; ccr: Record<string, unknown> } };
+      v9.version = 9;
+      for (const tank of v9.state.tanks) delete tank.startGasL;
+      delete v9.state.ccr.oxygenCylinderStartPressureBar;
+      delete v9.state.ccr.diluentCylinderStartPressureBar;
+      delete v9.state.ccr.scrubberTotalS;
+      const result = decodeSaveGame(JSON.stringify(v9));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.migratedFrom).toBe("save-game-v9");
+      expect(result.saveGame.state.tanks[0]?.startGasL).toBe(1800);
+      expect(result.saveGame.state.ccr?.oxygenCylinderStartPressureBar).toBe(170);
+      // Legacy shares the diluent between one session's dives, so only what
+      // is left is known; the scrubber restarts at 180 minutes every dive
+      // (#211 pre-review).
+      expect(result.saveGame.state.ccr?.diluentCylinderStartPressureBar).toBe(190);
+      expect(result.saveGame.state.ccr?.scrubberTotalS).toBe(180 * 60);
+    });
+
+    it("rejects a start below what is left", () => {
+      const invalid: [string, (state: { tanks: Record<string, unknown>[]; ccr: Record<string, unknown> }) => void][] = [
+        ["a fill below the gas left", (state) => { state.tanks[0]!.startGasL = 1000; }],
+        ["no fill", (state) => { delete state.tanks[0]!.startGasL; }],
+        ["an O2 start below the O2 left", (state) => { state.ccr.oxygenCylinderStartPressureBar = 150; }],
+        ["a diluent start below the diluent left", (state) => { state.ccr.diluentCylinderStartPressureBar = 150; }],
+        ["a scrubber total below the time left", (state) => { state.ccr.scrubberTotalS = 60; }],
+        // 900 s into the dive: the scrubber cannot have run for 1000 s.
+        ["a scrubber used for longer than the dive", (state) => { state.ccr.scrubberRemainingS = 9800; }],
+      ];
+      for (const [what, corrupt] of invalid) {
+        const save = JSON.parse(
+          encodeSaveGame(createSaveGame(halfway(), CONSERVATIVE_FACTORS, 1_735_689_600_000)),
+        ) as { state: { tanks: Record<string, unknown>[]; ccr: Record<string, unknown> } };
+        corrupt(save.state);
+        expect(decodeSaveGame(JSON.stringify(save)).ok, what).toBe(false);
+      }
+    });
+
+    it("loads a v9 save from before the first step whose diluent is below 200 bar", () => {
+      // A second legacy dive in one session starts on the first dive's diluent.
+      const fresh = createInitialDiveState(91, {
+        ccr: createCcrState(createGasMix(0.21, 0), { diluentCylinderPressureBar: bars(185) }),
+      });
+      const v9 = JSON.parse(
+        encodeSaveGame(createSaveGame(fresh, CONSERVATIVE_FACTORS, 1_735_689_600_000)),
+      ) as { version: number; state: { ccr: Record<string, unknown> } };
+      v9.version = 9;
+      delete v9.state.ccr.oxygenCylinderStartPressureBar;
+      delete v9.state.ccr.diluentCylinderStartPressureBar;
+      delete v9.state.ccr.scrubberTotalS;
+      const result = decodeSaveGame(JSON.stringify(v9));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.saveGame.state.ccr?.diluentCylinderStartPressureBar).toBe(185);
+    });
+
+    it("rejects anything drawn before the dive's first step", () => {
+      const atStart = (corrupt: (state: { elapsedTimeS: number; tanks: Record<string, unknown>[]; ccr: Record<string, unknown> }) => void) => {
+        const save = JSON.parse(
+          encodeSaveGame(createSaveGame(halfway(), CONSERVATIVE_FACTORS, 1_735_689_600_000)),
+        ) as { state: { elapsedTimeS: number; tanks: Record<string, unknown>[]; ccr: Record<string, unknown> } };
+        save.state.elapsedTimeS = 0;
+        save.state.ccr.scrubberRemainingS = save.state.ccr.scrubberTotalS;
+        save.state.ccr.oxygenCylinderPressureBar = save.state.ccr.oxygenCylinderStartPressureBar;
+        save.state.ccr.diluentCylinderPressureBar = save.state.ccr.diluentCylinderStartPressureBar;
+        for (const tank of save.state.tanks) tank.gasRemainingL = tank.startGasL;
+        corrupt(save.state);
+        return JSON.stringify(save);
+      };
+      expect(decodeSaveGame(atStart(() => {})).ok, "nothing drawn").toBe(true);
+      const drawn: [string, Parameters<typeof atStart>[0]][] = [
+        ["cylinder gas", (state) => { state.tanks[0]!.gasRemainingL = 2300; }],
+        ["oxygen", (state) => { state.ccr.oxygenCylinderPressureBar = 190; }],
+        ["diluent", (state) => { state.ccr.diluentCylinderPressureBar = 190; }],
+        ["scrubber", (state) => { state.ccr.scrubberRemainingS = 10_000; }],
+      ];
+      for (const [what, corrupt] of drawn) {
+        expect(decodeSaveGame(atStart(corrupt)).ok, what).toBe(false);
+      }
+    });
+
+    it("carries legacy's scrubber total only when the dive is long enough to have used the difference", () => {
+      // The fixture's loop has 150 minutes left.
+      const legacy = (diveTime: number) => {
+        const save = legacyV2Save();
+        return JSON.stringify({ ...save, diveTime, ccrState: { ...(save.ccrState as Record<string, unknown>), scrubberTotal: 180 } });
+      };
+      const long = decodeSaveGame(legacy(45));
+      expect(long.ok).toBe(true);
+      if (!long.ok) return;
+      expect(long.saveGame.state.ccr?.scrubberTotalS).toBe(180 * 60);
+      const short = decodeSaveGame(legacy(10));
+      expect(short.ok).toBe(true);
+      if (!short.ok) return;
+      expect(short.saveGame.state.ccr?.scrubberTotalS).toBe(150 * 60);
+    });
+
+    it("carries legacy's totalGas over, and the current contents when it is unusable", () => {
+      const legacy = legacyV2Save();
+      const tanks = legacy.tanks as Record<string, unknown>[];
+      const carried = decodeSaveGame(JSON.stringify({
+        ...legacy,
+        tanks: tanks.map((tank) => ({ ...tank, totalGas: (tank.gasRemaining as number) + 300 })),
+      }));
+      expect(carried.ok).toBe(true);
+      if (!carried.ok) return;
+      expect(carried.saveGame.state.tanks[0]?.startGasL).toBe((tanks[0]!.gasRemaining as number) + 300);
+      const unusable = decodeSaveGame(JSON.stringify({
+        ...legacy,
+        tanks: tanks.map((tank) => ({ ...tank, totalGas: 1 })),
+      }));
+      expect(unusable.ok).toBe(true);
+      if (!unusable.ok) return;
+      expect(unusable.saveGame.state.tanks[0]?.startGasL).toBe(tanks[0]!.gasRemaining);
+    });
+  });
+
   describe("the dive mode", () => {
     const singleCylinder = () =>
       createInitialDiveState(81, {
@@ -928,7 +1086,8 @@ function representativeState(): DiveState {
       }),
       oxygenCylinderPressureBar: bars(175),
       diluentCylinderPressureBar: bars(164),
-      scrubberRemainingS: seconds(8_800),
+      // 400 s used in a 420 s dive: never more than the dive has run.
+      scrubberRemainingS: seconds(10_400),
       co2BuildupS: seconds(2),
     },
   });

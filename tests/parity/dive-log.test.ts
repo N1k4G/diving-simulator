@@ -99,6 +99,33 @@ function expectSafetyStopToMatch(model: DiveModel, recorded: Checkpoint): void {
     .toBeLessThanOrEqual(eps["state.safetyStop.remaining_min"]);
 }
 
+/**
+ * The start of the dive and gas used (#199), against legacy's totalGas and
+ * the rebreather's start values: drawPostDive() shows gas used as these less
+ * the current contents.
+ */
+function expectStartGasToMatch(model: DiveModel, recorded: Checkpoint): void {
+  const where = recorded.checkpointId;
+  const state = model.snapshot;
+  // On a rebreather, cylinder 0 is the setup placeholder legacy draws the
+  // BCD from, the recorded #192 departure its own test covers.
+  const tanks = state.ccr ? [] : (recorded.tanks ?? []);
+  tanks.forEach((legacy, index) => {
+    const tank = state.tanks[index];
+    expect(tank?.startGasL, `cylinder ${index} fill at ${where}`).toBe(legacy.totalGas_l ?? Number.NaN);
+    expect(
+      Math.abs((tank?.startGasL ?? 0) - (tank?.gasRemainingL ?? 0) - ((legacy.totalGas_l ?? 0) - legacy.gasRemaining_l)),
+      `cylinder ${index} gas used at ${where}`,
+    ).toBeLessThanOrEqual(eps["tanks.*.gasRemaining_l"]);
+  });
+  const legacyCcr = recorded.ccr;
+  if (state.ccr && legacyCcr) {
+    expect(state.ccr.oxygenCylinderStartPressureBar, `O2 start at ${where}`).toBe(legacyCcr.o2PressureStart_bar ?? Number.NaN);
+    expect(state.ccr.diluentCylinderStartPressureBar, `diluent start at ${where}`).toBe(legacyCcr.diluentPressureStart_bar ?? Number.NaN);
+    expect(state.ccr.scrubberTotalS, `scrubber total at ${where}`).toBe((legacyCcr.scrubberTotal_min ?? Number.NaN) * 60);
+  }
+}
+
 /** Legacy's profile up to and including a checkpoint. */
 function profileUpTo(scenarioId: string, id: string): LegacyProfileSample[] {
   const all = checkpoints(scenarioId);
@@ -166,6 +193,7 @@ function replayBuoyancy(
     expectLogToMatch(model, recorded);
     expectMotionToMatch(model, scenarioId, recorded);
     expectSafetyStopToMatch(model, recorded);
+    expectStartGasToMatch(model, recorded);
     logged = model.snapshot.log.entries.length;
   }
   return logged;
@@ -219,8 +247,11 @@ describe("the dive log against the recorded legacy dives", () => {
   // one step per legacy tick at the depth it read back, so each tick's
   // profile samples carry the ceiling from before it, as legacy's do. Their
   // entries are not compared (see the note above); their motion is.
-  it.each<[string, BreathingSource]>([
-    ["air-18m-30min", openCircuit(createGasMix(0.21, 0))],
+  // Air breathes its own cylinder, so the model's life support runs and its
+  // gas used is compared too. The rebreather is held at its setpoint, as the
+  // tissue replays hold it; given a breathing source, the model draws no gas.
+  it.each<[string, BreathingSource | undefined]>([
+    ["air-18m-30min", undefined],
     ["ccr-30m-30min", closedCircuit(1.3, createGasMix(0.15, 0.45))],
   ])("samples the %s profile and averages its depth as legacy does", (scenarioId, breathing) => {
     const all = checkpoints(scenarioId);
@@ -236,6 +267,7 @@ describe("the dive log against the recorded legacy dives", () => {
       }
       expectMotionToMatch(new DiveModel(state), scenarioId, recorded);
       expectSafetyStopToMatch(new DiveModel(state), recorded);
+      expectStartGasToMatch(new DiveModel(state), recorded);
     }
   });
 

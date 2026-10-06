@@ -85,6 +85,8 @@ export interface LegacyTissueCheckpoint {
     volume_l: number;
     pressure_bar: number;
     gasRemaining_l: number;
+    /** Legacy's totalGas (#199); volume times pressure when absent. */
+    totalGas_l?: number | null;
   }[];
   ccr?: {
     targetPO2_bar: number;
@@ -96,6 +98,9 @@ export interface LegacyTissueCheckpoint {
     o2Pressure_bar: number;
     diluentPressure_bar: number;
     scrubberRemaining_min: number;
+    o2PressureStart_bar?: number | null;
+    diluentPressureStart_bar?: number | null;
+    scrubberTotal_min?: number | null;
     onBailout: boolean;
   };
 }
@@ -121,6 +126,7 @@ export function diveStateFromLegacyCheckpoint(
     gas: createGasMix(tank.fO2, tank.fHe),
     volumeL: litres(tank.volume_l),
     gasRemainingL: litres(tank.gasRemaining_l),
+    startGasL: litres(tank.totalGas_l ?? tank.volume_l * tank.pressure_bar),
   }));
   const legacyCcr = checkpoint.ccr;
   const ccr =
@@ -137,6 +143,17 @@ export function diveStateFromLegacyCheckpoint(
               ),
               scrubberRemainingS: minutesToSeconds(
                 minutes(legacyCcr.scrubberRemaining_min),
+              ),
+              // #199: the dive's start values, or the current ones for a
+              // checkpoint recorded before they were.
+              oxygenCylinderStartPressureBar: bars(
+                legacyCcr.o2PressureStart_bar ?? legacyCcr.o2Pressure_bar,
+              ),
+              diluentCylinderStartPressureBar: bars(
+                legacyCcr.diluentPressureStart_bar ?? legacyCcr.diluentPressure_bar,
+              ),
+              scrubberTotalS: minutesToSeconds(
+                minutes(legacyCcr.scrubberTotal_min ?? legacyCcr.scrubberRemaining_min),
               ),
             },
           ),
