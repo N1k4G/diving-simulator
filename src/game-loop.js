@@ -1831,6 +1831,9 @@ function captureBaselineCheckpoint(scenarioId, checkpointId) {
                 // #199: the decompression-sickness timer (dive seconds
                 // shallower than the stop, decaying 1:1 otherwise).
                 dcsViolation_s: _baselineFinite(dcsViolationTime),
+                // #189: the barotrauma timer (dive seconds at 18 m/min or
+                // faster up, decaying 2:1 otherwise).
+                barotrauma_s: _baselineFinite(barotraumaTime),
                 // #199: the rule of thirds (Issue #27): whether the diver is
                 // under an overhead, the gas snapshotted on entering it (0
                 // outside), the turn beep's latch, and the reserve latch

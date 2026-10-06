@@ -306,8 +306,9 @@ function runBaselineScenarios() {
     // sinking on momentum and compression), W held (inflate), nothing held.
     // 11 s of W stops the sink, turns it, and lets the ascent accelerate as
     // the BCD expands. Presses of 12 s or more, or long vents, drive the
-    // diver into the velocity limits and a barotrauma game over, which the
-    // model cannot produce yet (#189). Recorded in 60 Hz frames (holdKeys).
+    // diver into the velocity limits and a barotrauma game over, which
+    // barotrauma-runaway-ascent-30m records (#189). Recorded in 60 Hz frames
+    // (holdKeys).
     setup('rec', 'shore', [[0.21, 0, 200]]);
     api.setDepth(12);
     neutralizeAt(12);
@@ -416,6 +417,37 @@ function runBaselineScenarios() {
     for (let tick = 0; tick < 10; tick++) updateInSite(32, 0.1);
     thirds.checkpoints.push(checkpoint('wreck-thirds', 'outside-29min'));
     scenarios.push(thirds);
+
+    // #189: pulmonary barotrauma, legacy's runaway ascent. Air, neutral at
+    // 30 m, with the buoyancy physics moving the diver in 60 Hz frames, as
+    // buoyancy-vent-inflate-12m does. W held 5.5 s takes the ascent past
+    // BAROTRAUMA_RATE (18 m/min) and starts the timer; S held 3 s, the rate
+    // still above it, then 2 s more, below it, while the timer counts down
+    // twice as fast; then W held again until the timer reaches
+    // BAROTRAUMA_TIME (10 dive seconds) and ends the dive.
+    setup('rec', 'shore', [[0.21, 0, 200]]);
+    api.setDepth(30);
+    neutralizeAt(30);
+    api.verticalVelocity = 0;
+    const barotrauma = {
+      scenarioId: 'barotrauma-runaway-ascent-30m',
+      description: 'Air, neutral at 30 m; W held 5.5 s, S held 3 s and 2 s more, then W held 10 s and on until the barotrauma timer ends the dive, in 60 Hz frames with the buoyancy physics moving the diver',
+      checkpoints: [checkpoint('barotrauma-runaway-ascent-30m', 'neutral-30m')]
+    };
+    holdKeys({ w: true }, 5.5);
+    barotrauma.checkpoints.push(checkpoint('barotrauma-runaway-ascent-30m', 'inflated-5.5s'));
+    holdKeys({ s: true }, 3);
+    barotrauma.checkpoints.push(checkpoint('barotrauma-runaway-ascent-30m', 'vented-3s'));
+    holdKeys({ s: true }, 2);
+    barotrauma.checkpoints.push(checkpoint('barotrauma-runaway-ascent-30m', 'vented-5s'));
+    holdKeys({ w: true }, 10);
+    barotrauma.checkpoints.push(checkpoint('barotrauma-runaway-ascent-30m', 'reinflated-10s'));
+    const frameMinutes = api.TIME_ACCELERATION / 60 / 60;
+    for (let frame = 0; frame < 600 && api.gameState === 'diving'; frame++) {
+      physicsTick({ w: true }, frameMinutes);
+    }
+    barotrauma.checkpoints.push(checkpoint('barotrauma-runaway-ascent-30m', 'barotrauma'));
+    scenarios.push(barotrauma);
 
     return scenarios;
   } finally {
