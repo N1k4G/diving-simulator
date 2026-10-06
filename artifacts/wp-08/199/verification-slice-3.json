@@ -3,16 +3,16 @@
   "issue": 199,
   "slice": "Slice 3: the adaptive safety stop in the core; the planner's TTS flags from the dive; save v9",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "bd079e5c5ca4270d6d59cc153798ca7ead68d913",
-  "measuredTree": "f290f179f4005aa24789aeb606c2c2f9d6be04b6",
+  "measuredCommit": "435b0281180f50bed9e0fe767ec834614fcf8d8c",
+  "measuredTree": "704b018334285c65b4f1f797497710bdadbf9a6f",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-06T06:34:11Z",
-  "runFinishedAt": "2026-10-06T06:41:38Z",
+  "recordedAt": "2026-10-06T06:54:45Z",
+  "runFinishedAt": "2026-10-06T07:03:23Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "The full run above is on bd079e5, the branch rebased onto main 2ef29db (#205) after Codex round 1; its last commit is the previous re-record of this file. The only later commit updates this file again, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "The full run above is on 435b028: the branch rebased onto main 2ef29db (#205) after Codex round 1, with the fix for the pre-review that followed. The only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "earlierRuns": [
     "The same change before the rebase (06eb87e, on #204's head adc75a2) passed the full suite: 361 unit, 73 parity, 142 e2e.",
-    "A full run on ea4c832 (the rebased slice) passed: 362 unit, 73 parity, 142 e2e. The pre-review of #206, pass 1, then noted that withinRoute() moved a resumed dive with a running countdown below 11 m without resetting it, so a save before the first step failed v9 validation. 12be28a resets the stop in withinRoute(); the run above is on that commit.",
+    "A full run on ea4c832 (the rebased slice) passed: 362 unit, 73 parity, 142 e2e. The pre-review of #206, pass 1, then noted that withinRoute() moved a resumed dive with a running countdown below 11 m without resetting it, so a save before the first step failed v9 validation. 12be28a resets the stop in withinRoute(); that commit has its own full run, the next entry.",
     {
       "measuredCommit": "12be28a23973a22bbd64feb3c2574266427fce4d",
       "recordedAt": "2026-09-30T22:09:04Z",
@@ -22,6 +22,11 @@
       "measuredCommit": "580087d540290e1f91f29f49031440c4a6417d10",
       "recordedAt": "2026-10-01T08:34:01Z",
       "note": "The Codex round 1 fix before the rebase onto main; superseded by the run above."
+    },
+    {
+      "measuredCommit": "bd079e5c5ca4270d6d59cc153798ca7ead68d913",
+      "recordedAt": "2026-10-06T06:34:11Z",
+      "note": "The Codex round 1 fix rebased onto main 2ef29db (#205); superseded by the run on the pre-review fix."
     }
   ],
   "environment": {
@@ -39,9 +44,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "365 passed (345 on main, +12 in tests/unit/safety-stop.test.ts, +6 in tests/unit/save-game.test.ts, +2 in tests/unit/game-controller-buoyancy.test.ts)",
+    "unit": "366 passed (345 on main, +12 in tests/unit/safety-stop.test.ts, +7 in tests/unit/save-game.test.ts, +2 in tests/unit/game-controller-buoyancy.test.ts)",
     "parity": "73 passed (72 on main, +1 in tests/parity/dive-log.test.ts; the replays now also compare the safety stop)",
-    "e2e": "142 passed in 5.2 min (unchanged)",
+    "e2e": "141 passed, 1 failed in 5.6 min. The failure is tests/game.spec.js, the legacy harness, on \"Blocked call to navigator.vibrate because user hasn't tapped on the frame\": the known flake #194, in code this PR does not touch. Re-run alone on the same commit and clean tree with --repeat-each=3: 3 passed.",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -54,7 +59,7 @@
   },
   "parity": "needed, countdownStarted, paused and complete exactly, remaining within state.safetyStop.remaining_min's 1e-6, at every checkpoint of both buoyancy recordings and of air-18m-30min and ccr-30m-30min replayed tick by tick, including air-18m-30min/surfaced (countdown started at 300 s, 282 left, paused at the surface).",
   "counterChecks": {
-    "method": "Each revert was applied to src/core/dive-model.ts or src/app/game-controller.ts from a backup copy, tests/unit/safety-stop.test.ts, tests/parity/dive-log.test.ts and tests/unit/game-controller-buoyancy.test.ts were run, and the file was restored. Run on the change before the rebase (06eb87e); the rebase changed no line of these files.",
+    "method": "Each revert was applied to src/core/dive-model.ts, src/app/game-controller.ts or src/save/save-game.ts from a backup copy, the tests named in its result were run, and the file was restored. All of them were run again on 435b028, the measured commit, with tests/unit/safety-stop.test.ts, tests/parity/dive-log.test.ts, tests/unit/game-controller-buoyancy.test.ts and tests/unit/save-game.test.ts; the results are from that run.",
     "results": [
       {
         "revert": "no reset back below 11 m",
@@ -105,11 +110,24 @@
           "result": "1 failed: the long-stop test"
         }
       ]
+    },
+    "preReviewAfterRound1": {
+      "method": "The rebreather-failure exemption in isSafetyStop was reverted both ways from a backup copy, tests/unit/save-game.test.ts was run, and the file was restored.",
+      "results": [
+        {
+          "revert": "every rule skipped on a rebreather-failed dive (the earlier blanket exemption)",
+          "result": "1 failed: the rebreather-failed dive test, on complete and paused"
+        },
+        {
+          "revert": "no exemption at all",
+          "result": "1 failed: the rebreather-failed dive test, on a countdown the depth left"
+        }
+      ]
     }
   },
   "durableProvenance": {
-    "src": "10473fb11db8a13c720c607e1a4b3be2484c9f31",
-    "tests": "f1414b3543dbf498400977ef9171234b7134d77b",
+    "src": "86945051e3a7ad1d03c93aad8a455d1ed9627ba8",
+    "tests": "807dd0ee08eea697b37a1f9bbcb6521dec41561e",
     "scripts": "9821955c9dd544534be72ffeb8eb56fbc6cc863a",
     "docs": "e2b85248122e51b5ade838797f0eb68be5b23bd0"
   }
