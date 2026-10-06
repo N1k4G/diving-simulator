@@ -3,13 +3,13 @@
   "issue": 199,
   "slice": "Slice 4a: decompression sickness in the model (legacy's DCS timer and its surfacing check), its game-over text; save v11",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "99022dbe393125efccd04b482229c87964224bfd",
-  "measuredTree": "1072abe36b2c43680ebad09179b48d62f91ca971",
+  "measuredCommit": "06750a9e981fa79659905f55fcd05945ff9119fb",
+  "measuredTree": "6d366dfff9fc4cd7be0b70f6a8c54d9973d9d312",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-06T13:14:32Z",
-  "runFinishedAt": "2026-10-06T13:21:23Z",
+  "recordedAt": "2026-10-06T13:31:48Z",
+  "runFinishedAt": "2026-10-06T13:40:23Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "On main 46c96ac (#211, slice 2c). The full run above is on 99022db, the fix for the #212 pre-review; the only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "On main 46c96ac (#211, slice 2c). The full run above is on 06750a9, the fix for the second #212 pre-review pass; the only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -27,7 +27,7 @@
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
     "unit": "395 passed (378 on main, +9 in tests/unit/decompression-sickness.test.ts, +8 in tests/unit/save-game.test.ts)",
     "parity": "83 passed (73 on main, +3 in tests/parity/decompression-sickness.test.ts, the rest in the tissue and dive-log replays over the two new scenarios)",
-    "e2e": "143 passed in 5.2 min (142 on main, +1 in tests/game-over.spec.js: the DCS screen, from a state a minute in with the timer at 60)",
+    "e2e": "143 passed in 5.7 min (142 on main, +1 in tests/game-over.spec.js: the DCS screen, from a state the model can reach: a minute in, the timer at 60, tissues loaded to a 27 m ceiling with the diver above its 30 m stop)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -105,13 +105,21 @@
         {
           "revert": "a pre-v11 DCS end accepted",
           "result": "1 failed: the pre-v11 test, on a surfacing end"
+        },
+        {
+          "revert": "a timer at 60 without a ceiling above the diver's stop",
+          "result": "1 failed: the invalid-timer test, on out of gas at 60 with no ceiling"
+        },
+        {
+          "revert": "a surfacing DCS end with the timer at zero",
+          "result": "1 failed: the invalid-timer test, on the surfacing end at zero"
         }
       ]
     }
   },
   "durableProvenance": {
-    "src": "c20aef91cd3f0e354e9d3f64827346893cb60516",
-    "tests": "84157e28b26feb022e576053b2e76c0615c9cab8",
+    "src": "c1c360a4e825820a338f586d9ce7abe9faefe8e4",
+    "tests": "5ecd264bfad9563f7974e44676002d97aa9c9e1a",
     "scripts": "7ea5ab54c93260bbad2cf48dd04e2d235ed5d43a",
     "docs": "7cafbf82931c083dcd7926a1c79a62da1cf06f53"
   },
@@ -125,6 +133,11 @@
       "measuredCommit": "0cf0c8334c17727e535e4e6d13e785a68680754f",
       "recordedAt": "2026-10-06T12:51:38Z",
       "note": "On main 46c96ac, before the #212 pre-review fix; superseded by the run above."
+    },
+    {
+      "measuredCommit": "99022dbe393125efccd04b482229c87964224bfd",
+      "recordedAt": "2026-10-06T13:14:32Z",
+      "note": "The first #212 pre-review fix; superseded by the run above."
     }
   ]
 }
