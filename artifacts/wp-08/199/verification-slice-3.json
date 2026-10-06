@@ -3,13 +3,13 @@
   "issue": 199,
   "slice": "Slice 3: the adaptive safety stop in the core; the planner's TTS flags from the dive; save v9",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "580087d540290e1f91f29f49031440c4a6417d10",
-  "measuredTree": "2702b15a8a12aaa95f8428a8d848b397c50ddff8",
+  "measuredCommit": "bd079e5c5ca4270d6d59cc153798ca7ead68d913",
+  "measuredTree": "f290f179f4005aa24789aeb606c2c2f9d6be04b6",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-01T08:34:01Z",
-  "runFinishedAt": "2026-10-01T08:40:59Z",
+  "recordedAt": "2026-10-06T06:34:11Z",
+  "runFinishedAt": "2026-10-06T06:41:38Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "The full run above is on 580087d, the Codex round 1 fix. The only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "The full run above is on bd079e5, the branch rebased onto main 2ef29db (#205) after Codex round 1; its last commit is the previous re-record of this file. The only later commit updates this file again, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "earlierRuns": [
     "The same change before the rebase (06eb87e, on #204's head adc75a2) passed the full suite: 361 unit, 73 parity, 142 e2e.",
     "A full run on ea4c832 (the rebased slice) passed: 362 unit, 73 parity, 142 e2e. The pre-review of #206, pass 1, then noted that withinRoute() moved a resumed dive with a running countdown below 11 m without resetting it, so a save before the first step failed v9 validation. 12be28a resets the stop in withinRoute(); the run above is on that commit.",
@@ -17,6 +17,11 @@
       "measuredCommit": "12be28a23973a22bbd64feb3c2574266427fce4d",
       "recordedAt": "2026-09-30T22:09:04Z",
       "note": "Before the Codex round 1 fix; superseded by the run above."
+    },
+    {
+      "measuredCommit": "580087d540290e1f91f29f49031440c4a6417d10",
+      "recordedAt": "2026-10-01T08:34:01Z",
+      "note": "The Codex round 1 fix before the rebase onto main; superseded by the run above."
     }
   ],
   "environment": {
@@ -103,7 +108,7 @@
     }
   },
   "durableProvenance": {
-    "src": "6137d2a805386c8f875989229c6a390491d0d493",
+    "src": "10473fb11db8a13c720c607e1a4b3be2484c9f31",
     "tests": "f1414b3543dbf498400977ef9171234b7134d77b",
     "scripts": "9821955c9dd544534be72ffeb8eb56fbc6cc863a",
     "docs": "e2b85248122e51b5ade838797f0eb68be5b23bd0"
