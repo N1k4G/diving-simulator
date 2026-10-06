@@ -3,13 +3,13 @@
   "issue": 199,
   "slice": "Slice 4a: decompression sickness in the model (legacy's DCS timer and its surfacing check), its game-over text; save v11",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "0cf0c8334c17727e535e4e6d13e785a68680754f",
-  "measuredTree": "67202e539e5c7edd7c165334846f6e8d1cdb847f",
+  "measuredCommit": "99022dbe393125efccd04b482229c87964224bfd",
+  "measuredTree": "1072abe36b2c43680ebad09179b48d62f91ca971",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-06T12:51:38Z",
-  "runFinishedAt": "2026-10-06T12:59:09Z",
+  "recordedAt": "2026-10-06T13:14:32Z",
+  "runFinishedAt": "2026-10-06T13:21:23Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "On main 46c96ac (#211, slice 2c). The full run above is on 0cf0c83, whose last commit is the previous version of this file; the only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "On main 46c96ac (#211, slice 2c). The full run above is on 99022db, the fix for the #212 pre-review; the only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -25,9 +25,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "392 passed (378 on main, +9 in tests/unit/decompression-sickness.test.ts, +5 in tests/unit/save-game.test.ts)",
+    "unit": "395 passed (378 on main, +9 in tests/unit/decompression-sickness.test.ts, +8 in tests/unit/save-game.test.ts)",
     "parity": "83 passed (73 on main, +3 in tests/parity/decompression-sickness.test.ts, the rest in the tissue and dive-log replays over the two new scenarios)",
-    "e2e": "143 passed in 5.5 min (142 on main, +1 in tests/game-over.spec.js: the DCS screen)",
+    "e2e": "143 passed in 5.2 min (142 on main, +1 in tests/game-over.spec.js: the DCS screen, from a state a minute in with the timer at 60)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -86,11 +86,32 @@
         "revert": "adapter drops the legacy timer",
         "result": "1 failed: the resume-from-above-stop-30s parity test"
       }
-    ]
+    ],
+    "preReview": {
+      "method": "Each rule added after the #212 pre-review was removed from src/save/save-game.ts from a backup copy, tests/unit/save-game.test.ts was run, and the file was restored.",
+      "results": [
+        {
+          "revert": "timer not bound by the dive's time",
+          "result": "1 failed: the invalid-timer test, on a timer longer than the dive"
+        },
+        {
+          "revert": "a decompression-sickness end not held to the timer or the surface",
+          "result": "1 failed: the invalid-timer test, on DCS below the surface short of 60"
+        },
+        {
+          "revert": "the timer at 60 allowed on any dive",
+          "result": "1 failed: the invalid-timer test, on a dive going on at 60"
+        },
+        {
+          "revert": "a pre-v11 DCS end accepted",
+          "result": "1 failed: the pre-v11 test, on a surfacing end"
+        }
+      ]
+    }
   },
   "durableProvenance": {
-    "src": "689a5093002674ec7563691e4586584ca25fb356",
-    "tests": "3998328dc4be3b1fa48a53746151a36879284337",
+    "src": "c20aef91cd3f0e354e9d3f64827346893cb60516",
+    "tests": "84157e28b26feb022e576053b2e76c0615c9cab8",
     "scripts": "7ea5ab54c93260bbad2cf48dd04e2d235ed5d43a",
     "docs": "7cafbf82931c083dcd7926a1c79a62da1cf06f53"
   },
@@ -99,6 +120,11 @@
       "measuredCommit": "7163f09b87408537eb03d09488bdccd5e7b80a04",
       "recordedAt": "2026-09-30T23:47:46Z",
       "note": "Stacked on slices 2c and 3 before they merged, with one legacy-harness failure (#194); superseded by the run above on main."
+    },
+    {
+      "measuredCommit": "0cf0c8334c17727e535e4e6d13e785a68680754f",
+      "recordedAt": "2026-10-06T12:51:38Z",
+      "note": "On main 46c96ac, before the #212 pre-review fix; superseded by the run above."
     }
   ]
 }
