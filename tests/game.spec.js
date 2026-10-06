@@ -2,10 +2,16 @@ const { test, expect } = require('@playwright/test');
 
 test.setTimeout(180000);
 test('all game tests pass', async ({ page }) => {
-  // Capture browser console errors
+  // Capture browser console errors. One is not the client's: headless
+  // Chrome blocks navigator.vibrate() until the user has tapped the page,
+  // and logs that intervention as an error. playAlertBeep() vibrates whenever
+  // the HUD draws a warning, and the harness page keeps drawing between test
+  // cases, so whether one lands depends on timing (#194). Only that exact
+  // intervention is ignored; any other error still fails the test.
+  const VIBRATE_INTERVENTION = /^Blocked call to navigator\.vibrate because user hasn't tapped on the frame or any embedded frame yet/;
   const consoleErrors = [];
   page.on('console', msg => {
-    if (msg.type() === 'error') consoleErrors.push(msg.text());
+    if (msg.type() === 'error' && !VIBRATE_INTERVENTION.test(msg.text())) consoleErrors.push(msg.text());
   });
   page.on('pageerror', err => consoleErrors.push(err.message));
 
