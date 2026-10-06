@@ -449,6 +449,32 @@ function runBaselineScenarios() {
     barotrauma.checkpoints.push(checkpoint('barotrauma-runaway-ascent-30m', 'barotrauma'));
     scenarios.push(barotrauma);
 
+    // #189: nitrogen narcosis on air at 65 m, deep enough for the narcosis
+    // index to pass NARC_KO_THRESHOLD (0.95) and shallow enough for a PO2
+    // under 1.6 bar. Four minutes in the usual 6 s ticks, then one-second
+    // ticks: the KO timer counts, a climb to 45 m for 10 s takes the index
+    // back under the threshold and resets it, and back at 65 m it counts
+    // again until NARC_KO_TIME (30 s) ends the dive.
+    setup('rec', 'shore', [[0.21, 0, 200]]);
+    const narcosis = {
+      scenarioId: 'narcosis-air-65m',
+      description: 'Air at 65 m for 4 min, 45 s more in one-second ticks, 10 s at 45 m, then back at 65 m in one-second ticks until the narcosis KO timer ends the dive',
+      checkpoints: [checkpoint('narcosis-air-65m', 'surface')]
+    };
+    holdDepth(65, 4);
+    narcosis.checkpoints.push(checkpoint('narcosis-air-65m', 'bottom-4min'));
+    for (let second = 0; second < 45; second++) updateAtDepth(65, 1 / 60, 0);
+    narcosis.checkpoints.push(checkpoint('narcosis-air-65m', 'ko-counting'));
+    for (let second = 0; second < 10; second++) updateAtDepth(45, 1 / 60, 0);
+    narcosis.checkpoints.push(checkpoint('narcosis-air-65m', 'ascended-45m'));
+    for (let second = 0; second < 60; second++) updateAtDepth(65, 1 / 60, 0);
+    narcosis.checkpoints.push(checkpoint('narcosis-air-65m', 'back-60s'));
+    for (let second = 0; second < 120 && api.gameState === 'diving'; second++) {
+      updateAtDepth(65, 1 / 60, 0);
+    }
+    narcosis.checkpoints.push(checkpoint('narcosis-air-65m', 'narcosis'));
+    scenarios.push(narcosis);
+
     return scenarios;
   } finally {
     Math.random = originalRandom;
