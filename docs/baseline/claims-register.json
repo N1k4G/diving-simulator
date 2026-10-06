@@ -67,8 +67,8 @@
     {
       "id": "ASCENT-001",
       "classification": "ascent-rate and pulmonary injury advice",
-      "source": ["STRINGS.*.controlsText", "STRINGS.*.helpAscent", "STRINGS.*.warnSlow", "STRINGS.*.gradeNotes.ascent*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.ascent*", "STRINGS.*.gameOverInfo.PULMONARY BAROTRAUMA — PNEUMOTHORAX"],
-      "ui": ["help", "HUD warning", "debrief", "game over"],
+      "source": ["STRINGS.*.controlsText", "STRINGS.*.helpAscent", "STRINGS.*.warnSlow", "STRINGS.*.gradeNotes.ascent*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.ascent*", "STRINGS.*.gameOverInfo.PULMONARY BAROTRAUMA — PNEUMOTHORAX", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.pulmonaryBarotrauma", "src/app/i18n/catalog.ts {en,de}: gameOver.info.pulmonaryBarotrauma.*"],
+      "ui": ["help", "HUD warning", "debrief", "game over", "game over (migration client)"],
       "owner": "domain-reviewer",
       "reviewStatus": "unreviewed",
       "evidence": ["docs/research/buoyancy-bcd-physics.md"]
@@ -121,7 +121,7 @@
     {
       "id": "GAMEOVER-001",
       "classification": "medical consequence and prevention inventory",
-      "source": ["STRINGS.*.gameOverInfo.OUT OF GAS", "STRINGS.*.gameOverInfo.DECOMPRESSION SICKNESS", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.outOfGas", "src/app/i18n/catalog.ts {en,de}: gameOver.info.outOfGas.*", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.decompressionSickness", "src/app/i18n/catalog.ts {en,de}: gameOver.info.decompressionSickness.*", "src/app/i18n/catalog.ts {en,de}: wreck.warning.failure", "src/app/i18n/catalog.ts {en,de}: wreck.hud.warning.failure"],
+      "source": ["STRINGS.*.gameOverInfo.OUT OF GAS", "STRINGS.*.gameOverInfo.DECOMPRESSION SICKNESS", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.outOfGas", "src/app/i18n/catalog.ts {en,de}: gameOver.info.outOfGas.*", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.decompressionSickness", "src/app/i18n/catalog.ts {en,de}: gameOver.info.decompressionSickness.*", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.pulmonaryBarotrauma", "src/app/i18n/catalog.ts {en,de}: wreck.warning.failure", "src/app/i18n/catalog.ts {en,de}: wreck.hud.warning.failure"],
       "ui": ["game over", "game over (migration client)", "HUD warning (migration client)"],
       "owner": "domain-reviewer",
       "reviewStatus": "unreviewed",

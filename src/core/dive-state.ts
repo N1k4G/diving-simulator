@@ -84,6 +84,7 @@ export type DiveFailureReason =
   | "oxygen-toxicity"
   | "hypoxia"
   | "decompression-sickness"
+  | "pulmonary-barotrauma"
   | "ccr-hypoxia"
   | "ccr-hyperoxia"
   | "ccr-co2";
@@ -99,6 +100,11 @@ export interface FailureState {
    * first stop while there is a ceiling, less the seconds since.
    */
   dcsViolationS: Seconds;
+  /**
+   * Legacy's barotraumaTime (#189): dive seconds spent ascending at 18 m/min
+   * or faster, less twice the seconds since.
+   */
+  barotraumaS: Seconds;
 }
 
 export interface DiveEvent {
@@ -420,6 +426,7 @@ export function createInitialDiveState(
       ccrHypoxiaS: seconds(0),
       ccrHyperoxiaS: seconds(0),
       dcsViolationS: seconds(0),
+      barotraumaS: seconds(0),
     },
     events: [],
     log: createEmptyDiveLog(),

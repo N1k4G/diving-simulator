@@ -57,6 +57,10 @@ export const CCR_CO2_FAILURE_SECONDS = seconds(180);
 export const DCS_VIOLATION_FAILURE_SECONDS = seconds(60);
 export const SURFACE_DCS_DEPTH_M = 0.5;
 export const SURFACE_DCS_CEILING_M = 3;
+// Legacy's BAROTRAUMA_RATE and BAROTRAUMA_TIME (#189): an ascent at 18 m/min
+// or faster, held for 10 dive seconds, ends the dive.
+export const BAROTRAUMA_ASCENT_RATE_MPM = 18;
+export const BAROTRAUMA_FAILURE_SECONDS = seconds(10);
 // Legacy's end of a dive at the surface: shallower than 0.3 m after more
 // than half a dive minute, the ceiling cleared to 0.1 m, the dive deeper
 // than 2 m (#199).
@@ -394,6 +398,7 @@ export function advanceDiveStep(
     elapsedS,
     environment.breathing ?? breathingSourceForState(nextState),
     limits,
+    stepAscentRateMpm(nextState, previousDepthM, elapsedS),
   );
   // Legacy's rebreather checks run in updateCCR() and return from
   // updateDiving() before the debriefing capture; its other dive-ending
@@ -1028,6 +1033,7 @@ function updateFailureState(
   elapsedS: Seconds,
   breathingSource: BreathingSource,
   limits: DecompressionLimits,
+  ascentRateMpm: number,
 ): DiveState {
   const ccrActive = Boolean(state.ccr && !state.ccr.onBailout);
   const inspiredPo2Bar =
@@ -1083,6 +1089,14 @@ function updateFailureState(
     limits.ceilingM > 0 && state.depthM < decoStopDepth(limits.ceilingM)
       ? seconds(state.failure.dcsViolationS + elapsedS)
       : seconds(Math.max(0, state.failure.dcsViolationS - elapsedS));
+  // Legacy's barotrauma check (#189): the step's ascent at 18 m/min or faster
+  // counts up, anything slower counts down twice as fast, to zero. Legacy
+  // also counts any ascent while a drill's held breath lasts; the drills are
+  // not migrated, so no breath is ever held here.
+  const barotraumaS =
+    ascentRateMpm >= BAROTRAUMA_ASCENT_RATE_MPM
+      ? seconds(state.failure.barotraumaS + elapsedS)
+      : seconds(Math.max(0, state.failure.barotraumaS - elapsedS * 2));
 
   const failure = {
     ...state.failure,
@@ -1091,20 +1105,25 @@ function updateFailureState(
     ccrHypoxiaS,
     ccrHyperoxiaS,
     dcsViolationS,
+    barotraumaS,
   };
   let nextState = freezeDiveState({ ...state, ccr, failure });
   const reason = detectFailure(nextState, limits);
 
   if (reason) {
     // A rebreather failure returns from legacy's updateDiving() before its
-    // DCS check runs, so the timer stays where it was on that step.
-    const dcsOnFailure = FAILURES_BEFORE_THE_LOG.has(reason)
-      ? state.failure.dcsViolationS
-      : dcsViolationS;
+    // DCS and barotrauma checks run, so both timers stay where they were on
+    // that step.
+    const beforeTheChecks = FAILURES_BEFORE_THE_LOG.has(reason);
     nextState = withEvent(
       {
         ...nextState,
-        failure: { ...nextState.failure, reason, dcsViolationS: dcsOnFailure },
+        failure: {
+          ...nextState.failure,
+          reason,
+          dcsViolationS: beforeTheChecks ? state.failure.dcsViolationS : dcsViolationS,
+          barotraumaS: beforeTheChecks ? state.failure.barotraumaS : barotraumaS,
+        },
       },
       {
         type: "failure",
@@ -1120,8 +1139,8 @@ function updateFailureState(
 /**
  * Legacy's dive-ending checks in their order, those the model has: the
  * rebreather's in updateCCR(), then out of gas, oxygen toxicity, the DCS
- * timer, hypoxia and surfacing with a ceiling. Barotrauma and narcosis,
- * which legacy checks between them, are not modelled yet (#189).
+ * timer, barotrauma, hypoxia and surfacing with a ceiling. Narcosis, which
+ * legacy checks after hypoxia, is not modelled yet (#189).
  */
 function detectFailure(
   state: DiveState,
@@ -1152,6 +1171,9 @@ function detectFailure(
   }
   if (state.failure.dcsViolationS >= DCS_VIOLATION_FAILURE_SECONDS) {
     return "decompression-sickness";
+  }
+  if (state.failure.barotraumaS >= BAROTRAUMA_FAILURE_SECONDS) {
+    return "pulmonary-barotrauma";
   }
   if (state.failure.hypoxiaS >= seconds(10)) {
     return "hypoxia";

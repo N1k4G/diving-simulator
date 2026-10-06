@@ -64,6 +64,7 @@ export interface LegacyTissueCheckpoint {
       profileTimer_s?: number | null;
       frameCeiling_m?: number | null;
       dcsViolation_s?: number | null;
+      barotrauma_s?: number | null;
       inOverhead?: boolean;
       thirdsStartingGas_l?: number | null;
       thirdsTurnWarned?: boolean;
@@ -209,6 +210,7 @@ export function diveStateFromLegacyCheckpoint(
       ...initialState.failure,
       reason: failureReason,
       dcsViolationS: seconds(checkpoint.state.debrief?.dcsViolation_s ?? 0),
+      barotraumaS: seconds(checkpoint.state.debrief?.barotrauma_s ?? 0),
     },
     // A failed dive ends on its failure event, as the model records it.
     events: failureReason === null
@@ -287,6 +289,9 @@ function failureReasonFromLegacy(gameOverReason: string | null | undefined): Div
   }
   if (gameOverReason === "DECOMPRESSION SICKNESS") {
     return "decompression-sickness";
+  }
+  if (gameOverReason === "PULMONARY BAROTRAUMA \u2014 PNEUMOTHORAX") {
+    return "pulmonary-barotrauma";
   }
   throw new Error(`Unsupported legacy game over: ${gameOverReason}`);
 }
