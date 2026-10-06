@@ -949,6 +949,9 @@ test.describe('rebreather controls', () => {
     // src/renderer.js TASK-032E: SCR LOW under ten minutes.
     await resumeCcrDiveWith(page, (state) => {
       state.ccr.scrubberRemainingS = 5 * 60;
+      // A save cannot show the scrubber used for longer than the dive has run
+      // (#211), so this loop is one that started with this much left.
+      state.ccr.scrubberTotalS = state.ccr.scrubberRemainingS;
     });
 
     await expect(page.locator('[role="alert"]')).toHaveText('Scrubber nearly spent — end the dive');
@@ -959,6 +962,9 @@ test.describe('rebreather controls', () => {
     // src/renderer.js TASK-032E: CO2! once scrubberFailed.
     await resumeCcrDiveWith(page, (state) => {
       state.ccr.scrubberRemainingS = 0;
+      // A save cannot show the scrubber used for longer than the dive has run
+      // (#211), so this loop is one that started with this much left.
+      state.ccr.scrubberTotalS = 0;
       state.ccr.scrubberFailed = true;
     });
 
@@ -1003,6 +1009,9 @@ test.describe('rebreather controls', () => {
   test('the scrubber reads in whole minutes, as legacy draws it', async ({ page }) => {
     await resumeCcrDiveWith(page, (state) => {
       state.ccr.scrubberRemainingS = 150 * 60 + 20;
+      // A save cannot show the scrubber used for longer than the dive has run
+      // (#211), so this loop is one that started with this much left.
+      state.ccr.scrubberTotalS = state.ccr.scrubberRemainingS;
     });
     await expect(hudValue(page, 'scrubber')).toHaveText(/^150 min$/);
   });

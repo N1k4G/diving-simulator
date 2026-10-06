@@ -154,13 +154,14 @@ describe("SaveGame gradient factors", () => {
       bcdGasSurfaceLiters: neutralBcdSurfaceLitres(representativeState().depthM),
       // Before v9 there was no safety stop: it is needed from the deepest point.
       safetyStop: { ...representativeState().safetyStop, needed: representativeState().maxDepthM > 11 },
-      // Before v10 no fill was recorded: the current contents are the start.
+      // Before v10 no fill was recorded: the current contents are the start,
+      // except for the diluent and the scrubber, which no setup screen sets.
       tanks: representativeState().tanks.map((tank) => ({ ...tank, startGasL: tank.gasRemainingL })),
       ccr: {
         ...representativeState().ccr!,
         oxygenCylinderStartPressureBar: representativeState().ccr!.oxygenCylinderPressureBar,
-        diluentCylinderStartPressureBar: representativeState().ccr!.diluentCylinderPressureBar,
-        scrubberTotalS: representativeState().ccr!.scrubberRemainingS,
+        diluentCylinderStartPressureBar: Math.max(200, representativeState().ccr!.diluentCylinderPressureBar),
+        scrubberTotalS: Math.max(180 * 60, representativeState().ccr!.scrubberRemainingS),
       },
     });
   });
@@ -807,7 +808,7 @@ describe("SaveGame gradient factors", () => {
       expect(decoded.saveGame.state.ccr?.scrubberTotalS).toBe(180 * 60);
     });
 
-    it("starts a v9 save from its current contents, the only fill it knows", () => {
+    it("starts a v9 save from its current contents, and the diluent and scrubber from their defaults", () => {
       const v9 = JSON.parse(
         encodeSaveGame(createSaveGame(halfway(), CONSERVATIVE_FACTORS, 1_735_689_600_000)),
       ) as { version: number; state: { tanks: Record<string, unknown>[]; ccr: Record<string, unknown> } };
@@ -822,8 +823,10 @@ describe("SaveGame gradient factors", () => {
       expect(result.migratedFrom).toBe("save-game-v9");
       expect(result.saveGame.state.tanks[0]?.startGasL).toBe(1800);
       expect(result.saveGame.state.ccr?.oxygenCylinderStartPressureBar).toBe(170);
-      expect(result.saveGame.state.ccr?.diluentCylinderStartPressureBar).toBe(190);
-      expect(result.saveGame.state.ccr?.scrubberTotalS).toBe(165 * 60);
+      // No setup screen sets these two, so every such dive started at 200 bar
+      // and 180 minutes (#211 pre-review).
+      expect(result.saveGame.state.ccr?.diluentCylinderStartPressureBar).toBe(200);
+      expect(result.saveGame.state.ccr?.scrubberTotalS).toBe(180 * 60);
     });
 
     it("rejects a start below what is left", () => {
@@ -833,6 +836,8 @@ describe("SaveGame gradient factors", () => {
         ["an O2 start below the O2 left", (state) => { state.ccr.oxygenCylinderStartPressureBar = 150; }],
         ["a diluent start below the diluent left", (state) => { state.ccr.diluentCylinderStartPressureBar = 150; }],
         ["a scrubber total below the time left", (state) => { state.ccr.scrubberTotalS = 60; }],
+        // 900 s into the dive: the scrubber cannot have run for 1000 s.
+        ["a scrubber used for longer than the dive", (state) => { state.ccr.scrubberRemainingS = 9800; }],
       ];
       for (const [what, corrupt] of invalid) {
         const save = JSON.parse(
@@ -841,6 +846,47 @@ describe("SaveGame gradient factors", () => {
         corrupt(save.state);
         expect(decodeSaveGame(JSON.stringify(save)).ok, what).toBe(false);
       }
+    });
+
+    it("rejects anything drawn before the dive's first step", () => {
+      const atStart = (corrupt: (state: { elapsedTimeS: number; tanks: Record<string, unknown>[]; ccr: Record<string, unknown> }) => void) => {
+        const save = JSON.parse(
+          encodeSaveGame(createSaveGame(halfway(), CONSERVATIVE_FACTORS, 1_735_689_600_000)),
+        ) as { state: { elapsedTimeS: number; tanks: Record<string, unknown>[]; ccr: Record<string, unknown> } };
+        save.state.elapsedTimeS = 0;
+        save.state.ccr.scrubberRemainingS = save.state.ccr.scrubberTotalS;
+        save.state.ccr.oxygenCylinderPressureBar = save.state.ccr.oxygenCylinderStartPressureBar;
+        save.state.ccr.diluentCylinderPressureBar = save.state.ccr.diluentCylinderStartPressureBar;
+        for (const tank of save.state.tanks) tank.gasRemainingL = tank.startGasL;
+        corrupt(save.state);
+        return JSON.stringify(save);
+      };
+      expect(decodeSaveGame(atStart(() => {})).ok, "nothing drawn").toBe(true);
+      const drawn: [string, Parameters<typeof atStart>[0]][] = [
+        ["cylinder gas", (state) => { state.tanks[0]!.gasRemainingL = 2300; }],
+        ["oxygen", (state) => { state.ccr.oxygenCylinderPressureBar = 190; }],
+        ["diluent", (state) => { state.ccr.diluentCylinderPressureBar = 190; }],
+        ["scrubber", (state) => { state.ccr.scrubberRemainingS = 10_000; }],
+      ];
+      for (const [what, corrupt] of drawn) {
+        expect(decodeSaveGame(atStart(corrupt)).ok, what).toBe(false);
+      }
+    });
+
+    it("carries legacy's scrubber total only when the dive is long enough to have used the difference", () => {
+      // The fixture's loop has 150 minutes left.
+      const legacy = (diveTime: number) => {
+        const save = legacyV2Save();
+        return JSON.stringify({ ...save, diveTime, ccrState: { ...(save.ccrState as Record<string, unknown>), scrubberTotal: 180 } });
+      };
+      const long = decodeSaveGame(legacy(45));
+      expect(long.ok).toBe(true);
+      if (!long.ok) return;
+      expect(long.saveGame.state.ccr?.scrubberTotalS).toBe(180 * 60);
+      const short = decodeSaveGame(legacy(10));
+      expect(short.ok).toBe(true);
+      if (!short.ok) return;
+      expect(short.saveGame.state.ccr?.scrubberTotalS).toBe(150 * 60);
     });
 
     it("carries legacy's totalGas over, and the current contents when it is unusable", () => {
@@ -1020,7 +1066,8 @@ function representativeState(): DiveState {
       }),
       oxygenCylinderPressureBar: bars(175),
       diluentCylinderPressureBar: bars(164),
-      scrubberRemainingS: seconds(8_800),
+      // 400 s used in a 420 s dive: never more than the dive has run.
+      scrubberRemainingS: seconds(10_400),
       co2BuildupS: seconds(2),
     },
   });

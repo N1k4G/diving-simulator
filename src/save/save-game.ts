@@ -1,4 +1,6 @@
 import {
+  DEFAULT_DILUENT_CYLINDER_PRESSURE_BAR,
+  DEFAULT_SCRUBBER_DURATION_S,
   createEmptyDiveLog,
   createSafetyStopState,
   freezeDiveState,
@@ -415,7 +417,7 @@ function migrateLegacyV2(candidate: Record<string, unknown>): SaveGame | null {
   }
 
   const ccr = candidate.diveMode === "ccr"
-    ? migrateLegacyCcr(candidate.ccrState)
+    ? migrateLegacyCcr(candidate.ccrState, (candidate.diveTime as number) * 60)
     : null;
   if (candidate.diveMode === "ccr" && ccr === null) {
     return null;
@@ -544,13 +546,24 @@ function migrateLegacyTank(candidate: unknown): TankState | null {
 }
 
 /** A legacy start value, or the current one when it is missing or below it. */
+/**
+ * Legacy's scrubberTotal, in seconds, when it is one the dive could have run
+ * down to what is left: no more above it than the dive's time. Otherwise
+ * what is left, as for any unusable start.
+ */
+function legacyScrubberTotalS(candidate: Record<string, unknown>, diveTimeS: number): number {
+  const remainingS = (candidate.scrubberRemaining as number) * 60;
+  const totalS = legacyStartOr(candidate.scrubberTotal, candidate.scrubberRemaining as number) * 60;
+  return totalS - remainingS <= diveTimeS + SUM_ROUNDING_S ? totalS : remainingS;
+}
+
 function legacyStartOr(start: unknown, current: number): number {
   return isNonNegativeFinite(start) && (start as number) >= current
     ? (start as number)
     : current;
 }
 
-function migrateLegacyCcr(candidate: unknown): CcrState | null {
+function migrateLegacyCcr(candidate: unknown, diveTimeS: number): CcrState | null {
   if (!isRecord(candidate)) {
     return null;
   }
@@ -599,8 +612,7 @@ function migrateLegacyCcr(candidate: unknown): CcrState | null {
     ),
     loopVolumeL: candidate.loopVolume,
     scrubberRemainingS: (candidate.scrubberRemaining as number) * 60,
-    scrubberTotalS:
-      legacyStartOr(candidate.scrubberTotal, candidate.scrubberRemaining as number) * 60,
+    scrubberTotalS: legacyScrubberTotalS(candidate, diveTimeS),
     metabolicOxygenLpm: candidate.metabolicO2Rate,
     po2ResponseBarPerSecond: candidate.po2ResponseRate,
     onBailout: candidate.onBailout,
@@ -630,7 +642,7 @@ function isDiveState(
     (candidate.randomState as number) <= MAX_RANDOM_STATE &&
     Array.isArray(candidate.tanks) &&
     candidate.tanks.length > 0 &&
-    candidate.tanks.every(isTankState) &&
+    candidate.tanks.every((tank) => isTankState(tank, candidate.elapsedTimeS as number)) &&
     Number.isInteger(candidate.activeTankIndex) &&
     (candidate.activeTankIndex as number) >= 0 &&
     (candidate.activeTankIndex as number) < candidate.tanks.length &&
@@ -638,7 +650,7 @@ function isDiveState(
     isNonNegativeFinite(candidate.cnsPercent) &&
     Number.isFinite(candidate.verticalVelocityMpm) &&
     isNonNegativeFinite(candidate.bcdGasSurfaceLiters) &&
-    (candidate.ccr === null || isCcrState(candidate.ccr)) &&
+    (candidate.ccr === null || isCcrState(candidate.ccr, candidate.elapsedTimeS as number)) &&
     isFailureState(candidate.failure) &&
     isEventHistory(
       candidate.events,
@@ -934,12 +946,23 @@ function withCurrentContentsAsStart(state: Record<string, unknown>): Record<stri
         isRecord(tank) ? { ...tank, startGasL: tank.gasRemainingL } : tank,
       )
     : state.tanks;
+  // The diluent's fill and the scrubber's duration have no control on any
+  // setup screen that wrote these saves, so every such dive started at their
+  // defaults (#211 pre-review). The oxygen fill is configurable, so it falls
+  // back to the current contents like the cylinders. A save already past a
+  // default (none was written, but a corrupt one could be) keeps its current
+  // value instead, which validation then holds to the dive's clock.
+  const atLeast = (value: unknown, start: number) =>
+    isNonNegativeFinite(value) ? Math.max(start, value as number) : value;
   const ccr = isRecord(state.ccr)
     ? {
         ...state.ccr,
         oxygenCylinderStartPressureBar: state.ccr.oxygenCylinderPressureBar,
-        diluentCylinderStartPressureBar: state.ccr.diluentCylinderPressureBar,
-        scrubberTotalS: state.ccr.scrubberRemainingS,
+        diluentCylinderStartPressureBar: atLeast(
+          state.ccr.diluentCylinderPressureBar,
+          DEFAULT_DILUENT_CYLINDER_PRESSURE_BAR,
+        ),
+        scrubberTotalS: atLeast(state.ccr.scrubberRemainingS, DEFAULT_SCRUBBER_DURATION_S),
       }
     : state.ccr;
   return { ...state, tanks, ccr };
@@ -1070,19 +1093,21 @@ function migrateLegacySafetyStop(
     : derivedSafetyStop(candidate.maxDepth);
 }
 
-function isTankState(candidate: unknown): candidate is TankState {
+function isTankState(candidate: unknown, elapsedTimeS: number): candidate is TankState {
   return (
     isRecord(candidate) &&
     isGasMix(candidate.gas) &&
     isPositiveFinite(candidate.volumeL) &&
     isNonNegativeFinite(candidate.gasRemainingL) &&
-    // A cylinder is only ever drawn from during a dive (#199).
+    // A cylinder is only ever drawn from during a dive (#199), and only by a
+    // step that moves the dive's clock: none is drawn from before the first.
     isNonNegativeFinite(candidate.startGasL) &&
-    (candidate.startGasL as number) >= (candidate.gasRemainingL as number)
+    (candidate.startGasL as number) >= (candidate.gasRemainingL as number) &&
+    (elapsedTimeS > 0 || candidate.startGasL === candidate.gasRemainingL)
   );
 }
 
-function isCcrState(candidate: unknown): candidate is CcrState {
+function isCcrState(candidate: unknown, elapsedTimeS: number): candidate is CcrState {
   if (!isRecord(candidate)) {
     return false;
   }
@@ -1110,6 +1135,14 @@ function isCcrState(candidate: unknown): candidate is CcrState {
     (candidate.diluentCylinderStartPressureBar as number) >=
       (candidate.diluentCylinderPressureBar as number) &&
     (candidate.scrubberTotalS as number) >= (candidate.scrubberRemainingS as number) &&
+    // The scrubber runs down by each step's time, on a step that adds that
+    // time to the dive's clock, so it has never been used for longer than
+    // the dive; and before the first step nothing has been drawn at all.
+    (candidate.scrubberTotalS as number) - (candidate.scrubberRemainingS as number) <=
+      elapsedTimeS + SUM_ROUNDING_S &&
+    (elapsedTimeS > 0 ||
+      (candidate.oxygenCylinderStartPressureBar === candidate.oxygenCylinderPressureBar &&
+        candidate.diluentCylinderStartPressureBar === candidate.diluentCylinderPressureBar)) &&
     isGasMix(candidate.diluent) &&
     typeof candidate.onBailout === "boolean" &&
     typeof candidate.scrubberFailed === "boolean"

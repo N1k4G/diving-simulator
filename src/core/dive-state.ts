@@ -282,6 +282,14 @@ export const CCR_SETPOINT_MIN_BAR = 0.5;
 export const CCR_SETPOINT_MAX_BAR = 1.6;
 export const CCR_SETPOINT_STEP_BAR = 0.1;
 
+/**
+ * Legacy's CCR_DEFAULTS for the two rebreather values no setup screen sets,
+ * legacy's or this client's: the diluent cylinder's fill and the scrubber's
+ * duration.
+ */
+export const DEFAULT_DILUENT_CYLINDER_PRESSURE_BAR = bars(200);
+export const DEFAULT_SCRUBBER_DURATION_S = seconds(180 * 60);
+
 export function createCcrState(
   diluent: GasMix,
   overrides: Partial<
@@ -292,8 +300,8 @@ export function createCcrState(
   const oxygenCylinderPressureBar =
     overrides.oxygenCylinderPressureBar ?? bars(200);
   const diluentCylinderPressureBar =
-    overrides.diluentCylinderPressureBar ?? bars(200);
-  const scrubberRemainingS = overrides.scrubberRemainingS ?? seconds(180 * 60);
+    overrides.diluentCylinderPressureBar ?? DEFAULT_DILUENT_CYLINDER_PRESSURE_BAR;
+  const scrubberRemainingS = overrides.scrubberRemainingS ?? DEFAULT_SCRUBBER_DURATION_S;
   const po2ResponseBarPerSecond = overrides.po2ResponseBarPerSecond ?? 0.05;
 
   if (
