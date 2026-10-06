@@ -188,6 +188,23 @@ test('a rebreather dive reports its oxygen, diluent and scrubber, and the bailou
   await expect(screen.locator('.post-dive-bailout')).toHaveText('⚠ Bailout: the dive ended on open circuit');
 });
 
+test('a completed save is debriefed as it ended, not moved back onto the route', async ({ page }) => {
+  // The stop done: no skipped entry, no warning, full marks. Resumed into
+  // the model, the route would put the diver back at depth, below 11 m,
+  // where the stop starts over and would read as skipped.
+  await resumeCompletedDive(page, {
+    editState: (state) => {
+      state.safetyStop = { needed: true, countdownStarted: true, remainingS: 0, paused: false, complete: true };
+      state.log.entries.pop();
+    },
+  });
+  const screen = page.locator('[data-post-dive]');
+  await expect(screen).toHaveAttribute('data-safety-stop', 'done');
+  await expect(screen.locator('.post-dive-safety-skipped')).toHaveCount(0);
+  await expect(screen.locator('[data-grade-category=safetyStop]')).toContainText('Safety stop completed — well done.');
+  await expect(screen.locator('.post-dive-violation-list li')).toHaveText([/Fast ascent/]);
+});
+
 /**
  * #120 and #121 for the DOM screen: no horizontal overflow, no text past
  * either edge, the bottom of the screen reachable by ordinary scrolling, and
