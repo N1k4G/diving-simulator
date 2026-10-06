@@ -91,19 +91,19 @@
       }
     ],
     "codexRound1": {
-      "method": "Each new save-validation rule was removed from src/save/save-game.ts from a backup copy, tests/unit/save-game.test.ts was run, and the file was restored.",
+      "method": "Each new save-validation rule was removed from src/save/save-game.ts from a backup copy, tests/unit/save-game.test.ts was run, and the file was restored. Run again on 435b028, the measured commit; the rebreather-failed dive test added there catches three of them too.",
       "results": [
         {
           "revert": "no bound on the time left",
-          "result": "1 failed: the rejection test, on more than the short stop on a dive that needs only it"
+          "result": "2 failed: the rejection test (more than the short stop on a dive that needs only it) and the rebreather-failed dive test (more than the short stop)"
         },
         {
           "revert": "a countdown at zero need not complete",
-          "result": "2 failed: the rejection test and the legacy zero-countdown test"
+          "result": "3 failed: the rejection test, the rebreather-failed dive test and the legacy zero-countdown test"
         },
         {
           "revert": "a completed stop may be paused",
-          "result": "1 failed: the rejection test, on complete and paused"
+          "result": "2 failed: the rejection test and the rebreather-failed dive test, both on complete and paused"
         },
         {
           "revert": "the below-five latch ignored for the length",
