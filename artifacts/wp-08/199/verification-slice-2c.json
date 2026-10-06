@@ -3,13 +3,13 @@
   "issue": 199,
   "slice": "Slice 2c: the start of the dive (each cylinder's fill, the rebreather's start pressures and scrubber total) for gas used; save v10",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "cdb099a46822d75deeff521275b60cbf2bc32808",
-  "measuredTree": "4a58a71c4c1344117fdbaa75692c3e04072c0124",
+  "measuredCommit": "acfad07708be1e50ee0a3f0f801783562b66068a",
+  "measuredTree": "1460b17f35afdcad6bb787f1f5e44591d2e97aa1",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-06T09:31:36Z",
-  "runFinishedAt": "2026-10-06T09:42:21Z",
+  "recordedAt": "2026-10-06T09:55:28Z",
+  "runFinishedAt": "2026-10-06T10:05:03Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "On main ea2d3b0 (#206). The full run above is on cdb099a, the fix for the #211 pre-review; the only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "On main ea2d3b0 (#206). The full run above is on acfad07, the fixes for both #211 pre-review passes; the only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -25,9 +25,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "377 passed (367 on main, +4 in tests/unit/start-gas.test.ts, +6 in tests/unit/save-game.test.ts)",
+    "unit": "378 passed (367 on main, +4 in tests/unit/start-gas.test.ts, +7 in tests/unit/save-game.test.ts)",
     "parity": "73 passed (unchanged count; the replays now also compare the start of the dive and gas used)",
-    "e2e": "142 passed in 8.5 min (unchanged count; three rebreather scrubber edits in tests/in-dive-controls.spec.js now keep the scrubber's start with the value they set)",
+    "e2e": "142 passed in 6.4 min (unchanged count; three rebreather scrubber edits in tests/in-dive-controls.spec.js now keep the scrubber's start with the value they set)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -79,19 +79,23 @@
           "result": "1 failed: the before-the-first-step test, on oxygen"
         },
         {
-          "revert": "pre-v10 diluent and scrubber started from what is left",
+          "revert": "pre-v10 scrubber started from what is left",
           "result": "2 failed: the v1 and v9 migration tests"
         },
         {
           "revert": "legacy scrubber total not bound by the dive's time",
           "result": "1 failed: the legacy scrubber test"
+        },
+        {
+          "revert": "pre-v10 diluent started at 200 bar (the first fix)",
+          "result": "3 failed: the v1 and v9 migration tests and the below-200-bar v9 save before its first step"
         }
       ]
     }
   },
   "durableProvenance": {
-    "src": "b41338d5e15337aff2a9a156e651518226a1a6bf",
-    "tests": "cff985bcc096b47a5780f582213a5231e0b0a383",
+    "src": "684de74322f2e7eb1455a8e112673e50dabc5cc1",
+    "tests": "85a82ba3864a47b3a6dee6f9560d33e639b7634b",
     "scripts": "9821955c9dd544534be72ffeb8eb56fbc6cc863a",
     "docs": "8f5d2d331e00da3d3a0647528a13538afa7de4ef"
   },
@@ -105,6 +109,11 @@
       "measuredCommit": "8f6d2d9dfc2bde1b863af256f31a0023b410462e",
       "recordedAt": "2026-10-06T09:00:58Z",
       "note": "Rebased onto main, before the #211 pre-review fix; superseded by the run above."
+    },
+    {
+      "measuredCommit": "cdb099a46822d75deeff521275b60cbf2bc32808",
+      "recordedAt": "2026-10-06T09:31:36Z",
+      "note": "The first fix for the #211 pre-review, which started a pre-v10 diluent at 200 bar; superseded by the run above."
     }
   ]
 }
