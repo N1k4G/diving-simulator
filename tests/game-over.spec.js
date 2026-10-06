@@ -16,8 +16,11 @@ const persistedSave = (page) =>
     }, SAVE_KEY)
     .then((handle) => handle.jsonValue());
 
-/** Starts a dive, turns its save into a failure with `reason`, and resumes it. */
-async function resumeFailedDive(page, reason, configure) {
+/**
+ * Starts a dive, turns its save into a failure with `reason`, and resumes it.
+ * `editState` makes the saved state one that failure could have ended.
+ */
+async function resumeFailedDive(page, reason, configure, editState) {
   await page.goto('/dist/');
   await page.evaluate(() => window.localStorage.clear());
   await acceptSafetyGate(page);
@@ -26,6 +29,7 @@ async function resumeFailedDive(page, reason, configure) {
   await page.locator('[data-renderer=pixi] canvas').waitFor();
 
   const saved = await persistedSave(page);
+  if (editState) editState(saved.state);
   saved.state.failure.reason = reason;
   saved.state.events.push({
     type: 'failure',
@@ -89,7 +93,12 @@ test('a rebreather failure shows its label, without explanation sections, as leg
 });
 
 test('decompression sickness shows legacy\'s label and all three explanation sections', async ({ page }) => {
-  await resumeFailedDive(page, 'decompression-sickness');
+  // A minute into the dive with the DCS timer at its 60 s: the save only
+  // takes a decompression-sickness end the model could have reached.
+  await resumeFailedDive(page, 'decompression-sickness', undefined, (state) => {
+    state.elapsedTimeS = Math.max(state.elapsedTimeS, 60);
+    state.failure.dcsViolationS = 60;
+  });
   const screen = page.locator('[data-game-over]');
   await expect(page.locator('[data-game-over-reason]')).toHaveText('Decompression sickness');
   // GAME_OVER_INFO['DECOMPRESSION SICKNESS'].

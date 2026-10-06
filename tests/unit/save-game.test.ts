@@ -8,7 +8,7 @@ import {
   freezeDiveState,
   type DiveState,
 } from "../../src/core/dive-state";
-import { bars, litres, seconds } from "../../src/core/units";
+import { bars, litres, metres, seconds } from "../../src/core/units";
 import {
   CURRENT_SAVE_GAME_VERSION,
   DEFAULT_SAVED_GRADIENT_FACTORS,
@@ -19,6 +19,7 @@ import {
   encodeSaveGame,
 } from "../../src/save/save-game";
 import { neutralBcdSurfaceLitres } from "../../src/core/buoyancy";
+import { DiveModel } from "../../src/core/dive-model";
 
 describe("SaveGame", () => {
   it("round-trips every authoritative DiveState field", () => {
@@ -971,16 +972,74 @@ describe("SaveGame gradient factors", () => {
       }
     });
 
-    it("accepts a save of a dive decompression sickness ended", () => {
-      const save = encoded() as unknown as {
-        state: { failure: Record<string, unknown>; events: unknown[]; elapsedTimeS: number };
-      };
-      save.state.failure.reason = "decompression-sickness";
-      save.state.events.push({ type: "failure", elapsedTimeS: save.state.elapsedTimeS, failureReason: "decompression-sickness" });
-      const result = decodeSaveGame(JSON.stringify(save));
+    type Failed = { version: number; state: { failure: Record<string, unknown>; events: unknown[]; elapsedTimeS: number } };
+    const endedIn = (reason: string, dcsViolationS: number): Failed => {
+      const save = encoded() as unknown as Failed;
+      save.state.failure.reason = reason;
+      save.state.failure.dcsViolationS = dcsViolationS;
+      save.state.events.push({ type: "failure", elapsedTimeS: save.state.elapsedTimeS, failureReason: reason });
+      return save;
+    };
+
+    it("accepts a save of a dive the DCS timer ended", () => {
+      const result = decodeSaveGame(JSON.stringify(endedIn("decompression-sickness", 60)));
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.saveGame.state.failure.reason).toBe("decompression-sickness");
+    });
+
+    /** The model's own end: trimix 21/35 at 45 m for 20 min, then up. */
+    const surfacedWithDcs = () => {
+      const model = new DiveModel(
+        createInitialDiveState(113, { tanks: [createTankState(createGasMix(0.21, 0.35), 24, 200)] }),
+      );
+      model.advance({ depthM: metres(45) }, seconds(20 * 60));
+      model.advance({ depthM: metres(0) }, seconds(1));
+      return model.snapshot;
+    };
+
+    it("accepts a save of a dive that surfaced with a ceiling deeper than 3 m", () => {
+      const state = surfacedWithDcs();
+      expect(state.failure.reason).toBe("decompression-sickness");
+      expect(state.failure.dcsViolationS).toBe(1);
+      const decoded = decodeSaveGame(encodeSaveGame(createSaveGame(state, CONSERVATIVE_FACTORS, 1)));
+      expect(decoded.ok).toBe(true);
+    });
+
+    it("rejects a timer the model could not have left", () => {
+      const invalid: [string, Failed][] = [
+        ["a timer longer than the dive", (() => {
+          // Short of 60, so only the bound by the dive's time can catch it.
+          const save = encoded() as unknown as Failed;
+          save.state.elapsedTimeS = 10;
+          save.state.failure.dcsViolationS = 20;
+          return save;
+        })()],
+        ["a dive going on with the timer at 60", (() => {
+          const save = encoded() as unknown as Failed;
+          save.state.failure.dcsViolationS = 60;
+          return save;
+        })()],
+        ["decompression sickness below the surface with the timer short of 60", endedIn("decompression-sickness", 42.5)],
+        ["hypoxia with the timer at 60, which DCS would have ended first", endedIn("hypoxia", 60)],
+        ["a rebreather failure with the timer at 60", endedIn("ccr-co2", 60)],
+      ];
+      for (const [what, save] of invalid) {
+        expect(decodeSaveGame(JSON.stringify(save)).ok, what).toBe(false);
+      }
+      // Out of gas and oxygen toxicity are checked before the timer.
+      for (const reason of ["out-of-gas", "oxygen-toxicity"]) {
+        expect(decodeSaveGame(JSON.stringify(endedIn(reason, 60))).ok, reason).toBe(true);
+      }
+    });
+
+    it("rejects a pre-v11 save that ended in decompression sickness, which no such client could write", () => {
+      // A surfacing end, which the v11 rules alone would accept with the
+      // timer at zero.
+      const v10 = JSON.parse(encodeSaveGame(createSaveGame(surfacedWithDcs(), CONSERVATIVE_FACTORS, 1))) as Failed;
+      v10.version = 10;
+      delete v10.state.failure.dcsViolationS;
+      expect(decodeSaveGame(JSON.stringify(v10)).ok).toBe(false);
     });
 
     it("carries legacy's dcsViolationTime over, and resumes a save without one at zero", () => {
