@@ -70,6 +70,19 @@ export function formatPercent(
   }).format(value);
 }
 
+/** A vertical speed in m/min, to a tenth, as legacy's fast-ascent note. */
+export function formatAscentRate(
+  rateMpm: number,
+  locale: SupportedLocale,
+): string {
+  return formatUnit(
+    assertNonNegative(rateMpm, "rateMpm"),
+    locale,
+    "meter-per-minute",
+    1,
+  );
+}
+
 /** A cylinder's water volume in litres, as legacy's "O2 V" and "DIL V" rows. */
 export function formatVolume(
   volumeL: number,

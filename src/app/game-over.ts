@@ -223,14 +223,15 @@ export function renderGameOverScreen(
   return () => document.removeEventListener("keydown", handleKey);
 }
 
-function section(title: string, body: HTMLElement): HTMLElement {
+/** A titled block of a result screen. Shared with the post-dive screen. */
+export function section(title: string, body: HTMLElement): HTMLElement {
   const wrapper = document.createElement("section");
   wrapper.className = "result-section";
   wrapper.append(element("h2", "result-section-heading", title), body);
   return wrapper;
 }
 
-function element<K extends keyof HTMLElementTagNameMap>(
+export function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   className: string,
   text: string,

@@ -34,6 +34,8 @@ import {
 } from "./loop-danger";
 import { renderSetupScreen } from "./setup/setup-screen";
 import { renderGameOverScreen } from "./game-over";
+import { renderPostDiveScreen } from "./post-dive";
+import { createPostDiveSummary } from "../presentation/post-dive-summary";
 import { siteGameplay } from "../sites/site-resources";
 
 /** src/game-loop.js SAVE_INTERVAL_MS: an autosave at most every 3 real seconds. */
@@ -278,14 +280,23 @@ async function startWreckSimulation(
   locale: SupportedLocale,
   setup: DiveSetup,
 ): Promise<void> {
+  const repository = new LocalSaveRepository(window.localStorage);
+  const loadResult = repository.load();
+  const resumed = loadResult.status === "loaded" ? loadResult.saveGame : null;
+  // A save of a dive that has already ended at the surface is not resumed
+  // into a dive the model would move no further: it shows its debriefing, as
+  // the dive would have on that tick. No client writes one now, since a
+  // completed dive clears its save on that tick (#223), but the codec accepts
+  // one from v12 on.
+  if (resumed?.state.completed) {
+    endInPostDive(root, locale, setup, repository, resumed.state);
+    return;
+  }
   const hud = createWreckShell(locale);
   root.replaceChildren(hud.shell);
   const audio = new WebAudioService();
   const audioResume = audio.resume();
   const renderer = await createSelectedRenderer();
-  const repository = new LocalSaveRepository(window.localStorage);
-  const loadResult = repository.load();
-  const resumed = loadResult.status === "loaded" ? loadResult.saveGame : null;
   // The dive and the factors it is planned with have to come from the same
   // place. Taking the state from the save and the factors from the setup
   // screen the reload had just drawn continued a 50/80 dive on 35/75: same
@@ -306,15 +317,11 @@ async function startWreckSimulation(
   let lastSaveMs = performance.now();
   let gasInfoPage: GasInfoPage | null = null;
   let lastPresentation: PresentationState | null = null;
-  // Set when the dive ends in a failure. From then on nothing is saved: legacy
-  // clears the save on its transition to 'gameover' (game-loop.js,
-  // clearSavedDive()), because a failed dive is not one to resume.
-  let gameOver = false;
-  // Set when the dive is completed at the surface. Legacy clears its save once
-  // the dive leaves 'diving' for 'post-dive' (maybeSaveDiveState saves only in
-  // 'diving', 'surface' and 'drill'), so a finished dive is never resumed
-  // (#223 pre-review). What is shown next is the post-dive screen's (#159).
-  let completedSaveCleared = false;
+  // Set when the dive ends, in a failure or at the surface. From then on
+  // nothing is saved: legacy clears the save once it has left 'diving'
+  // (game-loop.js maybeSaveDiveState() saves only in 'diving', 'surface' and
+  // 'drill'; clearSavedDive()), because an ended dive is not one to resume.
+  let ended = false;
   const controller = new GameController({
     renderer,
     // A restored save still wins over the setup, which is existing resume
@@ -327,16 +334,23 @@ async function startWreckSimulation(
     // defaults and the GF controls change a number nobody reads (#158 review).
     plannerSettings,
     onAuthoritativeState: (state) => {
-      if (gameOver || completedSaveCleared) {
+      if (ended) {
         return;
       }
+      // Completion (#159): legacy switches to its post-dive screen on the
+      // tick the diver surfaces. The save is cleared on that first completed
+      // state, before anything could write it again, as legacy's
+      // clearSavedDive() (#223 pre-review). The teardown waits for a
+      // microtask, as the game over's does, so the controller is not
+      // destroyed from inside its own frame callback; the debriefing reads
+      // this state, which the model no longer moves.
       if (state.completed) {
-        completedSaveCleared = true;
-        try {
-          repository.clear();
-        } catch (error) {
-          console.error(error);
-        }
+        ended = true;
+        clearSave(repository);
+        queueMicrotask(() => {
+          teardown();
+          endInPostDive(root, locale, setup, repository, state);
+        });
         return;
       }
       const nowMs = performance.now();
@@ -349,13 +363,13 @@ async function startWreckSimulation(
       // Game over (#159): legacy switches to its game-over screen on the tick
       // the dive fails. The teardown waits for a microtask so the controller
       // is not destroyed from inside its own frame callback.
-      if (frame.presentation.status === "failed" && !gameOver) {
-        gameOver = true;
-        const ended = frame.presentation;
-        queueMicrotask(() => endInGameOver(ended));
+      if (frame.presentation.status === "failed" && !ended) {
+        ended = true;
+        const failed = frame.presentation;
+        queueMicrotask(() => endInGameOver(failed));
         return;
       }
-      if (gameOver) {
+      if (ended) {
         return;
       }
       updateHud(hud, frame, locale);
@@ -373,15 +387,6 @@ async function startWreckSimulation(
         plannerSettings,
         locale,
       );
-      // Legacy is silent after the dive: its only beep is drawn with the dive
-      // computer, which its post-dive state no longer draws. A completed dive
-      // stops its sound for good, as a failed one does in its teardown;
-      // otherwise a dive surfaced on low gas kept sounding its alarm (#223
-      // pre-review).
-      if (frame.presentation.completed) {
-        audio.destroy();
-        return;
-      }
       audio.update({
         elapsedRealS: frame.scene.elapsedRealS,
         warningActive: selectWarning(frame.presentation) !== null,
@@ -451,6 +456,10 @@ async function startWreckSimulation(
     void action.catch((error: unknown) => console.error(error));
   };
   document.addEventListener("visibilitychange", handleVisibility);
+  // Legacy is silent after the dive: its only beep is drawn with the dive
+  // computer, which neither its post-dive nor its game-over state draws. The
+  // teardown destroys the sound with the dive, so a dive surfaced on low gas
+  // does not go on sounding its alarm (#223 pre-review).
   const teardown = () => {
     document.removeEventListener("visibilitychange", handleVisibility);
     window.removeEventListener("keydown", handleGasInfoKey);
@@ -461,20 +470,16 @@ async function startWreckSimulation(
     controller.destroy();
     audio.destroy();
   };
-  const endInGameOver = (ended: Readonly<PresentationState>) => {
+  const endInGameOver = (failed: Readonly<PresentationState>) => {
     teardown();
-    try {
-      repository.clear();
-    } catch (error) {
-      console.error(error);
-    }
+    clearSave(repository);
     const disposeGameOver = renderGameOverScreen(root, {
       locale,
       content: {
         // status "failed" means failureReason is set.
-        reason: ended.failureReason!,
-        elapsedTimeS: ended.elapsedTimeS,
-        maxDepthM: ended.maxDepthM,
+        reason: failed.failureReason!,
+        elapsedTimeS: failed.elapsedTimeS,
+        maxDepthM: failed.maxDepthM,
         // The only site that renders is the wreck (RENDERABLE_SITES).
         overhead: siteGameplay("wreck")?.hasOverhead ?? false,
       },
@@ -489,7 +494,7 @@ async function startWreckSimulation(
     });
   };
   function handlePageHide(): void {
-    if (gameOver) {
+    if (ended) {
       return;
     }
     if (!controller.authoritativeState.completed) {
@@ -527,6 +532,42 @@ function saveState(
   } catch (error) {
     console.error(error);
   }
+}
+
+/** Clearing can throw where storage is blocked; the dive ends regardless. */
+function clearSave(repository: LocalSaveRepository): void {
+  try {
+    repository.clear();
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+/**
+ * The end of a dive at the surface (#159): the save is cleared, as legacy
+ * clears it once the dive has left 'diving', and the debriefing is shown.
+ * Diving again returns to the setup as it was, as legacy's Enter returns to
+ * its gas setup with the same settings.
+ */
+function endInPostDive(
+  root: HTMLElement,
+  locale: SupportedLocale,
+  setup: DiveSetup,
+  repository: LocalSaveRepository,
+  state: DiveState,
+): void {
+  clearSave(repository);
+  const dispose = renderPostDiveScreen(root, {
+    locale,
+    summary: createPostDiveSummary(state, {
+      // The only site that renders is the wreck (RENDERABLE_SITES).
+      overheadSite: siteGameplay("wreck")?.hasOverhead ?? false,
+    }),
+    onDiveAgain: () => {
+      dispose();
+      showSetupScreen(root, locale, setup);
+    },
+  });
 }
 
 function createWreckShell(locale: SupportedLocale): HudElements {
