@@ -31,7 +31,7 @@
     {
       "id": "SAFETY-STOP-001",
       "classification": "decompression and prevention advice",
-      "source": ["STRINGS.*.safetyExpl", "STRINGS.*.helpSafety", "STRINGS.*.hintSafetyStop", "STRINGS.*.gradeNotes.safety*"],
+      "source": ["STRINGS.*.safetyExpl", "STRINGS.*.helpSafety", "STRINGS.*.hintSafetyStop", "STRINGS.*.gradeNotes.safety*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.safety*"],
       "ui": ["post-dive", "help", "onboarding hint", "debrief"],
       "owner": "domain-reviewer",
       "reviewStatus": "unreviewed; absolute risk wording requires correction or support",
@@ -40,7 +40,7 @@
     {
       "id": "DECOMPRESSION-001",
       "classification": "model output and real-world risk advice",
-      "source": ["STRINGS.*.helpNDL", "STRINGS.*.helpDeco", "STRINGS.*.helpTTS", "STRINGS.*.hintNdl", "STRINGS.*.hintDeco", "STRINGS.*.gradeNotes.deco*", "src/app/i18n/catalog.ts {en,de}: wreck.hud.ndl", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.deco.*", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.tissues.caption", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.tissues.compartment", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.severity.*"],
+      "source": ["STRINGS.*.helpNDL", "STRINGS.*.helpDeco", "STRINGS.*.helpTTS", "STRINGS.*.hintNdl", "STRINGS.*.hintDeco", "STRINGS.*.gradeNotes.deco*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.deco*", "src/app/i18n/catalog.ts {en,de}: wreck.hud.ndl", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.deco.*", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.tissues.caption", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.tissues.compartment", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.severity.*"],
       "ui": ["help", "HUD", "onboarding hint", "debrief", "HUD (migration client)", "gas information (migration client)"],
       "owner": "model",
       "reviewStatus": "algorithm audit exists but source anchors are stale",
@@ -49,7 +49,7 @@
     {
       "id": "GAS-001",
       "classification": "gas planning and consumption advice",
-      "source": ["STRINGS.*.helpGTR", "STRINGS.*.helpAMV", "STRINGS.*.helpBest", "STRINGS.*.helpTank", "STRINGS.*.gradeNotes.gas*", "src/app/i18n/catalog.ts {en,de}: wreck.warning.lowGas", "src/app/i18n/catalog.ts {en,de}: wreck.hud.warning.lowGas"],
+      "source": ["STRINGS.*.helpGTR", "STRINGS.*.helpAMV", "STRINGS.*.helpBest", "STRINGS.*.helpTank", "STRINGS.*.gradeNotes.gas*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.gas*", "src/app/i18n/catalog.ts {en,de}: wreck.warning.lowGas", "src/app/i18n/catalog.ts {en,de}: wreck.hud.warning.lowGas"],
       "ui": ["help", "HUD", "debrief", "HUD warning (migration client)"],
       "owner": "domain-reviewer",
       "reviewStatus": "unreviewed",
@@ -67,7 +67,7 @@
     {
       "id": "ASCENT-001",
       "classification": "ascent-rate and pulmonary injury advice",
-      "source": ["STRINGS.*.controlsText", "STRINGS.*.helpAscent", "STRINGS.*.warnSlow", "STRINGS.*.gradeNotes.ascent*", "STRINGS.*.gameOverInfo.PULMONARY BAROTRAUMA — PNEUMOTHORAX"],
+      "source": ["STRINGS.*.controlsText", "STRINGS.*.helpAscent", "STRINGS.*.warnSlow", "STRINGS.*.gradeNotes.ascent*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.ascent*", "STRINGS.*.gameOverInfo.PULMONARY BAROTRAUMA — PNEUMOTHORAX"],
       "ui": ["help", "HUD warning", "debrief", "game over"],
       "owner": "domain-reviewer",
       "reviewStatus": "unreviewed",
@@ -112,8 +112,8 @@
     {
       "id": "PHYSICS-001",
       "classification": "educational formulas and model explanations",
-      "source": ["STRINGS.*.instructor*"],
-      "ui": ["instructor overlay"],
+      "source": ["STRINGS.*.instructor*", "STRINGS.*.gradeNotes.trim*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.trim*"],
+      "ui": ["instructor overlay", "debrief"],
       "owner": "model",
       "reviewStatus": "requires re-anchored implementation audit",
       "evidence": ["docs/research/buoyancy-bcd-physics.md", "docs/research/algorithm-realism-current-anchors.md"]
