@@ -3,13 +3,13 @@
   "issue": 199,
   "slice": "Slice 2c: the start of the dive (each cylinder's fill, the rebreather's start pressures and scrubber total) for gas used; save v10",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "acfad07708be1e50ee0a3f0f801783562b66068a",
-  "measuredTree": "1460b17f35afdcad6bb787f1f5e44591d2e97aa1",
+  "measuredCommit": "40bf9df72d0675ff4a646e93f3f6068a4d33315e",
+  "measuredTree": "2f2aee22cd4f6b4b19af5a55c653b18c087ae738",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-06T09:55:28Z",
-  "runFinishedAt": "2026-10-06T10:05:03Z",
+  "recordedAt": "2026-10-06T12:29:19Z",
+  "runFinishedAt": "2026-10-06T12:34:44Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "On main ea2d3b0 (#206). The full run above is on acfad07, the fixes for both #211 pre-review passes; the only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "On main b192ee4 (#210, which changed only tests/in-dive-controls.spec.js). The full run above is on 40bf9df, with the fixes for both #211 pre-review passes and the fixture regenerated from the rebased capture commit; the only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -27,7 +27,7 @@
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
     "unit": "378 passed (367 on main, +4 in tests/unit/start-gas.test.ts, +7 in tests/unit/save-game.test.ts)",
     "parity": "73 passed (unchanged count; the replays now also compare the start of the dive and gas used)",
-    "e2e": "142 passed in 6.4 min (unchanged count; three rebreather scrubber edits in tests/in-dive-controls.spec.js now keep the scrubber's start with the value they set)",
+    "e2e": "142 passed in 4.1 min (unchanged count; three rebreather scrubber edits in tests/in-dive-controls.spec.js now keep the scrubber's start with the value they set)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -38,9 +38,9 @@
     "dive": "The model draws gas and runs the scrubber down only in a step that adds that step's time to elapsedTimeS (legacy: diveTime += before scrubberRemaining -= in the same tick), so the scrubber is never used for longer than the dive, and at elapsed time 0 nothing has been drawn."
   },
   "fixtureRegeneration": {
-    "command": "npm run baseline:generate, from the rebased capture commit 6790989",
+    "command": "npm run baseline:generate, from the rebased capture commit ded994b",
     "legacyChange": "captureBaselineCheckpoint() gains tanks[].totalGas_l and ccr.o2PressureStart_bar, diluentPressureStart_bar, scrubberTotal_min.",
-    "additiveCheck": "All eight scenarios are identical to main's fixture once the four new fields are removed; the header differs only in referenceCommit. Regenerated after the rebase from the rebased capture commit: identical to the fixture regenerated before it apart from referenceCommit."
+    "additiveCheck": "All eight scenarios are identical to main's fixture once the four new fields are removed; the header differs only in referenceCommit. Regenerated after each rebase from the rebased capture commit, identical each time apart from referenceCommit."
   },
   "parity": "Each cylinder's fill equals totalGas_l and gas used equals totalGas_l - gasRemaining_l within tanks.*.gasRemaining_l's 1e-6 at every checkpoint of air-18m-30min (replayed tick by tick with the model's own life support, no breathing override) and buoyancy-vent-inflate-12m; on rebreather dives the start pressures and scrubber total equal the recorded ones at every checkpoint of ccr-30m-30min and buoyancy-ccr-inflate-12m (cylinder 0 there is the placeholder covered by the #192 departure test).",
   "counterChecks": {
@@ -95,9 +95,9 @@
   },
   "durableProvenance": {
     "src": "684de74322f2e7eb1455a8e112673e50dabc5cc1",
-    "tests": "85a82ba3864a47b3a6dee6f9560d33e639b7634b",
+    "tests": "95d6a5f3c51619f2775455ade3cd1d01dffa399e",
     "scripts": "9821955c9dd544534be72ffeb8eb56fbc6cc863a",
-    "docs": "8f5d2d331e00da3d3a0647528a13538afa7de4ef"
+    "docs": "7f7ac0cba392c9849e39297d6538ecf2d28a8854"
   },
   "earlierRuns": [
     {
@@ -114,6 +114,11 @@
       "measuredCommit": "cdb099a46822d75deeff521275b60cbf2bc32808",
       "recordedAt": "2026-10-06T09:31:36Z",
       "note": "The first fix for the #211 pre-review, which started a pre-v10 diluent at 200 bar; superseded by the run above."
+    },
+    {
+      "measuredCommit": "acfad07708be1e50ee0a3f0f801783562b66068a",
+      "recordedAt": "2026-10-06T09:55:28Z",
+      "note": "On main ea2d3b0, before the rebase onto #210; superseded by the run above."
     }
   ]
 }
