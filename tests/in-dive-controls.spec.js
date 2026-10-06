@@ -73,7 +73,7 @@ test('a cylinder can be chosen with its digit key', async ({ page }) => {
   await expect(page.locator('[data-tank="1"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('[data-tank="0"]')).toHaveAttribute('aria-pressed', 'false');
 
-  const saved = await persistedSave(page);
+  const saved = await savedStateWhere(page, (state) => state.activeTankIndex === 1);
   expect(saved.state.activeTankIndex).toBe(1);
   // The model records the switch as an event, which is what the parity trace
   // compares. One switch, one event.
@@ -89,7 +89,7 @@ test('a cylinder can be chosen with its button, reaching the same state', async 
   await page.locator('[data-tank="1"]').click();
 
   await expect(page.locator('[data-tank="1"]')).toHaveAttribute('aria-pressed', 'true');
-  const saved = await persistedSave(page);
+  const saved = await savedStateWhere(page, (state) => state.activeTankIndex === 1);
   expect(saved.state.activeTankIndex).toBe(1);
   expect(saved.state.events.filter((e) => e.type === 'gas-switch')).toHaveLength(1);
 });
@@ -121,7 +121,7 @@ test('a second press in the same second does not swallow the first switch', asyn
   await page.keyboard.press('3');
 
   await expect(page.locator('[data-tank="2"]')).toHaveAttribute('aria-pressed', 'true');
-  const saved = await persistedSave(page);
+  const saved = await savedStateWhere(page, (state) => state.activeTankIndex === 2);
   expect(saved.state.activeTankIndex).toBe(2);
 
   // Both decisions are recorded, in order. The old design produced only the
@@ -135,10 +135,14 @@ test('a digit beyond the cylinder count is not a dive key', async ({ page }) => 
   // a two-cylinder dive `3` names nothing and the client leaves the key
   // alone rather than claiming and discarding it.
   await startTwoCylinderDive(page);
+  // A save written before the press, so the one read below is written after
+  // it rather than being the save that preceded it (#207).
+  const savedAtS = (await persistedSave(page)).state.elapsedTimeS;
   await page.keyboard.press('3');
 
   await expect(page.locator('[data-tank="0"]')).toHaveAttribute('aria-pressed', 'true');
-  const saved = await persistedSave(page);
+  const saved = await savedStateWhere(page, (state) => state.elapsedTimeS > savedAtS);
+  expect(saved.state.elapsedTimeS).toBeGreaterThan(savedAtS);
   expect(saved.state.events.filter((e) => e.type === 'gas-switch')).toHaveLength(0);
 });
 
@@ -358,7 +362,7 @@ test.describe('mobile viewport', () => {
     await page.locator('[data-tank="1"]').tap();
 
     await expect(page.locator('[data-tank="1"]')).toHaveAttribute('aria-pressed', 'true');
-    const saved = await persistedSave(page);
+    const saved = await savedStateWhere(page, (state) => state.activeTankIndex === 1);
     expect(saved.state.activeTankIndex).toBe(1);
   });
 
@@ -563,18 +567,6 @@ test.describe('fast-forward', () => {
     await expect(fastForwardButton(page)).toHaveAttribute('aria-pressed', 'false');
     await expect(fastForwardIndicator(page)).toBeHidden();
 
-    const before = await persistedSave(page);
-    // Count the saves from here: legacy autosaves every 3 real seconds
-    // (SAVE_INTERVAL_MS), not every few dive seconds, which at 30x would
-    // write the whole save several times a second (#204 pre-review).
-    await page.evaluate((key) => {
-      window.__saveWrites = 0;
-      const setItem = window.localStorage.setItem.bind(window.localStorage);
-      window.localStorage.setItem = (name, value) => {
-        if (name === key) window.__saveWrites += 1;
-        setItem(name, value);
-      };
-    }, SAVE_KEY);
     await page.keyboard.press('f');
 
     await expect(fastForwardButton(page)).toHaveAttribute('aria-pressed', 'true');
@@ -583,21 +575,63 @@ test.describe('fast-forward', () => {
     await expect(fastForwardIndicator(page)).toBeVisible();
     await expect(fastForwardIndicator(page)).toHaveText('Fast-forward ×10');
 
-    // Sixty dive seconds take twenty real seconds at normal speed and two
-    // at ten times. Six seconds of wall clock is the margin for a loaded
-    // test machine, and still under a third of what normal speed needs — so
-    // a clock that did not actually speed up fails here.
-    await page.waitForFunction(
-      ([key, startS]) => {
-        const raw = window.localStorage.getItem(key);
-        return raw !== null && JSON.parse(raw).state.elapsedTimeS >= startS + 60;
-      },
-      [SAVE_KEY, before.state.elapsedTimeS],
-      { timeout: 6_000 },
+    // The rate, as the clock-rate test above measures it: dive seconds
+    // between two saves against the real time between them, each frame
+    // counted at most 0.1 s as legacy caps it. Neither the save cadence nor
+    // dropped frames move it, so it pins the multiplier itself: ten times
+    // three is 30, where a reading from one save against a deadline could
+    // not tell 30 from 9 (#210 Codex round 1).
+    //
+    // The saves are counted in the same page measurement, against the page's
+    // monotonic clock: legacy autosaves every 3 real seconds
+    // (SAVE_INTERVAL_MS), not every few dive seconds, which at 30x would
+    // write the whole save several times a second (#204 pre-review).
+    const measured = await page.evaluate(
+      (key) =>
+        new Promise((resolve) => {
+          const startMs = performance.now();
+          let writes = 0;
+          const setItem = window.localStorage.setItem.bind(window.localStorage);
+          window.localStorage.setItem = (name, value) => {
+            if (name === key) writes += 1;
+            setItem(name, value);
+          };
+          let last = null;
+          let first = null;
+          let previousMs = null;
+          let countedRealS = 0;
+          const poll = (nowMs) => {
+            if (previousMs !== null && first !== null) {
+              countedRealS += Math.min(0.1, (nowMs - previousMs) / 1000);
+            }
+            previousMs = nowMs;
+            const raw = window.localStorage.getItem(key);
+            const elapsedS = raw === null ? null : JSON.parse(raw).state.elapsedTimeS;
+            if (elapsedS !== null && elapsedS !== last) {
+              if (last !== null && first === null) {
+                first = { elapsedS };
+              } else if (first !== null && elapsedS >= first.elapsedS + 60) {
+                resolve({
+                  rate: (elapsedS - first.elapsedS) / countedRealS,
+                  writes,
+                  realMs: performance.now() - startMs,
+                });
+                return;
+              }
+              last = elapsedS;
+            }
+            requestAnimationFrame(poll);
+          };
+          requestAnimationFrame(poll);
+        }),
+      SAVE_KEY,
     );
-    // Sixty dive seconds at 30x take two real seconds: one autosave, two at
-    // most. Counting dive time, it would have been a dozen.
-    expect(await page.evaluate(() => window.__saveWrites)).toBeLessThanOrEqual(2);
+    expect(measured.rate).toBeGreaterThan(27);
+    expect(measured.rate).toBeLessThan(33);
+    // One autosave per 3 real seconds, whatever the dive clock does: at most
+    // one more than the intervals that passed. Counting dive time, the
+    // sixty and more dive seconds measured would have been a dozen.
+    expect(measured.writes).toBeLessThanOrEqual(Math.floor(measured.realMs / 3000) + 1);
 
     // And off again on the next press.
     await page.keyboard.press('f');
@@ -710,10 +744,10 @@ async function resumeCcrDiveWith(page, mutate) {
  * `timeoutMs` so the caller's own expect reports the mismatch.
  *
  * persistedSave() waits only for a save to exist. The app writes one every
- * five simulated seconds, so a read right after a second key press can
- * return the save made before it — a real ordering in the app, not a bug in
- * it, and one the HUD assertion just before does not cover because the HUD
- * is fed by the frame, not the save.
+ * 3 real seconds (#204), so a read right after a key press, a click or a
+ * tap can return the save made before it — a real ordering in the app, not
+ * a bug in it, and one the HUD assertion just before does not cover because
+ * the HUD is fed by the frame, not the save (#207).
  */
 async function savedStateWhere(page, predicate, timeoutMs = 15_000) {
   const deadline = Date.now() + timeoutMs;
