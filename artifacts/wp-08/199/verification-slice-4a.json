@@ -1,0 +1,161 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 199,
+  "slice": "Slice 4a: decompression sickness in the model (legacy's DCS timer and its surfacing check), its game-over text; save v11",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "d669e2e18373dec5835d518ded6c7636c25fcd7c",
+  "measuredTree": "66f624e7cee625a03138d7567cee71dd0a660e3b",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-10-06T14:10:24Z",
+  "runFinishedAt": "2026-10-06T14:16:02Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "On main 46c96ac (#211, slice 2c). The full run above is on d669e2e, the fix for Codex round 1; the only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "395 passed (378 on main, +9 in tests/unit/decompression-sickness.test.ts, +8 in tests/unit/save-game.test.ts)",
+    "parity": "85 passed (73 on main, +5 in tests/parity/decompression-sickness.test.ts, the rest in the tissue and dive-log replays over the two new scenarios)",
+    "e2e": "143 passed in 4.3 min (142 on main, +1 in tests/game-over.spec.js: the DCS screen, from a state the model can reach)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "portedFromTheOracle": {
+    "timer": "src/game-loop.js updateDiving(), after updateCCR(): `if (ceilDepth > 0 && depth < decoStop(ceilDepth)) dcsViolationTime += dtDiveSeconds; else dcsViolationTime = Math.max(0, dcsViolationTime - dtDiveSeconds);` with ceilDepth = frameCalc.ceiling. Model: failure.dcsViolationS, from the step's decompression limits and decoStopDepth().",
+    "endChecks": "Legacy's order: out of gas, O2 toxicity, `dcsViolationTime >= DCS_VIOLATION_TIME` (60), barotrauma, hypoxia, narcosis, `depth < 0.5 && ceilDepth > 3`. The model has no barotrauma or narcosis yet (#189); detectFailure() checks the rest in that order.",
+    "rebreatherFailures": "updateCCR()'s failures return from updateDiving() before the DCS check, so the model leaves the timer where it was on that step.",
+    "text": "GAME_OVER_INFO['DECOMPRESSION SICKNESS'] and STRINGS.*.gameOverReasons, English and German, as gameOver.reason.decompressionSickness and gameOver.info.decompressionSickness.*; claims register GAMEOVER-001 lists them."
+  },
+  "fixtureRegeneration": {
+    "command": "npm run baseline:generate, from the rebased capture commit 5a2ef7d",
+    "legacyChange": "captureBaselineCheckpoint() gains state.debrief.dcsViolation_s and state.gameOverReason; two scenarios from the trimix bottom (21/35, 45 m, 20 min): trimix-dcs-above-stop holds 6 m above the 12 m stop until the timer ends the dive (checkpoints at 30 s and at the failure), trimix-dcs-surfaced goes straight to the surface with an 11.5 m ceiling.",
+    "additiveCheck": "All eight scenarios on main are identical once the two new fields are removed; the two DCS scenarios are added; the header differs only in referenceCommit. Regenerated after each rebase from the rebased capture commit, identical each time apart from referenceCommit; tests/baseline.spec.js passes."
+  },
+  "parity": "Both scenarios replayed tick by tick through advanceDiveStep from bottom-20min, each breathing its own cylinder: the DCS timer equals dcsViolation_s at every checkpoint, the dive fails for decompression sickness exactly where legacy's gameOverReason says so and not before, and the log's entries (a ceiling violation above the stop) match legacy's diveEvents. A third replay resumes from above-stop-30s through the adapter, timer at 30, and fails on the same tick.",
+  "counterChecks": {
+    "method": "Each revert was applied from a backup copy, tests/unit/decompression-sickness.test.ts, tests/unit/save-game.test.ts and tests/parity/decompression-sickness.test.ts were run, and the file was restored. Run again after the rebase onto slice 2c, on 202eb61, whose src and those three test files are identical to the measured commit's; the results are from that run.",
+    "results": [
+      {
+        "revert": "timer counts at the stop depth too (<=)",
+        "result": "2 failed: the count-down and the surfacing-with-a-shallow-ceiling tests"
+      },
+      {
+        "revert": "timer resets instead of counting down",
+        "result": "1 failed: the count-down test"
+      },
+      {
+        "revert": "timer never ends the dive",
+        "result": "4 failed: the parity timer replay, the resume-from-above-stop-30s replay, the 60 s test and the check-order test"
+      },
+      {
+        "revert": "no DCS on surfacing",
+        "result": "2 failed: the parity and unit surfacing tests"
+      },
+      {
+        "revert": "surfacing checked before hypoxia",
+        "result": "1 failed: the surfacing-after-hypoxia test"
+      },
+      {
+        "revert": "a rebreather failure step still counts",
+        "result": "1 failed: the rebreather failure test"
+      },
+      {
+        "revert": "save does not validate the timer",
+        "result": "1 failed: the invalid-timer test"
+      },
+      {
+        "revert": "no pre-v11 migration",
+        "result": "1 failed: the v10 migration test"
+      },
+      {
+        "revert": "legacy dcsViolationTime ignored",
+        "result": "1 failed: the legacy import test"
+      },
+      {
+        "revert": "adapter drops the legacy timer",
+        "result": "1 failed: the resume-from-above-stop-30s parity test"
+      }
+    ],
+    "preReview": {
+      "method": "Each rule added after the #212 pre-review was removed from src/save/save-game.ts from a backup copy, tests/unit/save-game.test.ts was run, and the file was restored.",
+      "results": [
+        {
+          "revert": "timer not bound by the dive's time",
+          "result": "1 failed: the invalid-timer test, on a timer longer than the dive"
+        },
+        {
+          "revert": "a decompression-sickness end not held to the timer or the surface",
+          "result": "1 failed: the invalid-timer test, on DCS below the surface short of 60"
+        },
+        {
+          "revert": "the timer at 60 allowed on any dive",
+          "result": "1 failed: the invalid-timer test, on a dive going on at 60"
+        },
+        {
+          "revert": "a pre-v11 DCS end accepted",
+          "result": "1 failed: the pre-v11 test, on a surfacing end"
+        },
+        {
+          "revert": "a timer at 60 without a ceiling above the diver's stop",
+          "result": "1 failed: the invalid-timer test, on out of gas at 60 with no ceiling"
+        },
+        {
+          "revert": "a surfacing DCS end with the timer at zero",
+          "result": "1 failed: the invalid-timer test, on the surfacing end at zero"
+        }
+      ]
+    },
+    "codexRound1": {
+      "method": "Each fix was reverted from a backup copy, tests/unit/save-game.test.ts and tests/parity/decompression-sickness.test.ts were run, and the file was restored.",
+      "results": [
+        {
+          "revert": "a dive going on at the surface with a ceiling deeper than 3 m accepted",
+          "result": "1 failed: the invalid-timer test, on that state"
+        },
+        {
+          "revert": "the adapter dropping the recorded game over",
+          "result": "2 failed: the terminal-checkpoint and unknown-game-over parity tests"
+        }
+      ]
+    }
+  },
+  "durableProvenance": {
+    "src": "d66710c02a86f10e06b184f55e456d79dacc7435",
+    "tests": "9715f56414714ffc4246f55eb113a913d620b8fb",
+    "scripts": "7ea5ab54c93260bbad2cf48dd04e2d235ed5d43a",
+    "docs": "7cafbf82931c083dcd7926a1c79a62da1cf06f53"
+  },
+  "earlierRuns": [
+    {
+      "measuredCommit": "7163f09b87408537eb03d09488bdccd5e7b80a04",
+      "recordedAt": "2026-09-30T23:47:46Z",
+      "note": "Stacked on slices 2c and 3 before they merged, with one legacy-harness failure (#194); superseded by the run above on main."
+    },
+    {
+      "measuredCommit": "0cf0c8334c17727e535e4e6d13e785a68680754f",
+      "recordedAt": "2026-10-06T12:51:38Z",
+      "note": "On main 46c96ac, before the #212 pre-review fix; superseded by the run above."
+    },
+    {
+      "measuredCommit": "99022dbe393125efccd04b482229c87964224bfd",
+      "recordedAt": "2026-10-06T13:14:32Z",
+      "note": "The first #212 pre-review fix; superseded by the run above."
+    },
+    {
+      "measuredCommit": "06750a9e981fa79659905f55fcd05945ff9119fb",
+      "recordedAt": "2026-10-06T13:31:48Z",
+      "note": "The second #212 pre-review fix; superseded by the run above."
+    }
+  ]
+}

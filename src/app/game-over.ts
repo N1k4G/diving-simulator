@@ -27,13 +27,14 @@ export interface GameOverOptions {
 /**
  * Legacy's cause label for each failure the model can produce. The three
  * rebreather causes are the labels game-loop.js assigns (S('ccrHypoxia') and
- * so on). The model has no barotrauma, decompression sickness, narcosis or
- * shark failure yet, so neither has this screen (#189).
+ * so on). The model has no barotrauma, narcosis or shark failure yet, so
+ * neither has this screen (#189).
  */
 const REASON_KEYS: Readonly<Record<DiveFailureReason, MessageKey>> = {
   "out-of-gas": "gameOver.reason.outOfGas",
   "oxygen-toxicity": "gameOver.reason.oxygenToxicity",
   hypoxia: "gameOver.reason.hypoxia",
+  "decompression-sickness": "gameOver.reason.decompressionSickness",
   "ccr-hypoxia": "gameOver.reason.ccrHypoxia",
   "ccr-hyperoxia": "gameOver.reason.ccrHyperoxia",
   "ccr-co2": "gameOver.reason.ccrCo2",
@@ -79,6 +80,17 @@ const EXPLANATIONS: Partial<Record<DiveFailureReason, ExplanationKeys>> = {
       "gameOver.info.hypoxia.prevention2",
       "gameOver.info.hypoxia.prevention3",
       "gameOver.info.hypoxia.prevention4",
+    ],
+  },
+  "decompression-sickness": {
+    cause: "gameOver.info.decompressionSickness.cause",
+    medical: "gameOver.info.decompressionSickness.medical",
+    prevention: [
+      "gameOver.info.decompressionSickness.prevention1",
+      "gameOver.info.decompressionSickness.prevention2",
+      "gameOver.info.decompressionSickness.prevention3",
+      "gameOver.info.decompressionSickness.prevention4",
+      "gameOver.info.decompressionSickness.prevention5",
     ],
   },
 };

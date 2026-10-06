@@ -8,7 +8,7 @@ import {
   freezeDiveState,
   type DiveState,
 } from "../../src/core/dive-state";
-import { bars, litres, seconds } from "../../src/core/units";
+import { bars, litres, metres, seconds } from "../../src/core/units";
 import {
   CURRENT_SAVE_GAME_VERSION,
   DEFAULT_SAVED_GRADIENT_FACTORS,
@@ -19,6 +19,7 @@ import {
   encodeSaveGame,
 } from "../../src/save/save-game";
 import { neutralBcdSurfaceLitres } from "../../src/core/buoyancy";
+import { DiveModel } from "../../src/core/dive-model";
 
 describe("SaveGame", () => {
   it("round-trips every authoritative DiveState field", () => {
@@ -926,6 +927,156 @@ describe("SaveGame gradient factors", () => {
       expect(unusable.ok).toBe(true);
       if (!unusable.ok) return;
       expect(unusable.saveGame.state.tanks[0]?.startGasL).toBe(tanks[0]!.gasRemaining);
+    });
+  });
+
+  // v11 adds the decompression-sickness timer (#199).
+  describe("the decompression-sickness timer", () => {
+    const aboveTheStop = () => {
+      const base = createInitialDiveState(97);
+      return freezeDiveState({
+        ...base,
+        elapsedTimeS: seconds(1500),
+        failure: { ...base.failure, dcsViolationS: seconds(42.5) },
+      });
+    };
+    const encoded = () =>
+      JSON.parse(encodeSaveGame(createSaveGame(aboveTheStop(), CONSERVATIVE_FACTORS, 1_735_689_600_000))) as {
+        version: number;
+        state: { failure: Record<string, unknown> };
+      };
+
+    it("round-trips in a current save", () => {
+      const decoded = decodeSaveGame(JSON.stringify(encoded()));
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      expect(decoded.saveGame.state.failure.dcsViolationS).toBe(42.5);
+    });
+
+    it("resumes a v10 save at zero, which never ran it", () => {
+      const v10 = encoded();
+      v10.version = 10;
+      delete v10.state.failure.dcsViolationS;
+      const result = decodeSaveGame(JSON.stringify(v10));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.migratedFrom).toBe("save-game-v10");
+      expect(result.saveGame.state.failure.dcsViolationS).toBe(0);
+    });
+
+    it("rejects a current save without a valid timer", () => {
+      for (const value of [undefined, -1, Number.NaN, "42"]) {
+        const save = encoded();
+        save.state.failure.dcsViolationS = value;
+        expect(decodeSaveGame(JSON.stringify(save)).ok, String(value)).toBe(false);
+      }
+    });
+
+    type Failed = { version: number; state: { failure: Record<string, unknown>; events: unknown[]; elapsedTimeS: number } };
+    const endedIn = (reason: string, dcsViolationS: number): Failed => {
+      const save = encoded() as unknown as Failed;
+      save.state.failure.reason = reason;
+      save.state.failure.dcsViolationS = dcsViolationS;
+      save.state.events.push({ type: "failure", elapsedTimeS: save.state.elapsedTimeS, failureReason: reason });
+      return save;
+    };
+
+    it("accepts a save of a dive the DCS timer ended", () => {
+      // Tissues loaded to a 27 m ceiling: the diver is above its 30 m stop.
+      const save = endedIn("decompression-sickness", 60) as Failed & { state: { tissues: { nitrogenBar: number[]; heliumBar: number[] } } };
+      save.state.tissues.nitrogenBar = save.state.tissues.nitrogenBar.map(() => 4);
+      save.state.tissues.heliumBar = save.state.tissues.heliumBar.map(() => 0);
+      const result = decodeSaveGame(JSON.stringify(save));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.saveGame.state.failure.reason).toBe("decompression-sickness");
+    });
+
+    /** The model's own end: trimix 21/35 at 45 m for 20 min, then up. */
+    const surfacedWithDcs = () => {
+      const model = new DiveModel(
+        createInitialDiveState(113, { tanks: [createTankState(createGasMix(0.21, 0.35), 24, 200)] }),
+      );
+      model.advance({ depthM: metres(45) }, seconds(20 * 60));
+      model.advance({ depthM: metres(0) }, seconds(1));
+      return model.snapshot;
+    };
+
+    it("accepts a save of a dive that surfaced with a ceiling deeper than 3 m", () => {
+      const state = surfacedWithDcs();
+      expect(state.failure.reason).toBe("decompression-sickness");
+      expect(state.failure.dcsViolationS).toBe(1);
+      const decoded = decodeSaveGame(encodeSaveGame(createSaveGame(state, CONSERVATIVE_FACTORS, 1)));
+      expect(decoded.ok).toBe(true);
+    });
+
+    it("rejects a timer the model could not have left", () => {
+      const invalid: [string, Failed][] = [
+        ["a timer longer than the dive", (() => {
+          // Short of 60, so only the bound by the dive's time can catch it.
+          const save = encoded() as unknown as Failed;
+          save.state.elapsedTimeS = 10;
+          save.state.failure.dcsViolationS = 20;
+          return save;
+        })()],
+        ["a dive going on with the timer at 60", (() => {
+          const save = encoded() as unknown as Failed;
+          save.state.failure.dcsViolationS = 60;
+          return save;
+        })()],
+        ["decompression sickness below the surface with the timer short of 60", endedIn("decompression-sickness", 42.5)],
+        ["hypoxia with the timer at 60, which DCS would have ended first", endedIn("hypoxia", 60)],
+        // The step that takes the timer to 60 counted it up: a ceiling, and
+        // the diver above its stop. This dive has no ceiling.
+        ["out of gas with the timer at 60 and no ceiling", endedIn("out-of-gas", 60)],
+        // That surfacing ends the dive on the step: none goes on from it.
+        ["a dive going on at the surface with a ceiling deeper than 3 m", (() => {
+          const save = JSON.parse(encodeSaveGame(createSaveGame(surfacedWithDcs(), CONSERVATIVE_FACTORS, 1))) as Failed;
+          save.state.failure.reason = null;
+          save.state.events = save.state.events.filter((event) => (event as { type: string }).type !== "failure");
+          return save;
+        })()],
+        ["the surfacing end with the timer at zero", (() => {
+          const save = JSON.parse(encodeSaveGame(createSaveGame(surfacedWithDcs(), CONSERVATIVE_FACTORS, 1))) as Failed;
+          save.state.failure.dcsViolationS = 0;
+          return save;
+        })()],
+        ["a rebreather failure with the timer at 60", endedIn("ccr-co2", 60)],
+      ];
+      for (const [what, save] of invalid) {
+        expect(decodeSaveGame(JSON.stringify(save)).ok, what).toBe(false);
+      }
+      // Out of gas and oxygen toxicity are checked before the timer, so they
+      // can end its 60th second, on tissues that give it a ceiling above
+      // the diver's stop.
+      for (const reason of ["out-of-gas", "oxygen-toxicity", "decompression-sickness"]) {
+        const save = endedIn(reason, 60) as Failed & { state: { tissues: { nitrogenBar: number[]; heliumBar: number[] }; depthM: number } };
+        save.state.tissues.nitrogenBar = save.state.tissues.nitrogenBar.map(() => 4);
+        save.state.tissues.heliumBar = save.state.tissues.heliumBar.map(() => 0);
+        expect(decodeSaveGame(JSON.stringify(save)).ok, reason).toBe(true);
+      }
+    });
+
+    it("rejects a pre-v11 save that ended in decompression sickness, which no such client could write", () => {
+      // A surfacing end, which the v11 rules alone would accept with the
+      // timer at zero.
+      const v10 = JSON.parse(encodeSaveGame(createSaveGame(surfacedWithDcs(), CONSERVATIVE_FACTORS, 1))) as Failed;
+      v10.version = 10;
+      delete v10.state.failure.dcsViolationS;
+      expect(decodeSaveGame(JSON.stringify(v10)).ok).toBe(false);
+    });
+
+    it("carries legacy's dcsViolationTime over, and resumes a save without one at zero", () => {
+      const carried = decodeSaveGame(JSON.stringify({ ...legacyV2Save(), dcsViolationTime: 17.25 }));
+      expect(carried.ok).toBe(true);
+      if (!carried.ok) return;
+      expect(carried.saveGame.state.failure.dcsViolationS).toBe(17.25);
+      const without = legacyV2Save();
+      delete without.dcsViolationTime;
+      const missing = decodeSaveGame(JSON.stringify(without));
+      expect(missing.ok).toBe(true);
+      if (!missing.ok) return;
+      expect(missing.saveGame.state.failure.dcsViolationS).toBe(0);
     });
   });
 

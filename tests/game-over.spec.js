@@ -16,8 +16,11 @@ const persistedSave = (page) =>
     }, SAVE_KEY)
     .then((handle) => handle.jsonValue());
 
-/** Starts a dive, turns its save into a failure with `reason`, and resumes it. */
-async function resumeFailedDive(page, reason, configure) {
+/**
+ * Starts a dive, turns its save into a failure with `reason`, and resumes it.
+ * `editState` makes the saved state one that failure could have ended.
+ */
+async function resumeFailedDive(page, reason, configure, editState) {
   await page.goto('/dist/');
   await page.evaluate(() => window.localStorage.clear());
   await acceptSafetyGate(page);
@@ -26,6 +29,7 @@ async function resumeFailedDive(page, reason, configure) {
   await page.locator('[data-renderer=pixi] canvas').waitFor();
 
   const saved = await persistedSave(page);
+  if (editState) editState(saved.state);
   saved.state.failure.reason = reason;
   saved.state.events.push({
     type: 'failure',
@@ -86,6 +90,25 @@ test('a rebreather failure shows its label, without explanation sections, as leg
   await expect(page.locator('[data-game-over-reason]')).toHaveText('CO₂ poisoning — scrubber exhausted');
   await expect(page.getByRole('heading', { name: 'What happened' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: '⚠ Overhead environment' })).toBeVisible();
+});
+
+test('decompression sickness shows legacy\'s label and all three explanation sections', async ({ page }) => {
+  // An end the model can reach, which is all the save takes: a minute in,
+  // the DCS timer at its 60 s, and tissues loaded to a 27 m ceiling, so the
+  // diver at 26 m is above its 30 m stop (#212 pre-review).
+  await resumeFailedDive(page, 'decompression-sickness', undefined, (state) => {
+    state.elapsedTimeS = Math.max(state.elapsedTimeS, 60);
+    state.failure.dcsViolationS = 60;
+    state.tissues.nitrogenBar = state.tissues.nitrogenBar.map(() => 4);
+    state.tissues.heliumBar = state.tissues.heliumBar.map(() => 0);
+  });
+  const screen = page.locator('[data-game-over]');
+  await expect(page.locator('[data-game-over-reason]')).toHaveText('Decompression sickness');
+  // GAME_OVER_INFO['DECOMPRESSION SICKNESS'].
+  await expect(screen).toContainText('Ascended above your decompression ceiling or surfaced with excess dissolved inert gas.');
+  await expect(screen).toContainText('DCS ("the bends") occurs when dissolved inert gas comes out of solution');
+  await expect(screen.locator('.game-over-prevention li')).toHaveCount(5);
+  await expect(screen.locator('.game-over-prevention li').first()).toHaveText('Never ascend above your ceiling depth — watch the CEIL indicator');
 });
 
 test('a dive that fails while running switches to game over, and Enter returns to the setup as it was', async ({ page }) => {

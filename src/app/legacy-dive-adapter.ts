@@ -5,6 +5,7 @@ import {
   createInitialDiveState,
   freezeDiveState,
   type DiveLog,
+  type DiveFailureReason,
   type DiveLogEntry,
   type DiveState,
   type TissueState,
@@ -62,7 +63,10 @@ export interface LegacyTissueCheckpoint {
       avgDepthSamples_s?: number | null;
       profileTimer_s?: number | null;
       frameCeiling_m?: number | null;
+      dcsViolation_s?: number | null;
     };
+    /** Legacy's gameOverReason once the dive has failed, else null. */
+    gameOverReason?: string | null;
   };
   /**
    * Legacy's diveProfile samples taken since the previous checkpoint (#199),
@@ -171,9 +175,11 @@ export function diveStateFromLegacyCheckpoint(
     heliumBar: checkpoint.tissues.he_bar.map(bars),
   };
 
+  const elapsedTimeS = minutesToSeconds(minutes(checkpoint.state.diveTime_min));
+  const failureReason = failureReasonFromLegacy(checkpoint.state.gameOverReason);
   return freezeDiveState({
     ...initialState,
-    elapsedTimeS: minutesToSeconds(minutes(checkpoint.state.diveTime_min)),
+    elapsedTimeS,
     depthM: metres(checkpoint.state.depth_m),
     maxDepthM: metres(checkpoint.state.maxDepth_m),
     tissues,
@@ -186,6 +192,15 @@ export function diveStateFromLegacyCheckpoint(
     verticalVelocityMpm: checkpoint.state.verticalVelocity_mpm ?? 0,
     bcdGasSurfaceLiters:
       checkpoint.state.bcdGasSurface_l ?? initialState.bcdGasSurfaceLiters,
+    failure: {
+      ...initialState.failure,
+      reason: failureReason,
+      dcsViolationS: seconds(checkpoint.state.debrief?.dcsViolation_s ?? 0),
+    },
+    // A failed dive ends on its failure event, as the model records it.
+    events: failureReason === null
+      ? initialState.events
+      : [{ type: "failure", elapsedTimeS: elapsedTimeS, failureReason }],
     log: logFromLegacyCheckpoint(checkpoint, earlierProfile),
     safetyStop: checkpoint.state.safetyStop
       ? {
@@ -251,6 +266,22 @@ function logFromLegacyCheckpoint(
  * The entries of the dive log (#199) among legacy's recorded diveEvents: the
  * kinds the log keeps, renamed, with the time in seconds.
  */
+/**
+ * The failure a recorded game over names (#212 Codex round 1), in legacy's
+ * own wording; null while the dive goes on. Only the failures the trace
+ * records are mapped; another is refused rather than read as a dive going
+ * on.
+ */
+function failureReasonFromLegacy(gameOverReason: string | null | undefined): DiveFailureReason | null {
+  if (gameOverReason === null || gameOverReason === undefined) {
+    return null;
+  }
+  if (gameOverReason === "DECOMPRESSION SICKNESS") {
+    return "decompression-sickness";
+  }
+  throw new Error(`Unsupported legacy game over: ${gameOverReason}`);
+}
+
 export function logEntriesFromLegacyEvents(
   events: readonly { t: number; kind: string; value: unknown }[],
 ): DiveLogEntry[] {

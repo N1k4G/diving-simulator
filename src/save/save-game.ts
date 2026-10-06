@@ -15,10 +15,11 @@ import {
   type TankState,
 } from "../core/dive-state";
 import { neutralBcdSurfaceLitres } from "../core/buoyancy";
-import { NDL_UNLIMITED_MINUTES, ceilingDepthM } from "../core/decompression";
+import { NDL_UNLIMITED_MINUTES, ceilingDepthM, decoStopDepth } from "../core/decompression";
 import {
   CEILING_VIOLATION_TOLERANCE_M,
   CEILING_VIOLATION_WINDOW_S,
+  DCS_VIOLATION_FAILURE_SECONDS,
   FAILURES_BEFORE_THE_LOG,
   FAST_ASCENT_RATE_MPM,
   FAST_ASCENT_WINDOW_S,
@@ -28,6 +29,8 @@ import {
   SAFETY_STOP_SHORT_S,
   SAFETY_STOP_NEEDED_BELOW_M,
   SUBMERGED_DEPTH_M,
+  SURFACE_DCS_CEILING_M,
+  SURFACE_DCS_DEPTH_M,
   isInSafetyStopBand,
 } from "../core/dive-model";
 import {
@@ -91,7 +94,13 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // fill, so they resume with the current contents as the start: gas used
 // then counts from the resume. Legacy saves carry totalGas,
 // o2CylPressureStart, dilCylPressureStart and scrubberTotal, and keep them.
-export const CURRENT_SAVE_GAME_VERSION = 10;
+//
+// v11 adds state.failure.dcsViolationS, the decompression-sickness timer
+// (#199). Older saves never ran it and resume at zero, which gives a diver
+// above the stop the full 60 seconds again. Legacy saves carry
+// dcsViolationTime and keep it.
+export const CURRENT_SAVE_GAME_VERSION = 11;
+export const TENTH_SAVE_GAME_VERSION = 10;
 export const NINTH_SAVE_GAME_VERSION = 9;
 export const EIGHTH_SAVE_GAME_VERSION = 8;
 export const SEVENTH_SAVE_GAME_VERSION = 7;
@@ -156,6 +165,7 @@ export type SaveGameMigration =
   | "save-game-v7"
   | "save-game-v8"
   | "save-game-v9"
+  | "save-game-v10"
   | null;
 
 /**
@@ -324,8 +334,24 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
       };
     }
     // Before v10 no fill was recorded: the current contents are the start.
-    if (v < CURRENT_SAVE_GAME_VERSION && isRecord(candidate.state)) {
+    if (v < TENTH_SAVE_GAME_VERSION && isRecord(candidate.state)) {
       candidate.state = withCurrentContentsAsStart(candidate.state);
+    }
+    // Before v11 there was no DCS timer: it resumes at zero. Nor was there
+    // decompression sickness, so no such save can have ended in it (#212
+    // pre-review).
+    if (
+      v < CURRENT_SAVE_GAME_VERSION &&
+      isRecord(candidate.state) &&
+      isRecord(candidate.state.failure)
+    ) {
+      if (candidate.state.failure.reason === "decompression-sickness") {
+        return { ok: false, reason: "invalid-data" };
+      }
+      candidate.state = {
+        ...candidate.state,
+        failure: { ...candidate.state.failure, dcsViolationS: 0 },
+      };
     }
     // A v1 payload has no gradientFactors and is filled with the defaults; a
     // v2 payload must carry a valid pair rather than fall back to them, or a
@@ -459,6 +485,11 @@ function migrateLegacyV2(candidate: Record<string, unknown>): SaveGame | null {
         candidate.ccrHypoxiaTime as DiveState["failure"]["ccrHypoxiaS"],
       ccrHyperoxiaS:
         candidate.ccrHyperoxiaTime as DiveState["failure"]["ccrHyperoxiaS"],
+      // Legacy saves it and refuses a restore without it; a save that lacks
+      // it anyway resumes at zero rather than being lost.
+      dcsViolationS: (isNonNegativeFinite(candidate.dcsViolationTime)
+        ? candidate.dcsViolationTime
+        : 0) as DiveState["failure"]["dcsViolationS"],
     },
     events: [],
     log,
@@ -650,7 +681,18 @@ function isDiveState(
     Number.isFinite(candidate.verticalVelocityMpm) &&
     isNonNegativeFinite(candidate.bcdGasSurfaceLiters) &&
     (candidate.ccr === null || isCcrState(candidate.ccr, candidate.elapsedTimeS as number)) &&
-    isFailureState(candidate.failure) &&
+    isFailureState(candidate.failure, {
+      elapsedTimeS: candidate.elapsedTimeS as number,
+      depthM: candidate.depthM as number,
+      ceilingM: isRecord(candidate.tissues) &&
+        isTissueArray(candidate.tissues.nitrogenBar) &&
+        isTissueArray(candidate.tissues.heliumBar)
+        ? ceilingDepthM(
+            candidate.tissues as unknown as DiveState["tissues"],
+            gradientFactorHighPercent / 100,
+          )
+        : Number.NaN,
+    }) &&
     isEventHistory(
       candidate.events,
       (candidate.tanks as unknown[]).length,
@@ -1148,17 +1190,64 @@ function isCcrState(candidate: unknown, elapsedTimeS: number): candidate is CcrS
   );
 }
 
-function isFailureState(candidate: unknown): boolean {
-  if (!isRecord(candidate)) {
+/**
+ * The failure timers, and a decompression-sickness timer the model could
+ * have left (#212 pre-review). It counts at most one dive second per second,
+ * so it never exceeds the dive's time. It reaches 60 s only on the step that
+ * ends the dive, and the failures checked before it (out of gas, oxygen
+ * toxicity) can end that step first; any other dive, going on or ended,
+ * holds it below 60. That step counted it up, so the saved tissues give a
+ * ceiling and the diver is shallower than its first stop. A dive that ended
+ * in decompression sickness did so on the timer, or at the surface with a
+ * ceiling deeper than 3 m; at the surface the diver is above any stop, so
+ * that step counted the timer up too (#212 pre-review, pass 2).
+ */
+function isFailureState(
+  candidate: unknown,
+  context: { readonly elapsedTimeS: number; readonly depthM: number; readonly ceilingM: number },
+): boolean {
+  if (
+    !isRecord(candidate) ||
+    !(candidate.reason === null || isFailureReason(candidate.reason)) ||
+    !isNonNegativeFinite(candidate.oxygenToxicityS) ||
+    !isNonNegativeFinite(candidate.hypoxiaS) ||
+    !isNonNegativeFinite(candidate.ccrHypoxiaS) ||
+    !isNonNegativeFinite(candidate.ccrHyperoxiaS) ||
+    !isNonNegativeFinite(candidate.dcsViolationS)
+  ) {
     return false;
   }
-  return (
-    (candidate.reason === null || isFailureReason(candidate.reason)) &&
-    isNonNegativeFinite(candidate.oxygenToxicityS) &&
-    isNonNegativeFinite(candidate.hypoxiaS) &&
-    isNonNegativeFinite(candidate.ccrHypoxiaS) &&
-    isNonNegativeFinite(candidate.ccrHyperoxiaS)
-  );
+  const dcsS = candidate.dcsViolationS as number;
+  if (dcsS > context.elapsedTimeS + SUM_ROUNDING_S) {
+    return false;
+  }
+  const reason = candidate.reason as DiveFailureReason | null;
+  if (
+    dcsS >= DCS_VIOLATION_FAILURE_SECONDS &&
+    !(context.ceilingM > 0 && context.depthM < decoStopDepth(context.ceilingM))
+  ) {
+    return false;
+  }
+  // A dive at the surface with a ceiling deeper than 3 m ends on that step,
+  // so none goes on from one (#212 Codex round 1). No earlier version could
+  // save one either: the client's route has stayed between 18 and 34 m since
+  // #192, and legacy ends such a dive in the same tick, before it saves.
+  if (
+    reason === null &&
+    context.depthM < SURFACE_DCS_DEPTH_M &&
+    context.ceilingM > SURFACE_DCS_CEILING_M
+  ) {
+    return false;
+  }
+  if (reason === "decompression-sickness") {
+    return (
+      dcsS >= DCS_VIOLATION_FAILURE_SECONDS ||
+      (dcsS > 0 &&
+        context.depthM < SURFACE_DCS_DEPTH_M &&
+        context.ceilingM > SURFACE_DCS_CEILING_M)
+    );
+  }
+  return reason === "out-of-gas" || reason === "oxygen-toxicity" || dcsS < DCS_VIOLATION_FAILURE_SECONDS;
 }
 
 function isDiveEvent(
@@ -1235,6 +1324,7 @@ function isFailureReason(candidate: unknown): candidate is DiveFailureReason {
     "out-of-gas",
     "oxygen-toxicity",
     "hypoxia",
+    "decompression-sickness",
     "ccr-hypoxia",
     "ccr-hyperoxia",
     "ccr-co2",
