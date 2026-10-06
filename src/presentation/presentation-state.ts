@@ -82,6 +82,8 @@ export interface PresentationState {
   readonly ccr: PresentationCcr | null;
   readonly breathingPo2Bar: Bars;
   readonly failureReason: DiveFailureReason | null;
+  /** The dive ended at the surface (#199): the post-dive screen follows (#159). */
+  readonly completed: boolean;
   readonly events: readonly Readonly<DiveEvent>[];
   readonly planner: PresentationPlannerForecast | null;
   readonly saturation: PresentationSaturation;
@@ -121,6 +123,7 @@ export function createPresentationState(
     ccr,
     breathingPo2Bar: selectBreathingPo2Bar(state),
     failureReason: state.failure.reason,
+    completed: state.completed,
     events,
     planner: planner ? freezePlannerForecast(planner) : null,
     saturation: selectSaturation(state),
