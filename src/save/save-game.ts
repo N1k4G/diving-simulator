@@ -1,5 +1,4 @@
 import {
-  DEFAULT_DILUENT_CYLINDER_PRESSURE_BAR,
   DEFAULT_SCRUBBER_DURATION_S,
   createEmptyDiveLog,
   createSafetyStopState,
@@ -946,23 +945,23 @@ function withCurrentContentsAsStart(state: Record<string, unknown>): Record<stri
         isRecord(tank) ? { ...tank, startGasL: tank.gasRemainingL } : tank,
       )
     : state.tanks;
-  // The diluent's fill and the scrubber's duration have no control on any
-  // setup screen that wrote these saves, so every such dive started at their
-  // defaults (#211 pre-review). The oxygen fill is configurable, so it falls
-  // back to the current contents like the cylinders. A save already past a
-  // default (none was written, but a corrupt one could be) keeps its current
-  // value instead, which validation then holds to the dive's clock.
-  const atLeast = (value: unknown, start: number) =>
-    isNonNegativeFinite(value) ? Math.max(start, value as number) : value;
+  // The scrubber's duration has no control on any setup screen that wrote
+  // these saves, and both clients restart it at that duration each dive, so
+  // every such dive started at the default (#211 pre-review). A save already
+  // past it (none was written, but a corrupt one could be) keeps what is
+  // left instead, which validation then holds to the dive's clock. The
+  // cylinders fall back to the current contents: the oxygen fill is
+  // configurable, and legacy does not refill the diluent between the dives
+  // of one session, so an imported dive can start below 200 bar (#211
+  // pre-review, pass 2).
   const ccr = isRecord(state.ccr)
     ? {
         ...state.ccr,
         oxygenCylinderStartPressureBar: state.ccr.oxygenCylinderPressureBar,
-        diluentCylinderStartPressureBar: atLeast(
-          state.ccr.diluentCylinderPressureBar,
-          DEFAULT_DILUENT_CYLINDER_PRESSURE_BAR,
-        ),
-        scrubberTotalS: atLeast(state.ccr.scrubberRemainingS, DEFAULT_SCRUBBER_DURATION_S),
+        diluentCylinderStartPressureBar: state.ccr.diluentCylinderPressureBar,
+        scrubberTotalS: isNonNegativeFinite(state.ccr.scrubberRemainingS)
+          ? Math.max(DEFAULT_SCRUBBER_DURATION_S, state.ccr.scrubberRemainingS as number)
+          : state.ccr.scrubberRemainingS,
       }
     : state.ccr;
   return { ...state, tanks, ccr };

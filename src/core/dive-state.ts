@@ -285,7 +285,8 @@ export const CCR_SETPOINT_STEP_BAR = 0.1;
 /**
  * Legacy's CCR_DEFAULTS for the two rebreather values no setup screen sets,
  * legacy's or this client's: the diluent cylinder's fill and the scrubber's
- * duration.
+ * duration. Legacy restarts the scrubber at its duration every dive, but
+ * not the diluent, which one session's dives share.
  */
 export const DEFAULT_DILUENT_CYLINDER_PRESSURE_BAR = bars(200);
 export const DEFAULT_SCRUBBER_DURATION_S = seconds(180 * 60);

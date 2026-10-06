@@ -155,12 +155,13 @@ describe("SaveGame gradient factors", () => {
       // Before v9 there was no safety stop: it is needed from the deepest point.
       safetyStop: { ...representativeState().safetyStop, needed: representativeState().maxDepthM > 11 },
       // Before v10 no fill was recorded: the current contents are the start,
-      // except for the diluent and the scrubber, which no setup screen sets.
+      // except for the scrubber, which no setup screen sets and every dive
+      // restarts.
       tanks: representativeState().tanks.map((tank) => ({ ...tank, startGasL: tank.gasRemainingL })),
       ccr: {
         ...representativeState().ccr!,
         oxygenCylinderStartPressureBar: representativeState().ccr!.oxygenCylinderPressureBar,
-        diluentCylinderStartPressureBar: Math.max(200, representativeState().ccr!.diluentCylinderPressureBar),
+        diluentCylinderStartPressureBar: representativeState().ccr!.diluentCylinderPressureBar,
         scrubberTotalS: Math.max(180 * 60, representativeState().ccr!.scrubberRemainingS),
       },
     });
@@ -808,7 +809,7 @@ describe("SaveGame gradient factors", () => {
       expect(decoded.saveGame.state.ccr?.scrubberTotalS).toBe(180 * 60);
     });
 
-    it("starts a v9 save from its current contents, and the diluent and scrubber from their defaults", () => {
+    it("starts a v9 save from its current contents, and the scrubber from its default", () => {
       const v9 = JSON.parse(
         encodeSaveGame(createSaveGame(halfway(), CONSERVATIVE_FACTORS, 1_735_689_600_000)),
       ) as { version: number; state: { tanks: Record<string, unknown>[]; ccr: Record<string, unknown> } };
@@ -823,9 +824,10 @@ describe("SaveGame gradient factors", () => {
       expect(result.migratedFrom).toBe("save-game-v9");
       expect(result.saveGame.state.tanks[0]?.startGasL).toBe(1800);
       expect(result.saveGame.state.ccr?.oxygenCylinderStartPressureBar).toBe(170);
-      // No setup screen sets these two, so every such dive started at 200 bar
-      // and 180 minutes (#211 pre-review).
-      expect(result.saveGame.state.ccr?.diluentCylinderStartPressureBar).toBe(200);
+      // Legacy shares the diluent between one session's dives, so only what
+      // is left is known; the scrubber restarts at 180 minutes every dive
+      // (#211 pre-review).
+      expect(result.saveGame.state.ccr?.diluentCylinderStartPressureBar).toBe(190);
       expect(result.saveGame.state.ccr?.scrubberTotalS).toBe(180 * 60);
     });
 
@@ -846,6 +848,24 @@ describe("SaveGame gradient factors", () => {
         corrupt(save.state);
         expect(decodeSaveGame(JSON.stringify(save)).ok, what).toBe(false);
       }
+    });
+
+    it("loads a v9 save from before the first step whose diluent is below 200 bar", () => {
+      // A second legacy dive in one session starts on the first dive's diluent.
+      const fresh = createInitialDiveState(91, {
+        ccr: createCcrState(createGasMix(0.21, 0), { diluentCylinderPressureBar: bars(185) }),
+      });
+      const v9 = JSON.parse(
+        encodeSaveGame(createSaveGame(fresh, CONSERVATIVE_FACTORS, 1_735_689_600_000)),
+      ) as { version: number; state: { ccr: Record<string, unknown> } };
+      v9.version = 9;
+      delete v9.state.ccr.oxygenCylinderStartPressureBar;
+      delete v9.state.ccr.diluentCylinderStartPressureBar;
+      delete v9.state.ccr.scrubberTotalS;
+      const result = decodeSaveGame(JSON.stringify(v9));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.saveGame.state.ccr?.diluentCylinderStartPressureBar).toBe(185);
     });
 
     it("rejects anything drawn before the dive's first step", () => {
