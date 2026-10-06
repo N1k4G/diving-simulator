@@ -56,6 +56,18 @@ export const CCR_CO2_FAILURE_SECONDS = seconds(180);
 export const DCS_VIOLATION_FAILURE_SECONDS = seconds(60);
 export const SURFACE_DCS_DEPTH_M = 0.5;
 export const SURFACE_DCS_CEILING_M = 3;
+// Legacy's end of a dive at the surface: shallower than 0.3 m after more
+// than half a dive minute, the ceiling cleared to 0.1 m, the dive deeper
+// than 2 m (#199).
+export const SURFACED_DEPTH_M = 0.3;
+export const COMPLETION_MIN_ELAPSED_S = seconds(30);
+export const COMPLETION_MAX_CEILING_M = 0.1;
+export const COMPLETION_MIN_MAX_DEPTH_M = 2;
+
+/** A failed or completed dive: nothing moves it any more. */
+export function isDiveOver(state: DiveState): boolean {
+  return state.failure.reason !== null || state.completed;
+}
 
 export interface DiveEnvironment {
   depthM: Metres;
@@ -143,7 +155,7 @@ export class DiveModel {
     let remainingS = elapsedS;
     let pendingIntent = intent;
 
-    while (remainingS > 0 && this.#state.failure.reason === null) {
+    while (remainingS > 0 && !isDiveOver(this.#state)) {
       const stepS = seconds(Math.min(remainingS, FIXED_STEP_SECONDS));
       this.#state = advanceDiveStep(
         this.#state,
@@ -184,7 +196,7 @@ export class DiveModel {
     frameS: Seconds,
     controls: Readonly<BuoyancyControls>,
   ): DiveState {
-    if (frameS <= 0 || this.#state.failure.reason !== null) {
+    if (frameS <= 0 || isDiveOver(this.#state)) {
       return this.#state;
     }
     const inflated = applyBcdControls(this.#state, controls, frameS);
@@ -223,7 +235,7 @@ export class DiveModel {
    * advanceDiveStep would also refuse.
    */
   switchGas(requestedIndex: number): DiveState {
-    if (this.#state.failure.reason !== null) {
+    if (isDiveOver(this.#state)) {
       return this.#state;
     }
     this.#state = applyGasSwitchIntent(this.#state, requestedIndex);
@@ -241,7 +253,7 @@ export class DiveModel {
    * ccr.targetPO2_bar field at checkpoints instead.
    */
   adjustSetpoint(deltaBar: number): DiveState {
-    if (this.#state.failure.reason !== null) {
+    if (isDiveOver(this.#state)) {
       return this.#state;
     }
     this.#state = applySetpointAdjustment(this.#state, deltaBar);
@@ -259,7 +271,7 @@ export class DiveModel {
    * intent; a second call is a no-op and adds no second event.
    */
   bailOut(): DiveState {
-    if (this.#state.failure.reason !== null) {
+    if (isDiveOver(this.#state)) {
       return this.#state;
     }
     this.#state = applyBailoutIntent(this.#state, true);
@@ -327,7 +339,7 @@ export function advanceDiveStep(
   elapsedS: Seconds,
   intent: Readonly<InputIntent> = NO_INPUT,
 ): DiveState {
-  if (state.failure.reason !== null || elapsedS === 0) {
+  if (isDiveOver(state) || elapsedS === 0) {
     return state;
   }
 
@@ -379,7 +391,38 @@ export function advanceDiveStep(
   ) {
     return withMotion;
   }
-  return updateSafetyStop(updateDiveLog(withMotion, elapsedS, limits), elapsedS);
+  const logged = updateSafetyStop(updateDiveLog(withMotion, elapsedS, limits), elapsedS);
+  return settled.failure.reason === null ? updateCompletion(logged, limits) : logged;
+}
+
+/**
+ * Legacy's last check in updateDiving(), after every failure: back at the
+ * surface with the ceiling cleared, a real dive ends, and a safety stop that
+ * was needed and not done is logged as skipped, once, at that moment.
+ */
+function updateCompletion(state: DiveState, limits: DecompressionLimits): DiveState {
+  if (
+    !(state.depthM < SURFACED_DEPTH_M) ||
+    !(state.elapsedTimeS > COMPLETION_MIN_ELAPSED_S) ||
+    !(limits.ceilingM <= COMPLETION_MAX_CEILING_M) ||
+    !(state.maxDepthM > COMPLETION_MIN_MAX_DEPTH_M)
+  ) {
+    return state;
+  }
+  const skipped = state.safetyStop.needed && !state.safetyStop.complete;
+  return freezeDiveState({
+    ...state,
+    completed: true,
+    log: skipped
+      ? {
+          ...state.log,
+          entries: [
+            ...state.log.entries,
+            { kind: "safety-stop-skipped", elapsedTimeS: state.elapsedTimeS, value: 0 },
+          ],
+        }
+      : state.log,
+  });
 }
 
 /**

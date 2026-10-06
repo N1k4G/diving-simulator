@@ -65,6 +65,8 @@ export interface LegacyTissueCheckpoint {
       frameCeiling_m?: number | null;
       dcsViolation_s?: number | null;
     };
+    /** Legacy's gameState: diving, gameover or post-dive. */
+    gameState?: string;
     /** Legacy's gameOverReason once the dive has failed, else null. */
     gameOverReason?: string | null;
   };
@@ -192,6 +194,8 @@ export function diveStateFromLegacyCheckpoint(
     verticalVelocityMpm: checkpoint.state.verticalVelocity_mpm ?? 0,
     bcdGasSurfaceLiters:
       checkpoint.state.bcdGasSurface_l ?? initialState.bcdGasSurfaceLiters,
+    // Legacy's post-dive screen is the end of a completed dive.
+    completed: checkpoint.state.gameState === "post-dive",
     failure: {
       ...initialState.failure,
       reason: failureReason,
@@ -263,10 +267,6 @@ function logFromLegacyCheckpoint(
 }
 
 /**
- * The entries of the dive log (#199) among legacy's recorded diveEvents: the
- * kinds the log keeps, renamed, with the time in seconds.
- */
-/**
  * The failure a recorded game over names (#212 Codex round 1), in legacy's
  * own wording; null while the dive goes on. Only the failures the trace
  * records are mapped; another is refused rather than read as a dive going
@@ -282,16 +282,28 @@ function failureReasonFromLegacy(gameOverReason: string | null | undefined): Div
   throw new Error(`Unsupported legacy game over: ${gameOverReason}`);
 }
 
+const LEGACY_ENTRY_KINDS: Readonly<Record<string, DiveLogEntry["kind"]>> = {
+  fastAscent: "fast-ascent",
+  ceilingViolation: "ceiling-violation",
+  safetyStopSkipped: "safety-stop-skipped",
+};
+
+/**
+ * The entries of the dive log (#199) among legacy's recorded diveEvents: the
+ * kinds the log keeps, renamed, with the time in seconds.
+ */
+
 export function logEntriesFromLegacyEvents(
   events: readonly { t: number; kind: string; value: unknown }[],
 ): DiveLogEntry[] {
   const entries: DiveLogEntry[] = [];
   for (const event of events) {
-    if (event.kind !== "fastAscent" && event.kind !== "ceilingViolation") {
+    const kind = LEGACY_ENTRY_KINDS[event.kind];
+    if (kind === undefined) {
       continue;
     }
     entries.push({
-      kind: event.kind === "fastAscent" ? "fast-ascent" : "ceiling-violation",
+      kind,
       elapsedTimeS: minutesToSeconds(minutes(event.t)),
       value: Number(event.value),
     });

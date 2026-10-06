@@ -19,6 +19,9 @@ import { NDL_UNLIMITED_MINUTES, ceilingDepthM, decoStopDepth } from "../core/dec
 import {
   CEILING_VIOLATION_TOLERANCE_M,
   CEILING_VIOLATION_WINDOW_S,
+  COMPLETION_MAX_CEILING_M,
+  COMPLETION_MIN_ELAPSED_S,
+  COMPLETION_MIN_MAX_DEPTH_M,
   DCS_VIOLATION_FAILURE_SECONDS,
   FAILURES_BEFORE_THE_LOG,
   FAST_ASCENT_RATE_MPM,
@@ -29,6 +32,7 @@ import {
   SAFETY_STOP_SHORT_S,
   SAFETY_STOP_NEEDED_BELOW_M,
   SUBMERGED_DEPTH_M,
+  SURFACED_DEPTH_M,
   SURFACE_DCS_CEILING_M,
   SURFACE_DCS_DEPTH_M,
   isInSafetyStopBand,
@@ -99,7 +103,13 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // (#199). Older saves never ran it and resume at zero, which gives a diver
 // above the stop the full 60 seconds again. Legacy saves carry
 // dcsViolationTime and keep it.
-export const CURRENT_SAVE_GAME_VERSION = 11;
+//
+// v12 adds state.completed, a dive ended at the surface (#199), and the
+// log's safety-stop-skipped entry that can end one. Older saves were written
+// by clients that could not end a dive that way and resume with it false.
+// Legacy saves only diving states and resumes them the same way.
+export const CURRENT_SAVE_GAME_VERSION = 12;
+export const ELEVENTH_SAVE_GAME_VERSION = 11;
 export const TENTH_SAVE_GAME_VERSION = 10;
 export const NINTH_SAVE_GAME_VERSION = 9;
 export const EIGHTH_SAVE_GAME_VERSION = 8;
@@ -166,6 +176,7 @@ export type SaveGameMigration =
   | "save-game-v8"
   | "save-game-v9"
   | "save-game-v10"
+  | "save-game-v11"
   | null;
 
 /**
@@ -341,7 +352,7 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     // decompression sickness, so no such save can have ended in it (#212
     // pre-review).
     if (
-      v < CURRENT_SAVE_GAME_VERSION &&
+      v < ELEVENTH_SAVE_GAME_VERSION &&
       isRecord(candidate.state) &&
       isRecord(candidate.state.failure)
     ) {
@@ -352,6 +363,10 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
         ...candidate.state,
         failure: { ...candidate.state.failure, dcsViolationS: 0 },
       };
+    }
+    // Before v12 no dive ended at the surface.
+    if (v < CURRENT_SAVE_GAME_VERSION && isRecord(candidate.state)) {
+      candidate.state = { ...candidate.state, completed: false };
     }
     // A v1 payload has no gradientFactors and is filled with the defaults; a
     // v2 payload must carry a valid pair rather than fall back to them, or a
@@ -476,6 +491,7 @@ function migrateLegacyV2(candidate: Record<string, unknown>): SaveGame | null {
       ? (candidate.bcdGasSurfaceLiters as number)
       : neutralBcdSurfaceLitres(candidate.depth as number),
     ccr,
+    completed: false,
     failure: {
       reason: null,
       oxygenToxicityS:
@@ -658,6 +674,14 @@ function isDiveState(
   if (!isRecord(candidate)) {
     return false;
   }
+  const ceilingM = isRecord(candidate.tissues) &&
+    isTissueArray(candidate.tissues.nitrogenBar) &&
+    isTissueArray(candidate.tissues.heliumBar)
+    ? ceilingDepthM(
+        candidate.tissues as unknown as DiveState["tissues"],
+        gradientFactorHighPercent / 100,
+      )
+    : Number.NaN;
 
   return (
     isNonNegativeFinite(candidate.elapsedTimeS) &&
@@ -684,14 +708,7 @@ function isDiveState(
     isFailureState(candidate.failure, {
       elapsedTimeS: candidate.elapsedTimeS as number,
       depthM: candidate.depthM as number,
-      ceilingM: isRecord(candidate.tissues) &&
-        isTissueArray(candidate.tissues.nitrogenBar) &&
-        isTissueArray(candidate.tissues.heliumBar)
-        ? ceilingDepthM(
-            candidate.tissues as unknown as DiveState["tissues"],
-            gradientFactorHighPercent / 100,
-          )
-        : Number.NaN,
+      ceilingM,
     }) &&
     isEventHistory(
       candidate.events,
@@ -714,14 +731,40 @@ function isDiveState(
       elapsedTimeS: candidate.elapsedTimeS as number,
       depthM: candidate.depthM as number,
       maxDepthM: candidate.maxDepthM as number,
-      ceilingM: ceilingDepthM(
-        candidate.tissues as unknown as DiveState["tissues"],
-        gradientFactorHighPercent / 100,
-      ),
+      ceilingM,
       failureReason: (candidate.failure as Record<string, unknown>).reason as
         | DiveFailureReason
         | null,
-    })
+      completed: candidate.completed === true,
+    }) &&
+    isCompletion(candidate, ceilingM)
+  );
+}
+
+/**
+ * A completed dive the model could have ended (#199): not failed, at the
+ * surface with the saved tissues' ceiling cleared, after more than 30 s of a
+ * dive deeper than 2 m, and with a safety-stop-skipped entry exactly when
+ * its stop was needed and not done. The entry itself is checked with the log.
+ */
+function isCompletion(candidate: Record<string, unknown>, ceilingM: number): boolean {
+  if (typeof candidate.completed !== "boolean") {
+    return false;
+  }
+  if (!candidate.completed) {
+    return true;
+  }
+  const failure = candidate.failure as Record<string, unknown>;
+  const stop = candidate.safetyStop as Record<string, unknown>;
+  const entries = (candidate.log as Record<string, unknown>).entries as Record<string, unknown>[];
+  const skipped = entries.at(-1)?.kind === "safety-stop-skipped";
+  return (
+    failure.reason === null &&
+    (candidate.depthM as number) < SURFACED_DEPTH_M &&
+    (candidate.elapsedTimeS as number) > COMPLETION_MIN_ELAPSED_S &&
+    (candidate.maxDepthM as number) > COMPLETION_MIN_MAX_DEPTH_M &&
+    ceilingM <= COMPLETION_MAX_CEILING_M &&
+    skipped === (stop.needed === true && stop.complete !== true)
   );
 }
 
@@ -793,6 +836,8 @@ interface DiveLogContext {
   /** The ceiling the saved tissues give at the save's GF high. */
   readonly ceilingM: number;
   readonly failureReason: DiveFailureReason | null;
+  /** The dive ended at the surface, which a skipped safety stop needs. */
+  readonly completed: boolean;
 }
 
 function isDiveLog(candidate: unknown, context: DiveLogContext): candidate is DiveLog {
@@ -823,8 +868,13 @@ function isDiveLog(candidate: unknown, context: DiveLogContext): candidate is Di
       return false;
     }
     const value = entry.value as number;
+    // A skipped safety stop is logged once, as the dive ends at the surface:
+    // the last entry of a completed dive, at its end, value 0.
+    const last = entry === (candidate.entries as unknown[]).at(-1);
     if (entry.kind === "fast-ascent" ? value <= FAST_ASCENT_RATE_MPM
       : entry.kind === "ceiling-violation" ? value <= CEILING_VIOLATION_TOLERANCE_M
+      : entry.kind === "safety-stop-skipped"
+        ? value !== 0 || !context.completed || !last || entry.elapsedTimeS !== elapsedTimeS
       : true) {
       return false;
     }

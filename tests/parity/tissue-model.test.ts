@@ -4,6 +4,7 @@ import baselineFixture from "../fixtures/traces/baseline-v1.json";
 import { diveStateFromLegacyCheckpoint } from "../../src/app/legacy-dive-adapter";
 import {
   DiveModel,
+  advanceDiveStep,
   closedCircuit,
   openCircuit,
 } from "../../src/core/dive-model";
@@ -96,12 +97,11 @@ describe("pure tissue model parity", () => {
 
     expect(surfaced.trajectory.length).toBeGreaterThan(0);
 
-    const model = new DiveModel(diveStateFromLegacyCheckpoint(bottom, 4));
-    replayTrajectory(model, surfaced.trajectory, () =>
+    const state = replayTrajectory(diveStateFromLegacyCheckpoint(bottom, 4), surfaced.trajectory, () =>
       openCircuit(createGasMix(0.21, 0)),
     );
 
-    expectTissuesToMatch(model.snapshot, surfaced);
+    expectTissuesToMatch(state, surfaced);
   });
 
   it("replays the trimix ascent before the deco gas switch", () => {
@@ -109,12 +109,11 @@ describe("pure tissue model parity", () => {
     const bottom = findCheckpoint(scenario, "bottom-20min");
     const ascent = findCheckpoint(scenario, "ascent-21m");
 
-    const model = new DiveModel(diveStateFromLegacyCheckpoint(bottom, 5));
-    replayTrajectory(model, ascent.trajectory, () =>
+    const state = replayTrajectory(diveStateFromLegacyCheckpoint(bottom, 5), ascent.trajectory, () =>
       openCircuit(createGasMix(0.21, 0.35)),
     );
 
-    expectTissuesToMatch(model.snapshot, ascent);
+    expectTissuesToMatch(state, ascent);
   });
 
   it("replays the CCR ascent at a held setpoint", () => {
@@ -122,12 +121,11 @@ describe("pure tissue model parity", () => {
     const bottom = findCheckpoint(scenario, "bottom-30min");
     const ascent = findCheckpoint(scenario, "ascent-12m");
 
-    const model = new DiveModel(diveStateFromLegacyCheckpoint(bottom, 6));
-    replayTrajectory(model, ascent.trajectory, () =>
+    const state = replayTrajectory(diveStateFromLegacyCheckpoint(bottom, 6), ascent.trajectory, () =>
       closedCircuit(1.3, createGasMix(0.15, 0.45)),
     );
 
-    expectTissuesToMatch(model.snapshot, ascent);
+    expectTissuesToMatch(state, ascent);
   });
 
   it("matches the canonical trimix bottom checkpoint", () => {
@@ -231,17 +229,27 @@ function findCheckpoint(
 // close: the tissue integrator is p + (t - p) * exp(-k * dt) at a constant
 // depth, and exp(-k * 1.0) * exp(-k * 0.5) === exp(-k * 1.5) to within double
 // rounding, far inside the 1e-9 tolerance.
+/**
+ * One model step per legacy tick, the whole tick at the depth legacy read
+ * back. DiveModel.advance() would split a 1.5 s tick into 1 s steps, which
+ * integrates the same at a constant depth but stops at the step that ends
+ * the dive: the air ascent's last tick surfaces it (#199), and legacy ends
+ * the dive only after the whole tick.
+ */
 function replayTrajectory(
-  model: DiveModel,
+  start: DiveState,
   trajectory: { depth_m: number; dtDive_min: number }[],
   breathingAt: (depthM: number) => BreathingSource,
-): void {
+): DiveState {
+  let state = start;
   for (const step of trajectory) {
-    model.advance(
+    state = advanceDiveStep(
+      state,
       { depthM: metres(step.depth_m), breathing: breathingAt(step.depth_m) },
       minutesToSeconds(minutes(step.dtDive_min)),
     );
   }
+  return state;
 }
 
 function expectTissuesToMatch(
