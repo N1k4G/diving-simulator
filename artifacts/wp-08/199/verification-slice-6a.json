@@ -3,13 +3,13 @@
   "issue": 199,
   "slice": "Slice 6a: the rule of thirds under an overhead; save v13",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "7621709c13c01018114500a0afe7d447f839ec2d",
-  "measuredTree": "39ad607df799f9a9806579411f3713bdcd09e6f2",
+  "measuredCommit": "dbdf7ddd20d9d65371750c4fe2cd31bb429f2f31",
+  "measuredTree": "4a076c3388c57f61d348bff7beb40108e7e917f6",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-06T19:14:35Z",
-  "runFinishedAt": "2026-10-06T19:23:34Z",
+  "recordedAt": "2026-10-06T19:36:14Z",
+  "runFinishedAt": "2026-10-06T19:43:01Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "On main 20eab28 (#213, slice 4b). The full run above is on 7621709, with the fixture regenerated from the rebased capture commit; the only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "On main 20eab28 (#213, slice 4b). The full run above is on dbdf7dd, the fix for the #214 pre-review; the only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -25,9 +25,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "423 passed (410 on main, +9 in tests/unit/rule-of-thirds.test.ts, +4 in tests/unit/save-game.test.ts)",
-    "parity": "95 passed (87 on main, +3 in tests/parity/rule-of-thirds.test.ts, the rest in the tissue and dive-log replays over the new scenario)",
-    "e2e": "143 passed in 5.6 min (unchanged; the client does not yet tell the model when the diver is under the overhead)",
+    "unit": "424 passed (410 on main, +10 in tests/unit/rule-of-thirds.test.ts, +4 in tests/unit/save-game.test.ts)",
+    "parity": "95 passed (87 on main, +3 in tests/parity/rule-of-thirds.test.ts, +5 in tests/parity/dive-planner.test.ts, whose canonical parity covers every checkpoint of the new scenario)",
+    "e2e": "143 passed in 5.1 min (unchanged; the client does not yet tell the model when the diver is under the overhead)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -44,7 +44,7 @@
   },
   "parity": "wreck-thirds replayed tick by tick through advanceDiveStep with its own cylinder, under the overhead exactly when its checkpoint is: the plan (within 1e-6 L), the turn latch, the reserve latch and the gas left match legacy at every checkpoint. A replay resumed through the adapter from turn-20min continues legacy's plan.",
   "counterChecks": {
-    "method": "Each revert was applied from a backup copy, tests/unit/rule-of-thirds.test.ts, tests/unit/save-game.test.ts and tests/parity/rule-of-thirds.test.ts were run, and the file was restored; src was compared with a copy taken before the set. Run on 07c3d06 before the rebase onto main; src and the three test files they run are unchanged since.",
+    "method": "Each revert was applied from a backup copy, tests/unit/rule-of-thirds.test.ts, tests/unit/save-game.test.ts and tests/parity/rule-of-thirds.test.ts were run, and the file was restored; src was compared with a copy taken before the set. Run on 07c3d06 before the rebase onto main; the three test files they run and the thirds code are unchanged since, apart from the freeze added for the pre-review.",
     "results": [
       {
         "revert": "thirds never run",
@@ -98,20 +98,34 @@
         "revert": "adapter drops the plan",
         "result": "1 failed: the resumed parity replay"
       }
-    ]
+    ],
+    "preReview": {
+      "method": "The freeze added for the #214 pre-review was removed from src/core/dive-state.ts from a backup copy, tests/unit/rule-of-thirds.test.ts was run, and the file was restored.",
+      "results": [
+        {
+          "revert": "thirds not frozen",
+          "result": "1 failed: the frozen-state test"
+        }
+      ]
+    }
   },
   "deferred": "The client does not yet tell the model when the diver is inside the wreck (the zones exterior, cargo hold and engine room exist in the renderer), nor show the thirds gauge or beep: slice 7 with the route rework.",
   "durableProvenance": {
-    "src": "edcee69d006c82efe7e6130ac2a7172680185e71",
-    "tests": "cfa6267596ed3147ed604d45d58ace60c3db3f68",
+    "src": "27927fe413900a399b3bb51c0d524c210311a2b8",
+    "tests": "50ef3737b0fb4d72722c6fffa431980ac71fa42f",
     "scripts": "6b40e24c03f7c63b0f9bf818108d20a6f6f2244f",
-    "docs": "b7a915f25655ebfcfcfdd88fc03e37cbdbfcbfa1"
+    "docs": "6c7791423b668599c01d75772bac2793ef177d09"
   },
   "earlierRuns": [
     {
       "measuredCommit": "7900344164a1c29455dac152db031b885700361a",
       "recordedAt": "2026-10-06T15:10:41Z",
       "note": "Stacked on slice 4b before it merged; superseded by the run above on main."
+    },
+    {
+      "measuredCommit": "7621709c13c01018114500a0afe7d447f839ec2d",
+      "recordedAt": "2026-10-06T19:14:35Z",
+      "note": "On main, before the #214 pre-review fix; superseded by the run above."
     }
   ]
 }
