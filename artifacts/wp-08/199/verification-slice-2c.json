@@ -3,13 +3,13 @@
   "issue": 199,
   "slice": "Slice 2c: the start of the dive (each cylinder's fill, the rebreather's start pressures and scrubber total) for gas used; save v10",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "8f6d2d9dfc2bde1b863af256f31a0023b410462e",
-  "measuredTree": "4f6436f25a80d7e0ee19ac47acdcdc70d0544d5c",
+  "measuredCommit": "cdb099a46822d75deeff521275b60cbf2bc32808",
+  "measuredTree": "4a58a71c4c1344117fdbaa75692c3e04072c0124",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-06T09:00:58Z",
-  "runFinishedAt": "2026-10-06T09:09:38Z",
+  "recordedAt": "2026-10-06T09:31:36Z",
+  "runFinishedAt": "2026-10-06T09:42:21Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "Rebased onto main ea2d3b0 (#206, slice 3). The full run above is on 8f6d2d9, whose last commit is the previous version of this file; the only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "On main ea2d3b0 (#206). The full run above is on cdb099a, the fix for the #211 pre-review; the only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -25,16 +25,17 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "375 passed (367 on main, +4 in tests/unit/start-gas.test.ts, +4 in tests/unit/save-game.test.ts)",
+    "unit": "377 passed (367 on main, +4 in tests/unit/start-gas.test.ts, +6 in tests/unit/save-game.test.ts)",
     "parity": "73 passed (unchanged count; the replays now also compare the start of the dive and gas used)",
-    "e2e": "142 passed in 5.4 min (unchanged)",
+    "e2e": "142 passed in 8.5 min (unchanged count; three rebreather scrubber edits in tests/in-dive-controls.spec.js now keep the scrubber's start with the value they set)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
   "boundsPortedFromTheOracle": {
     "openCircuit": "src/state.js: t.totalGas = t.volume * t.pressure, and resetDive() refills gasRemaining = totalGas. drawPostDive() (src/renderer.js) shows totalGas - gasRemaining per cylinder.",
     "rebreather": "resetDive() snapshots ccrState.o2CylPressureStart and dilCylPressureStart; drawPostDive() shows (start - current) * volume for O2 and diluent, and scrubberTotal - scrubberRemaining.",
-    "model": "TankState.startGasL; CcrState.oxygenCylinderStartPressureBar, diluentCylinderStartPressureBar, scrubberTotalS. createTankState and createCcrState default them to the configured fill; nothing in the dive changes them."
+    "model": "TankState.startGasL; CcrState.oxygenCylinderStartPressureBar, diluentCylinderStartPressureBar, scrubberTotalS. createTankState and createCcrState default them to the configured fill; nothing in the dive changes them.",
+    "dive": "The model draws gas and runs the scrubber down only in a step that adds that step's time to elapsedTimeS (legacy: diveTime += before scrubberRemaining -= in the same tick), so the scrubber is never used for longer than the dive, and at elapsed time 0 nothing has been drawn."
   },
   "fixtureRegeneration": {
     "command": "npm run baseline:generate, from the rebased capture commit 6790989",
@@ -61,11 +62,36 @@
         "revert": "legacy totalGas ignored",
         "result": "1 failed: the legacy import test"
       }
-    ]
+    ],
+    "preReview": {
+      "method": "Each rule added after the #211 pre-review was removed from src/save/save-game.ts from a backup copy, tests/unit/save-game.test.ts was run, and the file was restored.",
+      "results": [
+        {
+          "revert": "scrubber use not bound by the dive's time",
+          "result": "2 failed: the invalid-start test and the before-the-first-step test"
+        },
+        {
+          "revert": "cylinder gas drawn before the first step",
+          "result": "1 failed: the before-the-first-step test, on cylinder gas"
+        },
+        {
+          "revert": "loop cylinders drawn before the first step",
+          "result": "1 failed: the before-the-first-step test, on oxygen"
+        },
+        {
+          "revert": "pre-v10 diluent and scrubber started from what is left",
+          "result": "2 failed: the v1 and v9 migration tests"
+        },
+        {
+          "revert": "legacy scrubber total not bound by the dive's time",
+          "result": "1 failed: the legacy scrubber test"
+        }
+      ]
+    }
   },
   "durableProvenance": {
-    "src": "1740200ac8e2a2e0f8b61d76c5433eb692f0211e",
-    "tests": "e1569a676a6bcc9aeea2c84c867ba91e1bdbb2fd",
+    "src": "b41338d5e15337aff2a9a156e651518226a1a6bf",
+    "tests": "cff985bcc096b47a5780f582213a5231e0b0a383",
     "scripts": "9821955c9dd544534be72ffeb8eb56fbc6cc863a",
     "docs": "8f5d2d331e00da3d3a0647528a13538afa7de4ef"
   },
@@ -74,6 +100,11 @@
       "measuredCommit": "2b778ab89c30fa15ebbd164fb458284eded30a35",
       "recordedAt": "2026-09-30T23:02:49Z",
       "note": "Stacked on slice 3 before #206 merged; superseded by the run above on main."
+    },
+    {
+      "measuredCommit": "8f6d2d9dfc2bde1b863af256f31a0023b410462e",
+      "recordedAt": "2026-10-06T09:00:58Z",
+      "note": "Rebased onto main, before the #211 pre-review fix; superseded by the run above."
     }
   ]
 }
