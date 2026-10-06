@@ -567,19 +567,6 @@ test.describe('fast-forward', () => {
     await expect(fastForwardButton(page)).toHaveAttribute('aria-pressed', 'false');
     await expect(fastForwardIndicator(page)).toBeHidden();
 
-    const before = await persistedSave(page);
-    // Count the saves from here: legacy autosaves every 3 real seconds
-    // (SAVE_INTERVAL_MS), not every few dive seconds, which at 30x would
-    // write the whole save several times a second (#204 pre-review).
-    await page.evaluate((key) => {
-      window.__saveWrites = 0;
-      const setItem = window.localStorage.setItem.bind(window.localStorage);
-      window.localStorage.setItem = (name, value) => {
-        if (name === key) window.__saveWrites += 1;
-        setItem(name, value);
-      };
-    }, SAVE_KEY);
-    const pressedAtMs = Date.now();
     await page.keyboard.press('f');
 
     await expect(fastForwardButton(page)).toHaveAttribute('aria-pressed', 'true');
@@ -588,26 +575,63 @@ test.describe('fast-forward', () => {
     await expect(fastForwardIndicator(page)).toBeVisible();
     await expect(fastForwardIndicator(page)).toHaveText('Fast-forward ×10');
 
-    // Sixty dive seconds take twenty real seconds at normal speed and two
-    // at ten times. The clock is read from the save, which is written every
-    // 3 real seconds, so the save showing them can come up to 3 s after
-    // them; and a loaded machine drops frames, each counting at most 0.1 s
-    // (legacy's cap), which slows the clock itself (#207). Twelve seconds
-    // leave room for both and are still well under the twenty that normal
-    // speed needs, so a clock that did not actually speed up fails here.
-    await page.waitForFunction(
-      ([key, startS]) => {
-        const raw = window.localStorage.getItem(key);
-        return raw !== null && JSON.parse(raw).state.elapsedTimeS >= startS + 60;
-      },
-      [SAVE_KEY, before.state.elapsedTimeS],
-      { timeout: 12_000 },
+    // The rate, as the clock-rate test above measures it: dive seconds
+    // between two saves against the real time between them, each frame
+    // counted at most 0.1 s as legacy caps it. Neither the save cadence nor
+    // dropped frames move it, so it pins the multiplier itself: ten times
+    // three is 30, where a reading from one save against a deadline could
+    // not tell 30 from 9 (#210 Codex round 1).
+    //
+    // The saves are counted in the same page measurement, against the page's
+    // monotonic clock: legacy autosaves every 3 real seconds
+    // (SAVE_INTERVAL_MS), not every few dive seconds, which at 30x would
+    // write the whole save several times a second (#204 pre-review).
+    const measured = await page.evaluate(
+      (key) =>
+        new Promise((resolve) => {
+          const startMs = performance.now();
+          let writes = 0;
+          const setItem = window.localStorage.setItem.bind(window.localStorage);
+          window.localStorage.setItem = (name, value) => {
+            if (name === key) writes += 1;
+            setItem(name, value);
+          };
+          let last = null;
+          let first = null;
+          let previousMs = null;
+          let countedRealS = 0;
+          const poll = (nowMs) => {
+            if (previousMs !== null && first !== null) {
+              countedRealS += Math.min(0.1, (nowMs - previousMs) / 1000);
+            }
+            previousMs = nowMs;
+            const raw = window.localStorage.getItem(key);
+            const elapsedS = raw === null ? null : JSON.parse(raw).state.elapsedTimeS;
+            if (elapsedS !== null && elapsedS !== last) {
+              if (last !== null && first === null) {
+                first = { elapsedS };
+              } else if (first !== null && elapsedS >= first.elapsedS + 60) {
+                resolve({
+                  rate: (elapsedS - first.elapsedS) / countedRealS,
+                  writes,
+                  realMs: performance.now() - startMs,
+                });
+                return;
+              }
+              last = elapsedS;
+            }
+            requestAnimationFrame(poll);
+          };
+          requestAnimationFrame(poll);
+        }),
+      SAVE_KEY,
     );
+    expect(measured.rate).toBeGreaterThan(27);
+    expect(measured.rate).toBeLessThan(33);
     // One autosave per 3 real seconds, whatever the dive clock does: at most
-    // one more than the intervals that passed. Counting dive time, sixty
-    // dive seconds would have been a dozen.
-    const realS = (Date.now() - pressedAtMs) / 1000;
-    expect(await page.evaluate(() => window.__saveWrites)).toBeLessThanOrEqual(Math.floor(realS / 3) + 1);
+    // one more than the intervals that passed. Counting dive time, the
+    // sixty and more dive seconds measured would have been a dozen.
+    expect(measured.writes).toBeLessThanOrEqual(Math.floor(measured.realMs / 3000) + 1);
 
     // And off again on the next press.
     await page.keyboard.press('f');
