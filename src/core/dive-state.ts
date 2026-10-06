@@ -479,6 +479,7 @@ export function freezeDiveState(state: DiveState): DiveState {
   });
 
   const safetyStop = Object.freeze({ ...state.safetyStop });
+  const thirds = Object.freeze({ ...state.thirds });
 
   return Object.freeze({
     ...state,
@@ -489,5 +490,6 @@ export function freezeDiveState(state: DiveState): DiveState {
     events,
     log,
     safetyStop,
+    thirds,
   });
 }

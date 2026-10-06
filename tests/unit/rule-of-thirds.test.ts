@@ -46,6 +46,13 @@ describe("the rule of thirds", () => {
     expect(createInitialDiveState(1).thirds).toEqual({ startingGasL: 0, turnWarned: false, reserveHit: false });
   });
 
+  it("is frozen with the rest of the state, so a snapshot cannot change the latch", () => {
+    const outside = new DiveModel(createInitialDiveState(2));
+    expect(Object.isFrozen(outside.snapshot.thirds)).toBe(true);
+    const inside = step(twoCylinders(), true);
+    expect(Object.isFrozen(inside.thirds)).toBe(true);
+  });
+
   it("does nothing outside an overhead, the default", () => {
     const model = new DiveModel(withGas(twoCylinders(), 100, 0));
     model.advance({ depthM: metres(30) }, seconds(30));
