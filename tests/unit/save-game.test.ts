@@ -982,7 +982,11 @@ describe("SaveGame gradient factors", () => {
     };
 
     it("accepts a save of a dive the DCS timer ended", () => {
-      const result = decodeSaveGame(JSON.stringify(endedIn("decompression-sickness", 60)));
+      // Tissues loaded to a 27 m ceiling: the diver is above its 30 m stop.
+      const save = endedIn("decompression-sickness", 60) as Failed & { state: { tissues: { nitrogenBar: number[]; heliumBar: number[] } } };
+      save.state.tissues.nitrogenBar = save.state.tissues.nitrogenBar.map(() => 4);
+      save.state.tissues.heliumBar = save.state.tissues.heliumBar.map(() => 0);
+      const result = decodeSaveGame(JSON.stringify(save));
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.saveGame.state.failure.reason).toBe("decompression-sickness");
@@ -1022,14 +1026,27 @@ describe("SaveGame gradient factors", () => {
         })()],
         ["decompression sickness below the surface with the timer short of 60", endedIn("decompression-sickness", 42.5)],
         ["hypoxia with the timer at 60, which DCS would have ended first", endedIn("hypoxia", 60)],
+        // The step that takes the timer to 60 counted it up: a ceiling, and
+        // the diver above its stop. This dive has no ceiling.
+        ["out of gas with the timer at 60 and no ceiling", endedIn("out-of-gas", 60)],
+        ["the surfacing end with the timer at zero", (() => {
+          const save = JSON.parse(encodeSaveGame(createSaveGame(surfacedWithDcs(), CONSERVATIVE_FACTORS, 1))) as Failed;
+          save.state.failure.dcsViolationS = 0;
+          return save;
+        })()],
         ["a rebreather failure with the timer at 60", endedIn("ccr-co2", 60)],
       ];
       for (const [what, save] of invalid) {
         expect(decodeSaveGame(JSON.stringify(save)).ok, what).toBe(false);
       }
-      // Out of gas and oxygen toxicity are checked before the timer.
-      for (const reason of ["out-of-gas", "oxygen-toxicity"]) {
-        expect(decodeSaveGame(JSON.stringify(endedIn(reason, 60))).ok, reason).toBe(true);
+      // Out of gas and oxygen toxicity are checked before the timer, so they
+      // can end its 60th second, on tissues that give it a ceiling above
+      // the diver's stop.
+      for (const reason of ["out-of-gas", "oxygen-toxicity", "decompression-sickness"]) {
+        const save = endedIn(reason, 60) as Failed & { state: { tissues: { nitrogenBar: number[]; heliumBar: number[] }; depthM: number } };
+        save.state.tissues.nitrogenBar = save.state.tissues.nitrogenBar.map(() => 4);
+        save.state.tissues.heliumBar = save.state.tissues.heliumBar.map(() => 0);
+        expect(decodeSaveGame(JSON.stringify(save)).ok, reason).toBe(true);
       }
     });
 

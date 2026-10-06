@@ -93,11 +93,14 @@ test('a rebreather failure shows its label, without explanation sections, as leg
 });
 
 test('decompression sickness shows legacy\'s label and all three explanation sections', async ({ page }) => {
-  // A minute into the dive with the DCS timer at its 60 s: the save only
-  // takes a decompression-sickness end the model could have reached.
+  // An end the model can reach, which is all the save takes: a minute in,
+  // the DCS timer at its 60 s, and tissues loaded to a 27 m ceiling, so the
+  // diver at 26 m is above its 30 m stop (#212 pre-review).
   await resumeFailedDive(page, 'decompression-sickness', undefined, (state) => {
     state.elapsedTimeS = Math.max(state.elapsedTimeS, 60);
     state.failure.dcsViolationS = 60;
+    state.tissues.nitrogenBar = state.tissues.nitrogenBar.map(() => 4);
+    state.tissues.heliumBar = state.tissues.heliumBar.map(() => 0);
   });
   const screen = page.locator('[data-game-over]');
   await expect(page.locator('[data-game-over-reason]')).toHaveText('Decompression sickness');

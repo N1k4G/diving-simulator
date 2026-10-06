@@ -15,7 +15,7 @@ import {
   type TankState,
 } from "../core/dive-state";
 import { neutralBcdSurfaceLitres } from "../core/buoyancy";
-import { NDL_UNLIMITED_MINUTES, ceilingDepthM } from "../core/decompression";
+import { NDL_UNLIMITED_MINUTES, ceilingDepthM, decoStopDepth } from "../core/decompression";
 import {
   CEILING_VIOLATION_TOLERANCE_M,
   CEILING_VIOLATION_WINDOW_S,
@@ -1196,9 +1196,11 @@ function isCcrState(candidate: unknown, elapsedTimeS: number): candidate is CcrS
  * so it never exceeds the dive's time. It reaches 60 s only on the step that
  * ends the dive, and the failures checked before it (out of gas, oxygen
  * toxicity) can end that step first; any other dive, going on or ended,
- * holds it below 60. A dive that ended in decompression sickness did so on
- * the timer, or at the surface with a ceiling deeper than 3 m, which the
- * saved tissues still give.
+ * holds it below 60. That step counted it up, so the saved tissues give a
+ * ceiling and the diver is shallower than its first stop. A dive that ended
+ * in decompression sickness did so on the timer, or at the surface with a
+ * ceiling deeper than 3 m; at the surface the diver is above any stop, so
+ * that step counted the timer up too (#212 pre-review, pass 2).
  */
 function isFailureState(
   candidate: unknown,
@@ -1220,10 +1222,18 @@ function isFailureState(
     return false;
   }
   const reason = candidate.reason as DiveFailureReason | null;
+  if (
+    dcsS >= DCS_VIOLATION_FAILURE_SECONDS &&
+    !(context.ceilingM > 0 && context.depthM < decoStopDepth(context.ceilingM))
+  ) {
+    return false;
+  }
   if (reason === "decompression-sickness") {
     return (
       dcsS >= DCS_VIOLATION_FAILURE_SECONDS ||
-      (context.depthM < SURFACE_DCS_DEPTH_M && context.ceilingM > SURFACE_DCS_CEILING_M)
+      (dcsS > 0 &&
+        context.depthM < SURFACE_DCS_DEPTH_M &&
+        context.ceilingM > SURFACE_DCS_CEILING_M)
     );
   }
   return reason === "out-of-gas" || reason === "oxygen-toxicity" || dcsS < DCS_VIOLATION_FAILURE_SECONDS;
