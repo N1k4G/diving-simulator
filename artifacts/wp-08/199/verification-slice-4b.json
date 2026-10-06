@@ -3,13 +3,13 @@
   "issue": 199,
   "slice": "Slice 4b: the end of a dive at the surface (legacy's switch to post-dive) and the safety-stop-skipped entry; save v12",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "7ca255e0f706f17143f492cd92f4f6bb1c06d651",
-  "measuredTree": "5dd6cd0da879b79f5b0abf10fa90456c2a3915b8",
+  "measuredCommit": "a6e042b21f3190446b86457bb6539462979d6aac",
+  "measuredTree": "7f3061535b7994dff7b2463c191e2885e9c43639",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-01T00:14:47Z",
-  "runFinishedAt": "2026-10-01T00:24:18Z",
+  "recordedAt": "2026-10-06T14:47:13Z",
+  "runFinishedAt": "2026-10-06T14:54:09Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "Stacked on slice 4a (feat/199-dcs), slice 2c and slice 3 (#206). The full run above is on 7ca255e; the only later commit adds this file. The branch is rebased onto main once those merge, and the evidence is re-recorded then.",
+  "provenanceNote": "On main 74c61a7 (#212, slice 4a). The full run above is on a6e042b, whose last commit is the previous version of this file; the only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -25,9 +25,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "400 passed (385 on slice 4a, +10 in tests/unit/dive-end.test.ts, +5 in tests/unit/save-game.test.ts)",
-    "parity": "85 passed (83 on slice 4a, +2 in tests/parity/dive-end.test.ts)",
-    "e2e": "142 passed, 1 failed in 6.3 min. The failure is tests/game.spec.js, the legacy harness, on \"Blocked call to navigator.vibrate because user hasn't tapped on the frame\": the known flake #194, in code this slice does not touch. Re-run alone on the same commit and clean tree with --repeat-each=3: 3 passed. The slice adds no browser test: the client cannot reach the surface yet (its route is 18 to 34 m until slice 7).",
+    "unit": "410 passed (395 on main, +10 in tests/unit/dive-end.test.ts, +5 in tests/unit/save-game.test.ts)",
+    "parity": "87 passed (85 on main, +2 in tests/parity/dive-end.test.ts)",
+    "e2e": "143 passed in 5.0 min (unchanged; the client cannot reach the surface until slice 7)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -38,29 +38,78 @@
   "replayChange": "tests/parity/tissue-model.test.ts now steps each legacy tick whole through advanceDiveStep. Through DiveModel.advance(), a 1.5 s tick was split into 1 s steps; that integrates the same at a constant depth, but the air ascent's last tick now ends the dive after its first 1 s step, leaving 0.5 s of the tick unintegrated (1.45e-3 bar against a 1e-9 tolerance). Legacy ends the dive after the whole tick, which is what one advanceDiveStep per tick does. All four tissue replays pass at their 1e-9 tolerance.",
   "parity": "air-18m-30min replayed tick by tick from the surface through advanceDiveStep with its own cylinder: not completed before the last tick of any checkpoint, completed exactly at surfaced where legacy's gameState is post-dive, with one safety-stop-skipped entry at legacy's time (within 1e-9 dive minutes), value 0, the last entry, and no failure. The adapter's surfaced state reads as completed and does not move.",
   "counterChecks": {
-    "method": "Each revert was applied from a backup copy, tests/unit/dive-end.test.ts, tests/unit/save-game.test.ts, tests/parity/dive-end.test.ts, tests/parity/tissue-model.test.ts and tests/parity/dive-log.test.ts were run, and the file was restored; src was compared with a copy taken before the set. A first set showed the save rejection test failing under nearly every revert: it timed out (eight 600-step dives against vitest's 5 s), not a real detection. The test now builds its dive once, and the set was run again; the results below are from that run. It also left \"completes after a failure too\" undetected, since surface DCS and completion cannot share a step; a hypoxia test was added and catches it.",
+    "method": "Each revert was applied from a backup copy, tests/unit/dive-end.test.ts, tests/unit/save-game.test.ts, tests/parity/dive-end.test.ts, tests/parity/tissue-model.test.ts and tests/parity/dive-log.test.ts were run, and the file was restored; src was compared with a copy taken before the set. A first set showed the save rejection test failing under nearly every revert: it timed out (eight 600-step dives against vitest's 5 s), not a real detection. The test now builds its dive once, and the set was run again; the results below are from that run. It also left \"completes after a failure too\" undetected, since surface DCS and completion cannot share a step; a hypoxia test was added and catches it. Run again after the rebase onto main, on a6e042b; every revert fails the same tests as before.",
     "results": [
-      { "revert": "never completes", "result": "10 failed" },
-      { "revert": "completes at 0.3 m (<=)", "result": "1 failed: the 0.3 m test" },
-      { "revert": "no minimum dive time", "result": "1 failed: the 2 m / 30 s test" },
-      { "revert": "no minimum depth", "result": "1 failed: the 2 m / 30 s test" },
-      { "revert": "ceiling ignored", "result": "1 failed: the ceiling test" },
-      { "revert": "skipped stop never logged", "result": "5 failed, the parity replay among them" },
-      { "revert": "skipped stop logged even when the stop was done", "result": "1 failed: the done-stop test" },
-      { "revert": "completes after a failure too", "result": "1 failed: the hypoxia-on-the-way-out test (added for it)" },
-      { "revert": "a completed dive keeps moving", "result": "3 failed" },
-      { "revert": "save ignores the completion invariants", "result": "1 failed: the rejection test" },
-      { "revert": "save accepts any skipped stop", "result": "2 failed: both rejection tests" },
-      { "revert": "no pre-v12 migration", "result": "1 failed: the v11 migration test" },
-      { "revert": "adapter ignores post-dive", "result": "1 failed: the post-dive parity test" },
-      { "revert": "adapter drops safetyStopSkipped", "result": "2 failed: both parity tests" }
+      {
+        "revert": "never completes",
+        "result": "10 failed"
+      },
+      {
+        "revert": "completes at 0.3 m (<=)",
+        "result": "1 failed: the 0.3 m test"
+      },
+      {
+        "revert": "no minimum dive time",
+        "result": "1 failed: the 2 m / 30 s test"
+      },
+      {
+        "revert": "no minimum depth",
+        "result": "1 failed: the 2 m / 30 s test"
+      },
+      {
+        "revert": "ceiling ignored",
+        "result": "1 failed: the ceiling test"
+      },
+      {
+        "revert": "skipped stop never logged",
+        "result": "5 failed, the parity replay among them"
+      },
+      {
+        "revert": "skipped stop logged even when the stop was done",
+        "result": "1 failed: the done-stop test"
+      },
+      {
+        "revert": "completes after a failure too",
+        "result": "1 failed: the hypoxia-on-the-way-out test (added for it)"
+      },
+      {
+        "revert": "a completed dive keeps moving",
+        "result": "3 failed"
+      },
+      {
+        "revert": "save ignores the completion invariants",
+        "result": "1 failed: the rejection test"
+      },
+      {
+        "revert": "save accepts any skipped stop",
+        "result": "2 failed: both rejection tests"
+      },
+      {
+        "revert": "no pre-v12 migration",
+        "result": "1 failed: the v11 migration test"
+      },
+      {
+        "revert": "adapter ignores post-dive",
+        "result": "1 failed: the post-dive parity test"
+      },
+      {
+        "revert": "adapter drops safetyStopSkipped",
+        "result": "2 failed: both parity tests"
+      }
     ]
   },
   "deferred": "The client's handling of a completed dive (clearing the save, the post-dive screen) waits for slices 7 and 8: until slice 7 gives the route a way to the surface, the client cannot complete a dive.",
   "durableProvenance": {
-    "src": "89e7c4115e9a9d9c632ba2fae5e25f3645cf057d",
-    "tests": "3f67cebb31a1ca055bee82ec0fde1c22c3d07a2e",
+    "src": "1990340556ce702b7253b1b1a28313191aa90126",
+    "tests": "c95d38b5c285e465a7fef7d37f4373322b70f828",
     "scripts": "7ea5ab54c93260bbad2cf48dd04e2d235ed5d43a",
-    "docs": "54a5d3d84ecadf3c92db6778c1fc60f68f8a0a4a"
-  }
+    "docs": "7cafbf82931c083dcd7926a1c79a62da1cf06f53"
+  },
+  "earlierRuns": [
+    {
+      "measuredCommit": "7ca255e0f706f17143f492cd92f4f6bb1c06d651",
+      "recordedAt": "2026-10-01T00:14:47Z",
+      "note": "Stacked on slice 4a before it merged, with one legacy-harness failure (#194); superseded by the run above on main."
+    }
+  ]
 }
