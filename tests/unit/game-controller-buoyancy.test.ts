@@ -66,6 +66,23 @@ function step(frames: number, frameMs = FRAME_MS): void {
   }
 }
 
+/**
+ * A careful ascent: inflate while the diver rises slower than 6 m/min, vent
+ * while faster than 12, one display frame at a time. Holding W all the way
+ * up runs at legacy's 25 m/min cap, which ends the dive in pulmonary
+ * barotrauma after 10 s past 18 m/min (#189), as it does in legacy.
+ */
+function ascendCarefully(controller: GameController, frames: number): void {
+  for (let i = 0; i < frames; i += 1) {
+    const rate = controller.authoritativeState.log.ascentRateMpm;
+    controller.setControl("ascend", rate < 6);
+    controller.setControl("descend", rate > 12);
+    step(1);
+  }
+  controller.setControl("ascend", false);
+  controller.setControl("descend", false);
+}
+
 async function startController(
   initialState: DiveState,
   plannerSettings: Readonly<PlannerSettings> = DEFAULT_PLANNER_SETTINGS,
@@ -400,20 +417,26 @@ describe("the route through the wreck", { timeout: 30_000 }, () => {
   });
 
   it("ends the dive at the surface once the diver has swum out of the wreck", async () => {
+    // In the hold and out again, neutral at 28 m: the deck as the ceiling is
+    // the test above. A diver who left the hold pressed against the deck with
+    // the BCD full would rocket up past 18 m/min and end in barotrauma.
     const { controller, frames } = await startController(neutralAt(28));
     controller.setControl("right", true);
     step(40 * FIN_FRAMES_PER_METRE);
     controller.setControl("right", false);
-    controller.setControl("ascend", true);
-    step(300);
+    expect(frames.at(-1)?.scene.zone).toBe("cargo-hold");
     expect(controller.authoritativeState.completed).toBe(false);
 
     // Out of the hold, the ceiling is the surface again, and legacy's last
-    // check in updateDiving() ends the dive there. 24 m at legacy's 25 m/min
-    // cap is about a minute of dive time.
+    // check in updateDiving() ends the dive there. The diver swims out, then
+    // rises at a controlled 6 to 12 m/min: about 24 m in two to four
+    // minutes of dive time.
     controller.setControl("left", true);
-    step(1500);
+    step(40 * FIN_FRAMES_PER_METRE);
+    controller.setControl("left", false);
+    ascendCarefully(controller, 6000);
     const state = controller.authoritativeState;
+    expect(state.failure.reason).toBeNull();
     expect(state.completed).toBe(true);
     expect(state.depthM).toBeLessThan(0.3);
     expect(state.thirds.startingGasL).toBe(0);
