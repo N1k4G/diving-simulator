@@ -298,7 +298,11 @@ test('the tissue bars draw each compartment\'s load against its M-value at the s
   });
   const screen = page.locator('[data-post-dive]');
   const section = screen.locator('.post-dive-tissues');
-  await expect(section.getByRole('heading', { level: 2 })).toHaveText('Tissue Compartment Loading (N₂ + He)');
+  const heading = section.getByRole('heading', { level: 2 });
+  await expect(heading).toHaveText('Tissue Compartment Loading (N₂ + He)');
+  // As rendered, not only as written: section headings are set in capitals,
+  // which would turn helium's He into HE.
+  expect(await heading.evaluate((el) => el.innerText)).toBe('Tissue Compartment Loading (N₂ + He)');
 
   // Legacy's loading: (pN2 + pHe) / (a + 1 / b), a and b weighted by the loads.
   const mValue = ([a, b]) => a + 1 / b;
@@ -518,6 +522,7 @@ test.describe('on a small phone', () => {
       again: 'Dive again',
       boundary: /^SIMULATION ONLY/,
       chart: /^Depth over 25 min,? 30 sec, deepest 18 m\. No deco ceiling\. 2 marks, numbered as in the violations list\.$/,
+      tissuesHeading: 'Tissue Compartment Loading (N₂ + He)',
       tissues: /^16 compartments, each with its nitrogen and helium load as a share of its M-value at the surface; compartment 16 is highest, at \d+%\.$/,
     },
     'de-DE': {
@@ -526,6 +531,7 @@ test.describe('on a small phone', () => {
       again: 'Neuer Tauchgang',
       boundary: /^NUR SIMULATION/,
       chart: /^Tiefe über 25 Min\.?,? 30 Sek\.?, tiefster Punkt 18 m\. Keine Deko-Decke\. 2 Markierungen, nummeriert wie in der Liste der Verstöße\.$/,
+      tissuesHeading: 'Gewebe-Kompartiment-Sättigung (N₂ + He)',
       tissues: /^16 Kompartimente, jedes mit seiner Stickstoff- und Heliumlast als Anteil seines M-Werts an der Oberfläche; am höchsten ist Kompartiment 16 mit \d+\s%\.$/,
     },
   };
@@ -545,6 +551,8 @@ test.describe('on a small phone', () => {
           await expect(screen.locator('[data-profile-chart]')).toHaveAttribute('aria-label', TEXT[locale].chart);
           await expect(screen.locator('[data-tissue-chart]')).toHaveAttribute('aria-label', TEXT[locale].tissues);
           await expect(screen.locator('[data-tissue-chart] .tissue-bar')).toHaveCount(16);
+          // Legacy's STRINGS.*.tissueLoading as rendered, its formula as written.
+          expect(await screen.locator('.post-dive-tissues h2').evaluate((el) => el.innerText)).toBe(TEXT[locale].tissuesHeading);
           await expect(screen.locator('[data-dive-again]')).toHaveText(TEXT[locale].again);
           await expect(screen.locator('[data-gas=oxygen]')).toHaveCount(rebreather ? 1 : 0);
           await expectMobileLayout(page);

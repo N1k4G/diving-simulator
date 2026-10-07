@@ -526,6 +526,11 @@ summary:focus-visible {
 /* Legacy's tissue bars in drawPostDive(): 16 columns, 100 px tall, a 4 px
    gap; nitrogen in its tier's colour under helium in cyan, and the track's
    top edge the M-value line. */
+/* The heading holds the formula N₂ + He, which capitals would make "HE". */
+.post-dive-tissues .result-section-heading {
+  text-transform: none;
+}
+
 .tissue-plot {
   display: grid;
   grid-template-columns: repeat(16, minmax(0, 1fr));
