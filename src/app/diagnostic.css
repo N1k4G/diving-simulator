@@ -418,7 +418,7 @@ summary:focus-visible {
 
 .profile-area {
   position: absolute;
-  inset: 0.375rem;
+  inset: 0.25rem;
 }
 
 .profile-area svg {
