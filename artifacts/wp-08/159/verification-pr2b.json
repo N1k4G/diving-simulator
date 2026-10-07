@@ -8,7 +8,7 @@
   "workingTree": "clean before the run and still clean after it",
   "recordedAt": "2026-10-07T12:31:33Z",
   "runFinishedAt": "2026-10-07T12:40:51Z",
-  "timestampProvenance": "Both are `date -u` output printed around the run. The visual checks and Playwright ran under the shared e2e port lock, taken at 07:27:10Z.",
+  "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
   "provenanceNote": "On main ce8b666 (#223, #199 slice 7a: the dive starts at the surface and ends by surfacing outside the wreck). The branch was rebased with `git rebase --onto origin/main 4487c76`, which dropped PR 2a's two commits (on main as dd6dac2, #217). Conflicts were in docs/baseline/claims-register.json (ASCENT-001 gained #218's barotrauma sources and this PR's post-dive label; both kept) and src/app/wreck-app.ts (7a's clear-on-completion and this PR's routing, merged into one `ended` flag: on the first completed authoritative state the save is cleared, then a microtask tears the dive down, audio included, and shows the debriefing). 9b4889d adapts the specs to the surface start and replaces the completed-save test with two live surfacing tests. e2c5434 anchors postDive.violations.none in the claims register (pre-review pass 1). The full run above is on e2c5434; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
