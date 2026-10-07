@@ -3,13 +3,13 @@
   "issue": 199,
   "slice": "Slice 7b (with #197): the safety-stop countdown, the rule-of-thirds gauge and its turn beep, and the ascent rate with the fast-ascent warning in the migration HUD, on main after slice 7a (#223)",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "0c4e812d3572ba12bdbfad6b796d9952b5cdb91d",
-  "measuredTree": "b4cbb02fd1a29499ebc7db3b9cdcb6b738135ef2",
+  "measuredCommit": "9fc23220a2d08cf215e19d136087800c44386ae1",
+  "measuredTree": "bee3d457582e109b40df0cc3d91893a734813431",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-07T07:02:07Z",
-  "runFinishedAt": "2026-10-07T07:14:58Z",
+  "recordedAt": "2026-10-07T08:05:25Z",
+  "runFinishedAt": "2026-10-07T08:16:29Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "On main ce8b666, the squash of slice 7a (#223). After 811fc86, 7a gained a silent completed dive, the torch and the nav pad only while diving, the waves stopped after the end, and the 18 m BCD fixture compared to 12 places. The rebase onto ce8b666 (git rebase --onto origin/main 811fc86) kept this slice's own commits and applied without conflicts: updateHud keeps 7a's hiding of the nav pad and torch beside this slice's readouts, and the claims register keeps main's anchors beside this slice's. Two fixes follow. 17cecdf compares the 28 m neutral BCD fixture to 12 places, as Math.pow differs in the last bits on linux CI. 0c4e812 reads a completed dive's ascent rate as 0 and owes it no safety stop: a completed dive is never stepped again, so a dive surfaced fast past a paused stop kept the SLOW DOWN warning, '⚠ ↑ 25 m/min' and the paused stop row on its HUD for good, where legacy's post-dive state draws no dive computer. The surface wait reads 0 m/min with no stop and no gauge, as legacy's drawSurface() draws the dive computer at rest. The full run above is on 0c4e812; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "On main ce8b666, the squash of slice 7a (#223). After 811fc86, 7a gained a silent completed dive, the torch and the nav pad only while diving, the waves stopped after the end, and the 18 m BCD fixture compared to 12 places. The rebase onto ce8b666 (git rebase --onto origin/main 811fc86) kept this slice's own commits and applied without conflicts: updateHud keeps 7a's hiding of the nav pad and torch beside this slice's readouts, and the claims register keeps main's anchors beside this slice's. 17cecdf compares the 28 m neutral BCD fixture to 12 places, as Math.pow differs in the last bits on linux CI. 0c4e812 reads a completed dive's ascent rate as 0 and shows it no safety stop: a completed dive is never stepped again, so a dive surfaced fast past a paused stop kept the SLOW DOWN warning, '⚠ ↑ 25 m/min' and the paused stop row on its HUD for good, where legacy's post-dive state draws no dive computer. f1a7b30 addresses pre-review pass 1 on #226: the stop row keeps legacy's 'SAFETY STOP / Complete' once done, until the stop starts over below 11 m or the dive ends, and gives way to deco on the model's ceiling of the same tick (log.lastCeilingM at the dive's GF high, legacy's frameCalc.ceiling) instead of the worker's forecast, which is pending after every gas switch, setpoint change and bailout and on a resumed dive. 9119385 and 9fc2322 close two first-frame races in existing specs: the CNS test lost an I press on linux CI (run for 722438f), and the cross-client trace failed once on 9119385 under load (below); both now wait for the dive's first frame, with no assertion changed. The surface wait reads 0 m/min with no stop and no gauge, as legacy's drawSurface() draws the dive computer at rest. The full run above is on 9fc2322; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -25,22 +25,22 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "527 passed (515 on main ce8b666; +12: 7 in tests/unit/presentation-state.test.ts, 4 in tests/unit/thirds-turn-beep.test.ts, 1 in src/app/i18n/i18n.test.ts)",
+    "unit": "530 passed (515 on main ce8b666; +15: 10 in tests/unit/presentation-state.test.ts, 4 in tests/unit/thirds-turn-beep.test.ts, 1 in src/app/i18n/i18n.test.ts)",
     "parity": "266 passed (266 on main ce8b666; unchanged, this slice changes no model code)",
-    "e2e": "154 passed in 8.4 min (149 on main ce8b666; +5 in tests/hud-readouts.spec.js)",
+    "e2e": "155 passed in 7.9 min (149 on main ce8b666; +6 in tests/hud-readouts.spec.js)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels against main's frames (the HUD is outside the captured viewport; no frame changes)",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
   "portedFromTheOracle": {
     "ascentRate": "src/renderer.js drawDiveComputer: the chevrons' direction past 0.5 m/min and Math.round(|ascentRate|) in m/min; the rate is the model's log.ascentRateMpm, legacy's -(depth - prevDepth) / dtDiveMinutes.",
     "fastAscent": "The warning banner's SLOW DOWN past 9 m/min up (warnSlow), ranked below the oxygen warning and above the gas warnings as legacy's banner ranks it, with the hasWarning beep through the alert.warning cue; in words in the alert region and the status chip, and a ⚠ on the rate's row.",
-    "safetyStop": "The stop box's safety-stop half: shown while safetyStopNeeded and not complete, giving way to the decompression stop while there is a ceiling; the nominal depth round((2.4 + 8.3) / 2) = 5 m with calculateSafetyStopDuration() before the countdown, then the floored countdown, paused (caution tone, and the word) outside the band.",
+    "safetyStop": "The stop box's safety-stop half: the nominal depth round((2.4 + 8.3) / 2) = 5 m with calculateSafetyStopDuration() before the countdown, then the floored countdown, paused (caution tone, and the word) outside the band; once done, `else if (safetyStopComplete)`: 'SAFETY STOP / Complete', until the diver goes back below 11 m (the model's reset) or the dive ends. Legacy draws the English literal in both languages; the German row reads 'Absolviert', legacy's German debrief word (gradeNotes.safetyDone). While there is a ceiling the box shows the decompression stop instead (showStopBox = inDeco || ...): decided on the model's log.lastCeilingM, legacy's frameCalc.ceiling of the same tick, not on the worker's forecast.",
     "ruleOfThirds": "hud-thirds: shown under an overhead, the phase by legacy's strict > 2/3 and > 1/3 over all cylinders' gas against the plan, and Math.round of the fraction; the turn in the caution tone, the reserve with the ⚠ of its danger tone; playAlertBeep() once as thirdsTurnWarned latches, not again on resuming a latched dive.",
-    "claims": "docs/baseline/claims-register.json anchors the new strings in both locales: wreck.warning.fastAscent, wreck.hud.warning.fastAscent and wreck.hud.ascentRate* under ASCENT-001, wreck.hud.safetyStop* under SAFETY-STOP-001, wreck.hud.thirds* under GAS-001.",
+    "claims": "docs/baseline/claims-register.json anchors the new strings in both locales: wreck.warning.fastAscent, wreck.hud.warning.fastAscent and wreck.hud.ascentRate* under ASCENT-001, wreck.hud.safetyStop* (Complete included) under SAFETY-STOP-001, wreck.hud.thirds* under GAS-001.",
     "afterTheEnd": "Legacy's post-dive state draws no dive computer, and updateCompletion logs a stop not made as skipped as the dive ends: the presentation reads a completed dive's rate as 0 and owes it no stop, so the rate row, the SLOW DOWN warning and the stop row do not stay frozen on the ended dive's HUD."
   },
   "counterChecks": {
-    "method": "Each revert was applied to a copy restored from a backup and the named tests were run: unit reverts against tests/unit/presentation-state.test.ts, tests/unit/thirds-turn-beep.test.ts and src/app/i18n/i18n.test.ts; HUD reverts against a fresh build and tests/hud-readouts.spec.js under the port lock. Each file was restored byte for byte (filecmp) and the tree checked clean after the set. Run on the rebased code at 0c4e812 with fresh backups: all eleven fail as listed.",
+    "method": "Each revert was applied to a copy restored from a backup and the named tests were run: unit reverts against tests/unit/presentation-state.test.ts, tests/unit/thirds-turn-beep.test.ts and src/app/i18n/i18n.test.ts; HUD reverts against a fresh build and tests/hud-readouts.spec.js under the port lock. Each file was restored byte for byte (filecmp) and the tree checked clean after the set. Run on 9fc2322 with fresh backups: all thirteen fail as listed. The former check 'the safety stop shown when already complete' encoded legacy's missing Complete state and is replaced by the three Complete checks.",
     "results": [
       {
         "revert": "ascent rate not passed through to the presentation",
@@ -55,8 +55,16 @@
         "result": "2 failed: the paused countdown, and the completed dive's readouts"
       },
       {
-        "revert": "the safety stop shown when already complete",
-        "result": "1 failed: no stop unless owed and not done"
+        "revert": "a done stop not shown (the omission before pre-review pass 1)",
+        "result": "4 failed (unit): Complete, Complete dropped below 11 m, the ceiling test's done stop, the completed dive's readouts; 1 failed (e2e): a finished stop reads Complete"
+      },
+      {
+        "revert": "the stop does not start over below 11 m, so Complete stays",
+        "result": "1 failed: Complete dropped below 11 m"
+      },
+      {
+        "revert": "the safety stop does not give way to the model's ceiling",
+        "result": "1 failed: deco from the model's ceiling with no forecast"
       },
       {
         "revert": "thirds boundary at two thirds inclusive",
@@ -72,10 +80,10 @@
       },
       {
         "revert": "a completed dive keeps its last ascent rate",
-        "result": "1 failed (unit): the completed dive's readouts; 1 failed (e2e): the dive surfaced fast reads '⚠ ↑ 25 m/min', not '0 m/min'"
+        "result": "1 failed (unit): the completed dive's readouts; 1 failed (e2e): the dive surfaced fast"
       },
       {
-        "revert": "a completed dive still owes its safety stop",
+        "revert": "a completed dive still shows its stop",
         "result": "1 failed (unit): the completed dive's readouts; 1 failed (e2e): the stop row stays visible after the end"
       },
       {
@@ -84,18 +92,28 @@
       },
       {
         "revert": "the readout rows never written",
-        "result": "5 failed: every tests/hud-readouts.spec.js test"
+        "result": "6 failed: every tests/hud-readouts.spec.js test"
       }
     ]
   },
   "deferred": "Legacy's red screen flash for a fast ascent, its chevron count and its flashing past 18 m/min are not drawn (#222); the alert, the chip, the beep and the row's ⚠ carry the warning. Showing the readouts on the post-dive screen is #159 PR 2b.",
   "durableProvenance": {
-    "src": "88ce2e1dd4c7a28d3f1ed39acfc66f57aa504130",
-    "tests": "7fc53425264681f0ab313185a8ea023b725e4db3",
+    "src": "4ce934801b7a12a0f12c49dfb77c4b01f433236d",
+    "tests": "5283a1ea4a743b6aaa43173a4cde3d72e7e8dbac",
     "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
     "docs": "51c58a1ed7f9a616cc9d2f34ba40190fd1d28f15"
   },
   "earlierRuns": [
+    {
+      "measuredCommit": "9119385582783d690e2e1862372623dfd263f7bb",
+      "recordedAt": "2026-10-07T07:53:05Z",
+      "note": "154 passed, 1 failed: tests/wreck-slice.spec.js 'the same input trace drives equivalent legacy and Pixi control semantics' read the Pixi diver as stationary under load. Every other step passed (530 unit, 266 parity). It read the depth and held the down arrow straight after the canvas appeared, before the dive's first frame; 9fc2322 waits for that frame, and the run above passed."
+    },
+    {
+      "measuredCommit": "0c4e812d3572ba12bdbfad6b796d9952b5cdb91d",
+      "recordedAt": "2026-10-07T07:02:07Z",
+      "note": "Before pre-review pass 1 on #226: 527 unit, 266 parity, 154 e2e, all passing, with eleven counter-checks; superseded by the run above. On linux CI its head 722438f lost an I press in the CNS test, fixed in 9119385."
+    },
     {
       "measuredCommit": "0c4e812d3572ba12bdbfad6b796d9952b5cdb91d",
       "recordedAt": "2026-10-07T06:43:36Z",
