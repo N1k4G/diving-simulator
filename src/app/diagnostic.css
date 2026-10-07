@@ -523,6 +523,91 @@ summary:focus-visible {
   background: #ff3b3b;
 }
 
+/* Legacy's tissue bars in drawPostDive(): 16 columns, 100 px tall, a 4 px
+   gap; nitrogen in its tier's colour under helium in cyan, and the track's
+   top edge the M-value line. */
+/* The heading holds the formula N₂ + He, which capitals would make "HE". */
+.post-dive-tissues .result-section-heading {
+  text-transform: none;
+}
+
+.tissue-plot {
+  display: grid;
+  grid-template-columns: repeat(16, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+
+.tissue-bar {
+  --tier: #46f08f;
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+}
+
+.tissue-bar[data-tier="caution"] {
+  --tier: #ffb84d;
+}
+
+.tissue-bar[data-tier="danger"] {
+  --tier: #ff7b7b;
+}
+
+.tissue-track {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  width: 100%;
+  height: 6.25rem;
+  border-top: 1px solid rgb(255 75 75 / 65%);
+  background: rgb(130 160 180 / 14%);
+}
+
+.tissue-n2 {
+  background: var(--tier);
+}
+
+.tissue-he {
+  background: #34e6ff;
+}
+
+.tissue-label {
+  color: #aab6c1;
+  font: 0.6rem ui-monospace, monospace;
+  overflow-wrap: normal;
+}
+
+.tissue-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  color: #aab6c1;
+  font-size: 0.8rem;
+  list-style: none;
+}
+
+.tissue-legend li::before {
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  margin-right: 0.35rem;
+  background: #46f08f;
+  vertical-align: middle;
+  content: "";
+}
+
+.tissue-legend .tissue-key-he::before {
+  background: #34e6ff;
+}
+
+.tissue-legend .tissue-key-m-value::before {
+  width: 1rem;
+  height: 0;
+  border-top: 1px solid rgb(255 75 75 / 65%);
+  background: none;
+}
+
 .wreck-shell {
   position: relative;
   display: grid;

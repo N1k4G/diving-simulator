@@ -301,6 +301,11 @@ const englishMessages = {
   "postDive.profile.key.depth": "Depth",
   "postDive.profile.key.ceiling": "Deco ceiling",
   "postDive.profile.key.marker": "Violation, numbered as listed",
+  "postDive.tissues": "Tissue Compartment Loading (N₂ + He)",
+  "postDive.tissues.alt": "{count} compartments, each with its nitrogen and helium load as a share of its M-value at the surface; compartment {n} is highest, at {percent}.",
+  "postDive.tissues.key.nitrogen": "N₂",
+  "postDive.tissues.key.helium": "He",
+  "postDive.tissues.key.mValue": "M-value at the surface",
 } as const;
 
 export type MessageKey = keyof typeof englishMessages;
@@ -604,6 +609,11 @@ const catalog: Record<SupportedLocale, Record<MessageKey, string>> = {
     "postDive.profile.key.depth": "Tiefe",
     "postDive.profile.key.ceiling": "Deko-Decke",
     "postDive.profile.key.marker": "Verstoß, nummeriert wie in der Liste",
+    "postDive.tissues": "Gewebe-Kompartiment-Sättigung (N₂ + He)",
+    "postDive.tissues.alt": "{count} Kompartimente, jedes mit seiner Stickstoff- und Heliumlast als Anteil seines M-Werts an der Oberfläche; am höchsten ist Kompartiment {n} mit {percent}.",
+    "postDive.tissues.key.nitrogen": "N₂",
+    "postDive.tissues.key.helium": "He",
+    "postDive.tissues.key.mValue": "M-Wert an der Oberfläche",
   },
 };
 

@@ -8,6 +8,12 @@ import type {
   DiveState,
   GasMix,
 } from "../core/dive-state";
+import { compartmentSaturation } from "../planner/dive-planner";
+
+/** Legacy's drawPostDive() takes each M-value at the surface, at 1.0 bar. */
+const SURFACE_BAR = 1;
+/** Legacy's n2Frac counts a compartment below this load as all nitrogen. */
+const EMPTY_COMPARTMENT_BAR = 0.0001;
 
 /** One open-circuit cylinder: legacy's `totalGas - gasRemaining` of `totalGas`. */
 export interface PostDiveCylinder {
@@ -39,6 +45,20 @@ export interface PostDiveRebreather {
  */
 export type SafetyStopOutcome = "done" | "not-needed" | "skipped";
 
+/**
+ * One compartment's load at the end of the dive, legacy's tissue bar in
+ * drawPostDive(): nitrogen plus helium as a share of the compartment's
+ * M-value at the surface, `(pN2 + pHe) / (a + 1 / b)`, with a and b weighted
+ * by the two gases' loads (legacy's combinedAB) and no gradient factor. It
+ * is the gas-information page's M-value ratio, taken at 1.0 bar instead of
+ * at the current depth.
+ */
+export interface PostDiveTissue {
+  readonly loading: number;
+  /** Nitrogen's share of the load, legacy's n2Frac: 1 for an empty compartment. */
+  readonly nitrogenFraction: number;
+}
+
 export interface PostDiveSummary {
   readonly elapsedTimeS: number;
   readonly maxDepthM: number;
@@ -52,6 +72,8 @@ export interface PostDiveSummary {
   readonly rebreather: PostDiveRebreather | null;
   readonly safetyStop: SafetyStopOutcome;
   readonly profile: readonly Readonly<DiveProfileSample>[];
+  /** The 16 compartments, fastest first. */
+  readonly tissues: readonly PostDiveTissue[];
 }
 
 export function createPostDiveSummary(
@@ -83,6 +105,15 @@ export function createPostDiveSummary(
           startL: tank.startGasL,
         }),
       );
+  const { nitrogenBar, heliumBar } = state.tissues;
+  const tissues = compartmentSaturation(state.tissues, SURFACE_BAR).map((compartment, index) => {
+    const nitrogen = nitrogenBar[index] ?? 0;
+    const total = nitrogen + (heliumBar[index] ?? 0);
+    return Object.freeze({
+      loading: compartment.mValueRatio,
+      nitrogenFraction: total > EMPTY_COMPARTMENT_BAR ? nitrogen / total : 1,
+    });
+  });
   return Object.freeze({
     elapsedTimeS: state.elapsedTimeS,
     maxDepthM: state.maxDepthM,
@@ -97,5 +128,6 @@ export function createPostDiveSummary(
         ? "done"
         : "skipped",
     profile: log.profile,
+    tissues: Object.freeze(tissues),
   });
 }

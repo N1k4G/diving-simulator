@@ -1,0 +1,102 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 221,
+  "slice": "Legacy's tissue-loading bars on the post-dive screen: drawPostDive()'s bar graph below the profile chart, as HTML inside the screen, with a text alternative",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "efc62a47706073cb4d19c9acfb979b77a927ffd9",
+  "measuredTree": "c8111e207e7a8375015f7a6b4af5da02c9f65cd3",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-10-07T20:22:37Z",
+  "runFinishedAt": "2026-10-07T20:35:42Z",
+  "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
+  "provenanceNote": "On main 7976853 (#230: the dive-profile chart): the bars in 07fde0d, their first evidence in dbbade9, and efc62a4, which shows the section's heading as written. Section headings on the result screens are set in capitals, which turned the formula's He into HE; the tissue heading now turns them off, and the spec reads its rendered text (innerText) in English and German. The full run above is on efc62a4; later commits only update this file.",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass: site resources match src/sites.js (4 sites)",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "527 passed (520 on main 7976853; +5 in tests/unit/tissue-bars.test.ts, +2 in tests/unit/post-dive-summary.test.ts)",
+    "parity": "332 passed (266 on main 7976853; +66 in tests/parity/post-dive.test.ts: one per recorded checkpoint, 65, and the coverage test)",
+    "e2e": "166 passed in 8.5 min (165 on main 7976853; +1 in tests/post-dive.spec.js: the tissue-bar test)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels, against main's frames (none re-recorded)",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "portedFromTheOracle": {
+    "quantity": "src/renderer.js drawPostDive(): for each of the 16 compartments, ab = combinedAB(i) (src/physics.js: a and b weighted by the nitrogen and helium loads, ZHL-16C nitrogen values for a compartment under 0.0001 bar), m0 = ab.a + 1.0 / ab.b, loading = (tissues[i] + tissuesHe[i]) / m0: the load as a share of the M-value at the surface, with no gradient factor. In the migration this is compartmentSaturation(tissues, 1).mValueRatio (src/planner/dive-planner.ts), the function the gas-information page's tissue bars use at the current depth; the post-dive summary takes it at 1.0 bar, legacy's surface.",
+    "bars": "Height min(barMaxH, loading * barMaxH), so full at the M-value and no taller; nitrogen n2Frac = tissues[i] / total (1 below 0.0001 bar) of it at the bottom, helium the rest on top, drawn only when over 0.5 px of the 100 px bar; nitrogen hudColor('danger') above 0.9, 'caution' above 0.7, else 'ok', helium #34e6ff; an M-value line at the top of each bar; the compartment number under each; a legend for N2 and He; STRINGS.*.tissueLoading as the heading.",
+    "text": "postDive.tissues (en, de) is legacy's STRINGS.*.tissueLoading verbatim, and is shown as written: the section's heading does not take the result screens' capitals, so N₂ + He stays as it is; postDive.tissues.alt names the bars for assistive technology; postDive.tissues.key.* is the legend. STRINGS.*.tissueLoading and postDive.tissues* are anchored under DECOMPRESSION-001."
+  },
+  "departuresInPresentation": "The bars are HTML boxes in a 16-column grid sized in percent, so they take the screen's width as the profile chart does (legacy draws both 320 px wide). The bars follow the violations list rather than sitting straight under the chart, so the chart's numbered markers stay next to the entries they number; legacy has no such list. To assistive technology the bars are one role=img named by a sentence: the measure, and the compartment with the highest loading and its percentage. The legend also names the M-value line, which legacy's legend leaves unexplained, and is aria-hidden as the sentence and the heading carry the meaning. The tier colours are the screen's score-tier colours (#46f08f, #ffb84d, #ff7b7b), not legacy's hudColor() values; helium keeps legacy's #34e6ff. The owner confirmed the placement, the third legend entry and the colours on 2026-10-07, and asked for the heading to keep He as written.",
+  "browserChecks": "tests/post-dive.spec.js: on a resumed completed save with compartment 3 half helium (0.6 + 0.6 bar), 12 at 1.1 bar and 16 at 1.18 bar of nitrogen, within the 0.1 m surfacing ceiling at GF high 75%: the heading as written and as rendered (innerText, He not in capitals), the accessible name ('compartment 16 is highest, at 93%', computed from the ZHL-16C values), 16 bars labelled 1 to 16, tiers ok, caution and danger for 3, 12 and 16, the nitrogen and helium heights against legacy's formula (toBeCloseTo, to 0.5% of the bar), helium in bar 3 only, the legend, and the bars below the chart and below the violations list. At 844 x 390 and 667 x 375 in English and German: 16 bars below the chart, the boundary line whole without scrolling, and the #120/#121 layout checks. At 320 x 568 in English and German on open circuit and a rebreather: the bars' accessible name and count and the heading's rendered text, with the layout checks.",
+  "parity": "tests/parity/post-dive.test.ts runs legacy's own source: the ZHL16C_N2 and ZHL16C_HE tables from src/constants.js, combinedAB() from src/physics.js and drawPostDive()'s statements from `var ab = combinedAB(i);` to the nitrogen fill from src/renderer.js, extracted with ?raw, against every checkpoint of every recorded trace in tests/fixtures/traces/baseline-v1.json (65), comparing loading, the nitrogen and helium heights (toBeCloseTo) and the tier with the summary's bars. The coverage test requires air-18m-30min/surfaced, the trace that ends on legacy's post-dive screen, and that the fixture exercises a helium part and all three tiers.",
+  "counterChecks": {
+    "method": "The first nine ran on 07fde0d; efc62a4 changes none of the mutated lines (it adds one CSS rule and spec assertions), and the spec gained checks in that commit, none removed. The heading check ran on the efc62a4 change before it was committed, same method. Each mutation was applied to a copy of the file taken from a backup; unit mutations were checked with tests/unit/post-dive-summary.test.ts, tests/unit/tissue-bars.test.ts and tests/parity/post-dive.test.ts (145 tests), screen mutations with the whole of tests/post-dive.spec.js (15 tests) after rebuilding dist/ (npm run build, typecheck included), under the port lock. After each, the file was restored from the backup and its sha256 compared with the one taken before the mutation (all equal), and git status was clean at the end. A first run of the 'bars left off' mutation removed the call and left its import unused, so the build failed and the spec ran against the previous dist/ (1 of 15 failed); it was re-run with the call replaced by `void renderTissueBars;`, with the build's exit code checked, and that result is the one below.",
+    "results": [
+      {
+        "revert": "the loading taken against the M-value at the current depth instead of at the surface",
+        "result": "53 of 145 failed: the summary's unit test and every parity checkpoint below the surface"
+      },
+      {
+        "revert": "an empty compartment counted as all helium (n2Frac 0)",
+        "result": "1 of 145 failed: the empty-compartment unit test"
+      },
+      {
+        "revert": "the bar not capped at the M-value line",
+        "result": "20 of 145 failed: the height unit test and the parity checkpoints with a compartment past its surface M-value"
+      },
+      {
+        "revert": "the helium part drawn under half a pixel",
+        "result": "1 of 145 failed: the half-pixel unit test"
+      },
+      {
+        "revert": "the gas-information page's tiers (danger from 1.0, caution from 0.8) instead of legacy's post-dive ones",
+        "result": "34 of 145 failed: the tier unit test and the parity checkpoints with a compartment between the two sets of thresholds; in the browser 1 of 15 failed, the tissue-bar test (compartment 16 at 93%)"
+      },
+      {
+        "revert": "the bars left off the screen",
+        "result": "9 of 15 failed: the tissue-bar test, the four sideways cases and the four small-phone cases"
+      },
+      {
+        "revert": "the bars without role=img",
+        "result": "1 of 15 failed: the tissue-bar test"
+      },
+      {
+        "revert": "the bars placed at the top of the screen, above the heading and the boundary line",
+        "result": "5 of 15 failed: the tissue-bar test and the four sideways cases"
+      },
+      {
+        "revert": "the text alternative naming the lowest compartment instead of the highest",
+        "result": "5 of 15 failed: the tissue-bar test and the four small-phone cases"
+      },
+      {
+        "revert": "the tissue heading back in the result screens' capitals (its text-transform: none rule disabled)",
+        "result": "5 of 15 failed: the tissue-bar test and the four small-phone cases (the rendered heading reads N₂ + HE)"
+      }
+    ]
+  },
+  "durableProvenance": {
+    "src": "21172b254843e1a7af8fabc8d2fa33b80b932f3e",
+    "tests": "cd0e18e855993e5193070bf73893927ac9cf75af",
+    "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
+    "docs": "962eda1ab1e91d08608f30422da66916f4af0471"
+  },
+  "earlierRuns": [
+    {
+      "measuredCommit": "07fde0d336a174d6241b45728b66c89580a46738",
+      "measuredTree": "10c42936deadbf9c81d36c0f68c7fff2ad749a20",
+      "recordedAt": "2026-10-07T20:01:34Z",
+      "runFinishedAt": "2026-10-07T20:14:37Z",
+      "note": "Full run on main 7976853 before the heading fix, on a clean tree: unit 527, parity 332, e2e 166 in 8.9 min, Pixi 0% changed pixels, interior probe and 9 scenes ok, all passing. Durable provenance then: src abc6a7fe915cb0dd86ea6c9b6a9f04ca7a649917, tests 49445bbc1cd7297da843c924eb0484e3d7dda990. Superseded by the run above."
+    }
+  ]
+}
