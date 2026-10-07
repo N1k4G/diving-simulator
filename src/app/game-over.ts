@@ -150,7 +150,13 @@ export function renderGameOverScreen(
   heading.tabIndex = -1;
   const reason = element("p", "game-over-reason", t(REASON_KEYS[content.reason]));
   reason.dataset.gameOverReason = "true";
-  screen.append(eyebrow, heading, reason);
+  // docs/decisions.md: SIMULATION stays visible wherever a screen could be
+  // mistaken for a real dive computer. This one reports a dive's end with its
+  // time and depth, so it carries the post-dive screen's boundary line (#227),
+  // legacy's STRINGS.*.simulationBoundary, under the reason (#229).
+  const boundary = element("p", "result-boundary", t("result.simulationBoundary"));
+  boundary.dataset.simulationBoundary = "true";
+  screen.append(eyebrow, heading, reason, boundary);
 
   const explanation = EXPLANATIONS[content.reason];
   if (explanation) {
