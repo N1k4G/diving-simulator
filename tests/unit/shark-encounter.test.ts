@@ -145,7 +145,8 @@ describe("the shark encounter", () => {
     const survived = stepWith(shark({ offsetM: -1 }), [0.33]);
     expect(survived.attacked).toBe(false);
     expect(survived.shark.encounter).toMatchObject({ passed: true, speedMps: SHARK_PASSED_SPEED_MPS });
-    expect(stepWith(survived.shark, []).attacked).toBe(false);
+    // Still beside the diver a millisecond later: no second roll.
+    expect(stepWith(survived.shark, [], 10, 0.001).shark.encounter).toMatchObject({ passed: true });
     // The window is open at its edges.
     expect(stepWith(shark({ offsetM: -4.5 }), []).shark.encounter!.passed).toBe(false);
     expect(stepWith(shark({ offsetM: -1, depthM: metres(13.3) }), []).shark.encounter!.passed).toBe(false);
@@ -153,6 +154,7 @@ describe("the shark encounter", () => {
 
   it("leaves 7.5 m beyond the view's edge in its heading", () => {
     expect(stepWith(shark({ offsetM: 30.1, passed: true }), []).shark.encounter).toBeNull();
+    expect(stepWith(shark({ offsetM: 29.9, passed: true }), []).shark.encounter!.offsetM).toBeCloseTo(32.4, 12);
     expect(stepWith(shark({ offsetM: 29.9, passed: true, direction: -1 }), []).shark.encounter).not.toBeNull();
     expect(stepWith(shark({ offsetM: -30.1, passed: true, direction: -1 }), []).shark.encounter).toBeNull();
   });
