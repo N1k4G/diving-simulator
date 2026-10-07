@@ -161,7 +161,13 @@ const SCENES = [
     // the torch. It disabled it: GameController starts torchOn=true. The scene
     // captured the opposite of its name and duplicated coverage it claimed to
     // add, and nothing noticed because a frame is a frame.
+    //
+    // The torch works only while diving (#223 Codex round 1), so the scene
+    // first descends as wreck-descended does, and differs from it only in
+    // the beam.
     frames: 30,
+    hold: { key: 'ArrowDown', frames: 1200 },
+    minDepthM: 15,
     press: 't',
     expectTorch: false,
   },

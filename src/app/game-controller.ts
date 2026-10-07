@@ -210,7 +210,15 @@ export class GameController {
     }
   }
 
+  /**
+   * Legacy reads T inside updateDiving() (src/game-loop.js D6), so the torch
+   * works only while diving: not while the dive waits at the surface, nor
+   * once it has ended (#223 Codex round 1).
+   */
   toggleTorch(): void {
+    if (!this.#torchAvailable()) {
+      return;
+    }
     this.#torchOn = !this.#torchOn;
     this.#publishFrame();
   }
@@ -390,10 +398,15 @@ export class GameController {
       (this.#pressed.has("right") ? 1 : 0) -
       (this.#pressed.has("left") ? 1 : 0);
 
+    // A dive that has ended moves no more, its waves included: legacy's
+    // post-dive state draws no scene (#223 Codex round 1).
+    if (isDiveOver(this.#model.snapshot)) {
+      return;
+    }
+    // At the surface before the dive the waves move, but legacy's
+    // updateSurface reads S and nothing else.
     this.#elapsedRealS += elapsedS;
-    // At the surface before the dive, legacy's updateSurface reads S and
-    // nothing else; after it, a dive that has ended moves no more.
-    if (this.#awaitingDescent || isDiveOver(this.#model.snapshot)) {
+    if (this.#awaitingDescent) {
       return;
     }
     if (horizontal !== 0) {
@@ -405,6 +418,10 @@ export class GameController {
       this.#routePositionM + horizontal * FIN_SPEED_MPS * elapsedS,
       this.#model.snapshot.depthM,
     );
+  }
+
+  #torchAvailable(): boolean {
+    return !this.#awaitingDescent && !isDiveOver(this.#model.snapshot);
   }
 
   /**
@@ -569,7 +586,11 @@ export class GameController {
       this.setControl(control, true);
       return;
     }
-    if (event.key.toLowerCase() === "t" && !event.repeat) {
+    if (
+      event.key.toLowerCase() === "t" &&
+      !event.repeat &&
+      this.#torchAvailable()
+    ) {
       event.preventDefault();
       this.toggleTorch();
       return;

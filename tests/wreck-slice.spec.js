@@ -51,10 +51,13 @@ test('production starts the Pixi wreck shell with semantic HUD and controls', as
   await expect(viewport.locator('canvas')).toBeVisible();
   await expect(page.getByText('Simulation running')).toBeVisible();
   await expect(page.getByText('Wreck exterior')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Toggle torch' })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  // Legacy offers the torch only while diving (#223 Codex round 1): at the
+  // surface the button is hidden and T does nothing.
+  const torch = page.locator('[data-torch]');
+  await expect(torch).toBeHidden();
+  await expect(torch).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('t');
+  await expect(torch).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('button', { name: 'Mute audio' })).toHaveAttribute(
     'aria-pressed',
     'false',
@@ -65,18 +68,22 @@ test('production starts the Pixi wreck shell with semantic HUD and controls', as
     'true',
   );
 
-  await page.getByRole('button', { name: 'Toggle torch' }).click();
-  await expect(page.getByRole('button', { name: 'Toggle torch' })).toHaveAttribute(
-    'aria-pressed',
-    'false',
-  );
-
   const depthValue = page.locator('.wreck-hud dd').first();
   const initialDepth = await depthValue.textContent();
   await page.keyboard.down('ArrowDown');
   await page.waitForTimeout(1250);
   await page.keyboard.up('ArrowDown');
   await expect(depthValue).not.toHaveText(initialDepth || '');
+
+  await expect(page.getByRole('button', { name: 'Toggle torch' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await page.getByRole('button', { name: 'Toggle torch' }).click();
+  await expect(page.getByRole('button', { name: 'Toggle torch' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
   await expect(page.locator('[role="alert"]')).toBeHidden();
 
   // Compare like with like. Reading the HUD here and asserting the restored HUD
@@ -186,6 +193,8 @@ test('a dive completed at the surface leaves no save, and the next start is a ne
     undefined,
     { timeout: 30_000 },
   );
+  // The torch is offered only while diving (#223 Codex round 1).
+  await expect(page.locator('[data-torch]')).toBeHidden();
   // The dive's sound stops with it.
   await expect
     .poll(() =>
@@ -497,10 +506,9 @@ async function readPixiObservation(page) {
   const depthText = await page.locator('.wreck-hud dd').first().textContent();
   return {
     depthM: Number.parseFloat((depthText || '').replace(',', '.')),
-    torchOn:
-      (await page
-        .getByRole('button', { name: 'Toggle torch' })
-        .getAttribute('aria-pressed')) === 'true',
+    // By its data attribute, not its role: at the surface the button is
+    // hidden (#223 Codex round 1), and getByRole skips hidden elements.
+    torchOn: (await page.locator('[data-torch]').getAttribute('aria-pressed')) === 'true',
   };
 }
 

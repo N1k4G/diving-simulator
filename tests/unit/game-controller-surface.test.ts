@@ -132,6 +132,23 @@ describe("waiting at the surface, as legacy's updateSurface()", () => {
     controller.destroy();
   });
 
+  it("works no torch, by key or by button, while the waves still move", async () => {
+    // Legacy reads T inside updateDiving() only (#223 Codex round 1).
+    const { controller, frames } = await startController(createWreckInitialState());
+    const torch = frames.at(-1)?.scene.torchOn;
+    const waves = frames.at(-1)?.scene.elapsedRealS ?? 0;
+    expect(press("t")).toBe(false);
+    controller.toggleTorch();
+    step(10);
+    expect(frames.at(-1)?.scene.torchOn).toBe(torch);
+    expect(frames.at(-1)?.scene.elapsedRealS).toBeGreaterThan(waves);
+
+    controller.setControl("descend", true);
+    expect(press("t")).toBe(true);
+    expect(frames.at(-1)?.scene.torchOn).toBe(!torch);
+    controller.destroy();
+  });
+
   it("leaves the surface with legacy's 2 L in the BCD, at rest, even from a save holding 0 L", async () => {
     // A legacy save written in 'surface': resetDive() leaves the BCD empty.
     const legacySurface = freezeDiveState({
@@ -160,7 +177,7 @@ describe("waiting at the surface, as legacy's updateSurface()", () => {
 });
 
 describe("a dive that has ended", () => {
-  it("takes no movement keys and no T", async () => {
+  it("takes no movement keys and no T, and its scene stops", async () => {
     // Surfacing gently from 1 m on a dive with time and depth behind it.
     const base = createInitialDiveState(5);
     const nearlyUp = freezeDiveState({
@@ -180,8 +197,14 @@ describe("a dive that has ended", () => {
       expect(press(key), key).toBe(false);
     }
     expect(press("w", "keyup")).toBe(false);
+    controller.toggleTorch();
     step(1);
     expect(frames.at(-1)?.scene.torchOn).toBe(torch);
+    // The waves and the bubbles stand still: legacy's post-dive state draws
+    // no scene (#223 Codex round 1).
+    const waves = frames.at(-1)?.scene.elapsedRealS;
+    step(60);
+    expect(frames.at(-1)?.scene.elapsedRealS).toBe(waves);
     controller.destroy();
   });
 });

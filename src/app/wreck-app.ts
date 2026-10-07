@@ -794,6 +794,13 @@ function updateHud(
   );
   hud.zone.textContent = translate(locale, zoneMessageKeys[scene.zone]);
   hud.torch.setAttribute("aria-pressed", String(scene.torchOn));
+  // Legacy shows its torch button and reads T only in 'diving' (touch.js
+  // touchUpdateUI, game-loop.js D6): not while the dive waits at the
+  // surface, nor once it has ended (#223 Codex round 1).
+  hud.torch.hidden =
+    frame.awaitingDescent ||
+    presentation.completed ||
+    presentation.status === "failed";
   syncTankControls(hud.tanks, presentation, locale, frame.awaitingDescent);
 
   const severity = selectWarning(presentation);

@@ -503,6 +503,8 @@ test('the torch key and the torch button reach the same state', async ({ page })
   await page.evaluate(() => window.localStorage.clear());
   await startDiveByKeyboard(page);
   await page.locator('[data-renderer=pixi] canvas').waitFor();
+  // The torch works only while diving (#223 Codex round 1).
+  await beginDescent(page);
   const torch = page.locator('[data-torch]');
   await expect(torch).toHaveAttribute('aria-pressed', 'true');
 
