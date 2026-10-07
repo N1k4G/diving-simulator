@@ -151,6 +151,7 @@ const safetyStopPhaseKeys: Record<PresentationSafetyStop["phase"], MessageKey> =
   planned: "wreck.hud.safetyStop.planned",
   running: "wreck.hud.safetyStop.running",
   paused: "wreck.hud.safetyStop.paused",
+  complete: "wreck.hud.safetyStop.complete",
 };
 
 export function renderWreckApplication(
@@ -1091,15 +1092,18 @@ function syncDiveReadouts(
         : formatVerticalRate(0, locale);
   writeLoopRow(hud.ascentRate, rateText, rate > FAST_ASCENT_RATE_MPM, locale);
 
+  // The presentation already gives way to the decompression stop, from the
+  // model's ceiling on this tick (selectSafetyStop), not the worker's forecast.
   const stop = presentation.safetyStop;
-  const inDeco = presentation.planner !== null && presentation.planner.ceilingM > 0;
-  setMetricHidden(hud.safetyStop, stop === null || inDeco);
-  if (stop !== null && !inDeco) {
+  setMetricHidden(hud.safetyStop, stop === null);
+  if (stop !== null) {
     // Legacy floors the countdown's minutes and seconds.
     const duration =
-      stop.phase === "planned"
-        ? formatWholeMinutes(stop.remainingS, locale)
-        : formatDuration(Math.floor(stop.remainingS), locale);
+      stop.phase === "complete"
+        ? ""
+        : stop.phase === "planned"
+          ? formatWholeMinutes(stop.remainingS, locale)
+          : formatDuration(Math.floor(stop.remainingS), locale);
     writeLoopRow(
       hud.safetyStop,
       translate(locale, safetyStopPhaseKeys[stop.phase])

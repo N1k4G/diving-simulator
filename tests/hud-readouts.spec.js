@@ -88,6 +88,24 @@ test('a safety stop under way counts down at its 5 m, and fast-forward is offere
   await expect(page.locator('[data-fast-forward]')).toBeVisible();
 });
 
+test('a safety stop that is done says so, as legacy\'s SAFETY STOP / Complete', async ({ page }) => {
+  await resumeWith(page, (state) => {
+    state.depthM = 5;
+    state.maxDepthM = Math.max(state.maxDepthM, 24);
+    state.verticalVelocityMpm = 0;
+    state.safetyStop = {
+      needed: true,
+      countdownStarted: true,
+      remainingS: 1,
+      paused: false,
+      complete: false,
+    };
+  });
+
+  await expect(hudValue(page, 'safetyStop')).toHaveText('Complete');
+  await expect(hudRow(page, 'safetyStop')).toHaveAttribute('data-phase', 'complete');
+});
+
 test('a dive surfaced fast past its stop ends with neither the stop nor the warning on the HUD', async ({ page }) => {
   // Legacy's post-dive state draws no dive computer: the stop it skipped is
   // logged, not owed, and nothing rises any more. A diver 1.5 m down, rising

@@ -51,13 +51,14 @@ export interface PresentationSaturation {
 /**
  * The safety stop as legacy's stop box draws it (#199, src/renderer.js
  * drawDiveComputer): planned until the countdown starts, then running in its
- * band or paused outside it. Absent when no stop is owed.
+ * band or paused outside it, and complete once done. Absent when no stop is
+ * owed, while there is a ceiling, and once the dive has ended.
  */
 export interface PresentationSafetyStop {
-  readonly phase: "planned" | "running" | "paused";
+  readonly phase: "planned" | "running" | "paused" | "complete";
   /** The nominal stop depth, the middle of the band, rounded: 5 m. */
   readonly targetDepthM: number;
-  /** What is left once started; the stop's length before that. */
+  /** What is left once started; the stop's length before that; 0 once complete. */
   readonly remainingS: number;
 }
 
@@ -185,14 +186,30 @@ export const SAFETY_STOP_TARGET_DEPTH_M = Math.round(
 /**
  * The stop box's safety-stop half (src/renderer.js drawDiveComputer):
  * shown while a stop is owed and not done, with what is left once the
- * countdown has started and the planned length before. Not once the dive is
- * completed: a stop not made is logged as skipped as the dive ends
- * (updateCompletion), and legacy's post-dive state draws no stop box.
+ * countdown has started and the planned length before; then legacy's
+ * "SAFETY STOP / Complete" until the diver goes back below 11 m, which
+ * starts the stop over.
+ *
+ * - While there is a ceiling the box shows the decompression stop instead.
+ *   Legacy decides that from frameCalc.ceiling, refreshed on the same tick,
+ *   which is the model's log.lastCeilingM at the dive's GF high: not the
+ *   worker's forecast, which is pending after every gas switch, setpoint
+ *   change or bailout, and on a resumed dive until its first answer.
+ * - Not once the dive is completed: a stop not made is logged as skipped as
+ *   the dive ends (updateCompletion), and legacy's post-dive state draws no
+ *   stop box.
  */
 export function selectSafetyStop(state: DiveState): PresentationSafetyStop | null {
   const stop = state.safetyStop;
-  if (state.completed || !stop.needed || stop.complete) {
+  if (state.completed || state.log.lastCeilingM > 0 || !stop.needed) {
     return null;
+  }
+  if (stop.complete) {
+    return Object.freeze({
+      phase: "complete",
+      targetDepthM: SAFETY_STOP_TARGET_DEPTH_M,
+      remainingS: 0,
+    });
   }
   return Object.freeze({
     phase: !stop.countdownStarted ? "planned" : stop.paused ? "paused" : "running",

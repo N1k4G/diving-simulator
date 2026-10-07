@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DiveModel } from "../../src/core/dive-model";
 import {
   createCcrState,
   createGasMix,
@@ -118,10 +119,48 @@ describe("dive readouts", () => {
     expect(createPresentationState(state, null).ascentRateMpm).toBe(12.5);
   });
 
-  it("shows no safety stop unless one is owed and not done", () => {
+  it("shows no safety stop unless one is owed", () => {
+    expect(selectSafetyStop(underwaterState())).toBeNull();
+  });
+
+  it("says the stop is complete once done, as legacy's SAFETY STOP / Complete", () => {
     const base = underwaterState();
-    expect(selectSafetyStop(base)).toBeNull();
-    expect(selectSafetyStop(freezeDiveState({ ...base, safetyStop: { ...owed, complete: true } }))).toBeNull();
+    expect(selectSafetyStop(freezeDiveState({ ...base, safetyStop: { ...owed, countdownStarted: true, complete: true } }))).toEqual({
+      phase: "complete",
+      targetDepthM: 5,
+      remainingS: 0,
+    });
+  });
+
+  it("drops Complete when the diver goes back below 11 m, where the stop starts over", () => {
+    // The model's own reset (updateSafetyStop), read through the presentation.
+    const start = createInitialDiveState(9, { tanks: [createTankState(createGasMix(0.21, 0))] });
+    const model = new DiveModel(
+      freezeDiveState({
+        ...start,
+        elapsedTimeS: seconds(600),
+        depthM: metres(5),
+        maxDepthM: metres(20),
+        safetyStop: { needed: true, countdownStarted: true, remainingS: seconds(0), paused: false, complete: true },
+      }),
+    );
+    model.advance({ depthM: metres(5) }, seconds(1));
+    expect(selectSafetyStop(model.snapshot)?.phase).toBe("complete");
+    model.advance({ depthM: metres(12) }, seconds(1));
+    expect(selectSafetyStop(model.snapshot)?.phase).toBe("planned");
+  });
+
+  it("gives way to the decompression stop from the model's ceiling, with no forecast yet", () => {
+    // Legacy's stop box shows DECO STOP while frameCalc.ceiling > 0. The
+    // worker's forecast is null after a gas switch, setpoint change or
+    // bailout and on a resumed dive, so the decision may not wait for it.
+    const base = underwaterState();
+    for (const safetyStop of [owed, { ...owed, countdownStarted: true, remainingS: seconds(100) }, { ...owed, complete: true }]) {
+      const inDeco = freezeDiveState({ ...base, safetyStop, log: { ...base.log, lastCeilingM: metres(4.2) } });
+      expect(createPresentationState(inDeco, null).safetyStop).toBeNull();
+      const clear = freezeDiveState({ ...inDeco, log: { ...inDeco.log, lastCeilingM: metres(0) } });
+      expect(createPresentationState(clear, null).safetyStop).not.toBeNull();
+    }
   });
 
   it("plans the stop's length until the countdown starts, at legacy's nominal 5 m", () => {
@@ -166,6 +205,10 @@ describe("dive readouts", () => {
     const ended = createPresentationState(freezeDiveState({ ...surfaced, completed: true }), null);
     expect(ended.ascentRateMpm).toBe(0);
     expect(ended.safetyStop).toBeNull();
+    // Nor a stop that was made: legacy's post-dive draws no stop box.
+    const made = freezeDiveState({ ...surfaced, safetyStop: { ...owed, countdownStarted: true, complete: true } });
+    expect(createPresentationState(made, null).safetyStop?.phase).toBe("complete");
+    expect(createPresentationState(freezeDiveState({ ...made, completed: true }), null).safetyStop).toBeNull();
   });
 
   it("has no rule of thirds outside an overhead", () => {
