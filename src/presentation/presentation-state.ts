@@ -14,6 +14,7 @@ import {
   safetyStopDurationS,
 } from "../core/dive-model";
 import { bars, type Bars, type Litres } from "../core/units";
+import { decoStopDepth } from "../core/decompression";
 import {
   compartmentSaturation,
   leadingGradientFactorPercent,
@@ -260,7 +261,19 @@ export function selectDecoStop(
     return null;
   }
   const current = freshness !== null && isForecastCurrent(state, freshness);
-  const first = current ? planner?.schedule?.stops[0] : undefined;
+  const scheduled = current ? planner?.schedule?.stops[0] : undefined;
+  // The schedule's first stop is decoStop() of the GF-high ceiling it was
+  // computed from: legacy's `firstStop = decoStop(ceilDepth)` with
+  // frameCalc.ceiling (src/physics.js calculateDecoSchedule, 350-366), and
+  // the planner's `decoStopDepth(ceilingM)` (src/planner/dive-planner.ts
+  // 175). The model's lastCeilingM is the same ceilingDepthM at the same GF
+  // high, rounded by the same decoStopDepth, so a forecast that names
+  // another stop than this tick's describes a state the dive has left.
+  const first =
+    scheduled !== undefined &&
+    scheduled.depthM === decoStopDepth(state.log.lastCeilingM)
+      ? scheduled
+      : undefined;
   return Object.freeze({
     firstStop: first
       ? Object.freeze({ depthM: first.depthM, durationMin: first.durationMin })

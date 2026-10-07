@@ -1,5 +1,6 @@
 import { freezeDiveState, type DiveState } from "../core/dive-state";
 import { seconds, type Seconds } from "../core/units";
+import { decoStopDepth } from "../core/decompression";
 
 export const DEFAULT_FORECAST_INTERVAL_SECONDS = seconds(2);
 
@@ -50,6 +51,11 @@ function forecastInputSignature(state: DiveState): string {
 
   return [
     depthBucketM,
+    // The stop the model's ceiling of this tick names (#226): when it moves
+    // to the next one, the forecast on screen names the old stop and the
+    // HUD shows the deco stop's title alone until a new one lands, so the
+    // new one is asked for at once rather than after the interval.
+    decoStopDepth(state.log.lastCeilingM),
     state.activeTankIndex,
     tankAvailability,
     ccrSignature,

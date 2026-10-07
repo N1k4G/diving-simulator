@@ -10,7 +10,12 @@ import {
   type DiveState,
 } from "../../src/core/dive-state";
 import { bars, metres, minutes, seconds } from "../../src/core/units";
-import type { PlannerForecast } from "../../src/planner/dive-planner";
+import {
+  DEFAULT_PLANNER_SETTINGS,
+  calculateCeiling,
+  decoStopDepth,
+  type PlannerForecast,
+} from "../../src/planner/dive-planner";
 
 // The deco stop's numbers against the forecast's cadence (#226 Codex round
 // 2), on a stubbed frame loop and a worker client the test answers by hand.
@@ -71,10 +76,29 @@ const FORECAST: PlannerForecast = Object.freeze({
 
 interface Request {
   readonly madeAtFrame: number;
+  readonly state: DiveState;
   resolve(forecast: PlannerForecast): void;
 }
 
-async function startAtStop() {
+/**
+ * A worker answer whose first stop is the planner's own: decoStopDepth of
+ * the GF-high ceiling of the state it was asked for
+ * (src/planner/dive-planner.ts calculateDecoSchedule).
+ */
+function plannersFirstStop(state: DiveState): PlannerForecast {
+  const ceilingM = calculateCeiling(state.tissues, DEFAULT_PLANNER_SETTINGS);
+  return Object.freeze({
+    ceilingM,
+    ndlMin: minutes(0),
+    schedule: { stops: [{ depthM: decoStopDepth(ceilingM), durationMin: minutes(4) }], ttsMin: minutes(20), outOfGas: false },
+    ttsMin: minutes(20),
+  });
+}
+
+async function startAtStop(
+  initialState: DiveState = stateAtStop(),
+  answerFor: (state: DiveState) => PlannerForecast = () => FORECAST,
+) {
   const frames: GameFrame[] = [];
   const requests: Request[] = [];
   let frameCount = 0;
@@ -89,11 +113,11 @@ async function startAtStop() {
     onFrame: (frame) => {
       frames.push(frame);
     },
-    initialState: stateAtStop(),
+    initialState,
     plannerClient: {
-      forecast: () =>
+      forecast: (state: DiveState) =>
         new Promise<PlannerForecast>((resolve) => {
-          requests.push({ madeAtFrame: frameCount, resolve });
+          requests.push({ madeAtFrame: frameCount, state, resolve });
         }),
       dispose: () => undefined,
     } as unknown as ConstructorParameters<typeof GameController>[0]["plannerClient"],
@@ -116,7 +140,7 @@ async function startAtStop() {
       if (answer) {
         for (const request of requests) {
           if (frameCount - request.madeAtFrame === latencyFrames) {
-            request.resolve(FORECAST);
+            request.resolve(answerFor(request.state));
           }
         }
       }
@@ -176,6 +200,55 @@ describe("the deco stop's numbers against the forecast's cadence", { timeout: 30
     const pending = await run(10, 3, false);
     expect(pending.slice(1).every((frame) => frame.presentation.decoStop !== null)).toBe(true);
     expect(pending.every((frame) => firstStopOf(frame) === null)).toBe(true);
+    controller.destroy();
+  });
+
+  it("blink to the title for no more than the worker's answer as the ceiling crosses a stop", async () => {
+    // A diver held at 9 m, every compartment loaded alike so the GF-high
+    // ceiling sits just above 6 m and the stop is 9 m. Off-gassing brings it
+    // under 6 m some dive seconds in, and the stop becomes 6 m. The worker
+    // answers as the planner does, its first stop decoStopDepth of the
+    // ceiling it was asked for; the box drops a forecast naming another stop
+    // than the model's (#226), and the scheduler asks again as the stop
+    // moves, so the title stands alone only until that answer lands.
+    const base = createInitialDiveState(7, { tanks: [createTankState(createGasMix(0.21, 0))] });
+    const loaded = (nitrogenBar: number) => ({
+      nitrogenBar: base.tissues.nitrogenBar.map(() => bars(nitrogenBar)),
+      heliumBar: base.tissues.heliumBar,
+    });
+    // The ceiling is linear in a uniform load: aim it at 6.0008 m.
+    const low = calculateCeiling(loaded(1.8), DEFAULT_PLANNER_SETTINGS);
+    const high = calculateCeiling(loaded(1.9), DEFAULT_PLANNER_SETTINGS);
+    const tissues = loaded(1.8 + ((6.0008 - low) / (high - low)) * 0.1);
+    const startCeilingM = calculateCeiling(tissues, DEFAULT_PLANNER_SETTINGS);
+    expect(startCeilingM).toBeGreaterThan(6);
+    expect(startCeilingM).toBeLessThan(6.002);
+
+    const initial = freezeDiveState({
+      ...base,
+      elapsedTimeS: seconds(base.elapsedTimeS + 600),
+      depthM: metres(9),
+      maxDepthM: metres(34),
+      bcdGasSurfaceLiters: neutralBcdSurfaceLitres(9),
+      tissues,
+    });
+    const latencyFrames = 3;
+    const { controller, run } = await startAtStop(initial, plannersFirstStop);
+    await run(6, latencyFrames);
+    const frames = await run(900, latencyFrames);
+
+    const stops = frames.map((frame) => firstStopOf(frame)?.depthM ?? null);
+    expect(frames.every((frame) => frame.presentation.decoStop !== null)).toBe(true);
+    const lastNine = stops.lastIndexOf(9);
+    const firstSix = stops.indexOf(6);
+    // The crossing happened within the run, and once.
+    expect(lastNine).toBeGreaterThan(0);
+    expect(firstSix).toBeGreaterThan(lastNine);
+    expect(stops.slice(firstSix).every((stop) => stop === 6)).toBe(true);
+    // Between them, the title alone: the request goes out on the frame the
+    // stop moves and lands latencyFrames later.
+    expect(firstSix - lastNine - 1).toBeLessThanOrEqual(latencyFrames + 1);
+    expect(stops.slice(0, lastNine).every((stop) => stop === 9)).toBe(true);
     controller.destroy();
   });
 });

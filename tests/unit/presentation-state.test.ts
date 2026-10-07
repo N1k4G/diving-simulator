@@ -200,6 +200,18 @@ describe("dive readouts", () => {
         expect(firstStop({ ...fresh, sourceElapsedTimeS: 150, maxAgeS: 17 })).toBeNull();
       });
 
+      it("gives the title alone for a forecast naming another stop than the model's ceiling, within budget", () => {
+        // plannerForecast()'s first stop is 6 m. A ceiling of 2.5 m now names
+        // 3 m: the dive has cleared the 6 m stop since the forecast.
+        expect(firstStop(fresh, { log: { ...underwaterState().log, lastCeilingM: metres(2.5) } })).toBeNull();
+        // 4.2 m and 6 m itself still name 6 m.
+        expect(firstStop(fresh, { log: { ...underwaterState().log, lastCeilingM: metres(6) } })).toEqual({
+          depthM: 6,
+          durationMin: 2,
+        });
+        expect(firstStop(fresh)).not.toBeNull();
+      });
+
       it("gives the title alone for a forecast from another depth", () => {
         expect(firstStop({ ...fresh, sourceDepthM: 30 })).toBeNull();
         expect(firstStop({ ...fresh, sourceDepthM: 34 })).toBeNull();
