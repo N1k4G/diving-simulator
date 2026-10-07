@@ -1,0 +1,69 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 199,
+  "slice": "Slice 7b (with #197): the safety-stop countdown, the rule-of-thirds gauge and its turn beep, and the ascent rate with the fast-ascent warning in the migration HUD, stacked on slice 7a",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "2aef068c4a511130392895e7866795c052d3d4f7",
+  "measuredTree": "d40868cd05f4eec030f03716f0c979f30ad886a7",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-10-07T01:57:17Z",
+  "runFinishedAt": "2026-10-07T02:10:59Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "Stacked on feat/199-surface-route at 55656e3 (slice 7a and its evidence). The full run above is on 2aef068, the slice's code commit; the only later commit adds this file.",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "465 passed (454 on slice 7a; +11: 6 in tests/unit/presentation-state.test.ts, 4 in tests/unit/thirds-turn-beep.test.ts, 1 in src/app/i18n/i18n.test.ts)",
+    "parity": "142 passed (unchanged; this slice changes no model code)",
+    "e2e": "149 passed in 8.9 min (145 on slice 7a, +4 in tests/hud-readouts.spec.js)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels (the HUD is outside the captured viewport; no frame changes)",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "portedFromTheOracle": {
+    "ascentRate": "src/renderer.js drawDiveComputer: the chevrons' direction past 0.5 m/min and Math.round(|ascentRate|) in m/min; the rate is the model's log.ascentRateMpm, legacy's -(depth - prevDepth) / dtDiveMinutes.",
+    "fastAscent": "The warning banner's SLOW DOWN past 9 m/min up (warnSlow), ranked below the oxygen warning and above the gas warnings as legacy's banner ranks it, with the hasWarning beep through the alert.warning cue; in words in the alert region and the status chip, and a ⚠ on the rate's row.",
+    "safetyStop": "The stop box's safety-stop half: shown while safetyStopNeeded and not complete, giving way to the decompression stop while there is a ceiling; the nominal depth round((2.4 + 8.3) / 2) = 5 m with calculateSafetyStopDuration() before the countdown, then the floored countdown, paused (caution tone, and the word) outside the band.",
+    "ruleOfThirds": "hud-thirds: shown under an overhead, the phase by legacy's strict > 2/3 and > 1/3 over all cylinders' gas against the plan, and Math.round of the fraction; the turn in the caution tone, the reserve with the ⚠ of its danger tone; playAlertBeep() once as thirdsTurnWarned latches, not again on resuming a latched dive.",
+    "claims": "docs/baseline/claims-register.json anchors the new strings in both locales: wreck.warning.fastAscent, wreck.hud.warning.fastAscent and wreck.hud.ascentRate* under ASCENT-001, wreck.hud.safetyStop* under SAFETY-STOP-001, wreck.hud.thirds* under GAS-001."
+  },
+  "counterChecks": {
+    "method": "Each revert was applied to a copy restored from a backup and the named tests were run: unit reverts against tests/unit/presentation-state.test.ts, tests/unit/thirds-turn-beep.test.ts and src/app/i18n/i18n.test.ts; HUD reverts against a fresh build and tests/hud-readouts.spec.js under the port lock. The file was restored and the tree checked clean after each.",
+    "results": [
+      { "revert": "ascent rate not passed through to the presentation", "result": "1 failed: the rate passed through" },
+      { "revert": "the planned stop shows no length", "result": "1 failed: the planned stop" },
+      { "revert": "a paused stop reads as running", "result": "1 failed: the paused countdown" },
+      { "revert": "the safety stop shown when already complete", "result": "1 failed: no stop unless owed and not done" },
+      { "revert": "thirds boundary at two thirds inclusive", "result": "1 failed: legacy's strict thirds" },
+      { "revert": "turn beep on a resumed, already latched dive too", "result": "1 failed: no beep for a dive resumed past its turn" },
+      { "revert": "vertical rate formatted with its sign", "result": "1 failed: the formatter" },
+      { "revert": "no fast-ascent warning", "result": "1 failed: the fast-ascent e2e" },
+      { "revert": "the readout rows never written", "result": "4 failed: every tests/hud-readouts.spec.js test" }
+    ]
+  },
+  "deferred": "Legacy's red screen flash for a fast ascent, its chevron count and its flashing past 18 m/min are not drawn; the alert, the chip, the beep and the row's ⚠ carry the warning. Showing the readouts on the post-dive screen is slice 8.",
+  "durableProvenance": {
+    "src": "3d4735e9ec909d8c59b1de9b1acd7d5822e852e5",
+    "tests": "47347d24975314dfe8e48bfd01097b34bff44c98",
+    "scripts": "c3ce36a9dd4924b83048efadd4d2a972462b2512",
+    "docs": "bfab902bd9d9657f93ef74668c540b1b668f7f38"
+  },
+  "earlierRuns": [
+    {
+      "measuredCommit": "2aef068c4a511130392895e7866795c052d3d4f7",
+      "recordedAt": "2026-10-07T01:51:43Z",
+      "note": "Stopped at pixi:visual-check: wreck-torch-off captured an empty viewport (no canvas, sd 0) once. Two reruns of the check alone were clean at 0% on all three scenes, and the run above passed; this slice changes nothing the capture draws."
+    }
+  ]
+}
