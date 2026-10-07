@@ -33,6 +33,8 @@ export interface LegacyTissueCheckpoint {
     diveMode?: string;
     activeTankIndex?: number;
     cns_percent?: number;
+    /** Legacy's narcosisIndex (#189), 0 to 1. */
+    narcosisIndex?: number;
     verticalVelocity_mpm?: number;
     bcdGasSurface_l?: number;
     ndlDroppedBelow5?: boolean;
@@ -65,6 +67,7 @@ export interface LegacyTissueCheckpoint {
       frameCeiling_m?: number | null;
       dcsViolation_s?: number | null;
       barotrauma_s?: number | null;
+      narcosisKO_s?: number | null;
       inOverhead?: boolean;
       thirdsStartingGas_l?: number | null;
       thirdsTurnWarned?: boolean;
@@ -196,6 +199,7 @@ export function diveStateFromLegacyCheckpoint(
         initialState.surfaceAirConsumptionLpm,
     ),
     cnsPercent: checkpoint.state.cns_percent ?? 0,
+    narcosisIndex: checkpoint.state.narcosisIndex ?? 0,
     verticalVelocityMpm: checkpoint.state.verticalVelocity_mpm ?? 0,
     bcdGasSurfaceLiters:
       checkpoint.state.bcdGasSurface_l ?? initialState.bcdGasSurfaceLiters,
@@ -211,6 +215,7 @@ export function diveStateFromLegacyCheckpoint(
       reason: failureReason,
       dcsViolationS: seconds(checkpoint.state.debrief?.dcsViolation_s ?? 0),
       barotraumaS: seconds(checkpoint.state.debrief?.barotrauma_s ?? 0),
+      narcosisKoS: seconds(checkpoint.state.debrief?.narcosisKO_s ?? 0),
     },
     // A failed dive ends on its failure event, as the model records it.
     events: failureReason === null
@@ -292,6 +297,9 @@ function failureReasonFromLegacy(gameOverReason: string | null | undefined): Div
   }
   if (gameOverReason === "PULMONARY BAROTRAUMA \u2014 PNEUMOTHORAX") {
     return "pulmonary-barotrauma";
+  }
+  if (gameOverReason === "NITROGEN NARCOSIS \u2014 UNCONSCIOUSNESS") {
+    return "nitrogen-narcosis";
   }
   throw new Error(`Unsupported legacy game over: ${gameOverReason}`);
 }

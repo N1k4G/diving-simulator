@@ -27,8 +27,8 @@ export interface GameOverOptions {
 /**
  * Legacy's cause label for each failure the model can produce. The three
  * rebreather causes are the labels game-loop.js assigns (S('ccrHypoxia') and
- * so on). The model has no narcosis or shark failure yet, so neither has
- * this screen (#189).
+ * so on). The model has no shark failure yet, so neither has this screen
+ * (#189).
  */
 const REASON_KEYS: Readonly<Record<DiveFailureReason, MessageKey>> = {
   "out-of-gas": "gameOver.reason.outOfGas",
@@ -36,6 +36,7 @@ const REASON_KEYS: Readonly<Record<DiveFailureReason, MessageKey>> = {
   hypoxia: "gameOver.reason.hypoxia",
   "decompression-sickness": "gameOver.reason.decompressionSickness",
   "pulmonary-barotrauma": "gameOver.reason.pulmonaryBarotrauma",
+  "nitrogen-narcosis": "gameOver.reason.nitrogenNarcosis",
   "ccr-hypoxia": "gameOver.reason.ccrHypoxia",
   "ccr-hyperoxia": "gameOver.reason.ccrHyperoxia",
   "ccr-co2": "gameOver.reason.ccrCo2",
@@ -102,6 +103,18 @@ const EXPLANATIONS: Partial<Record<DiveFailureReason, ExplanationKeys>> = {
       "gameOver.info.pulmonaryBarotrauma.prevention2",
       "gameOver.info.pulmonaryBarotrauma.prevention3",
       "gameOver.info.pulmonaryBarotrauma.prevention4",
+    ],
+  },
+  "nitrogen-narcosis": {
+    cause: "gameOver.info.nitrogenNarcosis.cause",
+    medical: "gameOver.info.nitrogenNarcosis.medical",
+    prevention: [
+      "gameOver.info.nitrogenNarcosis.prevention1",
+      "gameOver.info.nitrogenNarcosis.prevention2",
+      "gameOver.info.nitrogenNarcosis.prevention3",
+      "gameOver.info.nitrogenNarcosis.prevention4",
+      "gameOver.info.nitrogenNarcosis.prevention5",
+      "gameOver.info.nitrogenNarcosis.prevention6",
     ],
   },
 };

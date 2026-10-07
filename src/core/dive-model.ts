@@ -61,6 +61,16 @@ export const SURFACE_DCS_CEILING_M = 3;
 // or faster, held for 10 dive seconds, ends the dive.
 export const BAROTRAUMA_ASCENT_RATE_MPM = 18;
 export const BAROTRAUMA_FAILURE_SECONDS = seconds(10);
+// Legacy's narcosis engine (#189, src/constants.js NARC_*): the index moves
+// toward smoothstep(onset, full) of the narcotic partial pressure by these
+// fractions of the gap per dive second, and 30 dive seconds at the KO index
+// or above end the dive.
+export const NARCOSIS_ONSET_BAR = 1.5;
+export const NARCOSIS_FULL_BAR = 8;
+export const NARCOSIS_RAMP_UP_PER_S = 0.012;
+export const NARCOSIS_RAMP_DOWN_PER_S = 0.025;
+export const NARCOSIS_KO_INDEX = 0.95;
+export const NARCOSIS_FAILURE_SECONDS = seconds(30);
 // Legacy's end of a dive at the surface: shallower than 0.3 m after more
 // than half a dive minute, the ceiling cleared to 0.1 m, the dive deeper
 // than 2 m (#199).
@@ -382,6 +392,11 @@ export function advanceDiveStep(
     environment.gradientFactorHighPercent ?? DEFAULT_GF_HIGH_PERCENT,
   );
   nextState = accumulateCns(nextState, breathing, environment.depthM, elapsedS);
+  // Legacy's updateNarcosis() comes right after updateCNS(), on the gas the
+  // tissues breathed, before any check can end the dive: a step a rebreather
+  // failure ends moves it too. Nothing reads it before the failure update,
+  // which stores it with the timers.
+  const narcosis = narcosisStep(nextState, breathing, elapsedS);
   // Legacy's rule of thirds runs after updateCNS(), before the tick's gas
   // use and before any check can end the dive.
   nextState = updateRuleOfThirds(nextState, environment.inOverhead ?? false);
@@ -399,6 +414,7 @@ export function advanceDiveStep(
     environment.breathing ?? breathingSourceForState(nextState),
     limits,
     stepAscentRateMpm(nextState, previousDepthM, elapsedS),
+    narcosis,
   );
   // Legacy's rebreather checks run in updateCCR() and return from
   // updateDiving() before the debriefing capture; its other dive-ending
@@ -415,6 +431,45 @@ export function advanceDiveStep(
   }
   const logged = updateSafetyStop(updateDiveLog(withMotion, elapsedS, limits), elapsedS);
   return settled.failure.reason === null ? updateCompletion(logged, limits) : logged;
+}
+
+/**
+ * Legacy's updateNarcosis() (#189, src/physics.js WP-020): the index moves
+ * toward smoothstep(NARC_ONSET_BAR, NARC_FULL_BAR) of the narcotic partial
+ * pressure, (1 - fHe) of the breathed gas times the ambient pressure, by a
+ * fixed fraction of the gap per dive second, faster falling than rising,
+ * and stays within 0 to 1. The KO timer counts each dive second the index
+ * is at NARC_KO_THRESHOLD or above and starts over below it.
+ */
+function narcosisStep(
+  state: DiveState,
+  breathing: BreathingSource,
+  elapsedS: Seconds,
+): NarcosisStep {
+  const gas = resolveInspiredGas(breathing, state.depthM);
+  const narcoticBar = (1 - gas.heliumFraction) * ambientPressureBar(state.depthM);
+  const target = smoothstep(NARCOSIS_ONSET_BAR, NARCOSIS_FULL_BAR, narcoticBar);
+  const index = state.narcosisIndex;
+  const ramp = target > index ? NARCOSIS_RAMP_UP_PER_S : NARCOSIS_RAMP_DOWN_PER_S;
+  const narcosisIndex = Math.max(0, Math.min(1, index + (target - index) * ramp * elapsedS));
+  return {
+    narcosisIndex,
+    narcosisKoS:
+      narcosisIndex >= NARCOSIS_KO_INDEX
+        ? seconds(state.failure.narcosisKoS + elapsedS)
+        : seconds(0),
+  };
+}
+
+interface NarcosisStep {
+  readonly narcosisIndex: number;
+  readonly narcosisKoS: Seconds;
+}
+
+/** Legacy's smoothstep() in src/physics.js. */
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
 }
 
 /**
@@ -1034,6 +1089,7 @@ function updateFailureState(
   breathingSource: BreathingSource,
   limits: DecompressionLimits,
   ascentRateMpm: number,
+  narcosis: NarcosisStep,
 ): DiveState {
   const ccrActive = Boolean(state.ccr && !state.ccr.onBailout);
   const inspiredPo2Bar =
@@ -1106,8 +1162,14 @@ function updateFailureState(
     ccrHyperoxiaS,
     dcsViolationS,
     barotraumaS,
+    narcosisKoS: narcosis.narcosisKoS,
   };
-  let nextState = freezeDiveState({ ...state, ccr, failure });
+  let nextState = freezeDiveState({
+    ...state,
+    ccr,
+    failure,
+    narcosisIndex: narcosis.narcosisIndex,
+  });
   const reason = detectFailure(nextState, limits);
 
   if (reason) {
@@ -1139,8 +1201,7 @@ function updateFailureState(
 /**
  * Legacy's dive-ending checks in their order, those the model has: the
  * rebreather's in updateCCR(), then out of gas, oxygen toxicity, the DCS
- * timer, barotrauma, hypoxia and surfacing with a ceiling. Narcosis, which
- * legacy checks after hypoxia, is not modelled yet (#189).
+ * timer, barotrauma, hypoxia, narcosis and surfacing with a ceiling.
  */
 function detectFailure(
   state: DiveState,
@@ -1177,6 +1238,9 @@ function detectFailure(
   }
   if (state.failure.hypoxiaS >= seconds(10)) {
     return "hypoxia";
+  }
+  if (state.failure.narcosisKoS >= NARCOSIS_FAILURE_SECONDS) {
+    return "nitrogen-narcosis";
   }
   if (state.depthM < SURFACE_DCS_DEPTH_M && limits.ceilingM > SURFACE_DCS_CEILING_M) {
     return "decompression-sickness";
