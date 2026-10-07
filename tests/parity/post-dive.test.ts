@@ -8,6 +8,11 @@ import {
 } from "../../src/app/legacy-dive-adapter";
 import { createPostDiveSummary } from "../../src/presentation/post-dive-summary";
 import { siteGameplay } from "../../src/sites/site-resources";
+import { tissueBars } from "../../src/app/tissue-bars";
+// Legacy's own code for the tissue bars, not a restatement of it (#221).
+import constantsSource from "../../src/constants.js?raw";
+import physicsSource from "../../src/physics.js?raw";
+import rendererSource from "../../src/renderer.js?raw";
 
 // The post-dive summary (#159) against the legacy client: at every checkpoint
 // of every recorded dive, the values legacy's drawPostDive() would draw from
@@ -144,5 +149,60 @@ describe("the post-dive summary against the recorded legacy dives", () => {
     // gas summaries or a dive that ended on bailout.
     expect(cases.some(({ recorded }) => recorded.state.diveMode === "ccr" && recorded.ccr?.onBailout)).toBe(true);
     expect(cases.some(({ recorded }) => recorded.state.diveMode !== "ccr" && recorded.tanks.length > 1)).toBe(true);
+  });
+});
+
+// Legacy's tissue bars (#221), run from its source: the ZHL-16C tables
+// (src/constants.js), combinedAB() (src/physics.js), and drawPostDive()'s
+// own statements from `var ab = combinedAB(i);` to the nitrogen fill
+// (src/renderer.js), with a canvas that records nothing and hudColor()
+// returning its tier's name.
+function legacySource(source: string, pattern: RegExp, what: string): string {
+  const match = pattern.exec(source);
+  if (!match) throw new Error(`could not read ${what} from the legacy source`);
+  return match[0];
+}
+const drawPostDive = legacySource(rendererSource, /^function drawPostDive\(\) \{[\s\S]*?^\}/m, "drawPostDive()");
+const legacyTissueBars = new Function(
+  `${legacySource(constantsSource, /^const ZHL16C_N2 = \[[\s\S]*?\];/m, "ZHL16C_N2")}
+${legacySource(constantsSource, /^const ZHL16C_HE = \[[\s\S]*?\];/m, "ZHL16C_HE")}
+var tissues, tissuesHe;
+${legacySource(physicsSource, /^function combinedAB\(i\) \{[\s\S]*?^\}/m, "combinedAB()")}
+function hudColor(tier) { return tier; }
+var cx = { fillRect: function () {} };
+return function (n2, he) {
+  tissues = n2;
+  tissuesHe = he;
+  var barW = 16, barMaxH = 100, y = 0, bx = 0, bars = [];
+  for (var i = 0; i < 16; i++) {
+    ${legacySource(drawPostDive, /var ab = combinedAB\(i\);[\s\S]*?cx\.fillRect\(bx, y \+ barMaxH - n2H, barW, n2H\);/, "the tissue bar")}
+    bars.push({ loading: loading, n2H: n2H, heH: heH, color: color });
+  }
+  return bars;
+};`,
+)() as (n2: readonly number[], he: readonly number[]) => { loading: number; n2H: number; heH: number; color: string }[];
+
+describe("the post-dive tissue bars against legacy's drawPostDive()", () => {
+  it.each(cases)("draws $name's compartments as legacy", ({ recorded, earlierProfile }) => {
+    const bars = tissueBars(summaryAt(recorded, earlierProfile).tissues);
+    const legacy = legacyTissueBars(recorded.tissues.n2_bar, recorded.tissues.he_bar);
+    expect(bars).toHaveLength(16);
+    expect(legacy).toHaveLength(16);
+    bars.forEach((bar, index) => {
+      const drawn = legacy[index]!;
+      expect(bar.loading).toBeCloseTo(drawn.loading, 12);
+      expect(bar.nitrogenHeight * 100).toBeCloseTo(drawn.n2H, 9);
+      // Legacy fills the helium part only when it is over half a pixel.
+      expect(bar.heliumHeight * 100).toBeCloseTo(drawn.heH > 0.5 ? drawn.heH : 0, 9);
+      expect(bar.tier).toBe(drawn.color);
+    });
+  });
+
+  it("covers the dive that ends on legacy's post-dive screen, helium, and every tier", () => {
+    const named = (name: string) => cases.find((entry) => entry.name === name)!;
+    expect(named("air-18m-30min/surfaced").recorded.state.gameState).toBe("post-dive");
+    const all = cases.flatMap(({ recorded, earlierProfile }) => tissueBars(summaryAt(recorded, earlierProfile).tissues));
+    expect(all.some((bar) => bar.heliumHeight > 0)).toBe(true);
+    expect(new Set(all.map((bar) => bar.tier))).toEqual(new Set(["ok", "caution", "danger"]));
   });
 });

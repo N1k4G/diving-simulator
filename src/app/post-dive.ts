@@ -17,6 +17,7 @@ import { formatGradeNote, gradeLabel } from "./debrief-grade";
 import { element, section } from "./game-over";
 import { translate, type MessageKey, type SupportedLocale } from "./i18n/catalog";
 import { renderProfileChart } from "./profile-chart";
+import { renderTissueBars } from "./tissue-bars";
 import {
   formatAscentRate,
   formatDepth,
@@ -95,6 +96,9 @@ export function renderPostDiveScreen(
     screen.append(chart);
   }
   screen.append(violationSection(summary.violations, locale));
+  // Legacy's tissue bars follow its chart. They come after the list here,
+  // so the chart's numbered markers stay next to the entries they number.
+  screen.append(renderTissueBars(summary, locale));
 
   const again = document.createElement("button");
   again.type = "button";

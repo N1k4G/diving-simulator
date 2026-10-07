@@ -276,6 +276,73 @@ test('the profile chart draws the deco ceiling where the dive had one, one run p
   await expect(screen.locator('.post-dive-violation-list li')).toHaveCount(1);
 });
 
+/** ZHL-16C a and b (src/constants.js) for the compartments the next test loads. */
+const ZHL16C = {
+  n2: { 3: [0.8618, 0.7222], 12: [0.3065, 0.9403], 16: [0.2327, 0.9653] },
+  he: { 3: [1.1919, 0.6527] },
+};
+
+test('the tissue bars draw each compartment\'s load against its M-value at the surface', async ({ page }) => {
+  // Three compartments loaded to legacy's three colours, within the 0.1 m
+  // ceiling a completed save may have at GF high 75%: compartment 3 half
+  // helium, 12 past 70% of its surface M-value, 16 past 90%.
+  await resumeCompletedDive(page, {
+    editState: (state) => {
+      const nitrogen = [...state.tissues.nitrogenBar];
+      const helium = [...state.tissues.heliumBar];
+      [nitrogen[2], helium[2]] = [0.6, 0.6];
+      nitrogen[11] = 1.1;
+      nitrogen[15] = 1.18;
+      state.tissues = { nitrogenBar: nitrogen, heliumBar: helium };
+    },
+  });
+  const screen = page.locator('[data-post-dive]');
+  const section = screen.locator('.post-dive-tissues');
+  await expect(section.getByRole('heading', { level: 2 })).toHaveText('Tissue Compartment Loading (N₂ + He)');
+
+  // Legacy's loading: (pN2 + pHe) / (a + 1 / b), a and b weighted by the loads.
+  const mValue = ([a, b]) => a + 1 / b;
+  const mixed = [(ZHL16C.n2[3][0] + ZHL16C.he[3][0]) / 2, (ZHL16C.n2[3][1] + ZHL16C.he[3][1]) / 2];
+  const loading3 = 1.2 / mValue(mixed);
+  const loading12 = 1.1 / mValue(ZHL16C.n2[12]);
+  const loading16 = 1.18 / mValue(ZHL16C.n2[16]);
+  expect(loading16).toBeGreaterThan(0.9);
+
+  // One image to assistive technology, named by a sentence.
+  const plot = section.getByRole('img', {
+    name: `16 compartments, each with its nitrogen and helium load as a share of its M-value at the surface; compartment 16 is highest, at ${Math.round(loading16 * 100)}%.`,
+    exact: true,
+  });
+  await expect(plot).toBeVisible();
+  const bars = plot.locator('.tissue-bar');
+  await expect(bars).toHaveCount(16);
+  await expect(plot.locator('.tissue-label')).toHaveText(Array.from({ length: 16 }, (_, i) => String(i + 1)));
+  await expect(bars.nth(2)).toHaveAttribute('data-tier', 'ok');
+  await expect(bars.nth(11)).toHaveAttribute('data-tier', 'caution');
+  await expect(bars.nth(15)).toHaveAttribute('data-tier', 'danger');
+
+  const heights = (index) => bars.nth(index).evaluate((el) =>
+    [el.querySelector('.tissue-n2'), el.querySelector('.tissue-he')].map((part) => part.getBoundingClientRect().height / el.querySelector('.tissue-track').clientHeight));
+  const [n2Of3, heOf3] = await heights(2);
+  expect(n2Of3).toBeCloseTo(loading3 / 2, 2);
+  expect(heOf3).toBeCloseTo(loading3 / 2, 2);
+  const [n2Of12, heOf12] = await heights(11);
+  expect(n2Of12).toBeCloseTo(loading12, 2);
+  expect(heOf12).toBe(0);
+  const [n2Of16] = await heights(15);
+  expect(n2Of16).toBeCloseTo(loading16, 2);
+  // Helium only where there is some.
+  expect(await plot.locator('.tissue-he').evaluateAll((parts) => parts.filter((part) => part.getBoundingClientRect().height > 0).length)).toBe(1);
+
+  await expect(section.locator('.tissue-legend li')).toHaveText(['N₂', 'He', 'M-value at the surface']);
+  // Below the profile chart, after the list its markers number.
+  const chartBox = await screen.locator('[data-profile-chart]').boundingBox();
+  const listBox = await screen.locator('.post-dive-violations').boundingBox();
+  const plotBox = await plot.boundingBox();
+  expect(plotBox.y).toBeGreaterThan(chartBox.y + chartBox.height);
+  expect(plotBox.y).toBeGreaterThan(listBox.y + listBox.height);
+});
+
 /**
  * A dive a metre down, light enough to drift up and surface gently, after a
  * minute and a half that went to 18 m: the model ends it on screen, on the
@@ -429,6 +496,10 @@ for (const [width, height] of [[844, 390], [667, 375]]) {
         const boundaryBox = await boundary.boundingBox();
         const plotBox = await plot.boundingBox();
         expect(plotBox.y).toBeGreaterThan(boundaryBox.y + boundaryBox.height);
+        // The tissue bars below the chart, all 16.
+        const tissues = screen.locator('[data-tissue-chart]');
+        await expect(tissues.locator('.tissue-bar')).toHaveCount(16);
+        expect((await tissues.boundingBox()).y).toBeGreaterThan(plotBox.y + plotBox.height);
         await expectMobileLayout(page);
       });
     });
@@ -447,6 +518,7 @@ test.describe('on a small phone', () => {
       again: 'Dive again',
       boundary: /^SIMULATION ONLY/,
       chart: /^Depth over 25 min,? 30 sec, deepest 18 m\. No deco ceiling\. 2 marks, numbered as in the violations list\.$/,
+      tissues: /^16 compartments, each with its nitrogen and helium load as a share of its M-value at the surface; compartment 16 is highest, at \d+%\.$/,
     },
     'de-DE': {
       heading: 'Tauchgang beendet',
@@ -454,6 +526,7 @@ test.describe('on a small phone', () => {
       again: 'Neuer Tauchgang',
       boundary: /^NUR SIMULATION/,
       chart: /^Tiefe über 25 Min\.?,? 30 Sek\.?, tiefster Punkt 18 m\. Keine Deko-Decke\. 2 Markierungen, nummeriert wie in der Liste der Verstöße\.$/,
+      tissues: /^16 Kompartimente, jedes mit seiner Stickstoff- und Heliumlast als Anteil seines M-Werts an der Oberfläche; am höchsten ist Kompartiment 16 mit \d+\s%\.$/,
     },
   };
 
@@ -470,6 +543,8 @@ test.describe('on a small phone', () => {
           await expect(screen.locator('[data-simulation-boundary]')).toBeInViewport({ ratio: 1 });
           await expect(screen.locator('.post-dive-violation-list li').first()).toContainText(TEXT[locale].ascent);
           await expect(screen.locator('[data-profile-chart]')).toHaveAttribute('aria-label', TEXT[locale].chart);
+          await expect(screen.locator('[data-tissue-chart]')).toHaveAttribute('aria-label', TEXT[locale].tissues);
+          await expect(screen.locator('[data-tissue-chart] .tissue-bar')).toHaveCount(16);
           await expect(screen.locator('[data-dive-again]')).toHaveText(TEXT[locale].again);
           await expect(screen.locator('[data-gas=oxygen]')).toHaveCount(rebreather ? 1 : 0);
           await expectMobileLayout(page);

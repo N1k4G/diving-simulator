@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import {
+  SURFACE_N2_LOADING_BAR,
+  ZHL16C_HE,
+  ZHL16C_N2,
+} from "../../src/core/buhlmann-constants";
 import { gradeDive } from "../../src/core/dive-grade";
 import { DiveModel } from "../../src/core/dive-model";
 import {
@@ -95,6 +100,47 @@ describe("the post-dive summary", () => {
     expect(createPostDiveSummary(bailed.snapshot, OPEN_WATER).rebreather?.onBailout).toBe(true);
   });
 
+  it("loads each compartment against its M-value at the surface, as legacy's tissue bars", () => {
+    // A trimix dive still at depth, so the surface M-value and the one at the
+    // current depth differ, and both gases are in every compartment.
+    const state = dive(
+      createInitialDiveState(17, { tanks: [createTankState(createGasMix(0.18, 0.45))] }),
+      [[30, 600]],
+    );
+    const { nitrogenBar, heliumBar } = state.tissues;
+    const { tissues } = createPostDiveSummary(state, OPEN_WATER);
+    expect(tissues).toHaveLength(16);
+    tissues.forEach((tissue, index) => {
+      // drawPostDive(): combinedAB(i), m0 = a + 1.0 / b, loading = total / m0.
+      const n2 = nitrogenBar[index]!;
+      const he = heliumBar[index]!;
+      const total = n2 + he;
+      const a = (ZHL16C_N2[index]!.a * n2 + ZHL16C_HE[index]!.a * he) / total;
+      const b = (ZHL16C_N2[index]!.b * n2 + ZHL16C_HE[index]!.b * he) / total;
+      expect(tissue.loading).toBeCloseTo(total / (a + 1.0 / b), 12);
+      expect(tissue.nitrogenFraction).toBeCloseTo(n2 / total, 12);
+      expect(tissue.nitrogenFraction).toBeLessThan(1);
+    });
+    // Not the gas-information page's ratio at the current 30 m.
+    const atDepth = createPresentationState(state, null).saturation.mValueRatios;
+    expect(tissues[0]!.loading).toBeGreaterThan(atDepth[0]! + 0.05);
+
+    // At the surface before the dive: nitrogen only.
+    const air = createPostDiveSummary(createInitialDiveState(1), OPEN_WATER).tissues;
+    expect(air.every((tissue) => tissue.nitrogenFraction === 1)).toBe(true);
+    expect(air[0]!.loading).toBeCloseTo(SURFACE_N2_LOADING_BAR / (ZHL16C_N2[0]!.a + 1 / ZHL16C_N2[0]!.b), 12);
+  });
+
+  it("counts an empty compartment as all nitrogen, as legacy's n2Frac", () => {
+    const empty = createInitialDiveState(1);
+    const state = {
+      ...empty,
+      tissues: { nitrogenBar: empty.tissues.nitrogenBar.map(() => bars(0)), heliumBar: empty.tissues.heliumBar },
+    } as DiveState;
+    const { tissues } = createPostDiveSummary(state, OPEN_WATER);
+    expect(tissues.every((tissue) => tissue.loading === 0 && tissue.nitrogenFraction === 1)).toBe(true);
+  });
+
   it("reports no average depth before the diver has been under", () => {
     expect(createPostDiveSummary(createInitialDiveState(1), OPEN_WATER).averageDepthM).toBe(0);
   });
@@ -104,6 +150,8 @@ describe("the post-dive summary", () => {
     expect(Object.isFrozen(summary)).toBe(true);
     expect(Object.isFrozen(summary.cylinders)).toBe(true);
     expect(Object.isFrozen(summary.cylinders[0])).toBe(true);
+    expect(Object.isFrozen(summary.tissues)).toBe(true);
+    expect(summary.tissues.every((tissue) => Object.isFrozen(tissue))).toBe(true);
     // The grade too, down to each note (#217 pre-review).
     expect(Object.isFrozen(summary.grade)).toBe(true);
     expect(Object.isFrozen(summary.grade.scores)).toBe(true);
