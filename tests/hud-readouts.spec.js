@@ -88,6 +88,37 @@ test('a safety stop under way counts down at its 5 m, and fast-forward is offere
   await expect(page.locator('[data-fast-forward]')).toBeVisible();
 });
 
+test('a dive surfaced fast past its stop ends with neither the stop nor the warning on the HUD', async ({ page }) => {
+  // Legacy's post-dive state draws no dive computer: the stop it skipped is
+  // logged, not owed, and nothing rises any more. A diver 1.5 m down, rising
+  // fast with a full BCD, a paused stop still owed from 20 m.
+  await resumeWith(page, (state) => {
+    state.elapsedTimeS = 120;
+    state.depthM = 1.5;
+    state.maxDepthM = Math.max(state.maxDepthM, 20);
+    state.verticalVelocityMpm = -15;
+    state.bcdGasSurfaceLiters = 40;
+    state.safetyStop = {
+      needed: true,
+      countdownStarted: true,
+      remainingS: 100,
+      paused: true,
+      complete: false,
+    };
+  });
+
+  // Completion clears the save (#223).
+  await page.waitForFunction(
+    (key) => window.localStorage.getItem(key) === null,
+    SAVE_KEY,
+    { timeout: 30_000 },
+  );
+  await expect(hudRow(page, 'safetyStop')).toBeHidden();
+  await expect(hudValue(page, 'ascentRate')).toHaveText('0 m/min');
+  await expect(page.getByRole('alert')).toBeHidden();
+  await expect(page.locator('.status-chip')).not.toContainText('Fast ascent');
+});
+
 test('the rule of thirds is kept under the deck, from the plan made on entering, and not outside', async ({ page }) => {
   test.setTimeout(120_000);
   // Neutral at 28 m (tests/unit/thirds-turn-beep.test.ts pins the value), so

@@ -125,7 +125,9 @@ export interface PresentationState {
   readonly cnsPercent: number;
   /**
    * Legacy's ascentRate over the last frame, in m/min, positive up (#197):
-   * src/game-loop.js `-(depth - prevDepth) / dtDiveMinutes`.
+   * src/game-loop.js `-(depth - prevDepth) / dtDiveMinutes`. 0 once the dive
+   * is completed: nothing moves it any more, and legacy's post-dive state
+   * draws neither the rate nor its SLOW DOWN banner.
    */
   readonly ascentRateMpm: number;
   readonly safetyStop: PresentationSafetyStop | null;
@@ -169,7 +171,7 @@ export function createPresentationState(
     planner: planner ? freezePlannerForecast(planner) : null,
     saturation: selectSaturation(state),
     cnsPercent: state.cnsPercent,
-    ascentRateMpm: state.log.ascentRateMpm,
+    ascentRateMpm: state.completed ? 0 : state.log.ascentRateMpm,
     safetyStop: selectSafetyStop(state),
     ruleOfThirds: selectRuleOfThirds(state),
   });
@@ -183,11 +185,13 @@ export const SAFETY_STOP_TARGET_DEPTH_M = Math.round(
 /**
  * The stop box's safety-stop half (src/renderer.js drawDiveComputer):
  * shown while a stop is owed and not done, with what is left once the
- * countdown has started and the planned length before.
+ * countdown has started and the planned length before. Not once the dive is
+ * completed: a stop not made is logged as skipped as the dive ends
+ * (updateCompletion), and legacy's post-dive state draws no stop box.
  */
 export function selectSafetyStop(state: DiveState): PresentationSafetyStop | null {
   const stop = state.safetyStop;
-  if (!stop.needed || stop.complete) {
+  if (state.completed || !stop.needed || stop.complete) {
     return null;
   }
   return Object.freeze({

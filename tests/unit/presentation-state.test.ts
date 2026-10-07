@@ -150,6 +150,24 @@ describe("dive readouts", () => {
     ).toBe("paused");
   });
 
+  it("reads no rate and owes no stop once the dive is completed, as legacy's post-dive draws neither", () => {
+    // Surfaced fast past a stop it skipped: the last step's rate and the
+    // paused countdown would otherwise stay on the HUD of the ended dive.
+    const base = underwaterState();
+    const surfaced = {
+      ...base,
+      log: { ...base.log, ascentRateMpm: 14 },
+      safetyStop: { ...owed, countdownStarted: true, remainingS: seconds(100), paused: true },
+    };
+    expect(createPresentationState(freezeDiveState(surfaced), null)).toMatchObject({
+      ascentRateMpm: 14,
+      safetyStop: { phase: "paused" },
+    });
+    const ended = createPresentationState(freezeDiveState({ ...surfaced, completed: true }), null);
+    expect(ended.ascentRateMpm).toBe(0);
+    expect(ended.safetyStop).toBeNull();
+  });
+
   it("has no rule of thirds outside an overhead", () => {
     expect(selectRuleOfThirds(underwaterState())).toBeNull();
   });
