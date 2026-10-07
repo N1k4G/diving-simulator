@@ -23,6 +23,8 @@ describe("the rule of thirds' turn beep", () => {
 
 describe("the e2e fixtures of tests/hud-readouts.spec.js", () => {
   it("park the diver neutral at 28 m, where it can swim into the hold", () => {
-    expect(neutralBcdSurfaceLitres(28)).toBe(15.337143629243002);
+    // Not exact: Math.pow differs in the last bits between win32, where the
+    // fixture value was taken, and linux CI.
+    expect(neutralBcdSurfaceLitres(28)).toBeCloseTo(15.337143629243002, 12);
   });
 });
