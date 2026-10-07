@@ -9,7 +9,7 @@
   "recordedAt": "2026-10-07T00:53:25Z",
   "runFinishedAt": "2026-10-07T01:01:19Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "Rebased onto main d44a239 (#216, a test-only change to tests/game.spec.js) and the fixture regenerated from the rebased capture commit; identical apart from referenceCommit. The full run above is on 18ca9e0; the only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "Rebased onto main d44a239 (#216, a test-only change to tests/game.spec.js) and the fixture regenerated from the rebased capture commit; identical apart from referenceCommit. The full run above is on 18ca9e0; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
