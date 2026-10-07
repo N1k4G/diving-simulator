@@ -147,7 +147,8 @@ test('baseline: generated contracts are complete and internally consistent', asy
     'trimix-dcs-surfaced',
     'wreck-thirds',
     'barotrauma-runaway-ascent-30m',
-    'narcosis-air-65m'
+    'narcosis-air-65m',
+    'shark-encounter-5m'
   ]);
   // #199: the one scenario simulated against its declared site. Legacy's
   // rule of thirds reads overheadAt(), which only a site with an overhead

@@ -475,6 +475,52 @@ function runBaselineScenarios() {
     narcosis.checkpoints.push(checkpoint('narcosis-air-65m', 'narcosis'));
     scenarios.push(narcosis);
 
+    // #219: the shark encounter (TASK-043) on air at 5 m, its rolls scripted
+    // through the Math.random stub, which answers every draw of a tick with
+    // the same value. The view is pinned 1000 px wide, so the shark spawns
+    // 30 m away and leaves 32.5 m past the diver. Seven-second ticks keep
+    // the 60 s roll timer from ever landing on zero exactly. Three rolls at
+    // 0.5 spawn nothing; a tick at 0.004 spawns a shark heading right,
+    // 9.92 m above the diver, clamped to the surface; one-second ticks bring
+    // it to the diver, whom a 0.5 roll survives, and past the view. A second
+    // spawn and a 0.2 roll at contact end the dive.
+    setup('rec', 'reef', [[0.21, 0, 200]]);
+    const viewWidth = api.cssWidth;
+    api.cssWidth = 1000;
+    api.sharkTimer = 60;
+    try {
+      const sharkTick = (diveSeconds) => updateAtDepth(5, diveSeconds / 60, 0);
+      const spawnTick = () => {
+        Math.random = () => 0.004;
+        sharkTick(7);
+        Math.random = () => 0.5;
+      };
+      const shark = {
+        scenarioId: 'shark-encounter-5m',
+        description: 'Air at 5 m with the shark rolls scripted: three rolls that spawn nothing, a spawn, contact survived on a 0.5 roll, the shark gone past the view, a second spawn, and contact on a 0.2 roll ending the dive',
+        checkpoints: [checkpoint('shark-encounter-5m', 'surface')]
+      };
+      for (let tick = 0; tick < 30; tick++) sharkTick(7);
+      shark.checkpoints.push(checkpoint('shark-encounter-5m', 'three-rolls'));
+      for (let tick = 0; tick < 5; tick++) sharkTick(7);
+      spawnTick();
+      shark.checkpoints.push(checkpoint('shark-encounter-5m', 'spawned'));
+      for (let tick = 0; tick < 20 && api.shark && !api.shark.passed; tick++) sharkTick(1);
+      shark.checkpoints.push(checkpoint('shark-encounter-5m', 'contact-survived'));
+      for (let tick = 0; tick < 20 && api.shark; tick++) sharkTick(1);
+      shark.checkpoints.push(checkpoint('shark-encounter-5m', 'gone'));
+      for (let tick = 0; tick < 6; tick++) sharkTick(7);
+      spawnTick();
+      shark.checkpoints.push(checkpoint('shark-encounter-5m', 'second-spawn'));
+      Math.random = () => 0.2;
+      for (let tick = 0; tick < 20 && api.gameState === 'diving'; tick++) sharkTick(1);
+      Math.random = () => 0.5;
+      shark.checkpoints.push(checkpoint('shark-encounter-5m', 'shark-attack'));
+      scenarios.push(shark);
+    } finally {
+      api.cssWidth = viewWidth;
+    }
+
     return scenarios;
   } finally {
     Math.random = originalRandom;
