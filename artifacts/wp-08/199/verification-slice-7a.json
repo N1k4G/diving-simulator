@@ -1,0 +1,203 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 199,
+  "slice": "Slice 7a: the dive starts at the surface, descends on S beside the wreck, and ends by surfacing outside it; the surface is the ceiling outside the wreck and the deck inside (owner decision A, 2026-09-30)",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "0d061ba7db39164a3bd40626460236c0c905ac05",
+  "measuredTree": "c381d974f80bb9f298dfc1a10fb03decff72653f",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-10-07T06:04:24Z",
+  "runFinishedAt": "2026-10-07T06:15:32Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "On main ea2921c (#225, the shark in the model), after #218 (pulmonary barotrauma), #224 (nitrogen narcosis) and #225; the route test surfaces at a controlled rate, since a runaway ascent ends in barotrauma as in legacy. The rebase onto ea2921c applied without conflicts and needed no fixture regeneration. The full run above is on 0d061ba: it holds the fixes for pre-review passes 1 and 2 and for Codex round 1 (3b8c4e0: the torch only while diving, a still scene after the dive), the linux frame recorded for them, and 20f4d31, the rest of that finding: the nav pad only while diving, as pre-review pass 4 found; and 0d061ba, which compares the neutral 18 m BCD to 12 places, since Math.pow differs in the last bits on linux CI. Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "515 passed (487 on main ea2921c; +28: 11 in tests/unit/wreck-route.test.ts, 6 net in tests/unit/game-controller-buoyancy.test.ts, 6 in tests/unit/game-controller-surface.test.ts, 3 in tests/unit/leave-surface.test.ts, 1 in tests/unit/game-controller-fast-forward.test.ts, 1 in src/render/camera.test.ts; four main tests rewritten for the surface route)",
+    "parity": "266 passed (266 on main ea2921c; unchanged)",
+    "e2e": "149 passed in 7.9 min (146 on main ea2921c, +3 in tests/wreck-slice.spec.js: the surface start by keyboard and by touch, and a completed dive leaving no save, closing its audio and hiding its torch and nav pad; the surface start shows only the descent button; tests/game-over.spec.js, including the narcosis and shark tests, passes unchanged)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels, against frames re-recorded in this slice",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "referenceFrames": {
+    "reason": "Intended change (docs/decisions.md, Visual comparison): the dive starts at the surface, so every scene has the sky, the water surface and the camera's new top. Against main's frames all three scenes failed, wreck-torch-off for example by a mean channel delta of 30.8 over 67.9% of pixels.",
+    "win32": "c715b82d0d32d25db5550b2b3a20e5241c3d97e2, recorded locally with npm run pixi:visual-update; wreck-torch-off again in 3b8c4e05f2d9688c58f5050c3c93deb31a56995b, after its scene changed (below).",
+    "linux": "690def1c904656ea1003939a751490480612f512, recorded by .github/workflows/pixi-baseline.yml run 37554332772; wreck-torch-off again in d777b05cfda0876eafa84af519387427300a1617, by run 37575384921. The SHAs are the rebased commits; the frames are byte-identical to the ones the workflow committed.",
+    "sceneChange": "wreck-descended holds S for 1200 frames instead of 75, and scripts/pixi-visual-check.mjs asserts the HUD reads 15 m or deeper before capturing: from the surface, 75 frames left the diver 0.3 m down and the camera unmoved, so the scene no longer covered the camera travel and culling resync it exists for. wreck-torch-off now holds S for 1200 frames and asserts 15 m or deeper before it presses T, as the torch works only while diving (#223 Codex round 1); it differs from wreck-descended only in the beam."
+  },
+  "portedFromTheOracle": {
+    "surfaceStart": "src/game-loop.js updateSurface(): no dive time at the surface, and S or the down arrow the only input; the cylinder, setpoint and bailout keys and buttons wait for the dive, as legacy reads them only in updateDiving() and shows only its descend button at the surface. S applies updateSurface()'s 2 L in the BCD, at rest, and the loop's PO2 through DiveModel.leaveSurface(): a fresh state already holds those, a legacy save written at the surface holds 0 L. Legacy's 'surface' autosave is kept: the waiting state is handed to the save.",
+    "bounds": "Legacy's ceilingAt/floorAt, solidAt and overheadAt, on the migration scene's own hull (src/sites/wreck-route.ts, which the renderer now draws from): the surface to 34 m outside the hold; over the cargo hold and engine room, open water above the deck and, under it, the deck's underside to the hold's 33.5 m floor, which is the overhead. A horizontal stroke into the hull is not made. The under-deck space ends at the stern wall the scene draws, from (99, 33.5) to (103, 29.5); past it there is only water above the deck.",
+    "completion": "Surfacing outside the wreck reaches the model's completion (slice 4b); under the deck the diver cannot surface. As legacy's clearSavedDive() on leaving 'diving', the app clears the save on the first completed state and writes none after it, and the ended dive claims no keys.",
+    "fastForward": "canFastForward = atDecoStop || atSafetyStop, the safety-stop half deferred from #206.",
+    "surface": "src/renderer.js drawScene: the sky gradient #c4e6f0 to #83bcd2, the two-sine wave band in rgba(135,206,235,0.3) a metre deep, and the _drawSurfaceUnderside highlight.",
+    "ndl": "src/renderer.js drawDiveComputer: `ndl >= 999 ? '---' : ndl > 99 ? '99' : ndl`, reachable since the dive starts at the surface; the HUD shows the unavailable mark and whole minutes up to 99 through the gas page's ndlText()."
+  },
+  "counterChecks": {
+    "method": "Each revert was applied to a copy restored from a backup, tests/unit/game-controller-buoyancy.test.ts, tests/unit/wreck-route.test.ts, tests/unit/game-controller-fast-forward.test.ts and src/render/camera.test.ts were run, and the file was restored byte for byte (cmp). Run on 0abe8ef, before the rebase; the route, controller and camera code is unchanged since, and the one rebased test change (a controlled ascent) keeps the completion assertion the counter-checks rely on. The #223 pre-review fixes were checked the same way: unit reverts against tests/unit/game-controller-surface.test.ts, tests/unit/leave-surface.test.ts and tests/unit/wreck-route.test.ts; app reverts against a fresh build and the named Playwright tests under the port lock.",
+    "results": [
+      {
+        "revert": "no surface wait: a fresh dive starts at once",
+        "result": "3 failed: the surface start, the surface autosave, the resumed waiting dive"
+      },
+      {
+        "revert": "inOverhead not passed to the model",
+        "result": "1 failed: the cargo hold with the rule of thirds"
+      },
+      {
+        "revert": "open water everywhere: no deck ceiling in the hold",
+        "result": "7 failed, controller and route tests"
+      },
+      {
+        "revert": "the hull does not stop the diver",
+        "result": "3 failed: the deck's edge (controller and route), the steep stern"
+      },
+      {
+        "revert": "no slide along gentle slopes",
+        "result": "2 failed: the slide test, and swimming out of the hold under the deck"
+      },
+      {
+        "revert": "fast-forward without the safety stop",
+        "result": "1 failed: the saved safety stop with fast-forward"
+      },
+      {
+        "revert": "no autosave while waiting at the surface",
+        "result": "1 failed: the surface autosave"
+      },
+      {
+        "revert": "zone from position only, not depth",
+        "result": "1 failed: open water above the deck"
+      },
+      {
+        "revert": "camera top back at 10 m",
+        "result": "1 failed: the camera shows the surface"
+      },
+      {
+        "revert": "cylinder switching live while waiting at the surface",
+        "result": "1 failed: no cylinder switch at the surface"
+      },
+      {
+        "revert": "bailout and setpoint live while waiting",
+        "result": "1 failed: no bailout or setpoint at the surface"
+      },
+      {
+        "revert": "S does not apply updateSurface()",
+        "result": "2 failed: the 2 L BCD from a 0 L save, the loop's PO2"
+      },
+      {
+        "revert": "keys claimed after the dive has ended",
+        "result": "1 failed: the ended dive takes no keys"
+      },
+      {
+        "revert": "the hold runs through the stern wall",
+        "result": "1 failed: the stern wall"
+      },
+      {
+        "revert": "a completed dive keeps its save",
+        "result": "1 failed (e2e): a completed dive leaves no save"
+      },
+      {
+        "revert": "the dock's switches shown while waiting",
+        "result": "2 failed (e2e): the cylinder and rebreather helpers expect them hidden at the surface"
+      },
+      {
+        "revert": "the NDL sentinel shown as a duration",
+        "result": "1 failed (e2e): the surface start reads the unavailable mark"
+      },
+      {
+        "revert": "a completed dive keeps its sound (wreck-app.ts without the audio stop)",
+        "result": "1 failed (e2e): the completed-dive test reads the audio context as running, not closed"
+      },
+      {
+        "revert": "the torch with no guard (key and button)",
+        "result": "2 failed (unit): the surface wait and the ended dive both toggle it"
+      },
+      {
+        "revert": "the T key unguarded",
+        "result": "1 failed (unit): T claimed during the surface wait"
+      },
+      {
+        "revert": "toggleTorch() unguarded",
+        "result": "2 failed (unit): the button toggles during the wait and after the end"
+      },
+      {
+        "revert": "the waves advanced before the ended-dive return",
+        "result": "1 failed (unit): scene.elapsedRealS moves after completion"
+      },
+      {
+        "revert": "the HUD not hiding the torch button",
+        "result": "2 failed (e2e): visible at the surface and after a completed dive"
+      },
+      {
+        "revert": "the nav pad shown at the surface and after the end",
+        "result": "2 failed (e2e): ←, ↑ and → visible while waiting, and the pad visible after a completed dive"
+      }
+    ]
+  },
+  "deferred": "The post-dive screen on completion is slice 8 (#159 PR 2). The HUD pieces (safety-stop countdown, rule-of-thirds gauge and turn beep, ascent rate and fast-ascent warning, #197) are slice 7b, stacked on this branch. Legacy's boat at the surface is not drawn.",
+  "durableProvenance": {
+    "src": "a9d7833589258159b1b8aac7c2f8826ba7053a38",
+    "tests": "c9ef0ee003a34fe32ebaa3b80be9a3a9d19a8e13",
+    "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
+    "docs": "be4ccff71c90d68a71ff35868fbedd96cde6ecc3"
+  },
+  "earlierRuns": [
+    {
+      "measuredCommit": "20f4d317a87d4643521a9a17608f8c8c8bf027e3",
+      "recordedAt": "2026-10-07T05:45:52Z",
+      "note": "Full run before the CI fix: it passed on win32, but on linux CI the unit test that checks the e2e fixtures' neutral 18 m BCD compared a Math.pow result exactly, and linux computes it 2 ULP away. Superseded by the run above."
+    },
+    {
+      "measuredCommit": "d777b05cfda0876eafa84af519387427300a1617",
+      "recordedAt": "2026-10-07T05:20:31Z",
+      "note": "Full run before the nav-pad fix of pre-review pass 4; same counts; superseded by the run above."
+    },
+    {
+      "measuredCommit": "6b3e414a037c5fb28d0f6ca244df71d8bf88b0c0",
+      "recordedAt": "2026-10-07T04:33:45Z",
+      "note": "Full run on main 79f9aef, before the fixes for Codex round 1 and the rebase onto ea2921c; superseded by the run above."
+    },
+    {
+      "measuredCommit": "ac1895768b05813fc56e5850be0f71f6cd4b275c",
+      "recordedAt": "2026-10-07T03:35:51Z",
+      "note": "Full run before the fix for pre-review pass 2 (the sound of a completed dive); superseded by the run above."
+    },
+    {
+      "measuredCommit": "d23735ae5a3c37a92a9088e0462ad6199f107a1c",
+      "recordedAt": "2026-10-07T01:01:21Z",
+      "note": "140 passed, 5 failed: two legacy reload timeouts under load, and three e2e set-ups the surface start had made fragile, fixed in 888f06e."
+    },
+    {
+      "measuredCommit": "888f06e61654a9f7a08b628cb4d44b08f970b2a6",
+      "recordedAt": "2026-10-07T01:19:06Z",
+      "note": "Stopped at test:unit: one route swim timed out at vitest's 5 s default under load, given 30 s in 0abe8ef."
+    },
+    {
+      "measuredCommit": "0abe8ef60c4db81b3e142c6215a6a11cebf4a8d4",
+      "recordedAt": "2026-10-07T01:20:47Z",
+      "note": "On main cb35009, before the rebase onto dd6dac2 (#216, #217, #218); superseded by the run above."
+    },
+    {
+      "measuredCommit": "9a45b803ef97e77749fa6bb4e055094049ad22b2",
+      "recordedAt": "2026-10-07T02:37:48Z",
+      "note": "On main dd6dac2 before the #223 pre-review fixes (25cde48); superseded by the run above."
+    },
+    {
+      "measuredCommit": "25cde48f242bd76eb8e5f5e0406bbd2470107fd7",
+      "recordedAt": "2026-10-07T03:21:54Z",
+      "note": "The #223 pre-review fixes on main dd6dac2: 481 unit, 211 parity, 147 e2e, all passing; superseded by the run above after the rebase onto 79f9aef (#224)."
+    }
+  ]
+}

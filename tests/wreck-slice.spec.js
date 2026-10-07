@@ -1,5 +1,5 @@
 const { expect, test } = require('@playwright/test');
-const { startDive, startDiveAndWaitForCanvas } = require('./helpers/start-dive.cjs');
+const { descendTo, startDive, startDiveAndWaitForCanvas } = require('./helpers/start-dive.cjs');
 
 // Mirrors smoke.spec.js's MOBILE_VIEWPORT: a hand-rolled touch viewport
 // rather than Playwright's `devices['iPhone 12']`, which forbids overriding
@@ -51,10 +51,13 @@ test('production starts the Pixi wreck shell with semantic HUD and controls', as
   await expect(viewport.locator('canvas')).toBeVisible();
   await expect(page.getByText('Simulation running')).toBeVisible();
   await expect(page.getByText('Wreck exterior')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Toggle torch' })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  // Legacy offers the torch only while diving (#223 Codex round 1): at the
+  // surface the button is hidden and T does nothing.
+  const torch = page.locator('[data-torch]');
+  await expect(torch).toBeHidden();
+  await expect(torch).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('t');
+  await expect(torch).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('button', { name: 'Mute audio' })).toHaveAttribute(
     'aria-pressed',
     'false',
@@ -65,18 +68,22 @@ test('production starts the Pixi wreck shell with semantic HUD and controls', as
     'true',
   );
 
-  await page.getByRole('button', { name: 'Toggle torch' }).click();
-  await expect(page.getByRole('button', { name: 'Toggle torch' })).toHaveAttribute(
-    'aria-pressed',
-    'false',
-  );
-
   const depthValue = page.locator('.wreck-hud dd').first();
   const initialDepth = await depthValue.textContent();
   await page.keyboard.down('ArrowDown');
   await page.waitForTimeout(1250);
   await page.keyboard.up('ArrowDown');
   await expect(depthValue).not.toHaveText(initialDepth || '');
+
+  await expect(page.getByRole('button', { name: 'Toggle torch' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await page.getByRole('button', { name: 'Toggle torch' }).click();
+  await expect(page.getByRole('button', { name: 'Toggle torch' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
   await expect(page.locator('[role="alert"]')).toBeHidden();
 
   // Compare like with like. Reading the HUD here and asserting the restored HUD
@@ -108,9 +115,139 @@ test('production starts the Pixi wreck shell with semantic HUD and controls', as
   expect(Math.abs(savedDepthM - depthBeforeReload)).toBeLessThan(5);
 });
 
+// The dive starts at the surface and waits for S (#199, owner decision A):
+// legacy's 'surface' state, src/game-loop.js updateSurface() and the
+// "Press S to vent & descend" prompt of src/renderer.js drawSurface().
+test('the dive starts at the surface and begins on S', async ({ page }) => {
+  await page.goto('/dist/');
+  await page.evaluate(() => window.localStorage.clear());
+  await startDiveAndWaitForCanvas(page);
+
+  const prompt = page.locator('[data-surface-prompt]');
+  await expect(prompt).toBeVisible();
+  await expect(prompt).toHaveText('At the surface. Press S or ↓ to vent and descend');
+  const depth = page.locator('.wreck-hud [data-hud-metric="depth"] dd');
+  const time = page.locator('.wreck-hud [data-hud-metric="time"] dd');
+  await expect.poll(async () => parseMetres(await depth.textContent())).toBe(0);
+  // The clock waits with the diver.
+  const waitingTime = await time.textContent();
+  await page.waitForTimeout(1500);
+  await expect(time).toHaveText(waitingTime || '');
+  // The forecast has long arrived by now, and at the surface it has no
+  // limit: legacy draws "---" for the 999 sentinel, not a duration (#223
+  // pre-review).
+  await expect(page.locator('.wreck-hud [data-hud-metric="ndl"] dd')).toHaveText('—');
+  // Legacy's surface offers one button, the descent; its nav pad and torch
+  // appear only once the dive is under way (#223 Codex round 1).
+  const pad = (control) => page.locator(`.wreck-controls [data-control="${control}"]`);
+  await expect(pad('descend')).toBeVisible();
+  for (const control of ['left', 'ascend', 'right']) {
+    await expect(pad(control), control).toBeHidden();
+  }
+  await expect(page.locator('[data-torch]')).toBeHidden();
+
+  await page.keyboard.down('s');
+  await expect(prompt).toBeHidden();
+  for (const control of ['left', 'ascend', 'descend', 'right']) {
+    await expect(pad(control), control).toBeVisible();
+  }
+  await expect(page.locator('[data-torch]')).toBeVisible();
+  await expect.poll(async () => parseMetres(await depth.textContent())).toBeGreaterThan(0);
+  await page.keyboard.up('s');
+  await expect(time).not.toHaveText(waitingTime || '');
+});
+
+// Legacy clears its save once a dive leaves 'diving' for its post-dive state,
+// so a finished dive is never resumed (#223 pre-review). Before, the
+// completed dive went on being saved and came back, frozen, on every start.
+test('a dive completed at the surface leaves no save, and the next start is a new dive', async ({ page }) => {
+  // Every audio context the page opens, so the end of the dive can be shown
+  // to close them: legacy is silent after the dive (#223 pre-review).
+  await page.addInitScript(() => {
+    const Native = window.AudioContext;
+    window.__audioContexts = [];
+    window.AudioContext = class extends Native {
+      constructor(...args) {
+        super(...args);
+        window.__audioContexts.push(this);
+      }
+    };
+  });
+  await page.goto('/dist/');
+  await page.evaluate(() => window.localStorage.clear());
+  await startDiveAndWaitForCanvas(page);
+  await descendTo(page, 1);
+  const saved = await page
+    .waitForFunction((key) => {
+      const raw = window.localStorage.getItem(key);
+      const parsed = raw === null ? null : JSON.parse(raw);
+      return parsed !== null && parsed.state.elapsedTimeS > 0 ? parsed : null;
+    }, 'diving-simulator.save-game')
+    .then((handle) => handle.jsonValue());
+  // A minute and a half into a 10 m dive, a metre down and slightly light:
+  // it drifts up and surfaces gently, which ends the dive (slice 4b).
+  Object.assign(saved.state, {
+    elapsedTimeS: 90,
+    depthM: 1,
+    maxDepthM: 10,
+    verticalVelocityMpm: 0,
+    bcdGasSurfaceLiters: 3,
+  });
+  await page.goto('/dist/');
+  await page.evaluate(
+    (value) => window.localStorage.setItem('diving-simulator.save-game', value),
+    JSON.stringify(saved),
+  );
+  await startDiveAndWaitForCanvas(page);
+
+  await page.waitForFunction(
+    () => window.localStorage.getItem('diving-simulator.save-game') === null,
+    undefined,
+    { timeout: 30_000 },
+  );
+  // The pad and the torch are offered only while diving (#223 Codex round 1).
+  await expect(page.locator('[data-torch]')).toBeHidden();
+  await expect(page.locator('.wreck-controls [data-control]:visible')).toHaveCount(0);
+  // The dive's sound stops with it.
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__audioContexts.map((context) => context.state)),
+    )
+    .toEqual(['closed']);
+  // Leaving the page writes no save either.
+  await page.reload();
+  expect(await page.evaluate(() => window.localStorage.getItem('diving-simulator.save-game'))).toBeNull();
+
+  await startDiveAndWaitForCanvas(page);
+  await expect(page.locator('[data-surface-prompt]')).toBeVisible();
+  await expect(page.locator('.wreck-hud [data-hud-metric="time"] dd')).toHaveText('0 sec');
+});
+
+test.describe('surface start by touch', () => {
+  test.use(MOBILE_VIEWPORT);
+
+  test('the prompt stays on a narrow layout, and the ↓ button begins the dive', async ({ page }) => {
+    await page.goto('/dist/');
+    await page.evaluate(() => window.localStorage.clear());
+    await startDiveAndWaitForCanvas(page);
+    const prompt = page.locator('[data-surface-prompt]');
+    await expect(prompt).toBeVisible();
+
+    const descend = page.locator('[data-control="descend"]');
+    const box = await descend.boundingBox();
+    expect(box).not.toBeNull();
+    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(prompt).toBeHidden();
+  });
+});
+
 test('persisted safety states produce visible semantic warnings', async ({ page }) => {
   await page.goto('/dist/');
   await startDiveAndWaitForCanvas(page);
+  // A save of a dive under way, deep enough for pure oxygen to pass 1.6 bar:
+  // the dive starts at the surface (#199), and the codec refuses gas drawn
+  // from one still waiting there.
+  await descendTo(page, 7);
   await page.reload();
 
   // Issue #138: the status chip has to say which state it is in, not just turn
@@ -250,10 +387,12 @@ test('the same input trace drives equivalent legacy and Pixi control semantics',
     api.tankCount = 0;
     api.pushTank(0.21, 0, 200);
     api.activeTank = 0;
-    api.gameState = 'diving';
-    api.setDepth(26);
-    api.maxDepth = 26;
-    api.diverX = 18;
+    // Both clients start the dive at the surface and leave it on S or the
+    // down arrow (#199): legacy's 'surface' state, updateSurface().
+    api.gameState = 'surface';
+    api.setDepth(0);
+    api.maxDepth = 0;
+    api.diverX = 10;
     api.verticalVelocity = 0;
     api.torchOn = true;
     api.clearKeys();
@@ -380,10 +519,9 @@ async function readPixiObservation(page) {
   const depthText = await page.locator('.wreck-hud dd').first().textContent();
   return {
     depthM: Number.parseFloat((depthText || '').replace(',', '.')),
-    torchOn:
-      (await page
-        .getByRole('button', { name: 'Toggle torch' })
-        .getAttribute('aria-pressed')) === 'true',
+    // By its data attribute, not its role: at the surface the button is
+    // hidden (#223 Codex round 1), and getByRole skips hidden elements.
+    torchOn: (await page.locator('[data-torch]').getAttribute('aria-pressed')) === 'true',
   };
 }
 

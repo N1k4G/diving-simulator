@@ -1,6 +1,8 @@
 const { expect, test } = require('@playwright/test');
 const {
   acceptSafetyGate,
+  beginDescent,
+  descendTo,
   startDiveByKeyboard,
   startDiveByTouch,
 } = require('./helpers/start-dive.cjs');
@@ -15,11 +17,16 @@ const {
 
 const SAVE_KEY = 'diving-simulator.save-game';
 
+// A save of the dive under way. The dive waits at the surface for S (#199)
+// and is saved there too, with no time on its clock; the codec rightly
+// refuses such a save once a spec has drawn gas from it, so the specs edit
+// one from a dive that has begun.
 const persistedSave = (page) =>
   page
     .waitForFunction((key) => {
       const raw = window.localStorage.getItem(key);
-      return raw === null ? null : JSON.parse(raw);
+      const saved = raw === null ? null : JSON.parse(raw);
+      return saved !== null && saved.state.elapsedTimeS > 0 ? saved : null;
     }, SAVE_KEY)
     .then((handle) => handle.jsonValue());
 
@@ -47,6 +54,10 @@ async function startTwoCylinderDive(page) {
   await configureTwoCylinderTec(page);
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
+  // The cylinder buttons wait at the surface, as legacy's touch-dive group
+  // shows only in 'diving' (#223 pre-review).
+  await expect(page.locator('[data-wreck-tanks]')).toBeHidden();
+  await descendTo(page, 1);
   await expect(page.locator('[data-wreck-tanks] button')).toHaveCount(2);
 }
 
@@ -60,6 +71,7 @@ async function startThreeCylinderDive(page) {
   await page.locator('[data-setup-tank-add]').click();
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
+  await descendTo(page, 1);
   await expect(page.locator('[data-wreck-tanks] button')).toHaveCount(3);
 }
 
@@ -159,6 +171,7 @@ test('an empty cylinder is offered but cannot be breathed', async ({ page }) => 
   await page.locator('[data-setup-tank-add]').click();
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
+  await beginDescent(page);
 
   // Empty the second cylinder in the saved dive, then resume it.
   const saved = await persistedSave(page);
@@ -226,6 +239,8 @@ test('the dive clock runs three times faster than real time, as legacy', async (
   await acceptSafetyGate(page);
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
+  // The clock waits at the surface until S (#199).
+  await beginDescent(page);
 
   const diveSecondsPerRealSecond = await page.evaluate(
     (key) =>
@@ -337,6 +352,9 @@ async function startSixCylinderDive(page, acceptGate = acceptSafetyGate) {
   }
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
+  // Under water, where the gas-information pages and the cylinder buttons
+  // are offered.
+  await descendTo(page, 1);
   await expect(page.locator('[data-wreck-tanks] button')).toHaveCount(6);
 }
 
@@ -358,6 +376,9 @@ test.describe('mobile viewport', () => {
       await target.locator('[data-setup-tank-add]').tap();
     });
     await page.locator('[data-renderer=pixi] canvas').waitFor();
+    // The ↓ button is the touch S that begins the dive (#199).
+    await page.locator('[data-control="descend"]').tap();
+    await expect(page.locator('[data-surface-prompt]')).toBeHidden();
 
     await page.locator('[data-tank="1"]').tap();
 
@@ -453,6 +474,7 @@ test.describe('cylinder readout', () => {
     await expect(page.locator('[data-setup-stepper=setpoint]')).toBeVisible();
     await page.locator('[data-start-dive]').click();
     await page.locator('[data-renderer=pixi] canvas').waitFor();
+    await beginDescent(page);
 
     const saved = await persistedSave(page);
     saved.state.ccr.onBailout = true;
@@ -481,6 +503,8 @@ test('the torch key and the torch button reach the same state', async ({ page })
   await page.evaluate(() => window.localStorage.clear());
   await startDiveByKeyboard(page);
   await page.locator('[data-renderer=pixi] canvas').waitFor();
+  // The torch works only while diving (#223 Codex round 1).
+  await beginDescent(page);
   const torch = page.locator('[data-torch]');
   await expect(torch).toHaveAttribute('aria-pressed', 'true');
 
@@ -492,30 +516,44 @@ test('the torch key and the torch button reach the same state', async ({ page })
 });
 
 /**
- * A dive resumed while holding an 18 m decompression stop.
+ * The stops the fast-forward tests resume a dive at. The numbers are pinned
+ * in tests/unit/game-controller-fast-forward.test.ts, so this fixture and the
+ * unit tests cannot drift apart silently.
  *
- * Every compartment is loaded to 3.0 bar of nitrogen, which under the default
- * gradient factors puts the ceiling at 17.5 m; decoStop() rounds that up to
- * 18 m, the shallowest depth the wreck route allows, and the diver is parked
- * there. tests/unit/game-controller-fast-forward.test.ts asserts that the same
- * loading forecasts an 18 m stop, so this fixture and the unit test cannot
- * drift apart silently.
+ * - `midWater`: every compartment at 3.0 bar of nitrogen puts the ceiling at
+ *   17.5 m under the default gradient factors, and decoStop() rounds that up
+ *   to 18 m. The diver is parked there neutral and at rest: since #199 the
+ *   route is open to the surface, so nothing but buoyancy holds it there.
+ * - `onTheFloor`: 4.5 bar puts the stop at 33 m, and the diver lies on the
+ *   route's 34 m floor with the 2 L a dive leaves the surface with. The floor
+ *   holds it within legacy's 1.5 m of the stop while a vertical key is held.
+ */
+const DECO_STOPS = Object.freeze({
+  midWater: Object.freeze({ depthM: 18, nitrogenBar: 3, bcdGasSurfaceLiters: 9.990465669399928 }),
+  onTheFloor: Object.freeze({ depthM: 34, nitrogenBar: 4.5, bcdGasSurfaceLiters: 2 }),
+});
+
+/**
+ * A dive resumed while holding a decompression stop.
  *
  * Built by starting a real dive and editing its save, as the empty-cylinder
  * test does, so the payload has whatever shape the codec currently requires.
  */
-async function startDiveAtDecoStop(page, configure) {
+async function startDiveAtDecoStop(page, configure, stop = DECO_STOPS.midWater) {
   await page.goto('/dist/');
   await page.evaluate(() => window.localStorage.clear());
   await acceptSafetyGate(page);
   if (configure) await configure(page);
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
+  await beginDescent(page);
 
   const saved = await persistedSave(page);
-  saved.state.depthM = 18;
+  saved.state.depthM = stop.depthM;
   saved.state.maxDepthM = 34;
-  saved.state.tissues.nitrogenBar = saved.state.tissues.nitrogenBar.map(() => 3);
+  saved.state.verticalVelocityMpm = 0;
+  saved.state.bcdGasSurfaceLiters = stop.bcdGasSurfaceLiters;
+  saved.state.tissues.nitrogenBar = saved.state.tissues.nitrogenBar.map(() => stop.nitrogenBar);
 
   await page.goto('/dist/');
   await page.evaluate(
@@ -537,8 +575,9 @@ const fastForwardIndicator = (page) => page.locator('[data-fast-forward-indicato
 // mirroring src/game-loop.js updateDiving() and src/touch.js touchUpdateUI().
 test.describe('fast-forward', () => {
   test('is not offered on a dive with no stop to wait out', async ({ page }) => {
-    // A fresh dive at 26 m on air has no ceiling, so legacy's canFastForward
-    // is false: the button is not shown and F is left to whoever else wants
+    // A fresh dive at the surface on air has no ceiling and no safety stop
+    // under way, so legacy's canFastForward is false: the button is not
+    // shown and F is left to whoever else wants
     // it rather than claimed and discarded (the #163 review's rule for the
     // digit keys, applied here too).
     await page.goto('/dist/');
@@ -655,19 +694,19 @@ test.describe('fast-forward', () => {
   test('holding a vertical key ends it, and releasing does not resume it', async ({ page }) => {
     // src/game-loop.js: `canFastForward && !keys['w'] && !keys['arrowup']
     // && !keys['s'] && !keys['arrowdown']`, else fastForwardActive = false.
-    await startDiveAtDecoStop(page);
+    await startDiveAtDecoStop(page, undefined, DECO_STOPS.onTheFloor);
     await page.keyboard.press('f');
     await expect(fastForwardIndicator(page)).toBeVisible();
 
-    await page.keyboard.down('ArrowUp');
+    await page.keyboard.down('ArrowDown');
     // Not on offer while the key is held, and off.
     await expect(fastForwardButton(page)).toBeHidden();
     await expect(fastForwardIndicator(page)).toBeHidden();
 
-    await page.keyboard.up('ArrowUp');
-    // The route floor is 18 m, so the diver is still at the stop and the
-    // control returns — unpressed. Legacy cleared the flag; only a new press
-    // sets it again.
+    await page.keyboard.up('ArrowDown');
+    // The diver lies on the route's floor, so venting leaves it at the stop
+    // and the control returns — unpressed. Legacy cleared the flag; only a
+    // new press sets it again.
     await expect(fastForwardButton(page)).toBeVisible();
     await expect(fastForwardButton(page)).toHaveAttribute('aria-pressed', 'false');
     await expect(fastForwardIndicator(page)).toBeHidden();
@@ -712,7 +751,12 @@ test.describe('fast-forward', () => {
 // updateCcrDiveButtonVisibility; and the loop's HUD rows and warnings, from
 // the CCR gas box and warning banner in src/renderer.js.
 
-async function startCcrDive(page) {
+/**
+ * A CCR dive, under way below the surface unless `descend` is false: the
+ * descent draws diluent into the loop, as legacy's updateCCRDiluent, so a
+ * spec that reads the cylinders as configured stays at the surface.
+ */
+async function startCcrDive(page, { descend = true } = {}) {
   await page.goto('/dist/');
   await page.evaluate(() => window.localStorage.clear());
   await acceptSafetyGate(page);
@@ -720,7 +764,13 @@ async function startCcrDive(page) {
   await expect(page.locator('[data-setup-stepper=setpoint]')).toBeVisible();
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
-  await expect(page.locator('[data-wreck-ccr]')).toBeVisible();
+  // The loop's buttons wait at the surface, as legacy shows them only in
+  // 'diving' (#223 pre-review).
+  await expect(page.locator('[data-wreck-ccr]')).toBeHidden();
+  if (descend) {
+    await descendTo(page, 1);
+    await expect(page.locator('[data-wreck-ccr]')).toBeVisible();
+  }
 }
 
 /** Starts a CCR dive, edits its save with `mutate`, and resumes it. */
@@ -826,7 +876,7 @@ test.describe('rebreather controls', () => {
     // src/renderer.js draws SP, PO2, O2, DIL and SCR where the open-circuit
     // gas box would be. The gas row here would otherwise show tanks[0], the
     // codec's placeholder cylinder, at a pressure nobody draws down.
-    await startCcrDive(page);
+    await startCcrDive(page, { descend: false });
 
     for (const name of LOOP_ROWS) {
       await expect(hudRow(page, name), `${name} row`).toBeVisible();
@@ -844,6 +894,7 @@ test.describe('rebreather controls', () => {
     await page.evaluate(() => window.localStorage.clear());
     await startDiveByKeyboard(page);
     await page.locator('[data-renderer=pixi] canvas').waitFor();
+    await beginDescent(page);
 
     for (const name of LOOP_ROWS) {
       await expect(hudRow(page, name), `${name} row`).toBeHidden();
@@ -1115,6 +1166,7 @@ async function startFourCylinderDive(page) {
   }
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
+  await descendTo(page, 1);
   await expect(page.locator('[data-wreck-tanks] button')).toHaveCount(4);
 }
 
@@ -1178,6 +1230,8 @@ test.describe('gas information', () => {
     await page.locator('[data-setup-group=mode] [data-setup-option=tec]').check();
     await page.locator('[data-start-dive]').click();
     await page.locator('[data-renderer=pixi] canvas').waitFor();
+    // The pages are offered under water, as legacy's gameState 'diving'.
+    await descendTo(page, 1);
 
     await expect(gasInfoToggle(page)).toBeVisible();
     await page.keyboard.press('i');

@@ -14,6 +14,8 @@ import { LAYERS, type LayerId } from "../sites/asset-manifest";
 
 /** Retained (hand-authored) elements of the wreck scene. */
 export type RetainedElement =
+  | "sky"
+  | "surface"
   | "distantHull"
   | "seabed"
   | "hull"
@@ -28,7 +30,10 @@ export type RetainedElement =
  * `diver` is meaningful: it reproduces the pre-refactor draw order exactly.
  *
  * Why each sits where it does:
- * - `distantHull` — parallax silhouette behind everything.
+ * - `sky`, `surface` — the air above the water and the water's surface
+ *   (#199). Behind everything, and first in their layer: nothing in the
+ *   scene reaches above the surface, and the diver floats in front of it.
+ * - `distantHull` — parallax silhouette behind everything below the surface.
  * - `seabed` — ground the wreck rests on.
  * - `hull`, `rooms`, `engine` — the wreck itself, opaque, occludes the seabed.
  * - `route`, `silt`, `diver` — everything between the camera and the wreck.
@@ -37,6 +42,8 @@ export type RetainedElement =
  */
 export const RETAINED_LAYER_ASSIGNMENT: Readonly<Record<RetainedElement, LayerId>> =
   Object.freeze({
+    sky: "backdrop",
+    surface: "backdrop",
     distantHull: "backdrop",
     seabed: "terrain",
     hull: "structure",

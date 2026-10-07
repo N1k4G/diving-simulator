@@ -39,6 +39,35 @@ async function startDiveAndWaitForCanvas(page, configure) {
   await page.locator('[data-renderer=pixi] canvas').waitFor();
 }
 
+// The dive starts at the surface and waits for S (#199), as legacy's
+// 'surface' state does: no clock, no gas, no autosave of a dive under way.
+// A spec that needs the dive running begins it the way a player does.
+
+/** Presses S until the dive has begun, then lets go. */
+async function beginDescent(page) {
+  await page.keyboard.down('s');
+  await page.locator('[data-surface-prompt]').waitFor({ state: 'hidden' });
+  await page.keyboard.up('s');
+}
+
+/**
+ * Holds S, venting the BCD, until the HUD reads at least `depthM`, then lets
+ * go. Below 0.5 m the dive counts as under water (presentation status
+ * "diving"), which is what gates the gas-information pages.
+ */
+async function descendTo(page, depthM) {
+  await page.keyboard.down('s');
+  try {
+    await page.waitForFunction((target) => {
+      const value = document.querySelector('.wreck-hud [data-hud-metric="depth"] dd');
+      const depth = Number.parseFloat(String(value?.textContent ?? '').replace(',', '.'));
+      return depth >= target;
+    }, depthM, { timeout: 60_000 });
+  } finally {
+    await page.keyboard.up('s');
+  }
+}
+
 // The same flow driven by a single input modality, end to end.
 //
 // #158's acceptance is that keyboard-only and touch-only both reach the dive
@@ -87,6 +116,8 @@ module.exports = {
   acceptSafetyGate,
   acceptSafetyGateByKeyboard,
   acceptSafetyGateByTouch,
+  beginDescent,
+  descendTo,
   startDive,
   startDiveAndWaitForCanvas,
   startDiveByKeyboard,

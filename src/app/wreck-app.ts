@@ -38,7 +38,7 @@ import { siteGameplay } from "../sites/site-resources";
 
 /** src/game-loop.js SAVE_INTERVAL_MS: an autosave at most every 3 real seconds. */
 const SAVE_INTERVAL_MS = 3000;
-import { createGasInfo, syncGasInfo, type GasInfoElements } from "./gas-info";
+import { createGasInfo, ndlText, syncGasInfo, type GasInfoElements } from "./gas-info";
 import {
   gasInfoAvailable,
   gasInfoPageStillValid,
@@ -78,10 +78,12 @@ interface HudElements {
   readonly warning: HTMLElement;
   readonly tanks: HTMLElement;
   readonly ccr: HTMLElement;
+  readonly movement: readonly HTMLButtonElement[];
   readonly torch: HTMLButtonElement;
   readonly fastForward: HTMLButtonElement;
   readonly mute: HTMLButtonElement;
   readonly gasInfo: GasInfoElements;
+  readonly surfacePrompt: HTMLElement;
 }
 
 const zoneMessageKeys: Record<WreckZone, MessageKey> = {
@@ -308,6 +310,11 @@ async function startWreckSimulation(
   // clears the save on its transition to 'gameover' (game-loop.js,
   // clearSavedDive()), because a failed dive is not one to resume.
   let gameOver = false;
+  // Set when the dive is completed at the surface. Legacy clears its save once
+  // the dive leaves 'diving' for 'post-dive' (maybeSaveDiveState saves only in
+  // 'diving', 'surface' and 'drill'), so a finished dive is never resumed
+  // (#223 pre-review). What is shown next is the post-dive screen's (#159).
+  let completedSaveCleared = false;
   const controller = new GameController({
     renderer,
     // A restored save still wins over the setup, which is existing resume
@@ -320,7 +327,16 @@ async function startWreckSimulation(
     // defaults and the GF controls change a number nobody reads (#158 review).
     plannerSettings,
     onAuthoritativeState: (state) => {
-      if (gameOver) {
+      if (gameOver || completedSaveCleared) {
+        return;
+      }
+      if (state.completed) {
+        completedSaveCleared = true;
+        try {
+          repository.clear();
+        } catch (error) {
+          console.error(error);
+        }
         return;
       }
       const nowMs = performance.now();
@@ -357,6 +373,15 @@ async function startWreckSimulation(
         plannerSettings,
         locale,
       );
+      // Legacy is silent after the dive: its only beep is drawn with the dive
+      // computer, which its post-dive state no longer draws. A completed dive
+      // stops its sound for good, as a failed one does in its teardown;
+      // otherwise a dive surfaced on low gas kept sounding its alarm (#223
+      // pre-review).
+      if (frame.presentation.completed) {
+        audio.destroy();
+        return;
+      }
       audio.update({
         elapsedRealS: frame.scene.elapsedRealS,
         warningActive: selectWarning(frame.presentation) !== null,
@@ -467,7 +492,9 @@ async function startWreckSimulation(
     if (gameOver) {
       return;
     }
-    saveState(repository, controller.authoritativeState, plannerSettings, diveMode);
+    if (!controller.authoritativeState.completed) {
+      saveState(repository, controller.authoritativeState, plannerSettings, diveMode);
+    }
     teardown();
   }
   window.addEventListener("pagehide", handlePageHide, { once: true });
@@ -607,6 +634,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   const controls = document.createElement("div");
   controls.className = "wreck-controls";
   controls.setAttribute("aria-label", translate(locale, "wreck.controls.heading"));
+  const movement: HTMLButtonElement[] = [];
   for (const [control, key, glyph] of [
     ["left", "wreck.controls.left", "←"],
     ["ascend", "wreck.controls.ascend", "↑"],
@@ -619,6 +647,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     button.setAttribute("aria-label", translate(locale, key));
     button.textContent = glyph;
     controls.append(button);
+    movement.push(button);
   }
   const torch = document.createElement("button");
   torch.type = "button";
@@ -689,9 +718,21 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   bailout.textContent = translate(locale, "wreck.controls.bailout.label");
   ccr.append(bailout);
 
+  // Legacy's surface screen (src/renderer.js drawSurface, src/touch.js): the
+  // dive waits at the surface for S, and says so (#199). Shown on every
+  // layout, unlike the keyboard hint, because on a phone it is the only thing
+  // that says the dive has not begun; the ↓ button is the touch S.
+  const surfacePrompt = createElement(
+    "p",
+    "surface-prompt",
+    translate(locale, "wreck.controls.surfaceDescend"),
+  );
+  surfacePrompt.dataset.surfacePrompt = "true";
+  surfacePrompt.hidden = true;
+
   const dock = document.createElement("div");
   dock.className = "wreck-dock";
-  dock.append(hint, tanks, ccr);
+  dock.append(surfacePrompt, hint, tanks, ccr);
 
   // The HUD and the gas-information panel share one column, so an open
   // page sits below the readouts rather than over them (#163).
@@ -719,10 +760,12 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     warning,
     tanks,
     ccr,
+    movement,
     torch,
     fastForward,
     mute,
     gasInfo,
+    surfacePrompt,
   };
 }
 
@@ -744,13 +787,29 @@ function updateHud(
   hud.fastForward.hidden = !fastForward.available;
   hud.fastForward.setAttribute("aria-pressed", String(fastForward.active));
   hud.speed.hidden = !fastForward.active;
-  syncLoopRows(hud, presentation, locale);
-  hud.ndl.textContent = presentation.planner
-    ? formatDuration(presentation.planner.ndlMin * 60, locale)
-    : translate(locale, "wreck.value.unavailable");
+  hud.surfacePrompt.hidden = !frame.awaitingDescent;
+  syncLoopRows(hud, presentation, locale, frame.awaitingDescent);
+  // Legacy's "---" for the 999 "no limit" sentinel, and at most 99 (#223
+  // pre-review): reachable since the dive starts at the surface.
+  hud.ndl.textContent = ndlText(
+    presentation.planner?.ndlMin ?? null,
+    locale,
+    translate(locale, "wreck.value.unavailable"),
+  );
   hud.zone.textContent = translate(locale, zoneMessageKeys[scene.zone]);
   hud.torch.setAttribute("aria-pressed", String(scene.torchOn));
-  syncTankControls(hud.tanks, presentation, locale);
+  // Legacy shows its nav pad and torch button, and reads their keys, only in
+  // 'diving' (touch.js touchUpdateUI, game-loop.js D6). At the surface its
+  // one button is the descent, S; after the dive there are none (#223 Codex
+  // round 1 and pre-review). Each button keeps its grid cell, so hiding one
+  // moves no other under a thumb.
+  const ended = presentation.completed || presentation.status === "failed";
+  for (const button of hud.movement) {
+    button.hidden =
+      ended || (frame.awaitingDescent && button.dataset.control !== "descend");
+  }
+  hud.torch.hidden = frame.awaitingDescent || ended;
+  syncTankControls(hud.tanks, presentation, locale, frame.awaitingDescent);
 
   const severity = selectWarning(presentation);
   const alertText = severity ? translate(locale, warningAlertKeys[severity]) : "";
@@ -822,6 +881,7 @@ function syncLoopRows(
   hud: HudElements,
   presentation: Readonly<PresentationState>,
   locale: SupportedLocale,
+  awaitingDescent: boolean,
 ): void {
   const { ccr, status } = presentation;
   const loopRows = [
@@ -835,7 +895,15 @@ function syncLoopRows(
   for (const row of loopRows) {
     setMetricHidden(row, ccr === null);
   }
-  hud.ccr.hidden = ccr === null || ccr.onBailout || status === "failed";
+  // Legacy shows the loop's buttons only in 'diving' (touch.js
+  // updateCcrDiveButtonVisibility): not while the dive waits at the
+  // surface, nor once it has ended (#223 pre-review).
+  hud.ccr.hidden =
+    ccr === null ||
+    ccr.onBailout ||
+    status === "failed" ||
+    presentation.completed ||
+    awaitingDescent;
   if (!ccr) {
     return;
   }
@@ -993,6 +1061,7 @@ function syncTankControls(
   container: HTMLElement,
   presentation: Readonly<PresentationState>,
   locale: SupportedLocale,
+  awaitingDescent: boolean,
 ): void {
   const { tanks, ccr, status } = presentation;
   // Gone once the dive has failed, as legacy takes its touch UI away outside
@@ -1000,7 +1069,15 @@ function syncTankControls(
   // failed dive, so leaving the buttons enabled offered an action that could
   // not happen (#163 review) — the issue's "controls appear only when the
   // dive state allows them" covers this as much as it covers CCR.
-  container.hidden = status === "failed" || ccr !== null || tanks.length <= 1;
+  // Nor at the surface before the dive, nor once it has ended: legacy's
+  // cylinder buttons sit in touch-dive, shown only in 'diving' (#223
+  // pre-review).
+  container.hidden =
+    status === "failed" ||
+    presentation.completed ||
+    awaitingDescent ||
+    ccr !== null ||
+    tanks.length <= 1;
   if (container.hidden) {
     return;
   }

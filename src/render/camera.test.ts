@@ -29,6 +29,14 @@ describe("wreck camera", () => {
     expect(camera.focus).toEqual({ x: 29, y: 25 });
   });
 
+  it("shows the surface, with sky above it, to a diver floating there (#199)", () => {
+    const viewport = { width: 960, height: 540 };
+    const camera = createCameraTransform(viewport, { x: 18, y: 0 });
+    const surface = worldToScreen({ x: 18, y: 0 }, camera);
+    expect(surface.y).toBeGreaterThan(0);
+    expect(surface.y).toBeLessThan(viewport.height / 2);
+  });
+
   it("rejects invalid viewport dimensions", () => {
     expect(() =>
       createCameraTransform({ width: 0, height: 300 }, { x: 20, y: 20 }),

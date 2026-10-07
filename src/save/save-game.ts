@@ -1397,8 +1397,10 @@ function isFailureState(
   }
   // A dive at the surface with a ceiling deeper than 3 m ends on that step,
   // so none goes on from one (#212 Codex round 1). No earlier version could
-  // save one either: the client's route has stayed between 18 and 34 m since
-  // #192, and legacy ends such a dive in the same tick, before it saves.
+  // save one either: the client's route kept the diver between 18 and 34 m
+  // from #192 until it opened to the surface (#199), where the step that
+  // surfaces ends such a dive, and legacy ends one in the same tick, before
+  // it saves.
   if (
     reason === null &&
     context.depthM < SURFACE_DCS_DEPTH_M &&

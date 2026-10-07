@@ -6,11 +6,15 @@ import {
   freezeDiveState,
   type DiveState,
 } from "../core/dive-state";
-import { DiveModel, SAFETY_STOP_NEEDED_BELOW_M } from "../core/dive-model";
+import {
+  DiveModel,
+  SAFETY_STOP_NEEDED_BELOW_M,
+  isAtSafetyStop,
+  isDiveOver,
+} from "../core/dive-model";
 import {
   neutralBcdSurfaceLitres,
   type BuoyancyControls,
-  type VerticalBounds,
 } from "../core/buoyancy";
 import { metres, seconds } from "../core/units";
 import {
@@ -28,20 +32,13 @@ import {
 import type { SceneRenderer, WreckSceneState } from "../render/renderer";
 import { selectWreckZone } from "../render/renderer";
 import { PlannerWorkerClient } from "./planner-worker-client";
+import {
+  OPEN_WATER_FLOOR_M,
+  ROUTE_START_POSITION_M,
+  moveAlongRoute,
+  routeSpaceNear,
+} from "../sites/wreck-route";
 
-const START_DEPTH_M = 26;
-const START_ROUTE_POSITION_M = 18;
-/**
- * The wreck route's vertical bounds, legacy's ceilingAt() and floorAt() for
- * this slice (#192). The buoyancy physics stops the diver at them, as legacy
- * stops it at a site's ceiling and floor.
- */
-const ROUTE_BOUNDS: Readonly<VerticalBounds> = Object.freeze({
-  ceilingM: 18,
-  floorM: 34,
-});
-const MIN_ROUTE_POSITION_M = 8;
-const MAX_ROUTE_POSITION_M = 106;
 const FIN_SPEED_MPS = 5;
 /** src/game-loop.js gameLoop(): `dtReal = Math.min(dtReal, 0.1)`. */
 const MAX_FRAME_SECONDS = 0.1;
@@ -77,6 +74,11 @@ export interface GameFrame {
   readonly presentation: Readonly<PresentationState>;
   readonly scene: Readonly<WreckSceneState>;
   readonly fastForward: Readonly<FastForwardState>;
+  /**
+   * The diver floats at the surface and the dive has not begun: legacy's
+   * 'surface' state, which waits for S (#199). The HUD says how to begin.
+   */
+  readonly awaitingDescent: boolean;
 }
 
 export interface GameControllerOptions {
@@ -114,7 +116,14 @@ export class GameController {
    * latest state instead of waiting for the next whole-second step.
    */
   #forcedForecastQueued = false;
-  #routePositionM = START_ROUTE_POSITION_M;
+  #routePositionM = ROUTE_START_POSITION_M;
+  /**
+   * Legacy's 'surface' state (src/game-loop.js updateSurface): the diver
+   * floats at the entry, the dive clock does not run, and nothing but S
+   * starts anything. Set for a dive that has not begun, fresh or saved
+   * before its first second.
+   */
+  #awaitingDescent: boolean;
   #elapsedRealS = 0;
   #facing: -1 | 1 = 1;
   #torchOn = true;
@@ -136,6 +145,7 @@ export class GameController {
       // The log's ceiling and NDL at the dive's GF high, as the forecast.
       { gradientFactorHighPercent: this.#plannerSettings.gfHighPercent },
     );
+    this.#awaitingDescent = hasNotBegun(this.#model.snapshot);
   }
 
   /** What the forecast is actually requested with, as opposed to configured. */
@@ -178,6 +188,16 @@ export class GameController {
   setControl(control: ContinuousControl, active: boolean): void {
     if (active) {
       this.#pressed.add(control);
+      // S at the surface begins the dive (src/game-loop.js updateSurface:
+      // `keys['s'] || keys['arrowdown']` sets gameState = 'diving'), with
+      // legacy's 2 L in the BCD, at rest, and the loop's PO2 there. A fresh
+      // dive already holds those; a legacy save written at the surface holds
+      // 0 L (#223 pre-review). The key stays held, so the next frame vents,
+      // as legacy's next updateDiving() does.
+      if (control === "descend" && this.#awaitingDescent) {
+        this.#awaitingDescent = false;
+        this.#model.leaveSurface();
+      }
       // Legacy drops out of fast-forward on the tick a vertical key is read
       // (src/game-loop.js updateDiving). Done here as well as in #tick so
       // that no frame ever reports the clock as sped up while the control
@@ -190,7 +210,15 @@ export class GameController {
     }
   }
 
+  /**
+   * Legacy reads T inside updateDiving() (src/game-loop.js D6), so the torch
+   * works only while diving: not while the dive waits at the surface, nor
+   * once it has ended (#223 Codex round 1).
+   */
   toggleTorch(): void {
+    if (!this.#torchAvailable()) {
+      return;
+    }
     this.#torchOn = !this.#torchOn;
     this.#publishFrame();
   }
@@ -232,7 +260,9 @@ export class GameController {
    * switch while CCR is set, and a dive that has already failed.
    */
   requestTankSwitch(index: number): void {
-    if (!Number.isInteger(index) || index < 0) {
+    // Legacy reads the digit keys only in updateDiving(), never at the
+    // surface (#223 pre-review).
+    if (!Number.isInteger(index) || index < 0 || this.#awaitingDescent) {
       return;
     }
     const before = this.#model.snapshot;
@@ -262,6 +292,10 @@ export class GameController {
    * setpoint is a new forecast gas.
    */
   adjustSetpoint(deltaBar: number): void {
+    // Only in updateDiving(), as the cylinder keys (#223 pre-review).
+    if (this.#awaitingDescent) {
+      return;
+    }
     const before = this.#model.snapshot;
     const after = this.#model.adjustSetpoint(deltaBar);
     if (after === before) {
@@ -279,6 +313,11 @@ export class GameController {
    * second one anyway. The forecast changes with the breathed gas.
    */
   bailOut(): void {
+    // Only in updateDiving(): at the surface an irreversible bailout would
+    // otherwise begin the dive on open circuit (#223 pre-review).
+    if (this.#awaitingDescent) {
+      return;
+    }
     const before = this.#model.snapshot;
     const after = this.#model.bailOut();
     if (after === before) {
@@ -327,14 +366,27 @@ export class GameController {
       elapsedS *
       TIME_ACCELERATION *
       (this.#fastForwardActive ? FAST_FORWARD_MULTIPLIER : 1);
-    if (frameDiveS > 0) {
+    if (frameDiveS > 0 && !this.#awaitingDescent) {
+      // The bounds where the diver is (#199): the surface outside the wreck,
+      // the deck inside it. Under the deck is legacy's inOverhead, which
+      // runs the rule of thirds.
+      const space = routeSpaceNear(
+        this.#routePositionM,
+        this.#model.snapshot.depthM,
+      );
       this.#model.advanceWithBuoyancy(
-        ROUTE_BOUNDS,
+        space,
         seconds(frameDiveS),
         this.#buoyancyControls(),
+        space.inOverhead,
       );
       this.#onAuthoritativeState?.(this.#model.snapshot);
       this.#requestForecast();
+    } else if (frameDiveS > 0) {
+      // Waiting at the surface the state does not change, but legacy's
+      // autosave runs in its 'surface' state as in 'diving' (gameLoop), so a
+      // dive left before its descent resumes there too.
+      this.#onAuthoritativeState?.(this.#model.snapshot);
     }
 
     this.#publishFrame();
@@ -346,15 +398,30 @@ export class GameController {
       (this.#pressed.has("right") ? 1 : 0) -
       (this.#pressed.has("left") ? 1 : 0);
 
+    // A dive that has ended moves no more, its waves included: legacy's
+    // post-dive state draws no scene (#223 Codex round 1).
+    if (isDiveOver(this.#model.snapshot)) {
+      return;
+    }
+    // At the surface before the dive the waves move, but legacy's
+    // updateSurface reads S and nothing else.
+    this.#elapsedRealS += elapsedS;
+    if (this.#awaitingDescent) {
+      return;
+    }
     if (horizontal !== 0) {
       this.#facing = horizontal < 0 ? -1 : 1;
     }
-    this.#routePositionM = clamp(
+    // The hull stops the diver as legacy's structures do (#199).
+    this.#routePositionM = moveAlongRoute(
+      this.#routePositionM,
       this.#routePositionM + horizontal * FIN_SPEED_MPS * elapsedS,
-      MIN_ROUTE_POSITION_M,
-      MAX_ROUTE_POSITION_M,
+      this.#model.snapshot.depthM,
     );
-    this.#elapsedRealS += elapsedS;
+  }
+
+  #torchAvailable(): boolean {
+    return !this.#awaitingDescent && !isDiveOver(this.#model.snapshot);
   }
 
   /**
@@ -372,19 +439,26 @@ export class GameController {
    * The depth is the model's — the one the tissues were last integrated at —
    * rather than the view's, so the decision is a function of authoritative
    * state plus the held controls and not of where the sprite happens to be
-   * between steps. A failed dive has nothing left to wait out.
+   * between steps. A dive that has ended, or not begun, has nothing to wait
+   * out.
+   *
+   * The other half of canFastForward is the safety stop (#199): its
+   * countdown under way and the diver in its band, legacy's atSafetyStop.
+   * It waited for #206 until the route could reach the band.
    */
   #fastForwardAvailable(): boolean {
     const state = this.#model.snapshot;
-    if (state.failure.reason !== null) {
+    if (isDiveOver(state) || this.#awaitingDescent) {
       return false;
     }
     if (this.#pressed.has("ascend") || this.#pressed.has("descend")) {
       return false;
     }
-    return isAtDecoStop(
-      state.depthM,
-      calculateCeiling(state.tissues, this.#plannerSettings),
+    return (
+      isAtDecoStop(
+        state.depthM,
+        calculateCeiling(state.tissues, this.#plannerSettings),
+      ) || isAtSafetyStop(state)
     );
   }
 
@@ -404,20 +478,31 @@ export class GameController {
       this.#model.snapshot,
       this.#planner,
     );
+    const depthM = this.#model.snapshot.depthM;
     const scene: WreckSceneState = Object.freeze({
       routePositionM: this.#routePositionM,
-      diverDepthM: this.#model.snapshot.depthM,
+      diverDepthM: depthM,
       elapsedRealS: this.#elapsedRealS,
       facing: this.#facing,
       torchOn: this.#torchOn,
-      zone: selectWreckZone(this.#routePositionM),
+      // Over the hold but above its deck is open water, not the hold.
+      zone: routeSpaceNear(this.#routePositionM, depthM).inOverhead
+        ? selectWreckZone(this.#routePositionM)
+        : "exterior",
     });
     const fastForward: FastForwardState = Object.freeze({
       available: this.#fastForwardAvailable(),
       active: this.#fastForwardActive,
     });
     this.#renderer.render(presentation, scene);
-    this.#onFrame(Object.freeze({ presentation, scene, fastForward }));
+    this.#onFrame(
+      Object.freeze({
+        presentation,
+        scene,
+        fastForward,
+        awaitingDescent: this.#awaitingDescent,
+      }),
+    );
   }
 
   /**
@@ -489,13 +574,23 @@ export class GameController {
   }
 
   readonly #handleKeyDown = (event: KeyboardEvent): void => {
+    // A dive that has ended moves no more and has no torch to work, so its
+    // movement keys and T are left to whatever else wants them, as every
+    // other dive key is (#223 pre-review).
+    if (isDiveOver(this.#model.snapshot)) {
+      return;
+    }
     const control = controlForKey(event.key);
     if (control) {
       event.preventDefault();
       this.setControl(control, true);
       return;
     }
-    if (event.key.toLowerCase() === "t" && !event.repeat) {
+    if (
+      event.key.toLowerCase() === "t" &&
+      !event.repeat &&
+      this.#torchAvailable()
+    ) {
       event.preventDefault();
       this.toggleTorch();
       return;
@@ -560,18 +655,25 @@ export class GameController {
    */
   #canSwitchTank(tankIndex: number): boolean {
     const state = this.#model.snapshot;
-    return state.failure.reason === null && tankIndex < state.tanks.length;
+    return (
+      !isDiveOver(state) &&
+      !this.#awaitingDescent &&
+      tankIndex < state.tanks.length
+    );
   }
 
   /**
    * Legacy's `diveMode === 'ccr' && !ccrState.onBailout` gate for the
    * setpoint keys and B, plus the failed-dive rule every in-dive control
-   * follows. The DOM row in wreck-app.ts hides itself on the same condition.
+   * follows, and not while the dive waits at the surface, where legacy reads
+   * them nowhere. The DOM row in wreck-app.ts hides itself on the same
+   * condition.
    */
   #loopControlsOffered(): boolean {
     const state = this.#model.snapshot;
     return (
-      state.failure.reason === null &&
+      !isDiveOver(state) &&
+      !this.#awaitingDescent &&
       state.ccr !== null &&
       !state.ccr.onBailout
     );
@@ -580,7 +682,11 @@ export class GameController {
   readonly #handleKeyUp = (event: KeyboardEvent): void => {
     const control = controlForKey(event.key);
     if (control) {
-      event.preventDefault();
+      // Released whatever the dive's state, so no control stays held; only
+      // claimed while the dive still takes it.
+      if (!isDiveOver(this.#model.snapshot)) {
+        event.preventDefault();
+      }
       this.setControl(control, false);
     }
   };
@@ -633,20 +739,28 @@ function controlForKey(key: string): ContinuousControl | null {
   }
 }
 
-function clamp(value: number, minimum: number, maximum: number): number {
-  return Math.min(maximum, Math.max(minimum, value));
+/**
+ * A dive that has not begun: at the surface with no time on the clock, which
+ * is what legacy's 'surface' state saves as. Anything that has run a frame
+ * has a clock.
+ */
+function hasNotBegun(state: DiveState): boolean {
+  return state.elapsedTimeS === 0 && state.depthM === 0 && !isDiveOver(state);
 }
 
 /**
- * A resumed dive saved outside the route's bounds, such as a legacy save at
- * 12 m, starts at the nearest bound, at rest and neutral there (#198
- * pre-review). The physics would clamp the depth on the first frame but keep
- * the saved BCD gas, so a diver moved from 12 m to 18 m would arrive heavy and
- * sink to the floor on its own. At rest and neutral is how a save without
- * live motion resumes (src/save/save-game.ts, v6).
+ * A resumed dive picks up at the route's start, in open water beside the
+ * wreck, because the save does not record the route position (nor does
+ * legacy's diverX). There the water runs from the surface to the floor, so
+ * only a dive saved below the floor, such as a legacy save at 40 m, has to
+ * move: to the floor, at rest and neutral there (#198 pre-review). The physics
+ * would clamp the depth on the first frame but keep the saved BCD gas, so a
+ * diver moved up from 40 m would arrive light and rise on its own. At rest and
+ * neutral is how a save without live motion resumes (src/save/save-game.ts,
+ * v6).
  */
 function withinRoute(state: DiveState): DiveState {
-  const depthM = clamp(state.depthM, ROUTE_BOUNDS.ceilingM, ROUTE_BOUNDS.floorM);
+  const depthM = Math.min(state.depthM, OPEN_WATER_FLOOR_M);
   if (depthM === state.depthM) {
     return state;
   }
@@ -680,18 +794,7 @@ function withinRoute(state: DiveState): DiveState {
 export function createWreckInitialState(
   options: InitialDiveOptions = {},
 ): DiveState {
-  // The slice starts mid-water at START_DEPTH_M, where legacy's dives start
-  // at the surface with 2 L in the BCD and descend. That much gas at 26 m
-  // would sink the diver to the floor at once, so the dive starts neutral
-  // there, as legacy's neutralizeAt() sets it (#192).
-  const initial = createInitialDiveState(0x57524543, {
-    ...options,
-    bcdGasSurfaceLiters:
-      options.bcdGasSurfaceLiters ?? neutralBcdSurfaceLitres(START_DEPTH_M),
-  });
-  return freezeDiveState({
-    ...initial,
-    depthM: metres(START_DEPTH_M),
-    maxDepthM: metres(START_DEPTH_M),
-  });
+  // At the surface, as legacy's dives start (owner decision on #199,
+  // 2026-09-30): 2 L in the BCD, at rest, until S begins the descent.
+  return createInitialDiveState(0x57524543, options);
 }

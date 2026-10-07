@@ -1,5 +1,5 @@
 const { expect, test } = require('@playwright/test');
-const { acceptSafetyGate } = require('./helpers/start-dive.cjs');
+const { acceptSafetyGate, beginDescent } = require('./helpers/start-dive.cjs');
 
 // The game-over screen (#159): legacy's drawGameOver() as DOM. The text
 // comes from src/constants.js (GAME_OVER_INFO and STRINGS), the flow from
@@ -167,6 +167,8 @@ test('a dive that fails while running switches to game over, and Enter returns t
   await configureHypoxicTec(page);
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
+  // Nothing is breathed at the surface before the dive begins (#199).
+  await beginDescent(page);
 
   await expect(page.locator('[data-game-over]')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('[data-game-over-reason]')).toHaveText('Hypoxia — loss of consciousness');
