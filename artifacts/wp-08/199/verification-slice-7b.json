@@ -145,7 +145,7 @@
       }
     ]
   },
-  "deferred": "Legacy's remaining HUD warnings, above the ceiling (ABOVE CEILING — DESCEND), low NDL and narcosis, are not in the migration's warnings yet (#228). Legacy's red screen flash for a fast ascent, its chevron count and its flashing past 18 m/min are not drawn (#222); the alert, the chip, the beep and the row's ⚠ carry the warning. Showing the readouts on the post-dive screen is #159 PR 2b.",
+  "deferred": "Legacy's remaining HUD warnings, above the ceiling (ABOVE CEILING — DESCEND), low NDL and narcosis, are not in the migration's warnings yet (#228). Legacy's red screen flash for a fast ascent, its chevron count and its flashing past 18 m/min are not drawn (#222); the alert, the chip, the beep and the row's ⚠ carry the warning. After the dive, the post-dive screen (#227, #159 PR 2b, on main) replaces the HUD.",
   "durableProvenance": {
     "src": "4e12024a2148aa8aec2309f2dc1f95f87485a802",
     "tests": "d8565780ec6d38521af8d06f5a642fcb216184bd",
