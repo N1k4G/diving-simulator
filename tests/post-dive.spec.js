@@ -135,7 +135,7 @@ test('a dive completed at the surface opens legacy\'s debriefing, and clears the
   await expect(screen.locator('[data-simulation-boundary]')).toHaveText(
     'SIMULATION ONLY — Not a dive computer or dive-planning tool. Do not use these outputs for a real dive.',
   );
-  await expect(screen.locator('[data-simulation-boundary]')).toBeInViewport();
+  await expect(screen.locator('[data-simulation-boundary]')).toBeInViewport({ ratio: 1 });
   // Focus moves to the heading instead of an aria-live announcement (#138).
   await expect(page.locator('#post-dive-heading')).toBeFocused();
   await expect(screen.locator('[aria-live], [role=alert], [role=status]')).toHaveCount(0);
@@ -404,9 +404,36 @@ test.describe('at the mobile viewport', () => {
 
   test('the whole debriefing is reachable by scrolling, within the edges, with 44px targets', async ({ page }) => {
     await resumeCompletedDive(page, { configure: configureCcr, editState: drawDownLoop });
+    await expect(page.locator('[data-post-dive] [data-simulation-boundary]')).toBeInViewport({ ratio: 1 });
     await expectMobileLayout(page);
   });
 });
+
+// A phone held sideways, the shortest viewports the in-dive controls are
+// checked at: the boundary line stays whole on the first screen, with the
+// chart below it, and the rest is reached by scrolling.
+for (const [width, height] of [[844, 390], [667, 375]]) {
+  for (const locale of ['en-US', 'de-DE']) {
+    test.describe(`at ${width}x${height}, ${locale}`, () => {
+      test.use({ viewport: { width, height }, hasTouch: true, isMobile: true, locale });
+
+      test('the boundary line is whole without scrolling, above the chart', async ({ page }) => {
+        await resumeCompletedDive(page);
+        const screen = page.locator('[data-post-dive]');
+        const boundary = screen.locator('[data-simulation-boundary]');
+        expect(await page.evaluate(() => window.scrollY)).toBe(0);
+        await expect(boundary).toHaveText(locale === 'de-DE' ? /^NUR SIMULATION/ : /^SIMULATION ONLY/);
+        await expect(boundary).toBeInViewport({ ratio: 1 });
+        const plot = screen.locator('[data-profile-chart]');
+        await expect(plot).toHaveCount(1);
+        const boundaryBox = await boundary.boundingBox();
+        const plotBox = await plot.boundingBox();
+        expect(plotBox.y).toBeGreaterThan(boundaryBox.y + boundaryBox.height);
+        await expectMobileLayout(page);
+      });
+    });
+  }
+}
 
 test.describe('on a small phone', () => {
   // The legacy #120 matrix: both languages and both gas summaries, because
@@ -414,8 +441,20 @@ test.describe('on a small phone', () => {
   // draws. The text checks make sure each case draws what it says it does.
   test.use({ viewport: { width: 320, height: 568 }, hasTouch: true, isMobile: true });
   const TEXT = {
-    'en-US': { heading: 'Dive complete', ascent: 'Fast ascent, peak 14.2 m/min', again: 'Dive again', boundary: /^SIMULATION ONLY/ },
-    'de-DE': { heading: 'Tauchgang beendet', ascent: 'Zu schneller Aufstieg, Spitze 14,2 m/min', again: 'Neuer Tauchgang', boundary: /^NUR SIMULATION/ },
+    'en-US': {
+      heading: 'Dive complete',
+      ascent: 'Fast ascent, peak 14.2 m/min',
+      again: 'Dive again',
+      boundary: /^SIMULATION ONLY/,
+      chart: /^Depth over 25 min,? 30 sec, deepest 18 m\. No deco ceiling\. 2 marks, numbered as in the violations list\.$/,
+    },
+    'de-DE': {
+      heading: 'Tauchgang beendet',
+      ascent: 'Zu schneller Aufstieg, Spitze 14,2 m/min',
+      again: 'Neuer Tauchgang',
+      boundary: /^NUR SIMULATION/,
+      chart: /^Tiefe über 25 Min\.?,? 30 Sek\.?, tiefster Punkt 18 m\. Keine Deko-Decke\. 2 Markierungen, nummeriert wie in der Liste der Verstöße\.$/,
+    },
   };
 
   for (const locale of ['en-US', 'de-DE']) {
@@ -428,8 +467,9 @@ test.describe('on a small phone', () => {
           const screen = page.locator('[data-post-dive]');
           await expect(screen.getByRole('heading', { level: 1 })).toHaveText(TEXT[locale].heading);
           await expect(screen.locator('[data-simulation-boundary]')).toHaveText(TEXT[locale].boundary);
-          await expect(screen.locator('[data-simulation-boundary]')).toBeInViewport();
+          await expect(screen.locator('[data-simulation-boundary]')).toBeInViewport({ ratio: 1 });
           await expect(screen.locator('.post-dive-violation-list li').first()).toContainText(TEXT[locale].ascent);
+          await expect(screen.locator('[data-profile-chart]')).toHaveAttribute('aria-label', TEXT[locale].chart);
           await expect(screen.locator('[data-dive-again]')).toHaveText(TEXT[locale].again);
           await expect(screen.locator('[data-gas=oxygen]')).toHaveCount(rebreather ? 1 : 0);
           await expectMobileLayout(page);
