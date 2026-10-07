@@ -129,10 +129,13 @@ test('under a ceiling the stop row is the deco stop, with the first stop of the 
   await expect(hudValue(page, 'safetyStop')).toHaveText(/^\d+ m · \d+ min$/, { timeout: 15_000 });
 });
 
-test('a dive surfaced fast past its stop ends with neither the stop nor the warning on the HUD', async ({ page }) => {
+test('a dive surfaced fast past its stop ends on the post-dive screen, with no stop row or warning left', async ({ page }) => {
   // Legacy's post-dive state draws no dive computer: the stop it skipped is
   // logged, not owed, and nothing rises any more. A diver 1.5 m down, rising
-  // fast with a full BCD, a paused stop still owed from 20 m.
+  // fast with a full BCD, a paused stop still owed from 20 m. Since #227 the
+  // completed dive's HUD is torn down for the post-dive screen; the
+  // presentation's own rule (no rate, no stop once completed) is pinned in
+  // tests/unit/presentation-state.test.ts.
   await resumeWith(page, (state) => {
     state.elapsedTimeS = 120;
     state.depthM = 1.5;
@@ -154,10 +157,11 @@ test('a dive surfaced fast past its stop ends with neither the stop nor the warn
     SAVE_KEY,
     { timeout: 30_000 },
   );
-  await expect(hudRow(page, 'safetyStop')).toBeHidden();
-  await expect(hudValue(page, 'ascentRate')).toHaveText('0 m/min');
-  await expect(page.getByRole('alert')).toBeHidden();
-  await expect(page.locator('.status-chip')).not.toContainText('Fast ascent');
+  await expect(page.locator('[data-post-dive]')).toBeVisible();
+  // Nothing of the dive computer stays: not the stop row, not the rate, not
+  // the fast-ascent warning or its chip.
+  await expect(page.locator('.wreck-hud')).toHaveCount(0);
+  await expect(page.locator('.wreck-warning, .status-chip')).toHaveCount(0);
 });
 
 test('the rule of thirds is kept under the deck, from the plan made on entering, and not outside', async ({ page }) => {
