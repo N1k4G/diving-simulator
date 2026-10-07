@@ -1,15 +1,15 @@
 {
   "schema": "issue-evidence/1",
   "issue": 199,
-  "slice": "Slice 7b (with #197): the safety-stop countdown, the rule-of-thirds gauge and its turn beep, and the ascent rate with the fast-ascent warning in the migration HUD, stacked on slice 7a",
+  "slice": "Slice 7b (with #197): the safety-stop countdown, the rule-of-thirds gauge and its turn beep, and the ascent rate with the fast-ascent warning in the migration HUD, on main after slice 7a (#223)",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "d675615bf3943ca848f6232c762949a120da623f",
-  "measuredTree": "41e6814ba5ef27d4448263845d144a61646ff6eb",
+  "measuredCommit": "0c4e812d3572ba12bdbfad6b796d9952b5cdb91d",
+  "measuredTree": "b4cbb02fd1a29499ebc7db3b9cdcb6b738135ef2",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-07T03:59:46Z",
-  "runFinishedAt": "2026-10-07T04:10:26Z",
+  "recordedAt": "2026-10-07T07:02:07Z",
+  "runFinishedAt": "2026-10-07T07:14:58Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "Stacked on feat/199-surface-route at 811fc86 (slice 7a with its #223 pre-review fixes, on main 79f9aef). Rebased twice: onto the fixes, resolving wreck-app.ts (the HUD keeps the pre-review's NDL as legacy draws it and its hidden switches, beside this slice's readouts and turn beep) and the claims register (ASCENT-001 keeps #218's barotrauma anchors beside this slice's fast-ascent ones), then onto 811fc86 without conflicts. The full run above is on d675615, whose code is 5cbe8bb; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "On main ce8b666, the squash of slice 7a (#223). After 811fc86, 7a gained a silent completed dive, the torch and the nav pad only while diving, the waves stopped after the end, and the 18 m BCD fixture compared to 12 places. The rebase onto ce8b666 (git rebase --onto origin/main 811fc86) kept this slice's own commits and applied without conflicts: updateHud keeps 7a's hiding of the nav pad and torch beside this slice's readouts, and the claims register keeps main's anchors beside this slice's. Two fixes follow. 17cecdf compares the 28 m neutral BCD fixture to 12 places, as Math.pow differs in the last bits on linux CI. 0c4e812 reads a completed dive's ascent rate as 0 and owes it no safety stop: a completed dive is never stepped again, so a dive surfaced fast past a paused stop kept the SLOW DOWN warning, '⚠ ↑ 25 m/min' and the paused stop row on its HUD for good, where legacy's post-dive state draws no dive computer. The surface wait reads 0 m/min with no stop and no gauge, as legacy's drawSurface() draws the dive computer at rest. The full run above is on 0c4e812; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -25,10 +25,10 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "508 passed (497 on slice 7a at 811fc86, 470 on main 79f9aef; +11: 6 in tests/unit/presentation-state.test.ts, 4 in tests/unit/thirds-turn-beep.test.ts, 1 in src/app/i18n/i18n.test.ts)",
-    "parity": "241 passed (unchanged; this slice changes no model code)",
-    "e2e": "152 passed in 8.0 min (148 on slice 7a, 145 on main 79f9aef; +4 in tests/hud-readouts.spec.js)",
-    "pixiVisualCheck": "3 scenes ok, 0% changed pixels (the HUD is outside the captured viewport; no frame changes)",
+    "unit": "527 passed (515 on main ce8b666; +12: 7 in tests/unit/presentation-state.test.ts, 4 in tests/unit/thirds-turn-beep.test.ts, 1 in src/app/i18n/i18n.test.ts)",
+    "parity": "266 passed (266 on main ce8b666; unchanged, this slice changes no model code)",
+    "e2e": "154 passed in 8.4 min (149 on main ce8b666; +5 in tests/hud-readouts.spec.js)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels against main's frames (the HUD is outside the captured viewport; no frame changes)",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
   "portedFromTheOracle": {
@@ -36,14 +36,15 @@
     "fastAscent": "The warning banner's SLOW DOWN past 9 m/min up (warnSlow), ranked below the oxygen warning and above the gas warnings as legacy's banner ranks it, with the hasWarning beep through the alert.warning cue; in words in the alert region and the status chip, and a ⚠ on the rate's row.",
     "safetyStop": "The stop box's safety-stop half: shown while safetyStopNeeded and not complete, giving way to the decompression stop while there is a ceiling; the nominal depth round((2.4 + 8.3) / 2) = 5 m with calculateSafetyStopDuration() before the countdown, then the floored countdown, paused (caution tone, and the word) outside the band.",
     "ruleOfThirds": "hud-thirds: shown under an overhead, the phase by legacy's strict > 2/3 and > 1/3 over all cylinders' gas against the plan, and Math.round of the fraction; the turn in the caution tone, the reserve with the ⚠ of its danger tone; playAlertBeep() once as thirdsTurnWarned latches, not again on resuming a latched dive.",
-    "claims": "docs/baseline/claims-register.json anchors the new strings in both locales: wreck.warning.fastAscent, wreck.hud.warning.fastAscent and wreck.hud.ascentRate* under ASCENT-001, wreck.hud.safetyStop* under SAFETY-STOP-001, wreck.hud.thirds* under GAS-001."
+    "claims": "docs/baseline/claims-register.json anchors the new strings in both locales: wreck.warning.fastAscent, wreck.hud.warning.fastAscent and wreck.hud.ascentRate* under ASCENT-001, wreck.hud.safetyStop* under SAFETY-STOP-001, wreck.hud.thirds* under GAS-001.",
+    "afterTheEnd": "Legacy's post-dive state draws no dive computer, and updateCompletion logs a stop not made as skipped as the dive ends: the presentation reads a completed dive's rate as 0 and owes it no stop, so the rate row, the SLOW DOWN warning and the stop row do not stay frozen on the ended dive's HUD."
   },
   "counterChecks": {
-    "method": "Each revert was applied to a copy restored from a backup and the named tests were run: unit reverts against tests/unit/presentation-state.test.ts, tests/unit/thirds-turn-beep.test.ts and src/app/i18n/i18n.test.ts; HUD reverts against a fresh build and tests/hud-readouts.spec.js under the port lock. The file was restored and the tree checked clean after each. Re-run on the rebased code (5cbe8bb) with fresh backups: all nine fail as listed.",
+    "method": "Each revert was applied to a copy restored from a backup and the named tests were run: unit reverts against tests/unit/presentation-state.test.ts, tests/unit/thirds-turn-beep.test.ts and src/app/i18n/i18n.test.ts; HUD reverts against a fresh build and tests/hud-readouts.spec.js under the port lock. Each file was restored byte for byte (filecmp) and the tree checked clean after the set. Run on the rebased code at 0c4e812 with fresh backups: all eleven fail as listed.",
     "results": [
       {
         "revert": "ascent rate not passed through to the presentation",
-        "result": "1 failed: the rate passed through"
+        "result": "2 failed: the rate passed through, and the completed dive's readouts (which read the rate before the end)"
       },
       {
         "revert": "the planned stop shows no length",
@@ -51,7 +52,7 @@
       },
       {
         "revert": "a paused stop reads as running",
-        "result": "1 failed: the paused countdown"
+        "result": "2 failed: the paused countdown, and the completed dive's readouts"
       },
       {
         "revert": "the safety stop shown when already complete",
@@ -70,23 +71,41 @@
         "result": "1 failed: the formatter"
       },
       {
+        "revert": "a completed dive keeps its last ascent rate",
+        "result": "1 failed (unit): the completed dive's readouts; 1 failed (e2e): the dive surfaced fast reads '⚠ ↑ 25 m/min', not '0 m/min'"
+      },
+      {
+        "revert": "a completed dive still owes its safety stop",
+        "result": "1 failed (unit): the completed dive's readouts; 1 failed (e2e): the stop row stays visible after the end"
+      },
+      {
         "revert": "no fast-ascent warning",
         "result": "1 failed: the fast-ascent e2e"
       },
       {
         "revert": "the readout rows never written",
-        "result": "4 failed: every tests/hud-readouts.spec.js test"
+        "result": "5 failed: every tests/hud-readouts.spec.js test"
       }
     ]
   },
-  "deferred": "Legacy's red screen flash for a fast ascent, its chevron count and its flashing past 18 m/min are not drawn; the alert, the chip, the beep and the row's ⚠ carry the warning. Showing the readouts on the post-dive screen is slice 8.",
+  "deferred": "Legacy's red screen flash for a fast ascent, its chevron count and its flashing past 18 m/min are not drawn (#222); the alert, the chip, the beep and the row's ⚠ carry the warning. Showing the readouts on the post-dive screen is #159 PR 2b.",
   "durableProvenance": {
-    "src": "8673100986b4fbdf72898c62329974335078bafc",
-    "tests": "4e10133050c0cfd23d9b7c6eb4233533e4c489a1",
-    "scripts": "1ed236161e996f75f8b87fdbcfd3f2838eb2e4b3",
-    "docs": "f54bdc87b6fc757f396b7070ae73b7c8b5a5618e"
+    "src": "88ce2e1dd4c7a28d3f1ed39acfc66f57aa504130",
+    "tests": "7fc53425264681f0ab313185a8ea023b725e4db3",
+    "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
+    "docs": "51c58a1ed7f9a616cc9d2f34ba40190fd1d28f15"
   },
   "earlierRuns": [
+    {
+      "measuredCommit": "0c4e812d3572ba12bdbfad6b796d9952b5cdb91d",
+      "recordedAt": "2026-10-07T06:43:36Z",
+      "note": "153 passed, 1 failed: the legacy client's tests/collision.spec.js \"no buried start position stays stuck\" at its 180 s timeout under load, as on d675615 before. Every other step passed with the counts above. This slice does not touch the legacy client; the rerun above passed on the same commit."
+    },
+    {
+      "measuredCommit": "d675615bf3943ca848f6232c762949a120da623f",
+      "recordedAt": "2026-10-07T03:59:46Z",
+      "note": "On slice 7a at 811fc86 and main 79f9aef, before the rebase onto ce8b666 and the two fixes: 508 unit, 241 parity, 152 e2e, all passing; superseded by the run above."
+    },
     {
       "measuredCommit": "2aef068c4a511130392895e7866795c052d3d4f7",
       "recordedAt": "2026-10-07T01:57:17Z",
