@@ -3,13 +3,13 @@
   "issue": 199,
   "slice": "Slice 7b (with #197): the safety-stop countdown, the rule-of-thirds gauge and its turn beep, and the ascent rate with the fast-ascent warning in the migration HUD, stacked on slice 7a",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "2aef068c4a511130392895e7866795c052d3d4f7",
-  "measuredTree": "d40868cd05f4eec030f03716f0c979f30ad886a7",
+  "measuredCommit": "d675615bf3943ca848f6232c762949a120da623f",
+  "measuredTree": "41e6814ba5ef27d4448263845d144a61646ff6eb",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-07T01:57:17Z",
-  "runFinishedAt": "2026-10-07T02:10:59Z",
+  "recordedAt": "2026-10-07T03:59:46Z",
+  "runFinishedAt": "2026-10-07T04:10:26Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "Stacked on feat/199-surface-route at 55656e3 (slice 7a and its evidence). The full run above is on 2aef068, the slice's code commit; the only later commit adds this file.",
+  "provenanceNote": "Stacked on feat/199-surface-route at 811fc86 (slice 7a with its #223 pre-review fixes, on main 79f9aef). Rebased twice: onto the fixes, resolving wreck-app.ts (the HUD keeps the pre-review's NDL as legacy draws it and its hidden switches, beside this slice's readouts and turn beep) and the claims register (ASCENT-001 keeps #218's barotrauma anchors beside this slice's fast-ascent ones), then onto 811fc86 without conflicts. The full run above is on d675615, whose code is 5cbe8bb; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -25,9 +25,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "465 passed (454 on slice 7a; +11: 6 in tests/unit/presentation-state.test.ts, 4 in tests/unit/thirds-turn-beep.test.ts, 1 in src/app/i18n/i18n.test.ts)",
-    "parity": "142 passed (unchanged; this slice changes no model code)",
-    "e2e": "149 passed in 8.9 min (145 on slice 7a, +4 in tests/hud-readouts.spec.js)",
+    "unit": "508 passed (497 on slice 7a at 811fc86, 470 on main 79f9aef; +11: 6 in tests/unit/presentation-state.test.ts, 4 in tests/unit/thirds-turn-beep.test.ts, 1 in src/app/i18n/i18n.test.ts)",
+    "parity": "241 passed (unchanged; this slice changes no model code)",
+    "e2e": "152 passed in 8.0 min (148 on slice 7a, 145 on main 79f9aef; +4 in tests/hud-readouts.spec.js)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels (the HUD is outside the captured viewport; no frame changes)",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -39,31 +39,68 @@
     "claims": "docs/baseline/claims-register.json anchors the new strings in both locales: wreck.warning.fastAscent, wreck.hud.warning.fastAscent and wreck.hud.ascentRate* under ASCENT-001, wreck.hud.safetyStop* under SAFETY-STOP-001, wreck.hud.thirds* under GAS-001."
   },
   "counterChecks": {
-    "method": "Each revert was applied to a copy restored from a backup and the named tests were run: unit reverts against tests/unit/presentation-state.test.ts, tests/unit/thirds-turn-beep.test.ts and src/app/i18n/i18n.test.ts; HUD reverts against a fresh build and tests/hud-readouts.spec.js under the port lock. The file was restored and the tree checked clean after each.",
+    "method": "Each revert was applied to a copy restored from a backup and the named tests were run: unit reverts against tests/unit/presentation-state.test.ts, tests/unit/thirds-turn-beep.test.ts and src/app/i18n/i18n.test.ts; HUD reverts against a fresh build and tests/hud-readouts.spec.js under the port lock. The file was restored and the tree checked clean after each. Re-run on the rebased code (5cbe8bb) with fresh backups: all nine fail as listed.",
     "results": [
-      { "revert": "ascent rate not passed through to the presentation", "result": "1 failed: the rate passed through" },
-      { "revert": "the planned stop shows no length", "result": "1 failed: the planned stop" },
-      { "revert": "a paused stop reads as running", "result": "1 failed: the paused countdown" },
-      { "revert": "the safety stop shown when already complete", "result": "1 failed: no stop unless owed and not done" },
-      { "revert": "thirds boundary at two thirds inclusive", "result": "1 failed: legacy's strict thirds" },
-      { "revert": "turn beep on a resumed, already latched dive too", "result": "1 failed: no beep for a dive resumed past its turn" },
-      { "revert": "vertical rate formatted with its sign", "result": "1 failed: the formatter" },
-      { "revert": "no fast-ascent warning", "result": "1 failed: the fast-ascent e2e" },
-      { "revert": "the readout rows never written", "result": "4 failed: every tests/hud-readouts.spec.js test" }
+      {
+        "revert": "ascent rate not passed through to the presentation",
+        "result": "1 failed: the rate passed through"
+      },
+      {
+        "revert": "the planned stop shows no length",
+        "result": "1 failed: the planned stop"
+      },
+      {
+        "revert": "a paused stop reads as running",
+        "result": "1 failed: the paused countdown"
+      },
+      {
+        "revert": "the safety stop shown when already complete",
+        "result": "1 failed: no stop unless owed and not done"
+      },
+      {
+        "revert": "thirds boundary at two thirds inclusive",
+        "result": "1 failed: legacy's strict thirds"
+      },
+      {
+        "revert": "turn beep on a resumed, already latched dive too",
+        "result": "1 failed: no beep for a dive resumed past its turn"
+      },
+      {
+        "revert": "vertical rate formatted with its sign",
+        "result": "1 failed: the formatter"
+      },
+      {
+        "revert": "no fast-ascent warning",
+        "result": "1 failed: the fast-ascent e2e"
+      },
+      {
+        "revert": "the readout rows never written",
+        "result": "4 failed: every tests/hud-readouts.spec.js test"
+      }
     ]
   },
   "deferred": "Legacy's red screen flash for a fast ascent, its chevron count and its flashing past 18 m/min are not drawn; the alert, the chip, the beep and the row's ⚠ carry the warning. Showing the readouts on the post-dive screen is slice 8.",
   "durableProvenance": {
-    "src": "3d4735e9ec909d8c59b1de9b1acd7d5822e852e5",
-    "tests": "47347d24975314dfe8e48bfd01097b34bff44c98",
-    "scripts": "c3ce36a9dd4924b83048efadd4d2a972462b2512",
-    "docs": "bfab902bd9d9657f93ef74668c540b1b668f7f38"
+    "src": "8673100986b4fbdf72898c62329974335078bafc",
+    "tests": "4e10133050c0cfd23d9b7c6eb4233533e4c489a1",
+    "scripts": "1ed236161e996f75f8b87fdbcfd3f2838eb2e4b3",
+    "docs": "f54bdc87b6fc757f396b7070ae73b7c8b5a5618e"
   },
   "earlierRuns": [
     {
       "measuredCommit": "2aef068c4a511130392895e7866795c052d3d4f7",
+      "recordedAt": "2026-10-07T01:57:17Z",
+      "note": "On slice 7a before its #223 pre-review fixes and the rebase onto main 79f9aef: 465 unit, 142 parity, 149 e2e, all passing; superseded by the run above."
+    },
+    {
+      "measuredCommit": "2aef068c4a511130392895e7866795c052d3d4f7",
       "recordedAt": "2026-10-07T01:51:43Z",
       "note": "Stopped at pixi:visual-check: wreck-torch-off captured an empty viewport (no canvas, sd 0) once. Two reruns of the check alone were clean at 0% on all three scenes, and the run above passed; this slice changes nothing the capture draws."
+    },
+    {
+      "measuredCommit": "d675615bf3943ca848f6232c762949a120da623f",
+      "recordedAt": "2026-10-07T03:48:26Z",
+      "note": "151 passed, 1 failed: the legacy client's tests/collision.spec.js \"no buried start position stays stuck\" at its 180 s timeout under load. This slice does not touch the legacy client; the rerun above passed on the same commit."
     }
   ]
 }
