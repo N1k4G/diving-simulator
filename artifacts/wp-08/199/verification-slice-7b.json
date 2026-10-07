@@ -156,7 +156,7 @@
     {
       "measuredCommit": "e363beaa74129aeb8b959212cfdd816de3cc1649",
       "recordedAt": "2026-10-07T21:01:44Z",
-      "note": "First full run on the same commit: 559 unit and 332 parity passed; e2e 171 passed and 2 failed under load, the legacy tests/reload-resume.spec.js 'an old save-version (v1) payload is rejected' timing out in page.reload() and the cross-client trace in tests/wreck-slice.spec.js reading the legacy diver as stationary. Neither file is touched by this slice; both passed in the run above."
+      "note": "First full run on the same commit: 559 unit and 332 parity passed; e2e 171 passed and 2 failed under load, the legacy tests/reload-resume.spec.js 'an old save-version (v1) payload is rejected' timing out in page.reload() and the cross-client trace in tests/wreck-slice.spec.js reading the legacy diver as stationary. tests/reload-resume.spec.js is untouched by this slice. In tests/wreck-slice.spec.js this slice only adds the Pixi side's first-frame wait (f995a81); the failure was in the legacy half, which is unchanged from main. Both passed in the run above."
     },
     {
       "measuredCommit": "f5be69c1c1be4443377a02563b7d1c550702e41e",
