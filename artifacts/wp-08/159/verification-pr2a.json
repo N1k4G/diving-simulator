@@ -3,13 +3,13 @@
   "issue": 159,
   "slice": "PR 2a of 4 (#199 slice 8): the post-dive summary, legacy's drawPostDive() values derived from the final dive state, with violation-list and summary parity",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "558f6ffb28b428a094d920425239ce7a55d4d311",
-  "measuredTree": "250ed911bd22d0b50d44a2f6468c532f3959c14b",
+  "measuredCommit": "56447f0c88a2a5ebcdf52bf31aaa05cb145325e8",
+  "measuredTree": "7c9ff7fa0abf480157b8c1073ddbdc4a10f6973b",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-07T00:24:32Z",
-  "runFinishedAt": "2026-10-07T00:32:28Z",
+  "recordedAt": "2026-10-07T01:41:25Z",
+  "runFinishedAt": "2026-10-07T01:48:40Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "On main d44a239 (#216). The full run above is on 558f6ff, the slice's code commit; the only later commit adds this file.",
+  "provenanceNote": "On main d4a9de7 (#218). The full run above is on 56447f0, whose last commit is the previous version of this file; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -25,9 +25,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "442 passed (436 on main, +6 in tests/unit/post-dive-summary.test.ts)",
-    "parity": "189 passed (142 on main, +47 in tests/parity/post-dive.test.ts: one per recorded checkpoint, 46, and the acceptance cases)",
-    "e2e": "143 passed in 6.0 min (unchanged; this slice changes no screen)",
+    "unit": "454 passed (448 on main, +6 in tests/unit/post-dive-summary.test.ts)",
+    "parity": "211 passed (158 on main, +53 in tests/parity/post-dive.test.ts: one per recorded checkpoint, 52, and the acceptance cases)",
+    "e2e": "144 passed in 5.2 min (unchanged; this slice changes no screen)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -39,19 +39,44 @@
   "counterChecks": {
     "method": "Each revert was applied from a backup copy, the named test file was run with vitest, and the file was restored byte for byte.",
     "results": [
-      { "revert": "average depth from the deepest point instead of legacy's time-weighted sums", "result": "17 of 47 parity tests failed" },
-      { "revert": "violation list without the skipped safety stop", "result": "2 of 47 parity tests failed" },
-      { "revert": "oxygen used in bar, not litres (no cylinder volume)", "result": "11 of 47 parity tests failed" },
-      { "revert": "rebreather dive reported as its open-circuit cylinder list (legacy BUG-24)", "result": "16 of 47 parity tests failed" },
-      { "revert": "safety stop counted skipped whenever needed, done or not", "result": "1 of 6 unit tests failed" },
-      { "revert": "presentation snapshot never reports completion", "result": "1 of 6 unit tests failed" }
+      {
+        "revert": "average depth from the deepest point instead of legacy's time-weighted sums",
+        "result": "17 of 47 parity tests failed"
+      },
+      {
+        "revert": "violation list without the skipped safety stop",
+        "result": "2 of 47 parity tests failed"
+      },
+      {
+        "revert": "oxygen used in bar, not litres (no cylinder volume)",
+        "result": "11 of 47 parity tests failed"
+      },
+      {
+        "revert": "rebreather dive reported as its open-circuit cylinder list (legacy BUG-24)",
+        "result": "16 of 47 parity tests failed"
+      },
+      {
+        "revert": "safety stop counted skipped whenever needed, done or not",
+        "result": "1 of 6 unit tests failed"
+      },
+      {
+        "revert": "presentation snapshot never reports completion",
+        "result": "1 of 6 unit tests failed"
+      }
     ]
   },
   "deferred": "Showing the summary: the post-dive screen (PR 2b, stacked on this one) and the profile chart (PR 3).",
   "durableProvenance": {
-    "src": "c641c7def74d7e88a2927769449df600f865392c",
-    "tests": "8216181c9565e8556fd84d0e1ab0c3ab4dae4106",
-    "scripts": "6b40e24c03f7c63b0f9bf818108d20a6f6f2244f",
-    "docs": "2cf0bb4f463fc5b6fb9ebc81e7dfee3c846a7b15"
-  }
+    "src": "7c32d32bb538ba72878f1c4481693b5d78549957",
+    "tests": "1e6893592e7fbcf82a7ebb1a93f6f65c8690749f",
+    "scripts": "18bc2f4882a8c0fc30657f275d815a1c44581985",
+    "docs": "818932abd7bd27d22971a567cd73133580b6ddcd"
+  },
+  "earlierRuns": [
+    {
+      "measuredCommit": "558f6ffb28b428a094d920425239ce7a55d4d311",
+      "recordedAt": "2026-10-07T00:24:32Z",
+      "note": "On main d44a239, before the rebase onto d4a9de7 (#218); superseded by the run above."
+    }
+  ]
 }
