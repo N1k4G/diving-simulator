@@ -104,6 +104,10 @@ describe("the post-dive summary", () => {
     expect(Object.isFrozen(summary)).toBe(true);
     expect(Object.isFrozen(summary.cylinders)).toBe(true);
     expect(Object.isFrozen(summary.cylinders[0])).toBe(true);
+    // The grade too, down to each note (#217 pre-review).
+    expect(Object.isFrozen(summary.grade)).toBe(true);
+    expect(Object.isFrozen(summary.grade.scores)).toBe(true);
+    expect(summary.grade.scores.every((entry) => Object.isFrozen(entry) && Object.isFrozen(entry.note))).toBe(true);
   });
 
   it("is what the presentation snapshot's completion flag announces", () => {

@@ -170,5 +170,12 @@ export function gradeDive(state: DiveState, context: Readonly<GradeContext>): Di
   const scores = [ascent, safetyStop, gasReserve, deco, trim];
   const overall = Math.round(scores.reduce((sum, entry) => sum + entry.score, 0) / scores.length);
   const stars = overall >= GRADE_STAR_3_MIN ? 3 : overall >= GRADE_STAR_2_MIN ? 2 : overall >= GRADE_STAR_1_MIN ? 1 : 0;
-  return { scores, overall, stars };
+  // Frozen all the way down, as every snapshot the views consume is.
+  return Object.freeze({
+    scores: Object.freeze(
+      scores.map((entry) => Object.freeze({ ...entry, note: Object.freeze({ ...entry.note }) })),
+    ),
+    overall,
+    stars,
+  });
 }
