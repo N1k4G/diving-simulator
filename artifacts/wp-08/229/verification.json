@@ -1,15 +1,15 @@
 {
-  "schema": "wp-08-verification/v1",
+  "schema": "issue-evidence/1",
   "issue": 229,
   "slice": "the SIMULATION boundary on the game-over screen",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "31a516f526ba52fa8252d12d20a5f6ba02826708",
-  "measuredTree": "f03f4317aac1923f746239f2cf071f111e5b857d",
+  "measuredCommit": "df554712d155e6a4e705803742f30cdb522c6ca6",
+  "measuredTree": "bf37f4292e8d37226a9488741449e658dad29ef8",
   "workingTree": "clean before and after the run (git status --porcelain empty)",
-  "recordedAt": "2026-10-07T15:48:42Z",
-  "runFinishedAt": "2026-10-07T15:58:41Z",
+  "recordedAt": "2026-10-07T16:27:04Z",
+  "runFinishedAt": "2026-10-07T16:40:07Z",
   "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
-  "provenanceNote": "On main 99a7d0c (#227, the post-dive screen and its boundary line). The full run above is on 31a516f; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "On main 99a7d0c (#227, the post-dive screen and its boundary line). The branch also carries #226's fix for the CNS test in tests/in-dive-controls.spec.js (cherry-picked as df55471: wait for the gas-information toggle before pressing I), because that test now fails on linux CI on every PR until #226 lands. The full run above is on df55471; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "results": {
     "typecheck": "pass",
     "lint": "pass",
@@ -20,7 +20,7 @@
     "distCheck": "pass",
     "unit": "515 passed (515 on main 99a7d0c; unchanged)",
     "parity": "266 passed (266 on main 99a7d0c; unchanged)",
-    "e2e": "160 passed in 6.9 min (158 on main 99a7d0c; +2 in tests/game-over.spec.js: the boundary whole on the first screen at 844×390 in English and 667×375 in German; the out-of-gas test and the 320×568 test also assert it)",
+    "e2e": "160 passed in 8.6 min (158 on main 99a7d0c; +2 in tests/game-over.spec.js: the boundary whole on the first screen at 844×390 in English and 667×375 in German; the out-of-gas test and the 320×568 test also assert it)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, nothing re-recorded",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -35,10 +35,24 @@
       }
     ]
   },
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
   "durableProvenance": {
     "src": "26a5a38003b7539376b66de570d4e4ef0fcd894e",
-    "tests": "eb5c693e8b9e5b2499497273256509fa94f3cdbd",
+    "tests": "1b603eab85d2894b9cd9e0686a25bbf3b9310f0b",
     "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
     "docs": "fa5b761bb095ba7b673f7148f19f8cbd0e77b85d"
-  }
+  },
+  "earlierRuns": [
+    {
+      "measuredCommit": "31a516f526ba52fa8252d12d20a5f6ba02826708",
+      "recordedAt": "2026-10-07T15:48:42Z",
+      "note": "Full run before the cherry-picked CNS test fix and the evidence environment block (pre-review pass 1); same counts, all passing. Superseded by the run above."
+    }
+  ]
 }
