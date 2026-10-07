@@ -1,5 +1,5 @@
 const { expect, test } = require('@playwright/test');
-const { startDive, startDiveAndWaitForCanvas } = require('./helpers/start-dive.cjs');
+const { beginDescent, startDive, startDiveAndWaitForCanvas } = require('./helpers/start-dive.cjs');
 
 // Mirrors smoke.spec.js's MOBILE_VIEWPORT: a hand-rolled touch viewport
 // rather than Playwright's `devices['iPhone 12']`, which forbids overriding
@@ -108,9 +108,56 @@ test('production starts the Pixi wreck shell with semantic HUD and controls', as
   expect(Math.abs(savedDepthM - depthBeforeReload)).toBeLessThan(5);
 });
 
+// The dive starts at the surface and waits for S (#199, owner decision A):
+// legacy's 'surface' state, src/game-loop.js updateSurface() and the
+// "Press S to vent & descend" prompt of src/renderer.js drawSurface().
+test('the dive starts at the surface and begins on S', async ({ page }) => {
+  await page.goto('/dist/');
+  await page.evaluate(() => window.localStorage.clear());
+  await startDiveAndWaitForCanvas(page);
+
+  const prompt = page.locator('[data-surface-prompt]');
+  await expect(prompt).toBeVisible();
+  await expect(prompt).toHaveText('At the surface. Press S or ↓ to vent and descend');
+  const depth = page.locator('.wreck-hud [data-hud-metric="depth"] dd');
+  const time = page.locator('.wreck-hud [data-hud-metric="time"] dd');
+  await expect.poll(async () => parseMetres(await depth.textContent())).toBe(0);
+  // The clock waits with the diver.
+  const waitingTime = await time.textContent();
+  await page.waitForTimeout(1500);
+  await expect(time).toHaveText(waitingTime || '');
+
+  await page.keyboard.down('s');
+  await expect(prompt).toBeHidden();
+  await expect.poll(async () => parseMetres(await depth.textContent())).toBeGreaterThan(0);
+  await page.keyboard.up('s');
+  await expect(time).not.toHaveText(waitingTime || '');
+});
+
+test.describe('surface start by touch', () => {
+  test.use(MOBILE_VIEWPORT);
+
+  test('the prompt stays on a narrow layout, and the ↓ button begins the dive', async ({ page }) => {
+    await page.goto('/dist/');
+    await page.evaluate(() => window.localStorage.clear());
+    await startDiveAndWaitForCanvas(page);
+    const prompt = page.locator('[data-surface-prompt]');
+    await expect(prompt).toBeVisible();
+
+    const descend = page.locator('[data-control="descend"]');
+    const box = await descend.boundingBox();
+    expect(box).not.toBeNull();
+    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(prompt).toBeHidden();
+  });
+});
+
 test('persisted safety states produce visible semantic warnings', async ({ page }) => {
   await page.goto('/dist/');
   await startDiveAndWaitForCanvas(page);
+  // A save of a dive under way: the codec refuses gas drawn from one still
+  // waiting at the surface (#199).
+  await beginDescent(page);
   await page.reload();
 
   // Issue #138: the status chip has to say which state it is in, not just turn
@@ -250,10 +297,12 @@ test('the same input trace drives equivalent legacy and Pixi control semantics',
     api.tankCount = 0;
     api.pushTank(0.21, 0, 200);
     api.activeTank = 0;
-    api.gameState = 'diving';
-    api.setDepth(26);
-    api.maxDepth = 26;
-    api.diverX = 18;
+    // Both clients start the dive at the surface and leave it on S or the
+    // down arrow (#199): legacy's 'surface' state, updateSurface().
+    api.gameState = 'surface';
+    api.setDepth(0);
+    api.maxDepth = 0;
+    api.diverX = 10;
     api.verticalVelocity = 0;
     api.torchOn = true;
     api.clearKeys();
@@ -291,6 +340,10 @@ async function mutateSavedState(page, variant) {
       tank.gas.oxygenFraction = 1;
       tank.gas.heliumFraction = 0;
       tank.gas.nitrogenFraction = 0;
+      // Deep enough for pure oxygen to pass 1.6 bar. The dive now starts at
+      // the surface (#199), where it reads about 1.05.
+      save.state.depthM = 26;
+      save.state.maxDepthM = Math.max(save.state.maxDepthM, 26);
     } else if (selectedVariant === 'failure') {
       save.state.failure.reason = 'out-of-gas';
       save.state.events.push({

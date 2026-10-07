@@ -1,6 +1,7 @@
 const { expect, test } = require('@playwright/test');
 const {
   acceptSafetyGate,
+  descendTo,
   startDiveAndWaitForCanvas,
   startDiveByKeyboard,
   startDiveByTouch,
@@ -9,6 +10,21 @@ const {
 // hasTouch, unlike the other specs' mobile blocks: one test below taps
 // rather than clicks, and Playwright refuses tap without it.
 const MOBILE_VIEWPORT = { viewport: { width: 390, height: 844 }, hasTouch: true };
+
+/** "1 hr 2 min 3 sec" -> 3723. NaN for a placeholder such as the em dash. */
+function durationSeconds(text) {
+  const units = { hr: 3600, min: 60, sec: 1 };
+  let total = 0;
+  let found = false;
+  for (const [, value, unit] of String(text ?? '').matchAll(/(\d+)\s*(hr|min|sec)/g)) {
+    total += Number(value) * units[unit];
+    found = true;
+  }
+  return found ? total : Number.NaN;
+}
+
+/** The planner's unlimited NDL, 999 minutes, as the HUD shows it at the surface. */
+const SURFACE_NDL_S = 999 * 60;
 
 /**
  * The configured loop, without what the dive's elapsed time changes. The
@@ -416,6 +432,13 @@ test.describe('technical mode', () => {
     // #158 review: the planner was called with DEFAULT_PLANNER_SETTINGS no
     // matter what the screen said, so the GF controls were decorative. NDL is
     // the readout they move.
+    //
+    // The dive starts at the surface (#199), where the NDL is unlimited under
+    // any factors, so each dive goes down to 15 m first. The two dives cannot
+    // be read at exactly the same depth and time, so the readings are
+    // compared by direction, with a margin far above that difference: the
+    // conservative factors give a much shorter NDL there.
+    test.setTimeout(120_000);
     const ndlFor = async (presses, key) => {
       await toTec(page);
       // Cleared here, on the setup screen, rather than after the reading. The
@@ -429,16 +452,19 @@ test.describe('technical mode', () => {
       for (let i = 0; i < presses; i += 1) await page.keyboard.press(key);
       await page.locator('[data-start-dive]').click();
       await page.locator('[data-renderer=pixi] canvas').waitFor();
+      await descendTo(page, 15);
       const ndl = page.locator('.wreck-hud [data-hud-metric=ndl] dd');
-      await expect(ndl).toHaveText(/\d/);
-      return ndl.textContent();
+      // A forecast from under water, not the unlimited one from the surface.
+      await expect.poll(async () => durationSeconds(await ndl.textContent()), { timeout: 15_000 })
+        .toBeLessThan(SURFACE_NDL_S);
+      return durationSeconds(await ndl.textContent());
     };
 
     // G lowers GF low, F lowers GF high: the conservative end.
     const conservative = await ndlFor(20, 'F');
     const liberal = await ndlFor(20, 'f');
 
-    expect(conservative).not.toBe(liberal);
+    expect(conservative).toBeLessThan(liberal * 0.8);
   });
 
   test('a technical dive starts with the configured mix', async ({ page }) => {
@@ -510,7 +536,16 @@ test.describe('technical mode', () => {
     await toTec(page);
     await page.locator('[data-start-dive]').click();
     await page.locator('[data-renderer=pixi] canvas').waitFor();
-    const save = await persistedSave(page);
+    // Under water, where the factors move the NDL: at the surface, where the
+    // dive starts (#199), it is unlimited under any.
+    await descendTo(page, 15);
+    const save = await page
+      .waitForFunction((key) => {
+        const raw = window.localStorage.getItem(key);
+        const saved = raw === null ? null : JSON.parse(raw);
+        return saved !== null && saved.state.depthM > 12 ? saved : null;
+      }, SAVE_KEY)
+      .then((handle) => handle.jsonValue());
 
     const resumedNdl = async (lowPercent, highPercent) => {
       // Leave the dive before writing. A running dive saves every few seconds,

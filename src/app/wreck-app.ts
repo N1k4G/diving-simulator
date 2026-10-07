@@ -82,6 +82,7 @@ interface HudElements {
   readonly fastForward: HTMLButtonElement;
   readonly mute: HTMLButtonElement;
   readonly gasInfo: GasInfoElements;
+  readonly surfacePrompt: HTMLElement;
 }
 
 const zoneMessageKeys: Record<WreckZone, MessageKey> = {
@@ -689,9 +690,21 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   bailout.textContent = translate(locale, "wreck.controls.bailout.label");
   ccr.append(bailout);
 
+  // Legacy's surface screen (src/renderer.js drawSurface, src/touch.js): the
+  // dive waits at the surface for S, and says so (#199). Shown on every
+  // layout, unlike the keyboard hint, because on a phone it is the only thing
+  // that says the dive has not begun; the ↓ button is the touch S.
+  const surfacePrompt = createElement(
+    "p",
+    "surface-prompt",
+    translate(locale, "wreck.controls.surfaceDescend"),
+  );
+  surfacePrompt.dataset.surfacePrompt = "true";
+  surfacePrompt.hidden = true;
+
   const dock = document.createElement("div");
   dock.className = "wreck-dock";
-  dock.append(hint, tanks, ccr);
+  dock.append(surfacePrompt, hint, tanks, ccr);
 
   // The HUD and the gas-information panel share one column, so an open
   // page sits below the readouts rather than over them (#163).
@@ -723,6 +736,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     fastForward,
     mute,
     gasInfo,
+    surfacePrompt,
   };
 }
 
@@ -744,6 +758,7 @@ function updateHud(
   hud.fastForward.hidden = !fastForward.available;
   hud.fastForward.setAttribute("aria-pressed", String(fastForward.active));
   hud.speed.hidden = !fastForward.active;
+  hud.surfacePrompt.hidden = !frame.awaitingDescent;
   syncLoopRows(hud, presentation, locale);
   hud.ndl.textContent = presentation.planner
     ? formatDuration(presentation.planner.ndlMin * 60, locale)

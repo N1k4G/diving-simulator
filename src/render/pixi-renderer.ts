@@ -3,6 +3,17 @@ import { Application, Container, Graphics } from "pixi.js";
 import type { PresentationState } from "../presentation/presentation-state";
 import { LAYERS, type LayerId, type QualityTier } from "../sites/asset-manifest";
 import { buildSceneLayers } from "../sites/layer-factory";
+import {
+  WRECK_BOW_X_M,
+  WRECK_DECK_TOP,
+  WRECK_DECK_UNDERSIDE,
+  WRECK_HOLD_BOW_X_M,
+  WRECK_HOLD_FLOOR_M,
+  WRECK_HOLD_STERN_X_M,
+  WRECK_KEEL_M,
+  WRECK_STERN_X_M,
+  type RoutePoint,
+} from "../sites/wreck-route";
 import { createCameraTransform, type CameraTransform } from "./camera";
 import {
   BUBBLE_LAYER,
@@ -37,6 +48,21 @@ const CULL_MARGIN_M = 10;
 const QUALITY_TIER: QualityTier = "high";
 const RESYNC_DISTANCE_M = 4;
 
+// The water surface (#199), after src/renderer.js drawScene: a band of light
+// water under a moving wave line, the sum of two sines, with the sky above
+// it. Legacy draws in screen pixels at 0.05 m a pixel; these are the same
+// waves in metres. Each sine is its own strip, drawn once and slid sideways
+// by its phase every frame, so the animation allocates nothing.
+const SURFACE_SPAN_M = { left: -60, right: 180 } as const;
+const SKY_TOP_M = -200;
+const SURFACE_WAVES = [
+  // sin(x * 0.02 + t * 2) * 4 px, then sin(x * 0.035 + t * 1.5) * 2 px.
+  { amplitudeM: 0.2, wavelengthM: 15.7, speedMps: 5, alpha: 0.18, highlight: true },
+  { amplitudeM: 0.1, wavelengthM: 9, speedMps: 2.14, alpha: 0.18, highlight: false },
+] as const;
+/** Legacy fills 20 px under the wave line: one metre. */
+const SURFACE_BAND_M = 1;
+
 export class PixiWreckRenderer implements SceneRenderer {
   readonly kind = "pixi" as const;
 
@@ -47,6 +73,7 @@ export class PixiWreckRenderer implements SceneRenderer {
   #torch = new Graphics();
   #diver = new Container();
   #bubbles: Graphics[] = [];
+  #waves: Graphics[] = [];
   #viewport = { width: 1, height: 1 };
   #layers = new Map<LayerId, Container>();
   // Placement markers are pooled. Camera movement changes which features are
@@ -139,12 +166,24 @@ export class PixiWreckRenderer implements SceneRenderer {
         continue;
       }
       const cycle = (scene.elapsedRealS * (0.45 + index * 0.025) + index) % 8;
+      const bubbleDepthM = scene.diverDepthM - 0.7 - cycle;
       bubble.position.set(
         scene.routePositionM - scene.facing * (0.5 + (index % 3) * 0.18),
-        scene.diverDepthM - 0.7 - cycle,
+        bubbleDepthM,
       );
       bubble.alpha = Math.max(0, 1 - cycle / 8) * 0.72;
+      // A bubble breaks at the surface; none rises into the sky.
+      bubble.visible = bubbleDepthM > 0;
     }
+
+    SURFACE_WAVES.forEach((wave, index) => {
+      const strip = this.#waves[index];
+      if (strip) {
+        // sin(kx + wt) travels towards -x.
+        strip.position.x =
+          -((scene.elapsedRealS * wave.speedMps) % wave.wavelengthM);
+      }
+    });
 
     app.render();
   }
@@ -160,6 +199,7 @@ export class PixiWreckRenderer implements SceneRenderer {
     this.#app = null;
     this.#host = null;
     this.#bubbles = [];
+    this.#waves = [];
     this.#layers.clear();
     this.#markerPool = [];
     this.#activeMarkers = [];
@@ -254,11 +294,21 @@ export class PixiWreckRenderer implements SceneRenderer {
       .fill({ color: 0x132a2b })
       .stroke({ color: 0x315b52, width: 0.2, alpha: 0.8 });
 
+    // The deck and the floor the diver is held to (src/sites/wreck-route.ts),
+    // so the hull on screen is the one in the physics.
     const hull = new Graphics()
-      .poly([14, 35, 22, 23, 82, 21, 108, 29, 103, 35])
+      .poly([
+        WRECK_BOW_X_M, WRECK_KEEL_M,
+        ...flatten(WRECK_DECK_TOP),
+        WRECK_STERN_X_M, WRECK_KEEL_M,
+      ])
       .fill({ color: 0x33484a })
       .stroke({ color: 0x76918c, width: 0.35 })
-      .poly([21, 33.5, 27, 24.5, 82, 23, 103, 29.5, 99, 33.5])
+      .poly([
+        WRECK_HOLD_BOW_X_M, WRECK_HOLD_FLOOR_M,
+        ...flatten(WRECK_DECK_UNDERSIDE),
+        WRECK_HOLD_STERN_X_M, WRECK_HOLD_FLOOR_M,
+      ])
       .fill({ color: 0x0a1c22 })
       .stroke({ color: 0x567069, width: 0.25 });
 
@@ -332,7 +382,14 @@ export class PixiWreckRenderer implements SceneRenderer {
     // the hull, hiding 31 of its 48 particles. RETAINED_LAYER_ASSIGNMENT is the
     // declaration; see render/layer-assignment.ts for why each element sits
     // where it does, and site-layers.test.ts for the invariants it must hold.
+    const sky = buildSky();
+    const surface = new Container();
+    this.#waves = SURFACE_WAVES.map((wave) => buildWaveStrip(wave));
+    surface.addChild(...this.#waves);
+
     const retained: Readonly<Record<RetainedElement, Graphics | Container>> = {
+      sky,
+      surface,
       distantHull,
       seabed,
       hull,
@@ -377,4 +434,67 @@ export class PixiWreckRenderer implements SceneRenderer {
     }
     return this.#app;
   }
+}
+
+function flatten(points: readonly RoutePoint[]): number[] {
+  return points.flatMap((point) => [point.x, point.d]);
+}
+
+/**
+ * Legacy's sky gradient, #c4e6f0 high up to #83bcd2 at the horizon
+ * (src/renderer.js drawScene), in one-metre bands over the six metres the
+ * camera shows above the surface.
+ */
+function buildSky(): Graphics {
+  const high = { r: 0xc4, g: 0xe6, b: 0xf0 };
+  const horizon = { r: 0x83, g: 0xbc, b: 0xd2 };
+  const bands = 6;
+  const sky = new Graphics()
+    .rect(SURFACE_SPAN_M.left, SKY_TOP_M, SURFACE_SPAN_M.right - SURFACE_SPAN_M.left, -SKY_TOP_M - bands)
+    .fill({ color: rgb(high) });
+  for (let band = 0; band < bands; band += 1) {
+    const t = (band + 0.5) / bands;
+    sky
+      .rect(SURFACE_SPAN_M.left, -bands + band, SURFACE_SPAN_M.right - SURFACE_SPAN_M.left, 1)
+      .fill({
+        color: rgb({
+          r: high.r + (horizon.r - high.r) * t,
+          g: high.g + (horizon.g - high.g) * t,
+          b: high.b + (horizon.b - high.b) * t,
+        }),
+      });
+  }
+  return sky;
+}
+
+function rgb(color: { r: number; g: number; b: number }): number {
+  return (Math.round(color.r) << 16) | (Math.round(color.g) << 8) | Math.round(color.b);
+}
+
+/**
+ * One of the surface's two sines: a band of light water from the wave line
+ * down a metre, rgba(135,206,235) as legacy fills it, one wavelength wider
+ * than the span so that sliding it by up to a wavelength never shows an edge.
+ * The first carries legacy's bright line just under the surface
+ * (_drawSurfaceUnderside).
+ */
+function buildWaveStrip(wave: (typeof SURFACE_WAVES)[number]): Graphics {
+  const left = SURFACE_SPAN_M.left;
+  const right = SURFACE_SPAN_M.right + wave.wavelengthM;
+  const step = 0.5;
+  const line: number[] = [];
+  for (let x = left; x <= right; x += step) {
+    line.push(x, -wave.amplitudeM * Math.sin((2 * Math.PI * x) / wave.wavelengthM));
+  }
+  const strip = new Graphics()
+    .poly([...line, right, SURFACE_BAND_M, left, SURFACE_BAND_M])
+    .fill({ color: 0x87ceeb, alpha: wave.alpha });
+  if (wave.highlight) {
+    strip.moveTo(line[0] as number, (line[1] as number) + 0.1);
+    for (let index = 2; index < line.length; index += 2) {
+      strip.lineTo(line[index] as number, (line[index + 1] as number) + 0.1);
+    }
+    strip.stroke({ color: 0xe6f8ff, width: 0.06, alpha: 0.35 });
+  }
+  return strip;
 }

@@ -21,10 +21,15 @@ export interface CameraTransform {
   readonly viewport: Viewport;
 }
 
+/**
+ * What the camera may show. The top is above the surface (#199): the dive
+ * starts and ends there, so the view has to reach it, with a band of sky
+ * above as legacy draws it.
+ */
 export const WRECK_CAMERA_BOUNDS: Readonly<CameraBounds> = Object.freeze({
   left: 0,
   right: 116,
-  top: 10,
+  top: -6,
   bottom: 40,
 });
 

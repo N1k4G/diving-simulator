@@ -482,6 +482,24 @@ summary:focus-visible {
   display: none;
 }
 
+/* The dive waits at the surface for S (#199). A pill like the speed chip, in
+   the dock, and not hidden on narrow layouts as the keyboard hint is. */
+.surface-prompt {
+  align-self: flex-start;
+  margin: 0;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid rgb(157 200 207 / 55%);
+  border-radius: 999px;
+  color: #e6f8ff;
+  background: rgb(3 24 32 / 80%);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.surface-prompt[hidden] {
+  display: none;
+}
+
 /* One column in the bottom-left corner: the keyboard hint above, the
    cylinder row below. Both used to be anchored there absolutely with the
    same offsets, so the hint was drawn across the row at desktop widths

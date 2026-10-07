@@ -1,4 +1,5 @@
 import type { PresentationState } from "../presentation/presentation-state";
+import { CARGO_HOLD_FROM_M, ENGINE_ROOM_FROM_M } from "../sites/wreck-route";
 
 export const RENDERER_KINDS = ["pixi", "canvas"] as const;
 
@@ -38,11 +39,15 @@ export function resolveRendererKind(
   return requested === "canvas" ? "canvas" : "pixi";
 }
 
+/**
+ * The part of the wreck a route position lies in. The overhead is only under
+ * the deck: the controller reports open water above it as the exterior.
+ */
 export function selectWreckZone(routePositionM: number): WreckZone {
-  if (routePositionM >= 76) {
+  if (routePositionM >= ENGINE_ROOM_FROM_M) {
     return "engine-room";
   }
-  if (routePositionM >= 45) {
+  if (routePositionM >= CARGO_HOLD_FROM_M) {
     return "cargo-hold";
   }
   return "exterior";
