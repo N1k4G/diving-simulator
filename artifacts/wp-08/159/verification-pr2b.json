@@ -1,0 +1,66 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 159,
+  "slice": "PR 2b of 4 (#199 slice 8): the post-dive screen, legacy's drawPostDive() as DOM, with its routing, text and the #120/#121 mobile checks",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "3fe6d57a07f1f197b90d7e2e59311e4b08fa9a52",
+  "measuredTree": "4306ce2f69da5d45a9b57b5fe69595ddd0ef6b31",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-10-07T00:32:29Z",
+  "runFinishedAt": "2026-10-07T00:40:00Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "Stacked on PR 2a (the summary) on main d44a239 (#216). The full run above is on 3fe6d57. Later commits add only evidence files under artifacts/wp-08/159/ (this one, and PR 2a's beneath it when the stack is restacked), so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass: site resources match src/sites.js (4 sites)",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "442 passed (unchanged from PR 2a)",
+    "parity": "189 passed (unchanged from PR 2a)",
+    "e2e": "151 passed in 5.4 min (143 before, +8 in tests/post-dive.spec.js)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "portedFromTheOracle": {
+    "content": "src/renderer.js drawPostDive(): the DIVE LOG kicker and DIVE COMPLETE heading, the stats card (dive time, max and average depth), the debriefing card (stars, the overall score, five rows with their tier colour and note), the gas lines (per tank, or the rebreather's oxygen, diluent, scrubber and bailout), the safety-stop-skipped warning with STRINGS.safetyExpl, and the dive-again prompt. The dive log's entries, which legacy shows only as chart markers, are listed with their dive time.",
+    "flow": "src/game-loop.js: the dive switches to 'post-dive' on the tick it surfaces; maybeSaveDiveState() clears the save outside 'diving'; Enter returns to the gas setup with the same settings. src/touch.js shows a dive-again button for touch.",
+    "text": "STRINGS.{en,de} diveComplete, diveTimeLbl, maxDepthLbl, avgDepthLbl, debriefTitle, ccrO2Cyl, ccrDilCyl, ccrScrubber, gasUsed, barLeft, ccrBailout, safetySkipped, safetyExpl and diveAgain, in the catalogue's sentence case as postDive.* and result.avgDepth; legacy's gasLabel() (Air, EANxx, Tx o2/he) as postDive.mix.*. Anchored in docs/baseline/claims-register.json under SAFETY-STOP-001, ASCENT-001, DECOMPRESSION-001 and GAS-001."
+  },
+  "browserChecks": "tests/post-dive.spec.js resumes a save the model could have written, completed at the surface, as tests/game-over.spec.js resumes a failed one, until #199 slice 7 makes the surface reachable. It checks the content (stats, overall 83 and two stars by legacy's rules, the five rows, the gas line, the warning, the violations), focus on the heading and no live region (#138), the save cleared, Enter and the button; a rebreather's gas lines and bailout; a completed save with its stop done debriefed as it ended; and #120/#121 at 390 x 844 and at 320 x 568 in English and German, open circuit and rebreather: content taller than the viewport reachable by scrolling, nothing past either edge, 44 px targets 8 px apart.",
+  "counterChecks": {
+    "method": "Each revert was applied from a backup copy, dist/ was rebuilt, the named Playwright test was run, and the file was restored byte for byte; a clean rebuild and the whole spec passing (8 of 8) closed the set.",
+    "results": [
+      { "revert": "a completed save resumed into the model instead of debriefed as it ended", "result": "1 failed: the stop-done save read as skipped" },
+      { "revert": "no route to the post-dive screen (neither the resumed save nor the live completion)", "result": "1 failed: the main test" },
+      { "revert": "the save kept after the dive ended", "result": "1 failed: the main test" },
+      { "revert": "focus not moved to the heading (#138)", "result": "1 failed: the main test" },
+      { "revert": "Enter does not dive again", "result": "1 failed: the main test" },
+      { "revert": "gas and score rows may not wrap on a narrow screen", "result": "4 failed: every small-phone case" }
+    ]
+  },
+  "decisions": {
+    "preV13Saves": "A dive resumed from a save older than the grade's inputs (v1-v12) is graded on defaults for the history it never held (the open note on #159 from Codex's review of #215). The screen does not mark those categories: no shipped writer produces such a save, since the migration client is unreachable until #170, and recording the missing history would need a save-version bump for a case no user can reach.",
+    "violationList": "Legacy has no text list of the dive log's entries, only chart markers; the screen lists them with their dive time so they are reachable without the chart, and the chart (PR 3) numbers its markers to match.",
+    "safetyStopOutcome": "Shown as legacy shows it: a warning with the explanation only when the stop was needed and not done; the grade's safety-stop row says when it was done or not needed."
+  },
+  "deferred": {
+    "liveCompletion": "The live transition (the tick the diver surfaces) is routed through the presentation snapshot's completed flag but cannot be reached in a browser until #199 slice 7 opens the route to the surface; its e2e belongs with slice 7.",
+    "tissueLoading": "Legacy's tissue-loading bar graph below the chart is not in #159's scope list; a follow-up issue is suggested."
+  },
+  "durableProvenance": {
+    "src": "b257a0c27fa007229f4aaabed191c290b391bd3b",
+    "tests": "c29ce7e9ee60bf14aa21e51a9c4231733a29a649",
+    "scripts": "6b40e24c03f7c63b0f9bf818108d20a6f6f2244f",
+    "docs": "b44906ba7e5094eb3acd2fbdcde9e6c652e8740a"
+  }
+}
