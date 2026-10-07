@@ -13,6 +13,9 @@ import {
   WRECK_DECK_TOP,
   WRECK_DECK_UNDERSIDE,
   WRECK_HOLD_FLOOR_M,
+  WRECK_HOLD_STERN_X_M,
+  WRECK_STERN_X_M,
+  holdFloorAt,
   moveAlongRoute,
   profileAt,
   routeSpaceNear,
@@ -37,7 +40,7 @@ describe("where the diver can be along the wreck route", () => {
   });
 
   it("has the deck above the diver in the cargo hold and the engine room, and open water above the deck", () => {
-    for (const position of [CARGO_HOLD_FROM_M, 60, ENGINE_ROOM_FROM_M, 90, ROUTE_MAX_POSITION_M]) {
+    for (const position of [CARGO_HOLD_FROM_M, 60, ENGINE_ROOM_FROM_M, 90, WRECK_HOLD_STERN_X_M]) {
       const [above, under] = routeSpacesAt(position);
       expect(above).toEqual({ ceilingM: 0, floorM: profileAt(WRECK_DECK_TOP, position), inOverhead: false });
       expect(under).toEqual({
@@ -51,8 +54,28 @@ describe("where the diver can be along the wreck route", () => {
     }
   });
 
-  it("is in the overhead exactly where the zone says cargo hold or engine room", () => {
-    for (let position = ROUTE_MIN_POSITION_M; position <= ROUTE_MAX_POSITION_M; position += 0.5) {
+  it("ends the hold at the stern wall the scene draws, with only open water past it (#223 pre-review)", () => {
+    // The wall runs from the floor's end (99, 33.5) up to the underside's end
+    // (103, 29.5).
+    expect(holdFloorAt(WRECK_HOLD_STERN_X_M)).toBe(WRECK_HOLD_FLOOR_M);
+    expect(holdFloorAt(101)).toBeCloseTo(31.5, 12);
+    expect(routeSpacesAt(101)[1]).toEqual({
+      ceilingM: profileAt(WRECK_DECK_UNDERSIDE, 101),
+      floorM: holdFloorAt(101),
+      inOverhead: true,
+    });
+    for (const position of [WRECK_STERN_X_M, 104, ROUTE_MAX_POSITION_M]) {
+      expect(routeSpacesAt(position), `at ${position} m`).toEqual([
+        { ceilingM: 0, floorM: profileAt(WRECK_DECK_TOP, position), inOverhead: false },
+      ]);
+    }
+    // On the hold's floor, the wall stops a diver finning aft.
+    expect(moveAlongRoute(99.4, 99.5, 33.2)).toBe(99.4);
+    expect(moveAlongRoute(101, 101.1, 31.45)).toBe(101);
+  });
+
+  it("is in the overhead exactly where the zone says cargo hold or engine room, up to the stern wall", () => {
+    for (let position = ROUTE_MIN_POSITION_M; position <= WRECK_HOLD_STERN_X_M; position += 0.5) {
       const inside = routeSpaceNear(position, 30).inOverhead;
       expect(inside, `at ${position} m`).toBe(selectWreckZone(position) !== "exterior");
       // Above the deck is never the overhead.

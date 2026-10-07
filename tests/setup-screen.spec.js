@@ -11,7 +11,10 @@ const {
 // rather than clicks, and Playwright refuses tap without it.
 const MOBILE_VIEWPORT = { viewport: { width: 390, height: 844 }, hasTouch: true };
 
-/** "1 hr 2 min 3 sec" -> 3723. NaN for a placeholder such as the em dash. */
+/**
+ * "1 hr 2 min 3 sec" or "12 min" -> seconds. NaN for the unavailable mark,
+ * which the HUD shows for the planner's unlimited NDL, as legacy's "---".
+ */
 function durationSeconds(text) {
   const units = { hr: 3600, min: 60, sec: 1 };
   let total = 0;
@@ -22,9 +25,6 @@ function durationSeconds(text) {
   }
   return found ? total : Number.NaN;
 }
-
-/** The planner's unlimited NDL, 999 minutes, as the HUD shows it at the surface. */
-const SURFACE_NDL_S = 999 * 60;
 
 /**
  * The configured loop, without what the dive's elapsed time changes. The
@@ -454,9 +454,10 @@ test.describe('technical mode', () => {
       await page.locator('[data-renderer=pixi] canvas').waitFor();
       await descendTo(page, 15);
       const ndl = page.locator('.wreck-hud [data-hud-metric=ndl] dd');
-      // A forecast from under water, not the unlimited one from the surface.
+      // A forecast from under water, a number rather than the unavailable
+      // mark the unlimited NDL at the surface reads as.
       await expect.poll(async () => durationSeconds(await ndl.textContent()), { timeout: 15_000 })
-        .toBeLessThan(SURFACE_NDL_S);
+        .toBeGreaterThan(0);
       return durationSeconds(await ndl.textContent());
     };
 
@@ -537,14 +538,15 @@ test.describe('technical mode', () => {
     await toTec(page);
     await page.locator('[data-start-dive]').click();
     await page.locator('[data-renderer=pixi] canvas').waitFor();
-    // Under water, where the factors move the NDL: at the surface, where the
-    // dive starts (#199), it is unlimited under any.
-    await descendTo(page, 10);
+    // Deep enough for both sets of factors to give a limit: at the surface,
+    // where the dive starts (#199), and down to about 10 m on the liberal
+    // ones, the NDL is unlimited and reads as the unavailable mark.
+    await descendTo(page, 16);
     const save = await page
       .waitForFunction((key) => {
         const raw = window.localStorage.getItem(key);
         const saved = raw === null ? null : JSON.parse(raw);
-        return saved !== null && saved.state.depthM > 8 ? saved : null;
+        return saved !== null && saved.state.depthM > 14 ? saved : null;
       }, SAVE_KEY, { timeout: 30_000 })
       .then((handle) => handle.jsonValue());
 

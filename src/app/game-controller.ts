@@ -189,13 +189,14 @@ export class GameController {
     if (active) {
       this.#pressed.add(control);
       // S at the surface begins the dive (src/game-loop.js updateSurface:
-      // `keys['s'] || keys['arrowdown']` sets gameState = 'diving'). Legacy
-      // also sets 2 L in the BCD, at rest, and the loop's PO2 there; a dive
-      // that has not begun already holds exactly that, from
-      // createInitialDiveState. The key stays held, so the next frame vents,
+      // `keys['s'] || keys['arrowdown']` sets gameState = 'diving'), with
+      // legacy's 2 L in the BCD, at rest, and the loop's PO2 there. A fresh
+      // dive already holds those; a legacy save written at the surface holds
+      // 0 L (#223 pre-review). The key stays held, so the next frame vents,
       // as legacy's next updateDiving() does.
       if (control === "descend" && this.#awaitingDescent) {
         this.#awaitingDescent = false;
+        this.#model.leaveSurface();
       }
       // Legacy drops out of fast-forward on the tick a vertical key is read
       // (src/game-loop.js updateDiving). Done here as well as in #tick so
@@ -251,7 +252,9 @@ export class GameController {
    * switch while CCR is set, and a dive that has already failed.
    */
   requestTankSwitch(index: number): void {
-    if (!Number.isInteger(index) || index < 0) {
+    // Legacy reads the digit keys only in updateDiving(), never at the
+    // surface (#223 pre-review).
+    if (!Number.isInteger(index) || index < 0 || this.#awaitingDescent) {
       return;
     }
     const before = this.#model.snapshot;
@@ -281,6 +284,10 @@ export class GameController {
    * setpoint is a new forecast gas.
    */
   adjustSetpoint(deltaBar: number): void {
+    // Only in updateDiving(), as the cylinder keys (#223 pre-review).
+    if (this.#awaitingDescent) {
+      return;
+    }
     const before = this.#model.snapshot;
     const after = this.#model.adjustSetpoint(deltaBar);
     if (after === before) {
@@ -298,6 +305,11 @@ export class GameController {
    * second one anyway. The forecast changes with the breathed gas.
    */
   bailOut(): void {
+    // Only in updateDiving(): at the surface an irreversible bailout would
+    // otherwise begin the dive on open circuit (#223 pre-review).
+    if (this.#awaitingDescent) {
+      return;
+    }
     const before = this.#model.snapshot;
     const after = this.#model.bailOut();
     if (after === before) {
@@ -545,6 +557,12 @@ export class GameController {
   }
 
   readonly #handleKeyDown = (event: KeyboardEvent): void => {
+    // A dive that has ended moves no more and has no torch to work, so its
+    // movement keys and T are left to whatever else wants them, as every
+    // other dive key is (#223 pre-review).
+    if (isDiveOver(this.#model.snapshot)) {
+      return;
+    }
     const control = controlForKey(event.key);
     if (control) {
       event.preventDefault();
@@ -616,18 +634,25 @@ export class GameController {
    */
   #canSwitchTank(tankIndex: number): boolean {
     const state = this.#model.snapshot;
-    return !isDiveOver(state) && tankIndex < state.tanks.length;
+    return (
+      !isDiveOver(state) &&
+      !this.#awaitingDescent &&
+      tankIndex < state.tanks.length
+    );
   }
 
   /**
    * Legacy's `diveMode === 'ccr' && !ccrState.onBailout` gate for the
    * setpoint keys and B, plus the failed-dive rule every in-dive control
-   * follows. The DOM row in wreck-app.ts hides itself on the same condition.
+   * follows, and not while the dive waits at the surface, where legacy reads
+   * them nowhere. The DOM row in wreck-app.ts hides itself on the same
+   * condition.
    */
   #loopControlsOffered(): boolean {
     const state = this.#model.snapshot;
     return (
       !isDiveOver(state) &&
+      !this.#awaitingDescent &&
       state.ccr !== null &&
       !state.ccr.onBailout
     );
@@ -636,7 +661,11 @@ export class GameController {
   readonly #handleKeyUp = (event: KeyboardEvent): void => {
     const control = controlForKey(event.key);
     if (control) {
-      event.preventDefault();
+      // Released whatever the dive's state, so no control stays held; only
+      // claimed while the dive still takes it.
+      if (!isDiveOver(this.#model.snapshot)) {
+        event.preventDefault();
+      }
       this.setControl(control, false);
     }
   };

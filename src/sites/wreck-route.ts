@@ -93,14 +93,31 @@ export function routeSpacesAt(positionM: number): readonly RouteSpace[] {
   if (positionM < CARGO_HOLD_FROM_M) {
     return [{ ceilingM: 0, floorM: OPEN_WATER_FLOOR_M, inOverhead: false }];
   }
-  return [
-    { ceilingM: 0, floorM: profileAt(WRECK_DECK_TOP, positionM), inOverhead: false },
-    {
-      ceilingM: profileAt(WRECK_DECK_UNDERSIDE, positionM),
-      floorM: WRECK_HOLD_FLOOR_M,
-      inOverhead: true,
-    },
-  ];
+  const aboveDeck: RouteSpace = {
+    ceilingM: 0,
+    floorM: profileAt(WRECK_DECK_TOP, positionM),
+    inOverhead: false,
+  };
+  const ceilingM = profileAt(WRECK_DECK_UNDERSIDE, positionM);
+  const floorM = holdFloorAt(positionM);
+  // Past the stern wall there is no hold: only water above the deck.
+  return floorM > ceilingM
+    ? [aboveDeck, { ceilingM, floorM, inOverhead: true }]
+    : [aboveDeck];
+}
+
+/**
+ * The hold's floor, rising along the stern wall the scene draws from the
+ * floor's end to where the deck's underside ends (#223 pre-review): the
+ * drawn interior closes there, and behind it is solid hull.
+ */
+export function holdFloorAt(positionM: number): number {
+  if (positionM <= WRECK_HOLD_STERN_X_M) {
+    return WRECK_HOLD_FLOOR_M;
+  }
+  const wallTopM = profileAt(WRECK_DECK_UNDERSIDE, WRECK_STERN_X_M);
+  const along = (positionM - WRECK_HOLD_STERN_X_M) / (WRECK_STERN_X_M - WRECK_HOLD_STERN_X_M);
+  return WRECK_HOLD_FLOOR_M + (wallTopM - WRECK_HOLD_FLOOR_M) * along;
 }
 
 /**

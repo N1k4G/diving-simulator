@@ -329,7 +329,13 @@ function cylinderBlock(tank: PresentationTank, locale: SupportedLocale): Block {
   };
 }
 
-function ndlText(
+/**
+ * The NDL as legacy draws it, on the decompression page and in the HUD
+ * (src/renderer.js `ndl >= 999 ? '---' : ndl > 99 ? '99' : ndl`): the
+ * unavailable mark for the 999 "no limit" sentinel, otherwise whole minutes
+ * up to 99.
+ */
+export function ndlText(
   ndlMin: number | null,
   locale: SupportedLocale,
   unavailable: string,

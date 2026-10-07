@@ -26,6 +26,7 @@ import {
 import { NO_INPUT, type InputIntent } from "./inputs";
 import { nextRandom } from "./rng";
 import {
+  BCD_START_SURFACE_LITRES,
   applyBcdControls,
   integrateBuoyancy,
   type BuoyancyControls,
@@ -341,6 +342,20 @@ export class DiveModel {
   }
 
   /**
+   * Leaves the surface to begin the dive (#199): what legacy's
+   * updateSurface() sets as S takes the diver from 'surface' to 'diving'.
+   * A fresh state already holds it; a legacy save written at the surface,
+   * where resetDive() leaves the BCD at 0 L, does not.
+   */
+  leaveSurface(): DiveState {
+    if (isDiveOver(this.#state)) {
+      return this.#state;
+    }
+    this.#state = leaveSurfaceState(this.#state);
+    return this.#state;
+  }
+
+  /**
    * Bails out to open circuit, now, outside the time step (#163).
    *
    * src/game-loop.js TASK-032F: `if (keys['b']) { ccrState.onBailout = true }`
@@ -357,6 +372,28 @@ export class DiveModel {
     this.#state = applyBailoutIntent(this.#state, true);
     return this.#state;
   }
+}
+
+/**
+ * src/game-loop.js updateSurface() on S: `bcdGasSurfaceLiters = 2.0;
+ * verticalVelocity = 0;` and on a rebreather `ccrState.actualPO2 =
+ * ccrState.targetSP < ambientPressure(0) ? ccrState.targetSP : 0.21`.
+ */
+export function leaveSurfaceState(state: DiveState): DiveState {
+  const surfaceBar = 1;
+  return freezeDiveState({
+    ...state,
+    bcdGasSurfaceLiters: BCD_START_SURFACE_LITRES,
+    verticalVelocityMpm: 0,
+    ccr: state.ccr
+      ? {
+          ...state.ccr,
+          actualPo2Bar: bars(
+            state.ccr.targetPo2Bar < surfaceBar ? state.ccr.targetPo2Bar : 0.21,
+          ),
+        }
+      : null,
+  });
 }
 
 export function advanceTissues(

@@ -54,8 +54,11 @@ async function startTwoCylinderDive(page) {
   await configureTwoCylinderTec(page);
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
-  await expect(page.locator('[data-wreck-tanks] button')).toHaveCount(2);
+  // The cylinder buttons wait at the surface, as legacy's touch-dive group
+  // shows only in 'diving' (#223 pre-review).
+  await expect(page.locator('[data-wreck-tanks]')).toBeHidden();
   await descendTo(page, 1);
+  await expect(page.locator('[data-wreck-tanks] button')).toHaveCount(2);
 }
 
 async function startThreeCylinderDive(page) {
@@ -68,8 +71,8 @@ async function startThreeCylinderDive(page) {
   await page.locator('[data-setup-tank-add]').click();
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
-  await expect(page.locator('[data-wreck-tanks] button')).toHaveCount(3);
   await descendTo(page, 1);
+  await expect(page.locator('[data-wreck-tanks] button')).toHaveCount(3);
 }
 
 test('a cylinder can be chosen with its digit key', async ({ page }) => {
@@ -349,9 +352,10 @@ async function startSixCylinderDive(page, acceptGate = acceptSafetyGate) {
   }
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
-  await expect(page.locator('[data-wreck-tanks] button')).toHaveCount(6);
-  // Under water, where the gas-information pages are offered.
+  // Under water, where the gas-information pages and the cylinder buttons
+  // are offered.
   await descendTo(page, 1);
+  await expect(page.locator('[data-wreck-tanks] button')).toHaveCount(6);
 }
 
 test('no cylinder button overlaps another control at desktop width', async ({ page }) => {
@@ -758,8 +762,13 @@ async function startCcrDive(page, { descend = true } = {}) {
   await expect(page.locator('[data-setup-stepper=setpoint]')).toBeVisible();
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
-  await expect(page.locator('[data-wreck-ccr]')).toBeVisible();
-  if (descend) await descendTo(page, 1);
+  // The loop's buttons wait at the surface, as legacy shows them only in
+  // 'diving' (#223 pre-review).
+  await expect(page.locator('[data-wreck-ccr]')).toBeHidden();
+  if (descend) {
+    await descendTo(page, 1);
+    await expect(page.locator('[data-wreck-ccr]')).toBeVisible();
+  }
 }
 
 /** Starts a CCR dive, edits its save with `mutate`, and resumes it. */
@@ -1155,8 +1164,8 @@ async function startFourCylinderDive(page) {
   }
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
-  await expect(page.locator('[data-wreck-tanks] button')).toHaveCount(4);
   await descendTo(page, 1);
+  await expect(page.locator('[data-wreck-tanks] button')).toHaveCount(4);
 }
 
 test.describe('gas information', () => {

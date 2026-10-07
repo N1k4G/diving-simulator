@@ -1,5 +1,5 @@
 const { expect, test } = require('@playwright/test');
-const { startDive } = require('./helpers/start-dive.cjs');
+const { descendTo, startDive } = require('./helpers/start-dive.cjs');
 
 // WHAT THIS GUARDS. The planner has to run off the main thread, from a
 // same-origin module URL. `worker-src 'self'` in src/_headers blocks a blob:
@@ -42,6 +42,13 @@ test('planner Worker runs off-main-thread from a same-origin module', async ({ p
   // the placeholder is an em dash in both locales, so any digit means a
   // forecast arrived, and the check does not break when the duration format or
   // the negotiated locale changes.
+  //
+  // The dive starts at the surface (#199), where the NDL is unlimited and
+  // reads as the unavailable mark, as legacy's "---"; below about 9 m on air
+  // it is a number, at most 99 minutes as legacy caps it.
   const ndl = page.locator('.wreck-hud [data-hud-metric="ndl"] dd');
-  await expect(ndl).toHaveText(/\d/);
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  await descendTo(page, 12);
+  await expect(ndl).toHaveText(/^\d+ min$/);
+  expect(Number.parseInt(await ndl.textContent(), 10)).toBeLessThanOrEqual(99);
 });

@@ -126,12 +126,61 @@ test('the dive starts at the surface and begins on S', async ({ page }) => {
   const waitingTime = await time.textContent();
   await page.waitForTimeout(1500);
   await expect(time).toHaveText(waitingTime || '');
+  // The forecast has long arrived by now, and at the surface it has no
+  // limit: legacy draws "---" for the 999 sentinel, not a duration (#223
+  // pre-review).
+  await expect(page.locator('.wreck-hud [data-hud-metric="ndl"] dd')).toHaveText('—');
 
   await page.keyboard.down('s');
   await expect(prompt).toBeHidden();
   await expect.poll(async () => parseMetres(await depth.textContent())).toBeGreaterThan(0);
   await page.keyboard.up('s');
   await expect(time).not.toHaveText(waitingTime || '');
+});
+
+// Legacy clears its save once a dive leaves 'diving' for its post-dive state,
+// so a finished dive is never resumed (#223 pre-review). Before, the
+// completed dive went on being saved and came back, frozen, on every start.
+test('a dive completed at the surface leaves no save, and the next start is a new dive', async ({ page }) => {
+  await page.goto('/dist/');
+  await page.evaluate(() => window.localStorage.clear());
+  await startDiveAndWaitForCanvas(page);
+  await descendTo(page, 1);
+  const saved = await page
+    .waitForFunction((key) => {
+      const raw = window.localStorage.getItem(key);
+      const parsed = raw === null ? null : JSON.parse(raw);
+      return parsed !== null && parsed.state.elapsedTimeS > 0 ? parsed : null;
+    }, 'diving-simulator.save-game')
+    .then((handle) => handle.jsonValue());
+  // A minute and a half into a 10 m dive, a metre down and slightly light:
+  // it drifts up and surfaces gently, which ends the dive (slice 4b).
+  Object.assign(saved.state, {
+    elapsedTimeS: 90,
+    depthM: 1,
+    maxDepthM: 10,
+    verticalVelocityMpm: 0,
+    bcdGasSurfaceLiters: 3,
+  });
+  await page.goto('/dist/');
+  await page.evaluate(
+    (value) => window.localStorage.setItem('diving-simulator.save-game', value),
+    JSON.stringify(saved),
+  );
+  await startDiveAndWaitForCanvas(page);
+
+  await page.waitForFunction(
+    () => window.localStorage.getItem('diving-simulator.save-game') === null,
+    undefined,
+    { timeout: 30_000 },
+  );
+  // Leaving the page writes no save either.
+  await page.reload();
+  expect(await page.evaluate(() => window.localStorage.getItem('diving-simulator.save-game'))).toBeNull();
+
+  await startDiveAndWaitForCanvas(page);
+  await expect(page.locator('[data-surface-prompt]')).toBeVisible();
+  await expect(page.locator('.wreck-hud [data-hud-metric="time"] dd')).toHaveText('0 sec');
 });
 
 test.describe('surface start by touch', () => {
