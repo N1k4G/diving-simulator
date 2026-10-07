@@ -1,0 +1,57 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 159,
+  "slice": "PR 2a of 4 (#199 slice 8): the post-dive summary, legacy's drawPostDive() values derived from the final dive state, with violation-list and summary parity",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "558f6ffb28b428a094d920425239ce7a55d4d311",
+  "measuredTree": "250ed911bd22d0b50d44a2f6468c532f3959c14b",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-10-07T00:24:32Z",
+  "runFinishedAt": "2026-10-07T00:32:28Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "On main d44a239 (#216). The full run above is on 558f6ff, the slice's code commit; the only later commit adds this file.",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass: site resources match src/sites.js (4 sites)",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "442 passed (436 on main, +6 in tests/unit/post-dive-summary.test.ts)",
+    "parity": "189 passed (142 on main, +47 in tests/parity/post-dive.test.ts: one per recorded checkpoint, 46, and the acceptance cases)",
+    "e2e": "143 passed in 6.0 min (unchanged; this slice changes no screen)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "portedFromTheOracle": {
+    "summary": "src/renderer.js drawPostDive(): dive time; maxDepth; the average depth avgDepthAccum / avgDepthSamples (0 without samples); per open-circuit tank totalGas - gasRemaining of totalGas; on a rebreather (BUG-24) the oxygen and diluent used, (start - current pressure) x cylinder volume, with the bar left, the scrubber time used, scrubberTotal - scrubberRemaining, and the bailout; the safety-stop warning when safetyStopNeeded && !safetyStopComplete; the grade from gradeDive().",
+    "violations": "src/renderer.js drawDiveProfileChart() marks every diveEvents entry: fastAscent with its peak rate, ceilingViolation with how far above the ceiling, safetyStopSkipped at the surface. The summary lists the dive log's entries in that order."
+  },
+  "parity": "At every checkpoint of all eleven recorded dives (46), legacy's own expressions applied to the recorded globals against the summary of the adapter's state there: dive time, maxDepth.toFixed(1), the average depth's toFixed(1), the violation list's kinds, times and values, the safety-stop warning, and the gas lines to the whole litre, bar and minute legacy draws (open circuit per tank; the rebreather's oxygen, diluent, scrubber and bailout). Named acceptance traces: air-18m-30min/surfaced (legacy's post-dive screen, the stop skipped, grade scores equal), buoyancy-vent-inflate-12m/coasting-30s (a fast ascent) and trimix-dcs-above-stop/above-stop-30s (a broken ceiling). The model's own log against legacy's diveEvents is covered by tests/parity/dive-log.test.ts and dive-end.test.ts.",
+  "counterChecks": {
+    "method": "Each revert was applied from a backup copy, the named test file was run with vitest, and the file was restored byte for byte.",
+    "results": [
+      { "revert": "average depth from the deepest point instead of legacy's time-weighted sums", "result": "17 of 47 parity tests failed" },
+      { "revert": "violation list without the skipped safety stop", "result": "2 of 47 parity tests failed" },
+      { "revert": "oxygen used in bar, not litres (no cylinder volume)", "result": "11 of 47 parity tests failed" },
+      { "revert": "rebreather dive reported as its open-circuit cylinder list (legacy BUG-24)", "result": "16 of 47 parity tests failed" },
+      { "revert": "safety stop counted skipped whenever needed, done or not", "result": "1 of 6 unit tests failed" },
+      { "revert": "presentation snapshot never reports completion", "result": "1 of 6 unit tests failed" }
+    ]
+  },
+  "deferred": "Showing the summary: the post-dive screen (PR 2b, stacked on this one) and the profile chart (PR 3).",
+  "durableProvenance": {
+    "src": "c641c7def74d7e88a2927769449df600f865392c",
+    "tests": "8216181c9565e8556fd84d0e1ab0c3ab4dae4106",
+    "scripts": "6b40e24c03f7c63b0f9bf818108d20a6f6f2244f",
+    "docs": "2cf0bb4f463fc5b6fb9ebc81e7dfee3c846a7b15"
+  }
+}
