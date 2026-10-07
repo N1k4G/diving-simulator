@@ -151,9 +151,51 @@ export interface PresentationState {
   readonly ruleOfThirds: PresentationRuleOfThirds | null;
 }
 
+/**
+ * What a forecast was computed from, and how far the dive may have moved on
+ * since before it no longer describes it (#226 Codex round 2). The worker
+ * answers asynchronously; legacy reads frameCalc.schedule of the same frame.
+ */
+export interface PlannerForecastFreshness {
+  /** The dive time of the state the forecast was requested for. */
+  readonly sourceElapsedTimeS: number;
+  /** The depth of that state. */
+  readonly sourceDepthM: number;
+  /** Dive seconds the forecast may lag the state it is shown with. */
+  readonly maxAgeS: number;
+}
+
+/**
+ * How far the diver may have moved from the forecast's depth: the
+ * scheduler asks again as the depth crosses a whole metre
+ * (src/planner/forecast-scheduler.ts), so a current forecast is at most a
+ * metre behind, plus what the diver moves while the worker answers.
+ */
+export const FORECAST_MAX_DEPTH_DRIFT_M = 1.5;
+
+/**
+ * Whether a forecast still describes the state (#226 Codex round 2): it was
+ * computed from a state at most `maxAgeS` dive seconds earlier, and at most
+ * FORECAST_MAX_DEPTH_DRIFT_M away. A breathed-gas change needs no check
+ * here: the controller drops the forecast on it, and the answer to a request
+ * made before it.
+ */
+export function isForecastCurrent(
+  state: DiveState,
+  freshness: Readonly<PlannerForecastFreshness>,
+): boolean {
+  const ageS = state.elapsedTimeS - freshness.sourceElapsedTimeS;
+  return (
+    ageS >= 0 &&
+    ageS <= freshness.maxAgeS &&
+    Math.abs(state.depthM - freshness.sourceDepthM) <= FORECAST_MAX_DEPTH_DRIFT_M
+  );
+}
+
 export function createPresentationState(
   state: DiveState,
   planner: PlannerForecast | null,
+  plannerFreshness: Readonly<PlannerForecastFreshness> | null = null,
 ): PresentationState {
   const tanks = Object.freeze(
     state.tanks.map((tank, index) =>
@@ -189,7 +231,7 @@ export function createPresentationState(
     saturation: selectSaturation(state),
     cnsPercent: state.cnsPercent,
     ascentRateMpm: state.completed ? 0 : state.log.ascentRateMpm,
-    decoStop: selectDecoStop(state, planner),
+    decoStop: selectDecoStop(state, planner, plannerFreshness),
     safetyStop: selectSafetyStop(state),
     ruleOfThirds: selectRuleOfThirds(state),
   });
@@ -202,20 +244,23 @@ export function createPresentationState(
  * - The ceiling is the model's log.lastCeilingM, legacy's frameCalc.ceiling
  *   of the same tick at the dive's GF high, as selectSafetyStop reads it.
  * - The first stop's depth and minutes are the forecast's: legacy's
- *   frameCalc.schedule, which the worker computes here. While no forecast
- *   with stops is in hand (after a gas switch, a setpoint change or a
- *   bailout, and on a resumed dive), the box shows its title alone, as
- *   legacy's does without a schedule.
+ *   frameCalc.schedule, which the worker computes here, asynchronously.
+ *   They are shown only while the forecast is current (isForecastCurrent):
+ *   with no forecast with stops in hand, or one that no longer describes
+ *   the dive (a request pending past its budget, or a dropped answer), the
+ *   box shows its title alone, as legacy's does without a schedule.
  * - Not once the dive is completed: legacy's post-dive state draws no box.
  */
 export function selectDecoStop(
   state: DiveState,
   planner: PlannerForecast | null,
+  freshness: Readonly<PlannerForecastFreshness> | null = null,
 ): PresentationDecoStopBox | null {
   if (state.completed || !(state.log.lastCeilingM > 0)) {
     return null;
   }
-  const first = planner?.schedule?.stops[0];
+  const current = freshness !== null && isForecastCurrent(state, freshness);
+  const first = current ? planner?.schedule?.stops[0] : undefined;
   return Object.freeze({
     firstStop: first
       ? Object.freeze({ depthM: first.depthM, durationMin: first.durationMin })

@@ -24,9 +24,13 @@ import {
   type PlannerForecast,
   type PlannerSettings,
 } from "../planner/dive-planner";
-import { ForecastScheduler } from "../planner/forecast-scheduler";
+import {
+  DEFAULT_FORECAST_INTERVAL_SECONDS,
+  ForecastScheduler,
+} from "../planner/forecast-scheduler";
 import {
   createPresentationState,
+  type PlannerForecastFreshness,
   type PresentationState,
 } from "../presentation/presentation-state";
 import type { SceneRenderer, WreckSceneState } from "../render/renderer";
@@ -55,6 +59,17 @@ const TIME_ACCELERATION = 3;
  * legacy's `timeMultiplier = TIME_ACCELERATION * FAST_FORWARD_MULTIPLIER`.
  */
 const FAST_FORWARD_MULTIPLIER = 10;
+/**
+ * Real seconds a forecast may take to be replaced beyond the scheduler's
+ * interval before its stop is no longer shown as current (#226 Codex round
+ * 2). The next request goes out on the first frame after the interval once
+ * the last answer is in: one frame, capped at MAX_FRAME_SECONDS, plus the
+ * worker's time, which is tens of milliseconds. Half a second covers a
+ * capped frame and 0.4 s of worker time; a dropped or slow answer then
+ * expires the stop's numbers about half a second of real time later,
+ * whatever the clock rate.
+ */
+export const FORECAST_LATENCY_BUDGET_REAL_S = 0.5;
 
 export type ContinuousControl = "ascend" | "descend" | "left" | "right";
 
@@ -107,6 +122,16 @@ export class GameController {
   readonly #model: DiveModel;
 
   #planner: PlannerForecast | null = null;
+  /**
+   * The state the forecast on screen was computed from, and the clock rate
+   * it was requested at (#226 Codex round 2): the stop box shows the
+   * forecast's stop only while it still describes the dive.
+   */
+  #plannerSource: {
+    readonly elapsedTimeS: number;
+    readonly depthM: number;
+    readonly timeMultiplier: number;
+  } | null = null;
   #plannerPending = false;
   /**
    * A forced refresh arrived while a request was in flight (#163 review
@@ -362,10 +387,7 @@ export class GameController {
     // controls once per frame and moves the diver in its sub-steps, so the
     // frame boundaries are part of the behaviour (docs/decisions.md,
     // Architecture). The frame's dive time is legacy's dtReal * timeMultiplier.
-    const frameDiveS =
-      elapsedS *
-      TIME_ACCELERATION *
-      (this.#fastForwardActive ? FAST_FORWARD_MULTIPLIER : 1);
+    const frameDiveS = elapsedS * this.#timeMultiplier();
     if (frameDiveS > 0 && !this.#awaitingDescent) {
       // The bounds where the diver is (#199): the surface outside the wreck,
       // the deck inside it. Under the deck is legacy's inOverhead, which
@@ -473,10 +495,41 @@ export class GameController {
     };
   }
 
+  /** Legacy's timeMultiplier: dive seconds per real second. */
+  #timeMultiplier(): number {
+    return (
+      TIME_ACCELERATION *
+      (this.#fastForwardActive ? FAST_FORWARD_MULTIPLIER : 1)
+    );
+  }
+
+  /**
+   * How far the forecast on screen may lag the dive (#226 Codex round 2):
+   * the scheduler's interval, in dive seconds, plus the latency budget in
+   * real seconds at the faster of the clock rates the forecast was asked at
+   * and runs at now, so that turning fast-forward on or off does not by
+   * itself expire a forecast that is keeping up.
+   */
+  #plannerFreshness(): PlannerForecastFreshness | null {
+    const source = this.#plannerSource;
+    if (this.#planner === null || source === null) {
+      return null;
+    }
+    return {
+      sourceElapsedTimeS: source.elapsedTimeS,
+      sourceDepthM: source.depthM,
+      maxAgeS:
+        DEFAULT_FORECAST_INTERVAL_SECONDS +
+        FORECAST_LATENCY_BUDGET_REAL_S *
+          Math.max(source.timeMultiplier, this.#timeMultiplier()),
+    };
+  }
+
   #publishFrame(): void {
     const presentation = createPresentationState(
       this.#model.snapshot,
       this.#planner,
+      this.#plannerFreshness(),
     );
     const depthM = this.#model.snapshot.depthM;
     const scene: WreckSceneState = Object.freeze({
@@ -517,6 +570,7 @@ export class GameController {
    */
   #invalidateForecast(): void {
     this.#planner = null;
+    this.#plannerSource = null;
     this.#requestForecast(true);
   }
 
@@ -540,6 +594,11 @@ export class GameController {
     }
 
     this.#plannerPending = true;
+    const source = {
+      elapsedTimeS: snapshot.elapsedTimeS,
+      depthM: snapshot.depthM,
+      timeMultiplier: this.#timeMultiplier(),
+    };
     void this.#plannerClient
       .forecast(snapshot, {
         ...this.#plannerSettings,
@@ -556,6 +615,7 @@ export class GameController {
         // lands.
         if (!this.#disposed && !this.#forcedForecastQueued) {
           this.#planner = forecast;
+          this.#plannerSource = source;
           this.#publishFrame();
         }
       })
