@@ -195,11 +195,11 @@ describe("the deco stop's numbers against the forecast's cadence", { timeout: 30
     controller.destroy();
   });
 
-  it("are dropped within about half a second of real time when fast-forward ends with the worker silent", async () => {
-    // Pre-review pass 5 on #226: a forecast asked at x30 has a 17 dive-s
-    // budget, which back at x3 is 5.7 s of real time. It is also bounded in
-    // real time: the interval at the rate it was asked at (67 ms) and the
-    // half-second latency budget.
+  it("are dropped within the x3 interval and half a second of real time when fast-forward ends with the worker silent", async () => {
+    // Pre-review passes 5 and 6 on #226: a forecast asked at x30 has a 17
+    // dive-s budget, which back at x3 is 5.7 s of real time. It is also
+    // bounded in real time: the interval at the slower rate, 0.67 s at x3,
+    // and the half-second latency budget, 1.17 s from its request.
     const { controller, run } = await startAtStop();
     await run(6, 3);
     controller.toggleFastForward();
@@ -209,11 +209,35 @@ describe("the deco stop's numbers against the forecast's cadence", { timeout: 30
     expect(silent.every((frame) => !frame.fastForward.active)).toBe(true);
     expect(silent.every((frame) => frame.presentation.decoStop !== null)).toBe(true);
     // The last answer was asked for at most a few frames before; at 20 ms
-    // a frame, 0.57 s is 28 frames, so by frame 40 (0.8 s) the numbers are
+    // a frame, 1.17 s is 58 frames, so by frame 70 (1.4 s) the numbers are
     // gone, where the dive-time budget alone kept them for about 280.
     expect(firstStopOf(silent[0]!)).not.toBeNull();
-    expect(silent.slice(40).every((frame) => firstStopOf(frame) === null)).toBe(true);
+    expect(silent.slice(70).every((frame) => firstStopOf(frame) === null)).toBe(true);
     controller.destroy();
+  });
+
+  it("are kept when fast-forward ends at any point of the request cycle, the worker answering", async () => {
+    // Pre-review pass 6 on #226: once fast-forward ends, the next request
+    // is due only after the 2 dive-s interval at x3, 0.67 s of real time. A
+    // x30 forecast's own real-time bound, 0.57 s, ran out before it when
+    // fast-forward ended just after a request had left, and the numbers
+    // blinked off with the worker answering in a frame or two.
+    for (let framesAtX30 = 10; framesAtX30 < 20; framesAtX30 += 1) {
+      for (const latencyFrames of [1, 2]) {
+        const { controller, run } = await startAtStop();
+        await run(6, latencyFrames);
+        controller.toggleFastForward();
+        await run(framesAtX30, latencyFrames);
+        controller.toggleFastForward();
+        const after = await run(150, latencyFrames);
+        expect(after.every((frame) => !frame.fastForward.active)).toBe(true);
+        expect(
+          after.every((frame) => firstStopOf(frame) !== null),
+          `${framesAtX30} frames at x30, answers after ${latencyFrames}`,
+        ).toBe(true);
+        controller.destroy();
+      }
+    }
   });
 
   it("are dropped on the dive-time budget when fast-forward starts with the worker silent", async () => {

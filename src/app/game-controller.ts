@@ -78,10 +78,16 @@ const FAST_FORWARD_MULTIPLIER = 10;
  *   half a second covers about 0.2 s of worker time per answer with a
  *   capped frame. The worker takes 12 to 24 ms on a desktop.
  *
- * A forecast is current for at most interval / (rate it was asked at) +
- * this budget of real time after it was asked for: 1.17 s at x3 and 0.57 s
- * at x30, whatever the rate after it, so a dropped or slow answer expires
- * the stop's numbers then.
+ * A forecast is current for at most interval / (the slower of the rate it
+ * was asked at and the rate now) + this budget of real time after it was
+ * asked for: 0.57 s while fast-forwarding at x30 throughout, 1.17 s once
+ * either rate is x3. The slower rate, because once fast-forward ends the
+ * next request is due only after the interval at x3, 0.67 s of real time;
+ * a x30 forecast's 0.57 s would expire before it, and blank the stop's
+ * numbers for a moment with the worker answering promptly (pre-review pass
+ * 6). A dropped or slow answer still expires them within 1.17 s, where the
+ * dive-time budget alone kept a x30 forecast for 5.7 s once fast-forward
+ * had ended.
  */
 export const FORECAST_LATENCY_BUDGET_REAL_S = 0.5;
 
@@ -526,10 +532,11 @@ export class GameController {
    *   faster of the clock rates the forecast was asked at and runs at now,
    *   so that turning fast-forward on does not by itself expire a forecast
    *   that is keeping up;
-   * - in real time, the interval at the rate it was asked at plus the
-   *   latency budget (pre-review pass 5), so that a forecast asked at x30
-   *   does not keep its 17 dive-s budget for 5.7 s of real time once
-   *   fast-forward has ended.
+   * - in real time, the interval at the slower of the rate it was asked at
+   *   and the rate now, plus the latency budget (pre-review passes 5 and
+   *   6), so that a forecast asked at x30 does not keep its 17 dive-s budget
+   *   for 5.7 s of real time once fast-forward has ended, nor expire before
+   *   the next request at x3 is even due.
    */
   #plannerFreshness(): PlannerForecastFreshness | null {
     const source = this.#plannerSource;
@@ -545,7 +552,8 @@ export class GameController {
           Math.max(source.timeMultiplier, this.#timeMultiplier()),
       realAgeS: this.#elapsedRealS - source.elapsedRealS,
       maxRealAgeS:
-        DEFAULT_FORECAST_INTERVAL_SECONDS / source.timeMultiplier +
+        DEFAULT_FORECAST_INTERVAL_SECONDS /
+          Math.min(source.timeMultiplier, this.#timeMultiplier()) +
         FORECAST_LATENCY_BUDGET_REAL_S,
     };
   }
