@@ -100,6 +100,14 @@ describe("nitrogen narcosis", () => {
     expect(reset.failure.narcosisKoS).toBe(0);
   });
 
+  it("counts at exactly 0.95, as legacy's >=", () => {
+    // A step so short the index's move is lost to rounding: it stays at
+    // exactly 0.95, and the timer is not started over.
+    const exact = step(withTimers(at(90, NARCOSIS_KO_INDEX), { narcosisKoS: seconds(12) }), 90, 1e-16);
+    expect(exact.narcosisIndex).toBe(NARCOSIS_KO_INDEX);
+    expect(exact.failure.narcosisKoS).toBe(12);
+  });
+
   it("ends the dive after 30 dive seconds at or above 0.95", () => {
     const at29 = withTimers(at(90, 0.99), { narcosisKoS: seconds(29) });
     const failed = step(at29, 90);
