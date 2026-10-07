@@ -31,14 +31,14 @@
     },
     "wreck-torch-off": {
       "statistics": {
-        "meanLuma": 41.172,
-        "sdLuma": 30.364,
+        "meanLuma": 39.24,
+        "sdLuma": 19.707,
         "meanRGB": [
-          16.532,
-          46.796,
-          58.023
+          16.094,
+          44.673,
+          53.573
         ],
-        "channelSpread": 41.491
+        "channelSpread": 37.479
       }
     }
   }
