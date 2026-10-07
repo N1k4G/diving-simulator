@@ -1,0 +1,132 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 189,
+  "slice": "Nitrogen narcosis: legacy's narcosis index and KO timer in the core, its game-over text in English and German, save v15, and the recorded legacy dive it is replayed against",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "aad9bfc957832ae4e034f0c1630353ed98d77824",
+  "measuredTree": "14c771c40437b7572b0d040623e231789bcbd9cf",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-10-07T00:16:48Z",
+  "runFinishedAt": "2026-10-07T00:24:31Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "Branch feat/189-narcosis, stacked on feat/189-barotrauma (4269df8). The full run above is on aad9bfc, whose last two commits are the slice's code (78575df) and its exact-threshold test; the only later commit adds this file.",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent.",
+    "unit": "464 passed (448 on feat/189-barotrauma, +11 in tests/unit/nitrogen-narcosis.test.ts, +5 in tests/unit/save-game.test.ts)",
+    "parity": "182 passed (158 on feat/189-barotrauma, +12 in tests/parity/nitrogen-narcosis.test.ts, +6 each in dive-grade and dive-planner, which run one test per recorded checkpoint and pick up the six new ones)",
+    "e2e": "145 passed (5.5m) (144 on feat/189-barotrauma, +1 in tests/game-over.spec.js: the narcosis screen)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "portedFromTheOracle": {
+    "index": "src/physics.js updateNarcosis() and smoothstep(), with src/constants.js NARC_*: the target is smoothstep(NARC_ONSET_BAR 1.5, NARC_FULL_BAR 8) of the narcotic partial pressure, (1 - fHe) of narcosisGas() times 1 + depth/10; the index moves by (target - index) * NARC_RAMP_UP (0.012) or NARC_RAMP_DOWN (0.025) * dive seconds, clamped to 0..1. narcosisGas() is the gas updateTissues() breathes, and so is the model's: the active cylinder, the loop at its actual PO2, the diluent after a bailout.",
+    "timer": "narcosisKOTime counts the dive seconds with the index at NARC_KO_THRESHOLD (0.95) or more and is set to 0 below it; NARC_KO_TIME (30 s) ends the dive in updateDiving(), after hypoxia and before surfacing with a ceiling.",
+    "order": "updateDiving() calls updateNarcosis() right after updateCNS() and before updateCCR()'s returns, so a step a rebreather failure ends still moves the index and the timer.",
+    "text": "STRINGS.{en,de}.gameOverReasons and gameOverInfo['NITROGEN NARCOSIS — UNCONSCIOUSNESS'], taken verbatim from src/constants.js by evaluating it in a Node vm, the label in the catalogue's sentence case, as gameOver.reason.nitrogenNarcosis and gameOver.info.nitrogenNarcosis.*; anchored under NARCOSIS-001 and GAMEOVER-001 for both locales."
+  },
+  "decisions": [
+    "The index is legacy's explicit step per frame, not an exact exponential: it depends on the step length as legacy's does, and the client's frames are legacy's frames.",
+    "The index lives on the dive state beside cnsPercent, an exposure the HUD can read; the KO timer lives with the failure timers.",
+    "Legacy's narcosis also impairs the controls (dropped inputs above 0.3, a random drift above 0.45, both from Math.random). Not in this change: it alters the client's controls and needs the model's seeded random state; a follow-up.",
+    "Save v15: older saves resume the index and the timer at zero, whatever their payload carries; legacy saves keep narcosisIndex and narcosisKOTime and resume at zero without them. Validation requires an index within 0..1 and a non-negative finite timer."
+  ],
+  "parity": "narcosis-air-65m is replayed tick by tick at the depth legacy read back: the index and the KO timer at every checkpoint through the count, the reset at 45 m and the count again, the dive going on until legacy's last tick and ending on it. A second replay resumes from legacy's checkpoint with the timer at 12 s and fails on the same tick. The index also matches legacy at every checkpoint of air-18m-30min, trimix-dcs-above-stop, trimix-dcs-surfaced, wreck-thirds, buoyancy-vent-inflate-12m, barotrauma-runaway-ascent-30m, tec-switch-21m and ccr-30m-30min. Not compared: the recordings whose cylinder switch or bailout is a key read inside an ordinary tick.",
+  "fixture": "Regenerated by npm run baseline:generate from the capture commit cb295a7 (referenceCommit). Additive: with state.debrief.narcosisKO_s (58 values) and the new scenario removed, the fixture is identical to the one before; the test inventory differs only in referenceCommit. narcosisIndex was already recorded.",
+  "counterChecks": {
+    "method": "Each revert was applied from a backup copy, the named unit and parity test files were run, and the file was restored; the tree was clean afterwards.",
+    "results": [
+      {
+        "revert": "helium counted as narcotic (the whole ambient pressure)",
+        "result": "7 failed | 15 passed (22)"
+      },
+      {
+        "revert": "oxygen not counted as narcotic (nitrogen only)",
+        "result": "14 failed | 8 passed (22)"
+      },
+      {
+        "revert": "one ramp both ways (0.012 falling too)",
+        "result": "9 failed | 13 passed (22)"
+      },
+      {
+        "revert": "the index moved by an exponential approach instead of legacy's explicit step",
+        "result": "15 failed | 7 passed (22)"
+      },
+      {
+        "revert": "the index not clamped to 0..1",
+        "result": "1 failed | 21 passed (22)"
+      },
+      {
+        "revert": "the KO timer decaying instead of starting over below 0.95",
+        "result": "3 failed | 19 passed (22)"
+      },
+      {
+        "revert": "the KO threshold exclusive (> 0.95)",
+        "result": "1 failed | 22 passed (23): the exact-threshold test, added after the first set let this revert pass"
+      },
+      {
+        "revert": "the KO timer never ending the dive",
+        "result": "4 failed | 18 passed (22)"
+      },
+      {
+        "revert": "narcosis checked before hypoxia",
+        "result": "1 failed | 21 passed (22)"
+      },
+      {
+        "revert": "narcosis checked after surfacing with a ceiling",
+        "result": "1 failed | 21 passed (22)"
+      },
+      {
+        "revert": "narcosis left alone on a rebreather failure step",
+        "result": "1 failed | 21 passed (22)"
+      },
+      {
+        "revert": "the save not validating the index",
+        "result": "1 failed | 91 passed (92)"
+      },
+      {
+        "revert": "the save not validating the KO timer",
+        "result": "1 failed | 91 passed (92)"
+      },
+      {
+        "revert": "no pre-v15 migration: an older save keeps whatever it carries",
+        "result": "1 failed | 91 passed (92)"
+      },
+      {
+        "revert": "legacy's narcosisIndex and narcosisKOTime ignored",
+        "result": "1 failed | 91 passed (92)"
+      },
+      {
+        "revert": "the adapter dropping the index",
+        "result": "2 failed | 10 passed (12)"
+      },
+      {
+        "revert": "the adapter dropping the KO timer",
+        "result": "1 failed | 11 passed (12)"
+      },
+      {
+        "revert": "the adapter not reading legacy's narcosis game over",
+        "result": "1 failed | 11 passed (12)"
+      }
+    ]
+  },
+  "deferred": "The narcosis control impairment (dropped inputs and drift) and its HUD symptoms; the shark, which needs an encounter system the model does not have. Both are proposed as follow-up issues.",
+  "durableProvenance": {
+    "src": "1d738b3bc34c7ff4beaa05c1d6b49296d6fd3d5d",
+    "tests": "54ea74322062db8fcb20580e48658c070f32a139",
+    "scripts": "d6b2aa9969e0eb97361e2e8b44d8ca2d404d4810",
+    "docs": "f48081850a4d2b3c579eb41a032892f05864b9b9"
+  }
+}
