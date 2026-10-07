@@ -142,6 +142,18 @@ test('the dive starts at the surface and begins on S', async ({ page }) => {
 // so a finished dive is never resumed (#223 pre-review). Before, the
 // completed dive went on being saved and came back, frozen, on every start.
 test('a dive completed at the surface leaves no save, and the next start is a new dive', async ({ page }) => {
+  // Every audio context the page opens, so the end of the dive can be shown
+  // to close them: legacy is silent after the dive (#223 pre-review).
+  await page.addInitScript(() => {
+    const Native = window.AudioContext;
+    window.__audioContexts = [];
+    window.AudioContext = class extends Native {
+      constructor(...args) {
+        super(...args);
+        window.__audioContexts.push(this);
+      }
+    };
+  });
   await page.goto('/dist/');
   await page.evaluate(() => window.localStorage.clear());
   await startDiveAndWaitForCanvas(page);
@@ -174,6 +186,12 @@ test('a dive completed at the surface leaves no save, and the next start is a ne
     undefined,
     { timeout: 30_000 },
   );
+  // The dive's sound stops with it.
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__audioContexts.map((context) => context.state)),
+    )
+    .toEqual(['closed']);
   // Leaving the page writes no save either.
   await page.reload();
   expect(await page.evaluate(() => window.localStorage.getItem('diving-simulator.save-game'))).toBeNull();

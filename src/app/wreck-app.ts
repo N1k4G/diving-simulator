@@ -372,6 +372,15 @@ async function startWreckSimulation(
         plannerSettings,
         locale,
       );
+      // Legacy is silent after the dive: its only beep is drawn with the dive
+      // computer, which its post-dive state no longer draws. A completed dive
+      // stops its sound for good, as a failed one does in its teardown;
+      // otherwise a dive surfaced on low gas kept sounding its alarm (#223
+      // pre-review).
+      if (frame.presentation.completed) {
+        audio.destroy();
+        return;
+      }
       audio.update({
         elapsedRealS: frame.scene.elapsedRealS,
         warningActive: selectWarning(frame.presentation) !== null,
