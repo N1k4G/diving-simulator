@@ -3,13 +3,13 @@
   "issue": 199,
   "slice": "Slice 7a: the dive starts at the surface, descends on S beside the wreck, and ends by surfacing outside it; the surface is the ceiling outside the wreck and the deck inside (owner decision A, 2026-09-30)",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "6b3e414a037c5fb28d0f6ca244df71d8bf88b0c0",
-  "measuredTree": "821bc4a597f552e631c680ccf9793326cec92275",
+  "measuredCommit": "d777b05cfda0876eafa84af519387427300a1617",
+  "measuredTree": "9ab00a743664f2bfc05a4a336ce66abd5d0c362b",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-07T04:33:45Z",
-  "runFinishedAt": "2026-10-07T04:44:47Z",
+  "recordedAt": "2026-10-07T05:20:31Z",
+  "runFinishedAt": "2026-10-07T05:31:29Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "On main 79f9aef (#224, nitrogen narcosis), after #216, #218 (pulmonary barotrauma), #217 and #224; the route test surfaces at a controlled rate, since a runaway ascent ends in barotrauma as in legacy. The rebase onto 79f9aef applied without conflicts and needed no fixture regeneration. The full run above is on 6b3e414: 2d33504 fixes the six findings of pre-review pass 1, and 6b3e414 the one of pass 2, so a completed dive stops its sound. Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "On main ea2921c (#225, the shark in the model), after #218 (pulmonary barotrauma), #224 (nitrogen narcosis) and #225; the route test surfaces at a controlled rate, since a runaway ascent ends in barotrauma as in legacy. The rebase onto ea2921c applied without conflicts and needed no fixture regeneration. The full run above is on d777b05: it holds the fixes for pre-review passes 1 and 2 and for Codex round 1 (3b8c4e0: the torch only while diving, a still scene after the dive), and the linux frame recorded for them. Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -25,17 +25,17 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "497 passed (470 on main 79f9aef; +27: 11 in tests/unit/wreck-route.test.ts, 6 net in tests/unit/game-controller-buoyancy.test.ts, 5 in tests/unit/game-controller-surface.test.ts, 3 in tests/unit/leave-surface.test.ts, 1 in tests/unit/game-controller-fast-forward.test.ts, 1 in src/render/camera.test.ts; four main tests rewritten for the surface route)",
-    "parity": "241 passed (241 on main 79f9aef; unchanged)",
-    "e2e": "148 passed in 8.2 min (145 on main 79f9aef, +3 in tests/wreck-slice.spec.js: the surface start by keyboard and by touch, and a completed dive leaving no save and closing its audio; tests/game-over.spec.js, including #224's narcosis test, passes unchanged)",
+    "unit": "515 passed (487 on main ea2921c; +28: 11 in tests/unit/wreck-route.test.ts, 6 net in tests/unit/game-controller-buoyancy.test.ts, 6 in tests/unit/game-controller-surface.test.ts, 3 in tests/unit/leave-surface.test.ts, 1 in tests/unit/game-controller-fast-forward.test.ts, 1 in src/render/camera.test.ts; four main tests rewritten for the surface route)",
+    "parity": "266 passed (266 on main ea2921c; unchanged)",
+    "e2e": "149 passed in 7.7 min (146 on main ea2921c, +3 in tests/wreck-slice.spec.js: the surface start by keyboard and by touch, and a completed dive leaving no save, closing its audio and hiding its torch; tests/game-over.spec.js, including the narcosis and shark tests, passes unchanged)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, against frames re-recorded in this slice",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
   "referenceFrames": {
     "reason": "Intended change (docs/decisions.md, Visual comparison): the dive starts at the surface, so every scene has the sky, the water surface and the camera's new top. Against main's frames all three scenes failed, wreck-torch-off for example by a mean channel delta of 30.8 over 67.9% of pixels.",
-    "win32": "b8361ddf240c4843650911163f321a3b8fc46f9d, recorded locally with npm run pixi:visual-update.",
-    "linux": "d23735ae5a3c37a92a9088e0462ad6199f107a1c, recorded by .github/workflows/pixi-baseline.yml run 37554332772 from b8361dd.",
-    "sceneChange": "wreck-descended holds S for 1200 frames instead of 75, and scripts/pixi-visual-check.mjs asserts the HUD reads 15 m or deeper before capturing: from the surface, 75 frames left the diver 0.3 m down and the camera unmoved, so the scene no longer covered the camera travel and culling resync it exists for."
+    "win32": "c715b82d0d32d25db5550b2b3a20e5241c3d97e2, recorded locally with npm run pixi:visual-update; wreck-torch-off again in 3b8c4e05f2d9688c58f5050c3c93deb31a56995b, after its scene changed (below).",
+    "linux": "690def1c904656ea1003939a751490480612f512, recorded by .github/workflows/pixi-baseline.yml run 37554332772; wreck-torch-off again in d777b05cfda0876eafa84af519387427300a1617, by run 37575384921. The SHAs are the rebased commits; the frames are byte-identical to the ones the workflow committed.",
+    "sceneChange": "wreck-descended holds S for 1200 frames instead of 75, and scripts/pixi-visual-check.mjs asserts the HUD reads 15 m or deeper before capturing: from the surface, 75 frames left the diver 0.3 m down and the camera unmoved, so the scene no longer covered the camera travel and culling resync it exists for. wreck-torch-off now holds S for 1200 frames and asserts 15 m or deeper before it presses T, as the torch works only while diving (#223 Codex round 1); it differs from wreck-descended only in the beam."
   },
   "portedFromTheOracle": {
     "surfaceStart": "src/game-loop.js updateSurface(): no dive time at the surface, and S or the down arrow the only input; the cylinder, setpoint and bailout keys and buttons wait for the dive, as legacy reads them only in updateDiving() and shows only its descend button at the surface. S applies updateSurface()'s 2 L in the BCD, at rest, and the loop's PO2 through DiveModel.leaveSurface(): a fresh state already holds those, a legacy save written at the surface holds 0 L. Legacy's 'surface' autosave is kept: the waiting state is handed to the save.",
@@ -119,17 +119,42 @@
       {
         "revert": "a completed dive keeps its sound (wreck-app.ts without the audio stop)",
         "result": "1 failed (e2e): the completed-dive test reads the audio context as running, not closed"
+      },
+      {
+        "revert": "the torch with no guard (key and button)",
+        "result": "2 failed (unit): the surface wait and the ended dive both toggle it"
+      },
+      {
+        "revert": "the T key unguarded",
+        "result": "1 failed (unit): T claimed during the surface wait"
+      },
+      {
+        "revert": "toggleTorch() unguarded",
+        "result": "2 failed (unit): the button toggles during the wait and after the end"
+      },
+      {
+        "revert": "the waves advanced before the ended-dive return",
+        "result": "1 failed (unit): scene.elapsedRealS moves after completion"
+      },
+      {
+        "revert": "the HUD not hiding the torch button",
+        "result": "2 failed (e2e): visible at the surface and after a completed dive"
       }
     ]
   },
   "deferred": "The post-dive screen on completion is slice 8 (#159 PR 2). The HUD pieces (safety-stop countdown, rule-of-thirds gauge and turn beep, ascent rate and fast-ascent warning, #197) are slice 7b, stacked on this branch. Legacy's boat at the surface is not drawn.",
   "durableProvenance": {
-    "src": "54966bf0f07f517c1ae43a658bc5327460afed58",
-    "tests": "7d5dd585028f0f3140abace50c6261d61949adbd",
-    "scripts": "1ed236161e996f75f8b87fdbcfd3f2838eb2e4b3",
-    "docs": "0d4bea17409b828669e568c5d2e580cf374e8b19"
+    "src": "b4fa5092ecae03800337febe0cff7ba54c6c0b4c",
+    "tests": "4c473f1d4a7bd2bff12bc0e38ef122bb9ddb8eb8",
+    "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
+    "docs": "be4ccff71c90d68a71ff35868fbedd96cde6ecc3"
   },
   "earlierRuns": [
+    {
+      "measuredCommit": "6b3e414a037c5fb28d0f6ca244df71d8bf88b0c0",
+      "recordedAt": "2026-10-07T04:33:45Z",
+      "note": "Full run on main 79f9aef, before the fixes for Codex round 1 and the rebase onto ea2921c; superseded by the run above."
+    },
     {
       "measuredCommit": "ac1895768b05813fc56e5850be0f71f6cd4b275c",
       "recordedAt": "2026-10-07T03:35:51Z",
