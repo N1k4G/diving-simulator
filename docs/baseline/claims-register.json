@@ -31,7 +31,7 @@
     {
       "id": "SAFETY-STOP-001",
       "classification": "decompression and prevention advice",
-      "source": ["STRINGS.*.safetyExpl", "STRINGS.*.helpSafety", "STRINGS.*.hintSafetyStop", "STRINGS.*.gradeNotes.safety*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.safety*", "src/app/i18n/catalog.ts {en,de}: postDive.safetySkipped.*", "src/app/i18n/catalog.ts {en,de}: postDive.violation.safetyStopSkipped"],
+      "source": ["STRINGS.*.safetyExpl", "STRINGS.*.helpSafety", "STRINGS.*.hintSafetyStop", "STRINGS.*.gradeNotes.safety*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.safety*", "src/app/i18n/catalog.ts {en,de}: postDive.safetySkipped.*", "src/app/i18n/catalog.ts {en,de}: postDive.violation.safetyStopSkipped", "src/app/i18n/catalog.ts {en,de}: postDive.violations.none"],
       "ui": ["post-dive", "help", "onboarding hint", "debrief", "post-dive (migration client)"],
       "owner": "domain-reviewer",
       "reviewStatus": "unreviewed; absolute risk wording requires correction or support",
@@ -40,7 +40,7 @@
     {
       "id": "DECOMPRESSION-001",
       "classification": "model output and real-world risk advice",
-      "source": ["STRINGS.*.helpNDL", "STRINGS.*.helpDeco", "STRINGS.*.helpTTS", "STRINGS.*.hintNdl", "STRINGS.*.hintDeco", "STRINGS.*.gradeNotes.deco*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.deco*", "src/app/i18n/catalog.ts {en,de}: postDive.violation.ceiling", "src/app/i18n/catalog.ts {en,de}: wreck.hud.ndl", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.deco.*", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.tissues.caption", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.tissues.compartment", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.severity.*"],
+      "source": ["STRINGS.*.helpNDL", "STRINGS.*.helpDeco", "STRINGS.*.helpTTS", "STRINGS.*.hintNdl", "STRINGS.*.hintDeco", "STRINGS.*.gradeNotes.deco*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.deco*", "src/app/i18n/catalog.ts {en,de}: postDive.violation.ceiling", "src/app/i18n/catalog.ts {en,de}: postDive.violations.none", "src/app/i18n/catalog.ts {en,de}: wreck.hud.ndl", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.deco.*", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.tissues.caption", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.tissues.compartment", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.severity.*"],
       "ui": ["help", "HUD", "onboarding hint", "debrief", "HUD (migration client)", "gas information (migration client)", "post-dive (migration client)"],
       "owner": "model",
       "reviewStatus": "algorithm audit exists but source anchors are stale",
@@ -67,7 +67,7 @@
     {
       "id": "ASCENT-001",
       "classification": "ascent-rate and pulmonary injury advice",
-      "source": ["STRINGS.*.controlsText", "STRINGS.*.helpAscent", "STRINGS.*.warnSlow", "STRINGS.*.gradeNotes.ascent*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.ascent*", "src/app/i18n/catalog.ts {en,de}: postDive.violation.fastAscent", "STRINGS.*.gameOverInfo.PULMONARY BAROTRAUMA — PNEUMOTHORAX", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.pulmonaryBarotrauma", "src/app/i18n/catalog.ts {en,de}: gameOver.info.pulmonaryBarotrauma.*"],
+      "source": ["STRINGS.*.controlsText", "STRINGS.*.helpAscent", "STRINGS.*.warnSlow", "STRINGS.*.gradeNotes.ascent*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.ascent*", "src/app/i18n/catalog.ts {en,de}: postDive.violation.fastAscent", "src/app/i18n/catalog.ts {en,de}: postDive.violations.none", "STRINGS.*.gameOverInfo.PULMONARY BAROTRAUMA — PNEUMOTHORAX", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.pulmonaryBarotrauma", "src/app/i18n/catalog.ts {en,de}: gameOver.info.pulmonaryBarotrauma.*"],
       "ui": ["help", "HUD warning", "debrief", "game over", "game over (migration client)", "post-dive (migration client)"],
       "owner": "domain-reviewer",
       "reviewStatus": "unreviewed",
