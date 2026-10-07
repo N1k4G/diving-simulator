@@ -3,13 +3,13 @@
   "issue": 159,
   "slice": "PR 3 (#199 slice 8b): the dive-profile chart, legacy's drawDiveProfileChart() as SVG inside the post-dive screen, with a text alternative",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "99a4cbb7f8d9665dac03be5ff41a37b004c895f9",
-  "measuredTree": "db2821a2d9b7c807cb618f8261c1e31c119e3f3a",
+  "measuredCommit": "5a752ab053c310ef5213f7b6668ebdf3b8c5e034",
+  "measuredTree": "e7df1f4aff4460d18d6a55b179aec4f0fd1ee09b",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-07T00:40:02Z",
-  "runFinishedAt": "2026-10-07T00:50:26Z",
-  "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "Stacked on PR 2b (the screen) and PR 2a (the summary) on main d44a239 (#216). The full run above is on 99a4cbb. Later commits add only evidence files under artifacts/wp-08/159/ (this one, and PR 2a's and 2b's beneath it when the stack is restacked), so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "recordedAt": "2026-10-07T14:46:47Z",
+  "runFinishedAt": "2026-10-07T14:57:10Z",
+  "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
+  "provenanceNote": "On main 99a7d0c (#227, #159 PR 2b: the post-dive screen). The branch was rebased with `git rebase --onto origin/main fc2ac3e`, which dropped PR 2b's commits (on main as the squash 99a7d0c) and kept the chart (ba55f03, was b35d34a) and its first evidence (aa5aa2d, was 6b16de7). Conflicts were in docs/baseline/claims-register.json (DECOMPRESSION-001 gained #227's postDive.violations.none and this PR's postDive.profile.*; both kept) and tests/post-dive.spec.js: the chart's ceiling assertions sat in the completed-save test that #227 replaced with two live surfacing tests, so they moved to a test of their own on a resumed completed save; the main test's chart checks now read the 18 m deepest point exactly and compare positions with toBeCloseTo. 5a752ab requires the whole SIMULATION boundary line in the viewport and adds the sideways cases at 844 x 390 and 667 x 375. The full run above is on 5a752ab; later commits only update this file.",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -25,36 +25,50 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "447 passed (442 before, +5 in tests/unit/profile-chart.test.ts)",
-    "parity": "189 passed (unchanged)",
-    "e2e": "151 passed in 7.1 min (unchanged count; the chart's checks extend two tests in tests/post-dive.spec.js)",
-    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "unit": "520 passed (515 on main 99a7d0c; +5 in tests/unit/profile-chart.test.ts)",
+    "parity": "266 passed (266 on main 99a7d0c; unchanged)",
+    "e2e": "163 passed in 7.1 min (158 on main 99a7d0c; +5 in tests/post-dive.spec.js: the ceiling test and the four sideways cases)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels, against main's frames (none re-recorded)",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
   "portedFromTheOracle": {
     "chart": "src/renderer.js drawDiveProfileChart(): no chart below two samples; depth scaled to the deepest sample (at least 1 m) and time to the dive's length (at least a minute); a grid line every 10 m; the depth polyline; the ceiling polyline only where the ceiling is above 0, in separate runs; a marker per diveEvents entry at the depth of the sample nearest its time, the skipped stop at the last sample's time at 5 m, red for violations and amber for the skipped stop; 0 m, the deepest depth and the dive time as axis labels; the chart drawn after the safety-stop warning, inside a 4 px inset.",
-    "text": "The axis labels use the locale formatters; postDive.profile.* (en, de) names the chart, its legend and its text alternative, anchored under DECOMPRESSION-001."
+    "text": "The axis labels use the locale formatters; postDive.profile* (en, de) names the chart, its legend and its text alternative; postDive.profile.*, which names the deco ceiling, is anchored under DECOMPRESSION-001."
   },
-  "departuresInPresentation": "The lines are an SVG stretched to the screen's width with non-scaling strokes; labels and markers are HTML over it, so they stay round and legible at 320 px. Markers carry the number of their entry in the violations list, and the ceiling is dashed, so neither rests on colour alone (docs/decisions.md, Accessibility). The plot is one role=img with a sentence naming the dive's length, depth, deepest ceiling and number of marks; the legend is aria-hidden as that sentence carries it.",
-  "browserChecks": "tests/post-dive.spec.js: the chart's accessible name, one depth line and no ceiling on the completed dive, markers numbered 1 and 2 at legacy's positions (the fast ascent at 94.12% across and 60% down, the skipped stop at the end at 5 m); two ceiling runs and the singular mark on the stop-done dive; the #120/#121 small-phone and mobile cases pass with the chart in the page.",
+  "departuresInPresentation": "The lines are an SVG stretched to the screen's width with non-scaling strokes; labels and markers are HTML over it, so they stay round and legible at 320 px. Markers carry the number of their entry in the violations list, in its order, and the ceiling is dashed, so neither rests on colour alone (docs/decisions.md, Accessibility). The plot is one role=img with a sentence naming the dive's length, depth, deepest ceiling and number of marks; the legend is aria-hidden as that sentence carries it. The chart sits below legacy's SIMULATION boundary line (#227), which stays whole on the first screen.",
+  "browserChecks": "tests/post-dive.spec.js: on the completed dive, the chart's accessible name (25 min 30 sec, deepest 18 m, no ceiling, 2 marks), the axis labels 0 m, 18 m and 25 min 30 sec, one grid line, one depth line and no ceiling, markers numbered 1 and 2 in the list's order at legacy's positions (the fast ascent at 1440 of 1530 s across and 60% down, the skipped stop at the end at 5 of 18 m, compared with toBeCloseTo), and the chart below the boundary line; on a resumed completed save with its stop done and a 2 m ceiling over two stretches of the hold, two ceiling runs from their first sample to their last at 2 m on the 18 m scale, 'The deco ceiling reached 2 m.' and one mark; at 844 x 390 and 667 x 375 in English and German, the boundary line whole without scrolling, the chart below it, and the #120/#121 layout checks; the boundary line whole (ratio 1) at the desktop size, 390 x 844 and 320 x 568, where the chart's name is also checked in English and German.",
   "counterChecks": {
-    "method": "Geometry reverts were applied from a backup copy and tests/unit/profile-chart.test.ts was run; screen reverts were applied, dist/ rebuilt and the named Playwright test run. Each file was restored byte for byte, and a clean rebuild with the whole spec passing (10 of 10, with two screenshot cases) closed the set.",
+    "method": "Run on 5a752ab before the full run above. src/app/profile-chart.ts and src/app/post-dive.ts were copied to a backup; each revert was applied to the file, the geometry reverts were checked with tests/unit/profile-chart.test.ts and the screen reverts with the whole of tests/post-dive.spec.js after rebuilding dist/ (npm run build, typecheck included), under the port lock; after each, both files were restored from the backup (cmp, then git status clean). A clean rebuild with the whole spec passing (14 of 14) and the unit file passing (5 of 5) closed the set.",
     "results": [
       { "revert": "time scaled to the last sample instead of the dive's length", "result": "2 of 5 unit tests failed" },
       { "revert": "one ceiling line across the stretches without a ceiling", "result": "1 of 5 unit tests failed" },
       { "revert": "marker at the first sample's depth instead of the nearest sample's", "result": "1 of 5 unit tests failed" },
       { "revert": "skipped stop at its own time at the surface instead of the last sample at 5 m", "result": "1 of 5 unit tests failed" },
       { "revert": "a chart drawn for a single sample", "result": "1 of 5 unit tests failed" },
-      { "revert": "the chart left off the screen", "result": "1 failed: the main e2e test" },
-      { "revert": "markers without the numbers of the violations list", "result": "1 failed: the main e2e test" },
-      { "revert": "the plot without its text alternative", "result": "1 failed: the main e2e test" },
-      { "revert": "ceiling runs not drawn", "result": "1 failed: the stop-done e2e test" }
+      { "revert": "the ceiling drawn at the diver's depth instead of the ceiling's", "result": "1 of 5 unit tests failed" },
+      { "revert": "the chart left off the screen", "result": "10 of 14 failed: the main test, the ceiling test, the four sideways cases and the four small-phone cases" },
+      { "revert": "markers without the numbers of the violations list", "result": "2 of 14 failed: the main test and the ceiling test" },
+      { "revert": "the plot without its text alternative", "result": "6 of 14 failed: the main test, the ceiling test and the four small-phone cases" },
+      { "revert": "ceiling runs not drawn", "result": "1 of 14 failed: the ceiling test" },
+      { "revert": "one ceiling line across the stretches without a ceiling (e2e)", "result": "1 of 14 failed: the ceiling test (two runs expected)" },
+      { "revert": "the ceiling drawn at the diver's depth instead of the ceiling's (e2e)", "result": "1 of 14 failed: the ceiling test (the runs' height)" },
+      { "revert": "the chart placed above the boundary line", "result": "5 of 14 failed: the main test and the four sideways cases" }
     ]
   },
+  "deferred": {
+    "tissueLoading": "Legacy's tissue-loading bars below the chart: #221."
+  },
   "durableProvenance": {
-    "src": "1004e666cacf2ef12dce14d0f49d650e7fe40894",
-    "tests": "cd4d18d8b52deb89b08740196a41f72cf6c05ace",
-    "scripts": "6b40e24c03f7c63b0f9bf818108d20a6f6f2244f",
-    "docs": "c0789087dcc42f2a428382f1f72215ab05aedf0f"
-  }
+    "src": "6a5d6fcfa7f79baaf25ebdc61c4231de827deed5",
+    "tests": "1cf5a6381c20f380a1b0c818e3cc8bf3503f319b",
+    "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
+    "docs": "8d5ac1b6f29e131349293569c42611b66b26e954"
+  },
+  "earlierRuns": [
+    {
+      "measuredCommit": "99a4cbb7f8d9665dac03be5ff41a37b004c895f9",
+      "recordedAt": "2026-10-07T00:40:02Z",
+      "note": "Stacked on PR 2b and PR 2a on main d44a239 (#216), before #223 and #227: unit 447 (+5 in tests/unit/profile-chart.test.ts), parity 189, e2e 151, all passing. Superseded by the run above after the rebase onto 99a7d0c."
+    }
+  ]
 }
