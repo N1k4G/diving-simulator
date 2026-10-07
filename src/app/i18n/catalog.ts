@@ -124,6 +124,10 @@ const englishMessages = {
   "wreck.hud.safetyStop.paused": "{depth} · {duration} left · paused",
   // Legacy's stop box once the stop is done: "SAFETY STOP / Complete".
   "wreck.hud.safetyStop.complete": "Complete",
+  // Legacy's stop box while there is a ceiling: "DECO STOP", then the first
+  // stop's depth and minutes.
+  "wreck.hud.decoStop": "Deco stop",
+  "wreck.hud.decoStop.value": "{depth} · {duration}",
   "wreck.hud.thirds": "Rule of thirds",
   "wreck.hud.thirds.outbound": "Outbound · {percent}",
   "wreck.hud.thirds.turn": "Turn · {percent}",
@@ -448,6 +452,8 @@ const catalog: Record<SupportedLocale, Record<MessageKey, string>> = {
     // Legacy's stop box draws its English "Complete" in both languages; its
     // German debrief says "Sicherheitsstopp absolviert" (gradeNotes.safetyDone).
     "wreck.hud.safetyStop.complete": "Absolviert",
+    "wreck.hud.decoStop": "Dekompressionsstopp",
+    "wreck.hud.decoStop.value": "{depth} · {duration}",
     "wreck.hud.thirds": "Drittelregel",
     "wreck.hud.thirds.outbound": "Hinweg · {percent}",
     "wreck.hud.thirds.turn": "Umkehren · {percent}",

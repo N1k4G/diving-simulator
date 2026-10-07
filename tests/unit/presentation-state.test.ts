@@ -163,6 +163,46 @@ describe("dive readouts", () => {
     }
   });
 
+  describe("the deco stop in the stop box", () => {
+    const deco = (lastCeilingM: number, extra: Partial<DiveState> = {}) => {
+      const base = underwaterState();
+      return freezeDiveState({
+        ...base,
+        safetyStop: { ...owed, countdownStarted: true, remainingS: seconds(100) },
+        log: { ...base.log, lastCeilingM: metres(lastCeilingM) },
+        ...extra,
+      });
+    };
+
+    it("shows the forecast's first stop, depth and minutes, while the model has a ceiling", () => {
+      const presentation = createPresentationState(deco(4.2), plannerForecast());
+      expect(presentation.decoStop).toEqual({ firstStop: { depthM: 6, durationMin: 2 } });
+      expect(presentation.safetyStop).toBeNull();
+    });
+
+    it("shows the title alone with no forecast, or a forecast with no stops, as legacy without a schedule", () => {
+      expect(createPresentationState(deco(4.2), null).decoStop).toEqual({ firstStop: null });
+      const empty = { ...plannerForecast(), schedule: { stops: [], ttsMin: minutes(0), outOfGas: false } };
+      expect(createPresentationState(deco(4.2), empty).decoStop).toEqual({ firstStop: null });
+      expect(createPresentationState(deco(4.2), { ...plannerForecast(), schedule: null }).decoStop).toEqual({
+        firstStop: null,
+      });
+    });
+
+    it("falls back to the safety stop at ceiling 0, even with a forecast still holding stops", () => {
+      // The forecast arrives asynchronously; the model's ceiling of this tick decides.
+      const presentation = createPresentationState(deco(0), plannerForecast());
+      expect(presentation.decoStop).toBeNull();
+      expect(presentation.safetyStop?.phase).toBe("running");
+    });
+
+    it("shows no stop once the dive is completed", () => {
+      const presentation = createPresentationState(deco(4.2, { completed: true }), plannerForecast());
+      expect(presentation.decoStop).toBeNull();
+      expect(presentation.safetyStop).toBeNull();
+    });
+  });
+
   it("plans the stop's length until the countdown starts, at legacy's nominal 5 m", () => {
     const base = freezeDiveState({ ...underwaterState(), maxDepthM: metres(20) });
     expect(SAFETY_STOP_TARGET_DEPTH_M).toBe(5);

@@ -779,6 +779,12 @@ summary:focus-visible {
   color: #ffcc88;
 }
 
+/* Legacy draws its DECO STOP title in the danger tone (#39); the words say
+   it, the tone only repeats them. */
+.wreck-hud div[data-phase="deco"] dt {
+  color: #ff9b9b;
+}
+
 .wreck-warning {
   position: absolute;
   z-index: 5;

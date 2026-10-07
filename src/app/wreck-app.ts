@@ -1072,8 +1072,9 @@ function writeLoopRow(
  *   row carries the ⚠ as the fast-ascent warning speaks.
  * - The safety stop: legacy's stop box while a stop is owed and not done,
  *   the nominal 5 m with the planned minutes, then the countdown, paused
- *   outside the band. Legacy shows the decompression stop there instead
- *   while there is a ceiling, so the row gives way to it.
+ *   outside the band, then Complete. While there is a ceiling the row is
+ *   legacy's DECO STOP instead, with the first stop of the schedule when
+ *   there is one.
  * - The rule of thirds: legacy's hud-thirds, the phase and the gas left
  *   against the plan, while under an overhead. The reserve third carries the
  *   ⚠, as legacy draws it in its danger tone.
@@ -1092,11 +1093,36 @@ function syncDiveReadouts(
         : formatVerticalRate(0, locale);
   writeLoopRow(hud.ascentRate, rateText, rate > FAST_ASCENT_RATE_MPM, locale);
 
-  // The presentation already gives way to the decompression stop, from the
-  // model's ceiling on this tick (selectSafetyStop), not the worker's forecast.
+  // One row, legacy's stop box: the decompression stop while there is a
+  // ceiling on this tick, else the safety stop (selectDecoStop and
+  // selectSafetyStop decide which, from the model's own ceiling).
+  const deco = presentation.decoStop;
   const stop = presentation.safetyStop;
-  setMetricHidden(hud.safetyStop, stop === null);
-  if (stop !== null) {
+  const stopRow = hud.safetyStop.parentElement;
+  const stopTerm = stopRow?.querySelector("dt");
+  const stopLabel = translate(
+    locale,
+    deco !== null ? "wreck.hud.decoStop" : "wreck.hud.safetyStop",
+  );
+  if (stopTerm && stopTerm.textContent !== stopLabel) {
+    stopTerm.textContent = stopLabel;
+  }
+  setMetricHidden(hud.safetyStop, deco === null && stop === null);
+  if (deco !== null) {
+    // The title alone without a schedule, as legacy draws it.
+    const first = deco.firstStop;
+    writeLoopRow(
+      hud.safetyStop,
+      first === null
+        ? ""
+        : translate(locale, "wreck.hud.decoStop.value")
+            .replace("{depth}", formatDepth(first.depthM, locale))
+            .replace("{duration}", formatWholeMinutes(first.durationMin * 60, locale)),
+      false,
+      locale,
+    );
+    stopRow?.setAttribute("data-phase", "deco");
+  } else if (stop !== null) {
     // Legacy floors the countdown's minutes and seconds.
     const duration =
       stop.phase === "complete"

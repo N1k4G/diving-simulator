@@ -81,6 +81,20 @@ export interface PresentationDecoStop {
   readonly durationMin: number;
 }
 
+/**
+ * Legacy's stop box while there is a ceiling (src/renderer.js
+ * drawDiveComputer, `if (inDeco)`): the DECO STOP title, and the first stop
+ * of the schedule when there is one.
+ */
+export interface PresentationDecoStopBox {
+  /**
+   * The forecast's first stop, its minutes rounded up as legacy's
+   * calculateDecoSchedule() rounds them. Null while no forecast with stops
+   * is in hand, where legacy draws the title alone.
+   */
+  readonly firstStop: PresentationDecoStop | null;
+}
+
 export interface PresentationDecoSchedule {
   readonly stops: readonly PresentationDecoStop[];
   readonly ttsMin: number;
@@ -131,6 +145,8 @@ export interface PresentationState {
    * draws neither the rate nor its SLOW DOWN banner.
    */
   readonly ascentRateMpm: number;
+  /** The stop box while there is a ceiling; the safety stop gives way to it. */
+  readonly decoStop: PresentationDecoStopBox | null;
   readonly safetyStop: PresentationSafetyStop | null;
   readonly ruleOfThirds: PresentationRuleOfThirds | null;
 }
@@ -173,8 +189,37 @@ export function createPresentationState(
     saturation: selectSaturation(state),
     cnsPercent: state.cnsPercent,
     ascentRateMpm: state.completed ? 0 : state.log.ascentRateMpm,
+    decoStop: selectDecoStop(state, planner),
     safetyStop: selectSafetyStop(state),
     ruleOfThirds: selectRuleOfThirds(state),
+  });
+}
+
+/**
+ * The stop box's decompression half (src/renderer.js drawDiveComputer):
+ * shown while there is a ceiling, legacy's `inDeco = decoStop(ceiling) > 0`.
+ *
+ * - The ceiling is the model's log.lastCeilingM, legacy's frameCalc.ceiling
+ *   of the same tick at the dive's GF high, as selectSafetyStop reads it.
+ * - The first stop's depth and minutes are the forecast's: legacy's
+ *   frameCalc.schedule, which the worker computes here. While no forecast
+ *   with stops is in hand (after a gas switch, a setpoint change or a
+ *   bailout, and on a resumed dive), the box shows its title alone, as
+ *   legacy's does without a schedule.
+ * - Not once the dive is completed: legacy's post-dive state draws no box.
+ */
+export function selectDecoStop(
+  state: DiveState,
+  planner: PlannerForecast | null,
+): PresentationDecoStopBox | null {
+  if (state.completed || !(state.log.lastCeilingM > 0)) {
+    return null;
+  }
+  const first = planner?.schedule?.stops[0];
+  return Object.freeze({
+    firstStop: first
+      ? Object.freeze({ depthM: first.depthM, durationMin: first.durationMin })
+      : null,
   });
 }
 

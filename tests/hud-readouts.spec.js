@@ -106,6 +106,29 @@ test('a safety stop that is done says so, as legacy\'s SAFETY STOP / Complete', 
   await expect(hudRow(page, 'safetyStop')).toHaveAttribute('data-phase', 'complete');
 });
 
+test('under a ceiling the stop row is the deco stop, with the first stop of the forecast', async ({ page }) => {
+  // Legacy's stop box while inDeco: DECO STOP, then schedule.stops[0]'s depth
+  // and minutes. tests/in-dive-controls.spec.js DECO_STOPS.midWater: loaded
+  // tissues, neutral at 18 m (pinned in
+  // tests/unit/game-controller-fast-forward.test.ts). A safety stop is owed
+  // too, from 34 m, and gives way.
+  await resumeWith(page, (state) => {
+    state.depthM = 18;
+    state.maxDepthM = 34;
+    state.verticalVelocityMpm = 0;
+    state.bcdGasSurfaceLiters = 9.990465669399928;
+    state.tissues.nitrogenBar = state.tissues.nitrogenBar.map(() => 3);
+  });
+
+  const row = hudRow(page, 'safetyStop');
+  await expect(row).toBeVisible();
+  await expect(row).toHaveAttribute('data-phase', 'deco');
+  await expect(row.locator('dt')).toHaveText('Deco stop');
+  // The numbers come with the worker's forecast; the planner rounds the
+  // minutes up, as legacy's calculateDecoSchedule() does.
+  await expect(hudValue(page, 'safetyStop')).toHaveText(/^\d+ m · \d+ min$/, { timeout: 15_000 });
+});
+
 test('a dive surfaced fast past its stop ends with neither the stop nor the warning on the HUD', async ({ page }) => {
   // Legacy's post-dive state draws no dive computer: the stop it skipped is
   // logged, not owed, and nothing rises any more. A diver 1.5 m down, rising
