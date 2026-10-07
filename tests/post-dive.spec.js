@@ -135,7 +135,7 @@ test('a dive completed at the surface opens legacy\'s debriefing, and clears the
   await expect(screen.locator('[data-simulation-boundary]')).toHaveText(
     'SIMULATION ONLY — Not a dive computer or dive-planning tool. Do not use these outputs for a real dive.',
   );
-  await expect(screen.locator('[data-simulation-boundary]')).toBeInViewport();
+  await expect(screen.locator('[data-simulation-boundary]')).toBeInViewport({ ratio: 1 });
   // Focus moves to the heading instead of an aria-live announcement (#138).
   await expect(page.locator('#post-dive-heading')).toBeFocused();
   await expect(screen.locator('[aria-live], [role=alert], [role=status]')).toHaveCount(0);
@@ -182,6 +182,35 @@ test('a dive completed at the surface opens legacy\'s debriefing, and clears the
     /^25 min,? 30 sec Safety stop skipped$/,
   ]);
 
+  // Legacy's profile chart, above that list: one image to assistive
+  // technology, on legacy's scales (the deepest sample, 18 m, and the dive's
+  // 25.5 minutes), with a grid line at 10 m and its labels. Its markers are
+  // numbered as the list, in its order. The fast ascent sits on the profile
+  // at its time (1440 of 1530 s, 60% of the way up the 150 s ascent), the
+  // skipped stop at the end of the profile at 5 m.
+  const plot = screen.getByRole('img', {
+    name: /^Depth over 25 min,? 30 sec, deepest 18 m\. No deco ceiling\. 2 marks, numbered as in the violations list\.$/,
+  });
+  await expect(plot).toBeVisible();
+  await expect(plot.locator('.profile-axis')).toHaveText(['0 m', '18 m', /^25 min,? 30 sec$/]);
+  await expect(plot.locator('path.profile-grid')).toHaveCount(1);
+  await expect(plot.locator('polyline.profile-depth')).toHaveCount(1);
+  await expect(plot.locator('polyline.profile-ceiling')).toHaveCount(0);
+  await expect(plot.locator('.profile-marker')).toHaveText(['1', '2']);
+  expect(await plot.locator('.profile-marker').evaluateAll((els) => els.map((el) => el.dataset.marker)))
+    .toEqual(await violations.evaluateAll((els) => els.map((el) => el.dataset.violation)));
+  const position = (marker) => plot.locator(marker).evaluate((el) => [parseFloat(el.style.left), parseFloat(el.style.top)]);
+  const [ascentX, ascentY] = await position('[data-marker=fast-ascent]');
+  expect(ascentX).toBeCloseTo((1440 / END_S) * 100, 2);
+  expect(ascentY).toBeCloseTo(60, 2);
+  const [skippedX, skippedY] = await position('[data-marker=safety-stop-skipped]');
+  expect(skippedX).toBeCloseTo(100, 2);
+  expect(skippedY).toBeCloseTo((5 / DEEPEST_M) * 100, 2);
+  // Below the boundary line, which the chart never pushes off the screen.
+  const boundaryBox = await screen.locator('[data-simulation-boundary]').boundingBox();
+  const plotBox = await plot.boundingBox();
+  expect(plotBox.y).toBeGreaterThan(boundaryBox.y + boundaryBox.height);
+
   // The dive view is gone, and so is the save: an ended dive is not resumed.
   await expect(page.locator('.wreck-shell')).toHaveCount(0);
   expect(await page.evaluate((key) => window.localStorage.getItem(key), SAVE_KEY)).toBeNull();
@@ -205,6 +234,46 @@ test('a rebreather dive reports its oxygen, diluent and scrubber, and the bailou
   );
   await expect(screen.locator('[data-gas=scrubber]')).toHaveText('Scrubber25 min used');
   await expect(screen.locator('.post-dive-bailout')).toHaveText('⚠ Bailout: the dive ended on open circuit');
+});
+
+test('the profile chart draws the deco ceiling where the dive had one, one run per stretch', async ({ page }) => {
+  // The stop done, so the fast ascent is the one mark; a 2 m ceiling over
+  // two stretches of the hold, with none between them.
+  await resumeCompletedDive(page, {
+    editState: (state) => {
+      state.safetyStop = { needed: true, countdownStarted: true, remainingS: 0, paused: false, complete: true };
+      state.log.entries.pop();
+      for (const sample of state.log.profile) {
+        if ((sample.elapsedTimeS > 400 && sample.elapsedTimeS < 600) || (sample.elapsedTimeS > 800 && sample.elapsedTimeS < 900)) {
+          sample.ceilingM = 2;
+        }
+      }
+    },
+  });
+  const screen = page.locator('[data-post-dive]');
+  const plot = screen.locator('[data-profile-chart]');
+  await expect(plot).toHaveAttribute(
+    'aria-label',
+    /^Depth over 25 min,? 30 sec, deepest 18 m\. The deco ceiling reached 2 m\. One mark, numbered as in the violations list\.$/,
+  );
+  const runs = plot.locator('polyline.profile-ceiling');
+  await expect(runs).toHaveCount(2);
+  // Each run from its first sample to its last, at 2 m of the 18 m scale, in
+  // the SVG's 1000 x 400 coordinates.
+  const ends = await runs.evaluateAll((lines) => lines.map((line) => {
+    const points = line.getAttribute('points').split(' ').map((point) => point.split(',').map(Number));
+    return [points[0], points[points.length - 1]];
+  }));
+  const expected = [[402, 598], [802, 898]];
+  ends.forEach(([first, last], i) => {
+    expect(first[0]).toBeCloseTo((expected[i][0] / END_S) * 1000, 0);
+    expect(last[0]).toBeCloseTo((expected[i][1] / END_S) * 1000, 0);
+    expect(first[1]).toBeCloseTo((2 / DEEPEST_M) * 400, 0);
+    expect(last[1]).toBeCloseTo((2 / DEEPEST_M) * 400, 0);
+  });
+  await expect(plot.locator('.profile-marker')).toHaveText(['1']);
+  await expect(plot.locator('[data-marker=fast-ascent]')).toHaveCount(1);
+  await expect(screen.locator('.post-dive-violation-list li')).toHaveCount(1);
 });
 
 /**
@@ -335,9 +404,36 @@ test.describe('at the mobile viewport', () => {
 
   test('the whole debriefing is reachable by scrolling, within the edges, with 44px targets', async ({ page }) => {
     await resumeCompletedDive(page, { configure: configureCcr, editState: drawDownLoop });
+    await expect(page.locator('[data-post-dive] [data-simulation-boundary]')).toBeInViewport({ ratio: 1 });
     await expectMobileLayout(page);
   });
 });
+
+// A phone held sideways, the shortest viewports the in-dive controls are
+// checked at: the boundary line stays whole on the first screen, with the
+// chart below it, and the rest is reached by scrolling.
+for (const [width, height] of [[844, 390], [667, 375]]) {
+  for (const locale of ['en-US', 'de-DE']) {
+    test.describe(`at ${width}x${height}, ${locale}`, () => {
+      test.use({ viewport: { width, height }, hasTouch: true, isMobile: true, locale });
+
+      test('the boundary line is whole without scrolling, above the chart', async ({ page }) => {
+        await resumeCompletedDive(page);
+        const screen = page.locator('[data-post-dive]');
+        const boundary = screen.locator('[data-simulation-boundary]');
+        expect(await page.evaluate(() => window.scrollY)).toBe(0);
+        await expect(boundary).toHaveText(locale === 'de-DE' ? /^NUR SIMULATION/ : /^SIMULATION ONLY/);
+        await expect(boundary).toBeInViewport({ ratio: 1 });
+        const plot = screen.locator('[data-profile-chart]');
+        await expect(plot).toHaveCount(1);
+        const boundaryBox = await boundary.boundingBox();
+        const plotBox = await plot.boundingBox();
+        expect(plotBox.y).toBeGreaterThan(boundaryBox.y + boundaryBox.height);
+        await expectMobileLayout(page);
+      });
+    });
+  }
+}
 
 test.describe('on a small phone', () => {
   // The legacy #120 matrix: both languages and both gas summaries, because
@@ -345,8 +441,20 @@ test.describe('on a small phone', () => {
   // draws. The text checks make sure each case draws what it says it does.
   test.use({ viewport: { width: 320, height: 568 }, hasTouch: true, isMobile: true });
   const TEXT = {
-    'en-US': { heading: 'Dive complete', ascent: 'Fast ascent, peak 14.2 m/min', again: 'Dive again', boundary: /^SIMULATION ONLY/ },
-    'de-DE': { heading: 'Tauchgang beendet', ascent: 'Zu schneller Aufstieg, Spitze 14,2 m/min', again: 'Neuer Tauchgang', boundary: /^NUR SIMULATION/ },
+    'en-US': {
+      heading: 'Dive complete',
+      ascent: 'Fast ascent, peak 14.2 m/min',
+      again: 'Dive again',
+      boundary: /^SIMULATION ONLY/,
+      chart: /^Depth over 25 min,? 30 sec, deepest 18 m\. No deco ceiling\. 2 marks, numbered as in the violations list\.$/,
+    },
+    'de-DE': {
+      heading: 'Tauchgang beendet',
+      ascent: 'Zu schneller Aufstieg, Spitze 14,2 m/min',
+      again: 'Neuer Tauchgang',
+      boundary: /^NUR SIMULATION/,
+      chart: /^Tiefe über 25 Min\.?,? 30 Sek\.?, tiefster Punkt 18 m\. Keine Deko-Decke\. 2 Markierungen, nummeriert wie in der Liste der Verstöße\.$/,
+    },
   };
 
   for (const locale of ['en-US', 'de-DE']) {
@@ -359,8 +467,9 @@ test.describe('on a small phone', () => {
           const screen = page.locator('[data-post-dive]');
           await expect(screen.getByRole('heading', { level: 1 })).toHaveText(TEXT[locale].heading);
           await expect(screen.locator('[data-simulation-boundary]')).toHaveText(TEXT[locale].boundary);
-          await expect(screen.locator('[data-simulation-boundary]')).toBeInViewport();
+          await expect(screen.locator('[data-simulation-boundary]')).toBeInViewport({ ratio: 1 });
           await expect(screen.locator('.post-dive-violation-list li').first()).toContainText(TEXT[locale].ascent);
+          await expect(screen.locator('[data-profile-chart]')).toHaveAttribute('aria-label', TEXT[locale].chart);
           await expect(screen.locator('[data-dive-again]')).toHaveText(TEXT[locale].again);
           await expect(screen.locator('[data-gas=oxygen]')).toHaveCount(rebreather ? 1 : 0);
           await expectMobileLayout(page);

@@ -292,6 +292,15 @@ const englishMessages = {
   "postDive.safetySkipped.body": "A safety stop helps off-gas dissolved nitrogen and reduces the risk of decompression sickness. While not mandatory for recreational no-deco dives, skipping it significantly increases the chance of subclinical bubble formation and DCS symptoms. Always perform your safety stop — it only takes a few minutes.",
   "postDive.diveAgain": "Dive again",
   "postDive.diveAgainHint": "Press Enter to dive again.",
+  "postDive.profile": "Dive profile",
+  "postDive.profile.alt": "Depth over {time}, deepest {depth}.",
+  "postDive.profile.alt.ceiling": "The deco ceiling reached {depth}.",
+  "postDive.profile.alt.noCeiling": "No deco ceiling.",
+  "postDive.profile.alt.marker": "One mark, numbered as in the violations list.",
+  "postDive.profile.alt.markers": "{count} marks, numbered as in the violations list.",
+  "postDive.profile.key.depth": "Depth",
+  "postDive.profile.key.ceiling": "Deco ceiling",
+  "postDive.profile.key.marker": "Violation, numbered as listed",
 } as const;
 
 export type MessageKey = keyof typeof englishMessages;
@@ -586,6 +595,15 @@ const catalog: Record<SupportedLocale, Record<MessageKey, string>> = {
     "postDive.safetySkipped.body": "Ein Sicherheitsstopp hilft, gelösten Stickstoff abzuatmen und reduziert das Risiko der Dekompressionskrankheit. Obwohl nicht vorgeschrieben bei Nullzeit-Tauchgängen, erhöht das Auslassen deutlich die Gefahr subklinischer Blasenbildung und DCS-Symptome. Führe immer deinen Sicherheitsstopp durch — er dauert nur wenige Minuten.",
     "postDive.diveAgain": "Neuer Tauchgang",
     "postDive.diveAgainHint": "Enter drücken für einen neuen Tauchgang.",
+    "postDive.profile": "Tauchprofil",
+    "postDive.profile.alt": "Tiefe über {time}, tiefster Punkt {depth}.",
+    "postDive.profile.alt.ceiling": "Die Deko-Decke reichte bis {depth}.",
+    "postDive.profile.alt.noCeiling": "Keine Deko-Decke.",
+    "postDive.profile.alt.marker": "Eine Markierung, nummeriert wie in der Liste der Verstöße.",
+    "postDive.profile.alt.markers": "{count} Markierungen, nummeriert wie in der Liste der Verstöße.",
+    "postDive.profile.key.depth": "Tiefe",
+    "postDive.profile.key.ceiling": "Deko-Decke",
+    "postDive.profile.key.marker": "Verstoß, nummeriert wie in der Liste",
   },
 };
 

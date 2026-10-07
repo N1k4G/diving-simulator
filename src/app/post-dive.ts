@@ -16,6 +16,7 @@ import type { PostDiveSummary } from "../presentation/post-dive-summary";
 import { formatGradeNote, gradeLabel } from "./debrief-grade";
 import { element, section } from "./game-over";
 import { translate, type MessageKey, type SupportedLocale } from "./i18n/catalog";
+import { renderProfileChart } from "./profile-chart";
 import {
   formatAscentRate,
   formatDepth,
@@ -87,6 +88,12 @@ export function renderPostDiveScreen(
     screen.append(box);
   }
 
+  // Legacy's profile chart, where legacy draws it; its numbered markers
+  // are the entries of the list that follows.
+  const chart = renderProfileChart(summary, locale);
+  if (chart) {
+    screen.append(chart);
+  }
   screen.append(violationSection(summary.violations, locale));
 
   const again = document.createElement("button");
