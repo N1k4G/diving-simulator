@@ -3,13 +3,13 @@
   "issue": 159,
   "slice": "PR 2a of 4 (#199 slice 8): the post-dive summary, legacy's drawPostDive() values derived from the final dive state, with violation-list and summary parity",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "56447f0c88a2a5ebcdf52bf31aaa05cb145325e8",
-  "measuredTree": "7c9ff7fa0abf480157b8c1073ddbdc4a10f6973b",
+  "measuredCommit": "8b0bed517d480efcc5899eb9813d98f94eba5efb",
+  "measuredTree": "4ec6983c16909048787140d8d2fd0f7abd0ba040",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-07T01:41:25Z",
-  "runFinishedAt": "2026-10-07T01:48:40Z",
+  "recordedAt": "2026-10-07T02:11:08Z",
+  "runFinishedAt": "2026-10-07T02:18:31Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "On main d4a9de7 (#218). The full run above is on 56447f0, whose last commit is the previous version of this file; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "On main d4a9de7 (#218). The full run above is on 8b0bed5, the fix for the #217 pre-review; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -27,7 +27,7 @@
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
     "unit": "454 passed (448 on main, +6 in tests/unit/post-dive-summary.test.ts)",
     "parity": "211 passed (158 on main, +53 in tests/parity/post-dive.test.ts: one per recorded checkpoint, 52, and the acceptance cases)",
-    "e2e": "144 passed in 5.2 min (unchanged; this slice changes no screen)",
+    "e2e": "144 passed in 5.3 min (unchanged; this slice changes no screen)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -35,9 +35,9 @@
     "summary": "src/renderer.js drawPostDive(): dive time; maxDepth; the average depth avgDepthAccum / avgDepthSamples (0 without samples); per open-circuit tank totalGas - gasRemaining of totalGas; on a rebreather (BUG-24) the oxygen and diluent used, (start - current pressure) x cylinder volume, with the bar left, the scrubber time used, scrubberTotal - scrubberRemaining, and the bailout; the safety-stop warning when safetyStopNeeded && !safetyStopComplete; the grade from gradeDive().",
     "violations": "src/renderer.js drawDiveProfileChart() marks every diveEvents entry: fastAscent with its peak rate, ceilingViolation with how far above the ceiling, safetyStopSkipped at the surface. The summary lists the dive log's entries in that order."
   },
-  "parity": "At every checkpoint of all eleven recorded dives (46), legacy's own expressions applied to the recorded globals against the summary of the adapter's state there: dive time, maxDepth.toFixed(1), the average depth's toFixed(1), the violation list's kinds, times and values, the safety-stop warning, and the gas lines to the whole litre, bar and minute legacy draws (open circuit per tank; the rebreather's oxygen, diluent, scrubber and bailout). Named acceptance traces: air-18m-30min/surfaced (legacy's post-dive screen, the stop skipped, grade scores equal), buoyancy-vent-inflate-12m/coasting-30s (a fast ascent) and trimix-dcs-above-stop/above-stop-30s (a broken ceiling). The model's own log against legacy's diveEvents is covered by tests/parity/dive-log.test.ts and dive-end.test.ts.",
+  "parity": "At every checkpoint of all twelve recorded dives (52), legacy's own expressions applied to the recorded globals against the summary of the adapter's state there: dive time, maxDepth.toFixed(1), the average depth's toFixed(1), the violation list's kinds, times and values, the safety-stop warning, and the gas lines to the whole litre, bar and minute legacy draws (open circuit per tank; the rebreather's oxygen, diluent, scrubber and bailout). Named acceptance traces: air-18m-30min/surfaced (legacy's post-dive screen, the stop skipped, grade scores equal), buoyancy-vent-inflate-12m/coasting-30s (a fast ascent) and trimix-dcs-above-stop/above-stop-30s (a broken ceiling). The model's own log against legacy's diveEvents is covered by tests/parity/dive-log.test.ts and dive-end.test.ts.",
   "counterChecks": {
-    "method": "Each revert was applied from a backup copy, the named test file was run with vitest, and the file was restored byte for byte.",
+    "method": "Each revert was applied from a backup copy, the named test file was run with vitest, and the file was restored byte for byte. Run on 558f6ff, before the rebase onto main, when the parity file had 47 tests (46 checkpoints and the acceptance cases); the summary's code and its tests are unchanged since apart from the frozen grade. The freeze added for the #217 pre-review was reverted on 8b0bed5: 1 of 6 unit tests failed (the frozen test).",
     "results": [
       {
         "revert": "average depth from the deepest point instead of legacy's time-weighted sums",
@@ -62,13 +62,17 @@
       {
         "revert": "presentation snapshot never reports completion",
         "result": "1 of 6 unit tests failed"
+      },
+      {
+        "revert": "grade returned unfrozen (#217 pre-review)",
+        "result": "1 of 6 unit tests failed: the frozen test"
       }
     ]
   },
   "deferred": "Showing the summary: the post-dive screen (PR 2b, stacked on this one) and the profile chart (PR 3).",
   "durableProvenance": {
-    "src": "7c32d32bb538ba72878f1c4481693b5d78549957",
-    "tests": "1e6893592e7fbcf82a7ebb1a93f6f65c8690749f",
+    "src": "fe47d4ad90bcdc8ea3b566774fb2674aefc310c6",
+    "tests": "bdca427327ff9675ebd948d3fcb388d3f5575eb7",
     "scripts": "18bc2f4882a8c0fc30657f275d815a1c44581985",
     "docs": "818932abd7bd27d22971a567cd73133580b6ddcd"
   },
@@ -77,6 +81,11 @@
       "measuredCommit": "558f6ffb28b428a094d920425239ce7a55d4d311",
       "recordedAt": "2026-10-07T00:24:32Z",
       "note": "On main d44a239, before the rebase onto d4a9de7 (#218); superseded by the run above."
+    },
+    {
+      "measuredCommit": "56447f0c88a2a5ebcdf52bf31aaa05cb145325e8",
+      "recordedAt": "2026-10-07T01:41:25Z",
+      "note": "Rebased onto main d4a9de7, before the #217 pre-review fix; superseded by the run above."
     }
   ]
 }
