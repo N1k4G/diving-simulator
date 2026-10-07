@@ -94,8 +94,10 @@ describe("fast-forward at the controller", () => {
   });
 
   it("the e2e fixtures are at their stops (tests/in-dive-controls.spec.js DECO_STOPS)", () => {
-    // midWater: an 18 m stop, held neutral and at rest.
-    expect(neutralBcdSurfaceLitres(18)).toBe(9.990465669399928);
+    // midWater: an 18 m stop, held neutral and at rest. Not exact: Math.pow
+    // differs in the last bits between win32, where the fixture value was
+    // taken, and linux CI (9.99046566939993).
+    expect(neutralBcdSurfaceLitres(18)).toBeCloseTo(9.990465669399928, 12);
     // onTheFloor: 4.5 bar puts the stop at 33 m, within legacy's 1.5 m of
     // the route's 34 m floor.
     const loaded = stateAtStop(34);
