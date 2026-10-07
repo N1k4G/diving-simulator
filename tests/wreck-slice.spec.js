@@ -407,6 +407,10 @@ test('the same input trace drives equivalent legacy and Pixi control semantics',
 
   await page.goto('/dist/');
   await startDiveAndWaitForCanvas(page);
+  // The canvas can come before the dive's first frame. Until that frame the
+  // depth reads the unavailable mark, and the hold below vents over fewer
+  // frames: on a loaded machine the diver then had not left 0 m when read.
+  await expect(page.locator('.wreck-hud [data-hud-metric="depth"] dd')).toHaveText(/\d/);
   const pixiBefore = await readPixiObservation(page);
   await replayInputTrace(page, CROSS_CLIENT_TRACE);
   const pixiAfter = await readPixiObservation(page);
