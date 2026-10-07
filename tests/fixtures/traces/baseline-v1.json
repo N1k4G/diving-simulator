@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "diving-simulator-golden-traces",
-  "referenceCommit": "369d6d56dead0d70604f40c6f737abbd0f7d42f2",
+  "referenceCommit": "27476281f4d25a5a52647908bdfed4db33356c30",
   "generator": "npm run baseline:generate",
   "tolerances": {
     "exact": [
@@ -76,6 +76,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -221,6 +222,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -6068,6 +6070,7 @@
               "profileTimer_s": 0.5,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -6683,6 +6686,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -6838,6 +6842,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 11.495315972796579,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -10815,6 +10820,7 @@
               "profileTimer_s": 1.9999999999999936,
               "frameCeiling_m": 10.683948442379783,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -11815,6 +11821,7 @@
               "profileTimer_s": 1.4999999999999938,
               "frameCeiling_m": 10.662455443778889,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -12007,6 +12014,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -12152,6 +12160,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 3.853940630976087,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -18011,6 +18020,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 3.2524245991825573,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -18796,6 +18806,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -18941,6 +18952,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -20988,6 +21000,7 @@
               "profileTimer_s": 1.5,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -21138,6 +21151,7 @@
               "profileTimer_s": 1.4999999999999956,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -21707,6 +21721,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -21852,6 +21867,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -23899,6 +23915,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -24049,6 +24066,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 1.379485868918473,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -26154,6 +26172,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 1.379485868918473,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -26312,6 +26331,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 1.7915092490738704,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -26783,6 +26803,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -26938,6 +26959,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 3.1403495588120256,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -29957,6 +29979,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 3.2178666995032623,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -30436,6 +30459,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 3.2178666995032623,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -30608,6 +30632,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 1.0165591793126727,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -31349,6 +31374,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -31494,6 +31520,7 @@
               "profileTimer_s": 2.220446049250313e-15,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -31971,6 +31998,7 @@
               "profileTimer_s": 1.554312234475219e-14,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -33768,6 +33796,7 @@
               "profileTimer_s": 1.0000000000000226,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -34820,6 +34849,7 @@
               "profileTimer_s": 1.0000000000000426,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 7.299999999999982,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -37448,6 +37478,7 @@
               "profileTimer_s": 4.3076653355456074e-14,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 8.499999999999986,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -37657,6 +37688,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -37802,6 +37834,7 @@
               "profileTimer_s": 8.881784197001252e-16,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -38114,6 +38147,7 @@
               "profileTimer_s": 6.217248937900877e-15,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0.7500000000000001,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -38933,6 +38967,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -39088,6 +39123,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 11.495315972796579,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -43065,6 +43101,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 10.618282072024265,
               "dcsViolation_s": 30,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -43443,6 +43480,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 9.793018393665884,
               "dcsViolation_s": 60,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -43827,6 +43865,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -43982,6 +44021,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 11.495315972796579,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -47959,6 +47999,7 @@
               "profileTimer_s": 1,
               "frameCeiling_m": 11.459698010758256,
               "dcsViolation_s": 1,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -48145,6 +48186,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -48290,6 +48332,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 2.084880047960598,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": true,
               "thirdsStartingGas_l": 2400,
               "thirdsTurnWarned": false,
@@ -50345,6 +50388,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 5.452371100423932,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": true,
               "thirdsStartingGas_l": 2400,
               "thirdsTurnWarned": true,
@@ -52404,6 +52448,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 7.0806073355312975,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": true,
               "thirdsStartingGas_l": 2400,
               "thirdsTurnWarned": true,
@@ -54087,6 +54132,7 @@
               "profileTimer_s": 0,
               "frameCeiling_m": 7.26298408790627,
               "dcsViolation_s": 0,
+              "barotrauma_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -54406,6 +54452,3256 @@
               "t_min": 29.000000000000142,
               "depth_m": 32,
               "ceiling_m": 7.245227328450281
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenarioId": "barotrauma-runaway-ascent-30m",
+      "description": "Air, neutral at 30 m; W held 5.5 s, S held 3 s and 2 s more, then W held 10 s and on until the barotrauma timer ends the dive, in 60 Hz frames with the buoyancy physics moving the diver",
+      "checkpoints": [
+        {
+          "schemaVersion": 1,
+          "scenarioId": "barotrauma-runaway-ascent-30m",
+          "checkpointId": "neutral-30m",
+          "simulatedGeometry": "open",
+          "state": {
+            "gameState": "diving",
+            "diveMode": "rec",
+            "diveSite": "shore",
+            "depth_m": 30,
+            "maxDepth_m": 0,
+            "diveTime_min": 0,
+            "diverX_m": 0,
+            "verticalVelocity_mpm": 0,
+            "horizontalVelocity_mps": 0,
+            "activeTankIndex": 0,
+            "cns_percent": 0,
+            "narcosisIndex": 0,
+            "ndlDroppedBelow5": false,
+            "bcdGasSurface_l": 16.42141716744801,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": null,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0,
+              "avgDepthAccum_ms": 0,
+              "avgDepthSamples_s": 0,
+              "profileTimer_s": 0,
+              "frameCeiling_m": 0,
+              "dcsViolation_s": 0,
+              "barotrauma_s": 0,
+              "inOverhead": false,
+              "thirdsStartingGas_l": 0,
+              "thirdsTurnWarned": false,
+              "thirdsReserveHit": false
+            },
+            "grade": {
+              "scores": [
+                100,
+                100,
+                100,
+                100,
+                100
+              ],
+              "notes": [
+                "Ascent rate stayed within the recommended 9 m/min limit.",
+                "Dive was too shallow to need a safety stop.",
+                "Surfaced with 200 bar. Aim for 50 bar reserve on the boat — buddy assists and delayed ascents burn gas fast.",
+                "Stayed well clear of any deco ceiling.",
+                "No sustained depth-hold phases in this dive to grade trim."
+              ],
+              "overall": 100,
+              "stars": 3
+            },
+            "gameOverReason": null,
+            "safetyStop": {
+              "needed": false,
+              "remaining_min": 0,
+              "countdownStarted": false,
+              "paused": false,
+              "complete": false
+            }
+          },
+          "configuration": {
+            "gfLow_percent": 35,
+            "gfHigh_percent": 75,
+            "amv_lpm": 15,
+            "tankVolume_l": 12
+          },
+          "planner": {
+            "ceiling_m": 0,
+            "ndl_min": 10,
+            "tts_min": 4,
+            "schedule": null
+          },
+          "tissues": {
+            "n2_bar": [
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001
+            ],
+            "he_bar": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "tanks": [
+            {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79,
+              "volume_l": 12,
+              "pressure_bar": 200,
+              "gasRemaining_l": 2400,
+              "totalGas_l": 2400,
+              "switchDepth_m": null
+            }
+          ],
+          "ccr": {
+            "targetPO2_bar": 0.7,
+            "actualPO2_bar": 0.21,
+            "diluent": {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79
+            },
+            "o2Pressure_bar": 200,
+            "diluentPressure_bar": 200,
+            "scrubberRemaining_min": 180,
+            "o2PressureStart_bar": 200,
+            "diluentPressureStart_bar": 200,
+            "scrubberTotal_min": 180,
+            "onBailout": false
+          },
+          "events": [],
+          "trajectory": [],
+          "profile": []
+        },
+        {
+          "schemaVersion": 1,
+          "scenarioId": "barotrauma-runaway-ascent-30m",
+          "checkpointId": "inflated-5.5s",
+          "simulatedGeometry": "open",
+          "state": {
+            "gameState": "diving",
+            "diveMode": "rec",
+            "diveSite": "shore",
+            "depth_m": 29.166458029641863,
+            "maxDepth_m": 30,
+            "diveTime_min": 0.09166666666666677,
+            "diverX_m": 0,
+            "verticalVelocity_mpm": -23.82909778752455,
+            "horizontalVelocity_mps": 0,
+            "activeTankIndex": 0,
+            "cns_percent": 0.03025000000000003,
+            "narcosisIndex": 0.020758276101548158,
+            "ndlDroppedBelow5": false,
+            "bcdGasSurface_l": 25.17272761007054,
+            "debrief": {
+              "ascentRate_mpm": 23.82909778752378,
+              "minNdlSeen_min": 10,
+              "fastAscentAccum_s": null,
+              "fastAscentPeak_mpm": 23.82909778752378,
+              "ceilingViolationAccum_s": 0,
+              "avgDepthAccum_ms": 163.7410839670456,
+              "avgDepthSamples_s": 5.4999999999999885,
+              "profileTimer_s": 1.500000000000003,
+              "frameCeiling_m": 0,
+              "dcsViolation_s": 0,
+              "barotrauma_s": 0.9000000000000002,
+              "inOverhead": false,
+              "thirdsStartingGas_l": 0,
+              "thirdsTurnWarned": false,
+              "thirdsReserveHit": false
+            },
+            "grade": {
+              "scores": [
+                85,
+                30,
+                100,
+                100,
+                100
+              ],
+              "notes": [
+                "Fast ascent 1x (peak 20.5 m/min). Above 9 m/min, dissolved nitrogen has less time to off-gas — slower means fewer bubbles.",
+                "Safety stop skipped. A 3-min pause at 5 m sharply cuts DCS risk on any dive that reached 12 m.",
+                "Surfaced with 199 bar. Aim for 50 bar reserve on the boat — buddy assists and delayed ascents burn gas fast.",
+                "Stayed well clear of any deco ceiling.",
+                "No sustained depth-hold phases in this dive to grade trim."
+              ],
+              "overall": 83,
+              "stars": 2
+            },
+            "gameOverReason": null,
+            "safetyStop": {
+              "needed": true,
+              "remaining_min": 0,
+              "countdownStarted": false,
+              "paused": false,
+              "complete": false
+            }
+          },
+          "configuration": {
+            "gfLow_percent": 35,
+            "gfHigh_percent": 75,
+            "amv_lpm": 15,
+            "tankVolume_l": 12
+          },
+          "planner": {
+            "ceiling_m": 0,
+            "ndl_min": 11,
+            "tts_min": 7,
+            "schedule": null
+          },
+          "tissues": {
+            "n2_bar": [
+              0.7701645193129876,
+              0.7590723481970008,
+              0.7523915153366838,
+              0.7485307738521216,
+              0.7459951780359737,
+              0.7443655077155107,
+              0.7432174511578458,
+              0.7424069398737276,
+              0.741837582963099,
+              0.7414903193574327,
+              0.7412659935050314,
+              0.7410921771236514,
+              0.7409569070472735,
+              0.7408501411706836,
+              0.7407670556385226,
+              0.7407023224783114
+            ],
+            "he_bar": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "tanks": [
+            {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79,
+              "volume_l": 12,
+              "pressure_bar": 200,
+              "gasRemaining_l": 2385.7801624582016,
+              "totalGas_l": 2400,
+              "switchDepth_m": null
+            }
+          ],
+          "ccr": {
+            "targetPO2_bar": 0.7,
+            "actualPO2_bar": 0.21,
+            "diluent": {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79
+            },
+            "o2Pressure_bar": 200,
+            "diluentPressure_bar": 200,
+            "scrubberRemaining_min": 180,
+            "o2PressureStart_bar": 200,
+            "diluentPressureStart_bar": 200,
+            "scrubberTotal_min": 180,
+            "onBailout": false
+          },
+          "events": [
+            {
+              "t": 0.08333333333333338,
+              "kind": "fastAscent",
+              "value": 20.500502885982996
+            }
+          ],
+          "trajectory": [
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 30,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.999954,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.999857168151273,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.999704767185218,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.99949215231535,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.999214769182977,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.998868151845556,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.998447920806974,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.997949781088742,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.99736952034135,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.996703006994903,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.995946188448187,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.99509508929544,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.994145809589945,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.99309452314375,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.99193747586269,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.990670984116047,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.98929143314002,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.987795275474408,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.98617902943169,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.984439277597904,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.982572665364625,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.98057589949137,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.9784457466978,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.976179032285103,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.973772638785896,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.971223504642094,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.968528622910114,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.96568503999284,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.962689854397794,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.959540215520924,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.95623332245551,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.952766422825597,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.949136811643474,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.945341830190657,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.941378864921894,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.937245346391663,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.932938748202723,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.92845658597622,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.92379641634288,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.91895583595484,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.913932480517676,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.90872402384219,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.90332817691551,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.897742686991133,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.89196533669741,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.885993943164184,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.87982635716709,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.873460462289195,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.866894174099556,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.86012543934836,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.85315223517824,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.845972568351485,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.838584474492695,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.830986017346625,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.823175288050837,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.81515040442286,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.80690951026149,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.798450774662005,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.789772391344847,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.780872577997638,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.771749575630068,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.7624016479415,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.75282708070091,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.74302418113896,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.732991277351854,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.72272671771678,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.712228870318633,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.701496122387763,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.69052687974853,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.67931956627837,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.66787262337718,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.656184509446728,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.644253699379924,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.632078684059657,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.619657969867017,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.606990078198663,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.594073544993144,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.580906920265924,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.567488767652954,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.553817663962537,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.539892198735323,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.525710973812238,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.51127260291013,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.49657571120496,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.481618934922384,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.46640092093547,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.450920326369463,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.43517581821335,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.4191660729381,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.402889776121405,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.38634562207873,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.36953231350054,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.352448561095553,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.33509308323982,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.317464605631532,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.299561860951364,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.281383588528243,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.262928534010356,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.244195449041296,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.225183090941186,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.205890222392647,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.186315611131466,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.166458029641863,
+              "dtDive_min": 0.0008333333333333334
+            }
+          ],
+          "profile": [
+            {
+              "t_min": 0.03333333333333329,
+              "depth_m": 29.949136811643474,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.06666666666666657,
+              "depth_m": 29.644253699379924,
+              "ceiling_m": 0
+            }
+          ]
+        },
+        {
+          "schemaVersion": 1,
+          "scenarioId": "barotrauma-runaway-ascent-30m",
+          "checkpointId": "vented-3s",
+          "simulatedGeometry": "open",
+          "state": {
+            "gameState": "diving",
+            "diveMode": "rec",
+            "diveSite": "shore",
+            "depth_m": 27.974207702779683,
+            "maxDepth_m": 30,
+            "diveTime_min": 0.1416666666666668,
+            "diverX_m": 0,
+            "verticalVelocity_mpm": -19.52000151644618,
+            "horizontalVelocity_mps": 0,
+            "activeTankIndex": 0,
+            "cns_percent": 0.04641666666666659,
+            "narcosisIndex": 0.030579954404662525,
+            "ndlDroppedBelow5": false,
+            "bcdGasSurface_l": 16.49648973637775,
+            "debrief": {
+              "ascentRate_mpm": 19.52000151644455,
+              "minNdlSeen_min": 10,
+              "fastAscentAccum_s": null,
+              "fastAscentPeak_mpm": 24.99999999999858,
+              "ceilingViolationAccum_s": 0,
+              "avgDepthAccum_ms": 249.36464309993963,
+              "avgDepthSamples_s": 8.499999999999986,
+              "profileTimer_s": 0.5000000000000049,
+              "frameCeiling_m": 0,
+              "dcsViolation_s": 0,
+              "barotrauma_s": 3.899999999999994,
+              "inOverhead": false,
+              "thirdsStartingGas_l": 0,
+              "thirdsTurnWarned": false,
+              "thirdsReserveHit": false
+            },
+            "grade": {
+              "scores": [
+                85,
+                30,
+                100,
+                100,
+                100
+              ],
+              "notes": [
+                "Fast ascent 1x (peak 20.5 m/min). Above 9 m/min, dissolved nitrogen has less time to off-gas — slower means fewer bubbles.",
+                "Safety stop skipped. A 3-min pause at 5 m sharply cuts DCS risk on any dive that reached 12 m.",
+                "Surfaced with 199 bar. Aim for 50 bar reserve on the boat — buddy assists and delayed ascents burn gas fast.",
+                "Stayed well clear of any deco ceiling.",
+                "No sustained depth-hold phases in this dive to grade trim."
+              ],
+              "overall": 83,
+              "stars": 2
+            },
+            "gameOverReason": null,
+            "safetyStop": {
+              "needed": true,
+              "remaining_min": 0,
+              "countdownStarted": false,
+              "paused": false,
+              "complete": false
+            }
+          },
+          "configuration": {
+            "gfLow_percent": 35,
+            "gfHigh_percent": 75,
+            "amv_lpm": 15,
+            "tankVolume_l": 12
+          },
+          "planner": {
+            "ceiling_m": 0,
+            "ndl_min": 12,
+            "tts_min": 7,
+            "schedule": null
+          },
+          "tissues": {
+            "n2_bar": [
+              0.7855337240057354,
+              0.7687386203281248,
+              0.7586012845567147,
+              0.7527356892530741,
+              0.7488804319156808,
+              0.746401360553488,
+              0.7446543463271458,
+              0.7434206916093231,
+              0.7425539481602184,
+              0.7420252440723152,
+              0.7416836877770514,
+              0.7414190241460843,
+              0.7412130459340136,
+              0.7410504669007167,
+              0.7409239445386766,
+              0.7408253673702601
+            ],
+            "he_bar": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "tanks": [
+            {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79,
+              "volume_l": 12,
+              "pressure_bar": 200,
+              "gasRemaining_l": 2382.889573479879,
+              "totalGas_l": 2400,
+              "switchDepth_m": null
+            }
+          ],
+          "ccr": {
+            "targetPO2_bar": 0.7,
+            "actualPO2_bar": 0.21,
+            "diluent": {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79
+            },
+            "o2Pressure_bar": 200,
+            "diluentPressure_bar": 200,
+            "scrubberRemaining_min": 180,
+            "o2PressureStart_bar": 200,
+            "diluentPressureStart_bar": 200,
+            "scrubberTotal_min": 180,
+            "onBailout": false
+          },
+          "events": [
+            {
+              "t": 0.08333333333333338,
+              "kind": "fastAscent",
+              "value": 20.500502885982996
+            }
+          ],
+          "trajectory": [
+            {
+              "depth_m": 29.14633278610619,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.12595487167933,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.105338967786615,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.084505634453283,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.06367230111995,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.04283896778662,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.022005634453286,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 29.001172301119954,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.980338967786622,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.95950563445329,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.938672301119958,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.917838967786626,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.897005634453294,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.87617230111996,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.85533896778663,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.834505634453297,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.813672301119965,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.792838967786633,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.7720056344533,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.75117230111997,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.730338967786636,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.709505634453304,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.688672301119972,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.66783896778664,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.647005634453308,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.626172301119976,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.605341926220564,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.5845241682226,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.56372849777212,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.54296420193227,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.522240388321908,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.501565989156568,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.480949765194055,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.460400309586884,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.439926051643717,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.41953526050192,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.39923604871332,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.379036375745116,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.358944051397962,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.33896673914312,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.319111959380525,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.299387092619614,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.279799382584695,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.260355939246587,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.241063741782217,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.221929641463856,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.202960364479587,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.18416251468658,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.165542576298744,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.14710691651022,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.128861788056234,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.110813331712674,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.092967578735863,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.075330453243858,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.05790777454061,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.040705259384307,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.023728524201157,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 28.00698308724587,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.990474370710054,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.974207702779683,
+              "dtDive_min": 0.0008333333333333334
+            }
+          ],
+          "profile": [
+            {
+              "t_min": 0.1000000000000001,
+              "depth_m": 28.95950563445329,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.13333333333333347,
+              "depth_m": 28.14710691651022,
+              "ceiling_m": 0
+            }
+          ]
+        },
+        {
+          "schemaVersion": 1,
+          "scenarioId": "barotrauma-runaway-ascent-30m",
+          "checkpointId": "vented-5s",
+          "simulatedGeometry": "open",
+          "state": {
+            "gameState": "diving",
+            "diveMode": "rec",
+            "diveSite": "shore",
+            "depth_m": 27.57407057795359,
+            "maxDepth_m": 30,
+            "diveTime_min": 0.1749999999999998,
+            "diverX_m": 0,
+            "verticalVelocity_mpm": -3.7003284914089654,
+            "horizontalVelocity_mps": 0,
+            "activeTankIndex": 0,
+            "cns_percent": 0.05575000000000001,
+            "narcosisIndex": 0.0365252083932152,
+            "ndlDroppedBelow5": false,
+            "bcdGasSurface_l": 10.836255492597349,
+            "debrief": {
+              "ascentRate_mpm": 3.7003284914092656,
+              "minNdlSeen_min": 10,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0,
+              "avgDepthAccum_ms": 304.8144261607704,
+              "avgDepthSamples_s": 10.500000000000014,
+              "profileTimer_s": 0.5000000000000062,
+              "frameCeiling_m": 0,
+              "dcsViolation_s": 0,
+              "barotrauma_s": 0.4999999999999909,
+              "inOverhead": false,
+              "thirdsStartingGas_l": 0,
+              "thirdsTurnWarned": false,
+              "thirdsReserveHit": false
+            },
+            "grade": {
+              "scores": [
+                85,
+                30,
+                100,
+                100,
+                100
+              ],
+              "notes": [
+                "Fast ascent 1x (peak 20.5 m/min). Above 9 m/min, dissolved nitrogen has less time to off-gas — slower means fewer bubbles.",
+                "Safety stop skipped. A 3-min pause at 5 m sharply cuts DCS risk on any dive that reached 12 m.",
+                "Surfaced with 198 bar. Aim for 50 bar reserve on the boat — buddy assists and delayed ascents burn gas fast.",
+                "Stayed well clear of any deco ceiling.",
+                "No sustained depth-hold phases in this dive to grade trim."
+              ],
+              "overall": 83,
+              "stars": 2
+            },
+            "gameOverReason": null,
+            "safetyStop": {
+              "needed": true,
+              "remaining_min": 0,
+              "countdownStarted": false,
+              "paused": false,
+              "complete": false
+            }
+          },
+          "configuration": {
+            "gfLow_percent": 35,
+            "gfHigh_percent": 75,
+            "amv_lpm": 15,
+            "tankVolume_l": 12
+          },
+          "planner": {
+            "ceiling_m": 0,
+            "ndl_min": 12,
+            "tts_min": 7,
+            "schedule": null
+          },
+          "tissues": {
+            "n2_bar": [
+              0.7954237273311922,
+              0.7749736762709092,
+              0.7626125200391014,
+              0.7554541187989217,
+              0.7507467242657015,
+              0.747718685119716,
+              0.7455843349399522,
+              0.7440769260982294,
+              0.7430177308251324,
+              0.7423715857585766,
+              0.7419541404864733,
+              0.7416306620238924,
+              0.7413789041046743,
+              0.741180187200488,
+              0.7410255392493172,
+              0.7409050472085221
+            ],
+            "he_bar": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "tanks": [
+            {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79,
+              "volume_l": 12,
+              "pressure_bar": 200,
+              "gasRemaining_l": 2381.0033289033586,
+              "totalGas_l": 2400,
+              "switchDepth_m": null
+            }
+          ],
+          "ccr": {
+            "targetPO2_bar": 0.7,
+            "actualPO2_bar": 0.21,
+            "diluent": {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79
+            },
+            "o2Pressure_bar": 200,
+            "diluentPressure_bar": 200,
+            "scrubberRemaining_min": 180,
+            "o2PressureStart_bar": 200,
+            "diluentPressureStart_bar": 200,
+            "scrubberTotal_min": 180,
+            "onBailout": false
+          },
+          "events": [
+            {
+              "t": 0.08333333333333338,
+              "kind": "fastAscent",
+              "value": 20.500502885982996
+            }
+          ],
+          "trajectory": [
+            {
+              "depth_m": 27.958188319642854,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.942421367448922,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.92691190422012,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.911664901716783,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.89672283926351,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.882079618059304,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.867729261279184,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.853665911634664,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.839883828983037,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.82637738798444,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.813141075805817,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.800169489870765,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.787501403590397,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.77514102169981,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.763092480355844,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.751359848522537,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.739947129322122,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.728858261352425,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.71809711997138,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.707667518549428,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.69757320969056,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.687817886422685,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.678405183358052,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.669338677824406,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.66062189096756,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.652258288826015,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.644251283378328,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.636604233563776,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.629320446277017,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.62240317733728,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.61585563243274,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.609680968040596,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.603882292323448,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.59846266600253,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.593425103208318,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.588772572309075,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.5845079967178,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.580634255678145,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.577154185029766,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.57407057795359,
+              "dtDive_min": 0.0008333333333333334
+            }
+          ],
+          "profile": [
+            {
+              "t_min": 0.16666666666666644,
+              "depth_m": 27.62240317733728,
+              "ceiling_m": 0
+            }
+          ]
+        },
+        {
+          "schemaVersion": 1,
+          "scenarioId": "barotrauma-runaway-ascent-30m",
+          "checkpointId": "reinflated-10s",
+          "simulatedGeometry": "open",
+          "state": {
+            "gameState": "diving",
+            "diveMode": "rec",
+            "diveSite": "shore",
+            "depth_m": 26.368431378291874,
+            "maxDepth_m": 30,
+            "diveTime_min": 0.3416666666666678,
+            "diverX_m": 0,
+            "verticalVelocity_mpm": -25,
+            "horizontalVelocity_mps": 0,
+            "activeTankIndex": 0,
+            "cns_percent": 0.10241666666666709,
+            "narcosisIndex": 0.06353609391595008,
+            "ndlDroppedBelow5": false,
+            "bcdGasSurface_l": 25.81915129758317,
+            "debrief": {
+              "ascentRate_mpm": 24.99999999999858,
+              "minNdlSeen_min": 10,
+              "fastAscentAccum_s": null,
+              "fastAscentPeak_mpm": 24.99999999999858,
+              "ceilingViolationAccum_s": 0,
+              "avgDepthAccum_ms": 579.3265393254336,
+              "avgDepthSamples_s": 20.500000000000156,
+              "profileTimer_s": 0.5000000000000129,
+              "frameCeiling_m": 0,
+              "dcsViolation_s": 0,
+              "barotrauma_s": 2.3999999999999995,
+              "inOverhead": false,
+              "thirdsStartingGas_l": 0,
+              "thirdsTurnWarned": false,
+              "thirdsReserveHit": false
+            },
+            "grade": {
+              "scores": [
+                70,
+                30,
+                100,
+                100,
+                100
+              ],
+              "notes": [
+                "Fast ascent 2x (peak 21.5 m/min). Above 9 m/min, dissolved nitrogen has less time to off-gas — slower means fewer bubbles.",
+                "Safety stop skipped. A 3-min pause at 5 m sharply cuts DCS risk on any dive that reached 12 m.",
+                "Surfaced with 196 bar. Aim for 50 bar reserve on the boat — buddy assists and delayed ascents burn gas fast.",
+                "Stayed well clear of any deco ceiling.",
+                "No sustained depth-hold phases in this dive to grade trim."
+              ],
+              "overall": 80,
+              "stars": 2
+            },
+            "gameOverReason": null,
+            "safetyStop": {
+              "needed": true,
+              "remaining_min": 0,
+              "countdownStarted": false,
+              "paused": false,
+              "complete": false
+            }
+          },
+          "configuration": {
+            "gfLow_percent": 35,
+            "gfHigh_percent": 75,
+            "amv_lpm": 15,
+            "tankVolume_l": 12
+          },
+          "planner": {
+            "ceiling_m": 0,
+            "ndl_min": 13,
+            "tts_min": 6,
+            "schedule": null
+          },
+          "tissues": {
+            "n2_bar": [
+              0.8436971002085487,
+              0.8055690905511139,
+              0.7823584664304,
+              0.7688606392033059,
+              0.7599618508344519,
+              0.7542282314699489,
+              0.7501823709152546,
+              0.7473227197469234,
+              0.7453122607961693,
+              0.7440853677079531,
+              0.7432925479958676,
+              0.7426780950059411,
+              0.7421998179721352,
+              0.7418222694505072,
+              0.7415284268618252,
+              0.7412994696542792
+            ],
+            "he_bar": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "tanks": [
+            {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79,
+              "volume_l": 12,
+              "pressure_bar": 200,
+              "gasRemaining_l": 2356.6576302692597,
+              "totalGas_l": 2400,
+              "switchDepth_m": null
+            }
+          ],
+          "ccr": {
+            "targetPO2_bar": 0.7,
+            "actualPO2_bar": 0.21,
+            "diluent": {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79
+            },
+            "o2Pressure_bar": 200,
+            "diluentPressure_bar": 200,
+            "scrubberRemaining_min": 180,
+            "o2PressureStart_bar": 200,
+            "diluentPressureStart_bar": 200,
+            "scrubberTotal_min": 180,
+            "onBailout": false
+          },
+          "events": [
+            {
+              "t": 0.08333333333333338,
+              "kind": "fastAscent",
+              "value": 20.500502885982996
+            },
+            {
+              "t": 0.31083333333333374,
+              "kind": "fastAscent",
+              "value": 21.4968835472078
+            }
+          ],
+          "trajectory": [
+            {
+              "depth_m": 27.571369654447498,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.569037922184066,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.567062170434244,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.565429464114846,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.564127137957403,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.56314279079603,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.562464279971923,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.56207971585223,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.561977456460998,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.562146102219995,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.562574490797257,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.56325169206119,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.564167003138138,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.565309943571393,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.566670250579584,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.568237874412496,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.57000297380237,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.571955911508784,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.574087249955202,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.576387746955426,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.578848351528105,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.58146019979752,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.584214610978957,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.587103083446944,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.590117290884667,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.59324907851295,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.596490459397213,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.59983361083076,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.60327087079295,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.60679473448066,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.610397850911575,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.61407301959788,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.617813187288853,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.621611444781053,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.62546102379463,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.629355293914482,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.63328775959489,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.63725205722637,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.641241952263435,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.645251336412056,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.649274224875562,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.653304753657817,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.657337176922475,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.66136586440716,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.665385298891454,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.669390073717587,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.673374890362712,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.677334556061755,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.68126398147973,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.685158178432562,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.688974491446338,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.692714478199836,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.696379665218263,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.699971548496322,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.703491594108822,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.706941238809073,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.710321890615315,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.713634929385435,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.716881707380153,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.720063549814977,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.723181755401104,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.726237596875507,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.72923232152042,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.73216715167244,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.735043285221415,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.737815468020635,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.74048014670867,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.74303383482022,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.745473111268286,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.747794618857895,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.749995062830767,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.752071209440217,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.75401988455571,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.75583797229638,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.75752241369295,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.759070205377427,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.760478398299988,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.761744096472476,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.762864455737947,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.76383668256571,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.764658032871317,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.765325810860965,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.765837367899803,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.76619010140362,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.766381453753414,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.766408911232364,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.766270002984715,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.765962299996097,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.765483414094845,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.764830996973828,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.76400273923238,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.762996369437893,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.76180965320662,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.76044039230331,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.758886423759236,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.75714561900825,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.755215883040414,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.753095153572925,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.75078140023783,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.748272623786278,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.745566855308876,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.74266215547184,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.73955661376855,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.736248347786212,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.73273550248728,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.729016249505303,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.725088786454883,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.720951336255446,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.716602146468507,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.712039488648113,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.707261657704212,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.702266971278622,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.697053769133337,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.691620412550883,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.685965283746466,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.680086785291635,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.67398333954921,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.6676533881192,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.66109539129549,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.654307827533042,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.64728919292535,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.64003800069193,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.632552780675645,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.624832078849565,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.616874456833212,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.608678491417947,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.60024277410127,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.591565910629853,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.582646520551076,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.57348323677289,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.564074705131787,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.554419583968706,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.544516543712668,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.534364266471965,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.523961445632725,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.51330678546466,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.50239900073383,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.49123681632227,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.47981896685427,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.4681441963292,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.45621125776064,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.444018912821758,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.431565931496685,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.418851091737785,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.40587317912867,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.392630986552778,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.379123313867428,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.365348967583145,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.35130676054816,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.336995511637934,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.322414045449577,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.307561192001014,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.292435786434794,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.277036668726385,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.261362683396868,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.24541267922986,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.229185508992597,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.212680029160996,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.195895099648663,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.17882958353964,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.161482346824837,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.143852258142047,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.125938188519374,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.107739011122018,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.08925360100231,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.07048083485286,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.05141959076275,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.032068747976655,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 27.01242718665677,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.9924937876475,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.972267432242777,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.9517470019559,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.93093137829184,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.91009804495851,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.889264711625177,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.868431378291845,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.847598044958513,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.82676471162518,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.80593137829185,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.785098044958517,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.764264711625184,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.743431378291852,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.72259804495852,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.701764711625188,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.680931378291856,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.660098044958524,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.63926471162519,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.61843137829186,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.597598044958527,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.576764711625195,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.555931378291863,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.53509804495853,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.5142647116252,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.493431378291866,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.472598044958534,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.451764711625202,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.43093137829187,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.410098044958538,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.389264711625206,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.368431378291874,
+              "dtDive_min": 0.0008333333333333334
+            }
+          ],
+          "profile": [
+            {
+              "t_min": 0.1999999999999994,
+              "depth_m": 27.60679473448066,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.2333333333333324,
+              "depth_m": 27.747794618857895,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.2666666666666659,
+              "depth_m": 27.712039488648113,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.3,
+              "depth_m": 27.336995511637934,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.33333333333333404,
+              "depth_m": 26.576764711625195,
+              "ceiling_m": 0
+            }
+          ]
+        },
+        {
+          "schemaVersion": 1,
+          "scenarioId": "barotrauma-runaway-ascent-30m",
+          "checkpointId": "barotrauma",
+          "simulatedGeometry": "open",
+          "state": {
+            "gameState": "gameover",
+            "diveMode": "rec",
+            "diveSite": "shore",
+            "depth_m": 23.201764711625387,
+            "maxDepth_m": 30,
+            "diveTime_min": 0.4683333333333374,
+            "diverX_m": 0,
+            "verticalVelocity_mpm": -25,
+            "horizontalVelocity_mps": 0,
+            "activeTankIndex": 0,
+            "cns_percent": 0.1373583333333341,
+            "narcosisIndex": 0.07727478578120558,
+            "ndlDroppedBelow5": false,
+            "bcdGasSurface_l": 36.39698776991726,
+            "debrief": {
+              "ascentRate_mpm": 24.99999999999858,
+              "minNdlSeen_min": 10,
+              "fastAscentAccum_s": null,
+              "fastAscentPeak_mpm": 24.99999999999858,
+              "ceilingViolationAccum_s": 0,
+              "avgDepthAccum_ms": 767.6141178004526,
+              "avgDepthSamples_s": 28.100000000000264,
+              "profileTimer_s": 0.10000000000001821,
+              "frameCeiling_m": 0,
+              "dcsViolation_s": 0,
+              "barotrauma_s": 10.000000000000007,
+              "inOverhead": false,
+              "thirdsStartingGas_l": 0,
+              "thirdsTurnWarned": false,
+              "thirdsReserveHit": false
+            },
+            "grade": {
+              "scores": [
+                70,
+                30,
+                100,
+                100,
+                100
+              ],
+              "notes": [
+                "Fast ascent 2x (peak 21.5 m/min). Above 9 m/min, dissolved nitrogen has less time to off-gas — slower means fewer bubbles.",
+                "Safety stop skipped. A 3-min pause at 5 m sharply cuts DCS risk on any dive that reached 12 m.",
+                "Surfaced with 195 bar. Aim for 50 bar reserve on the boat — buddy assists and delayed ascents burn gas fast.",
+                "Stayed well clear of any deco ceiling.",
+                "No sustained depth-hold phases in this dive to grade trim."
+              ],
+              "overall": 80,
+              "stars": 2
+            },
+            "gameOverReason": "PULMONARY BAROTRAUMA — PNEUMOTHORAX",
+            "safetyStop": {
+              "needed": true,
+              "remaining_min": 0,
+              "countdownStarted": false,
+              "paused": false,
+              "complete": false
+            }
+          },
+          "configuration": {
+            "gfLow_percent": 35,
+            "gfHigh_percent": 75,
+            "amv_lpm": 15,
+            "tankVolume_l": 12
+          },
+          "planner": {
+            "ceiling_m": 0,
+            "ndl_min": 16,
+            "tts_min": 6,
+            "schedule": null
+          },
+          "tissues": {
+            "n2_bar": [
+              0.875961769160803,
+              0.8262185121696668,
+              0.7957632240777324,
+              0.7779923519854746,
+              0.7662524291259862,
+              0.7586781440772483,
+              0.7533286945674948,
+              0.7495452897611361,
+              0.7468842203373276,
+              0.7452598138573581,
+              0.7442099291435917,
+              0.7433961417072055,
+              0.7427626445753384,
+              0.7422625278047976,
+              0.741873267897059,
+              0.741569948822639
+            ],
+            "he_bar": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "tanks": [
+            {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79,
+              "volume_l": 12,
+              "pressure_bar": 200,
+              "gasRemaining_l": 2339.472604335051,
+              "totalGas_l": 2400,
+              "switchDepth_m": null
+            }
+          ],
+          "ccr": {
+            "targetPO2_bar": 0.7,
+            "actualPO2_bar": 0.21,
+            "diluent": {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79
+            },
+            "o2Pressure_bar": 200,
+            "diluentPressure_bar": 200,
+            "scrubberRemaining_min": 180,
+            "o2PressureStart_bar": 200,
+            "diluentPressureStart_bar": 200,
+            "scrubberTotal_min": 180,
+            "onBailout": false
+          },
+          "events": [
+            {
+              "t": 0.08333333333333338,
+              "kind": "fastAscent",
+              "value": 20.500502885982996
+            },
+            {
+              "t": 0.31083333333333374,
+              "kind": "fastAscent",
+              "value": 21.4968835472078
+            }
+          ],
+          "trajectory": [
+            {
+              "depth_m": 26.34759804495854,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.32676471162521,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.305931378291877,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.285098044958545,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.264264711625213,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.24343137829188,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.22259804495855,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.201764711625216,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.180931378291884,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.160098044958552,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.13926471162522,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.118431378291888,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.097598044958556,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.076764711625223,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.05593137829189,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.03509804495856,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 26.014264711625227,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.993431378291895,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.972598044958563,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.95176471162523,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.9309313782919,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.910098044958566,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.889264711625234,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.868431378291902,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.84759804495857,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.826764711625238,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.805931378291906,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.785098044958573,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.76426471162524,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.74343137829191,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.722598044958577,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.701764711625245,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.680931378291913,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.66009804495858,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.63926471162525,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.618431378291916,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.597598044958584,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.576764711625252,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.55593137829192,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.535098044958588,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.514264711625255,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.493431378291923,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.47259804495859,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.45176471162526,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.430931378291927,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.410098044958595,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.389264711625263,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.36843137829193,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.3475980449586,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.326764711625266,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.305931378291934,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.285098044958602,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.26426471162527,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.243431378291938,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.222598044958605,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.201764711625273,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.18093137829194,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.16009804495861,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.139264711625277,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.118431378291945,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.097598044958612,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.07676471162528,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.055931378291948,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.035098044958616,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 25.014264711625284,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.99343137829195,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.97259804495862,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.951764711625287,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.930931378291955,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.910098044958623,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.88926471162529,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.86843137829196,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.847598044958627,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.826764711625295,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.805931378291962,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.78509804495863,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.764264711625298,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.743431378291966,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.722598044958634,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.7017647116253,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.68093137829197,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.660098044958637,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.639264711625305,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.618431378291973,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.59759804495864,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.57676471162531,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.555931378291977,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.535098044958644,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.514264711625312,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.49343137829198,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.472598044958648,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.451764711625316,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.430931378291984,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.41009804495865,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.38926471162532,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.368431378291987,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.347598044958655,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.326764711625323,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.30593137829199,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.28509804495866,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.264264711625326,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.243431378291994,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.222598044958662,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.20176471162533,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.180931378291998,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.160098044958666,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.139264711625334,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.118431378292,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.09759804495867,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.076764711625337,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.055931378292005,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.035098044958673,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 24.01426471162534,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.99343137829201,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.972598044958676,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.951764711625344,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.930931378292012,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.91009804495868,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.889264711625348,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.868431378292016,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.847598044958684,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.82676471162535,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.80593137829202,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.785098044958687,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.764264711625355,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.743431378292023,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.72259804495869,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.70176471162536,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.680931378292026,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.660098044958694,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.639264711625362,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.61843137829203,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.597598044958698,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.576764711625366,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.555931378292033,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.5350980449587,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.51426471162537,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.493431378292037,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.472598044958705,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.451764711625373,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.43093137829204,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.41009804495871,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.389264711625376,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.368431378292044,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.347598044958712,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.32676471162538,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.305931378292048,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.285098044958715,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.264264711625383,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.24343137829205,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.22259804495872,
+              "dtDive_min": 0.0008333333333333334
+            },
+            {
+              "depth_m": 23.201764711625387,
+              "dtDive_min": 0.0008333333333333334
+            }
+          ],
+          "profile": [
+            {
+              "t_min": 0.36666666666666814,
+              "depth_m": 25.74343137829191,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.4000000000000022,
+              "depth_m": 24.910098044958623,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.4333333333333363,
+              "depth_m": 24.076764711625337,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.4666666666666704,
+              "depth_m": 23.24343137829205,
+              "ceiling_m": 0
             }
           ]
         }

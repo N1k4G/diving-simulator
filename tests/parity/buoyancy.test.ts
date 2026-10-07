@@ -78,6 +78,8 @@ function replay(
     within(state.verticalVelocityMpm, recorded.state.verticalVelocity_mpm, eps.default, `velocity at ${segment.checkpointId}`);
     within(state.bcdGasSurfaceLiters, recorded.state.bcdGasSurface_l, eps.default, `BCD gas at ${segment.checkpointId}`);
     within(state.cnsPercent, recorded.state.cns_percent, eps.default, `CNS at ${segment.checkpointId}`);
+    // #189: the barotrauma timer, which these ascents run close to its 10 s.
+    within(state.failure.barotraumaS, recorded.state.debrief?.barotrauma_s ?? Number.NaN, eps.default, `barotrauma timer at ${segment.checkpointId}`);
     for (let i = 0; i < 16; i += 1) {
       within(state.tissues.nitrogenBar[i], recorded.tissues.n2_bar[i] ?? Number.NaN, eps["tissues.*_bar"], `N2 compartment ${i + 1} at ${segment.checkpointId}`);
     }

@@ -115,7 +115,12 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // diver under an overhead plans afresh from the gas left on the next step.
 // Legacy saves carry thirdsReserveHitThisDive and keep it; legacy does not
 // save the plan itself and restores it empty, as this does.
-export const CURRENT_SAVE_GAME_VERSION = 13;
+//
+// v14 adds state.failure.barotraumaS, the barotrauma timer (#189). Older
+// saves never ran it and resume at zero, which gives a diver ascending fast
+// the full 10 seconds again. Legacy saves carry barotraumaTime and keep it.
+export const CURRENT_SAVE_GAME_VERSION = 14;
+export const THIRTEENTH_SAVE_GAME_VERSION = 13;
 export const TWELFTH_SAVE_GAME_VERSION = 12;
 export const ELEVENTH_SAVE_GAME_VERSION = 11;
 export const TENTH_SAVE_GAME_VERSION = 10;
@@ -186,6 +191,7 @@ export type SaveGameMigration =
   | "save-game-v10"
   | "save-game-v11"
   | "save-game-v12"
+  | "save-game-v13"
   | null;
 
 /**
@@ -378,8 +384,19 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
       candidate.state = { ...candidate.state, completed: false };
     }
     // Before v13 there was no rule of thirds.
-    if (v < CURRENT_SAVE_GAME_VERSION && isRecord(candidate.state)) {
+    if (v < THIRTEENTH_SAVE_GAME_VERSION && isRecord(candidate.state)) {
       candidate.state = { ...candidate.state, thirds: createRuleOfThirdsState() };
+    }
+    // Before v14 there was no barotrauma timer: it resumes at zero.
+    if (
+      v < CURRENT_SAVE_GAME_VERSION &&
+      isRecord(candidate.state) &&
+      isRecord(candidate.state.failure)
+    ) {
+      candidate.state = {
+        ...candidate.state,
+        failure: { ...candidate.state.failure, barotraumaS: 0 },
+      };
     }
     // A v1 payload has no gradientFactors and is filled with the defaults; a
     // v2 payload must carry a valid pair rather than fall back to them, or a
@@ -523,6 +540,10 @@ function migrateLegacyV2(candidate: Record<string, unknown>): SaveGame | null {
       dcsViolationS: (isNonNegativeFinite(candidate.dcsViolationTime)
         ? candidate.dcsViolationTime
         : 0) as DiveState["failure"]["dcsViolationS"],
+      // Likewise barotraumaTime (#189).
+      barotraumaS: (isNonNegativeFinite(candidate.barotraumaTime)
+        ? candidate.barotraumaTime
+        : 0) as DiveState["failure"]["barotraumaS"],
     },
     events: [],
     log,
@@ -1303,7 +1324,8 @@ function isFailureState(
     !isNonNegativeFinite(candidate.hypoxiaS) ||
     !isNonNegativeFinite(candidate.ccrHypoxiaS) ||
     !isNonNegativeFinite(candidate.ccrHyperoxiaS) ||
-    !isNonNegativeFinite(candidate.dcsViolationS)
+    !isNonNegativeFinite(candidate.dcsViolationS) ||
+    !isNonNegativeFinite(candidate.barotraumaS)
   ) {
     return false;
   }
@@ -1415,6 +1437,7 @@ function isFailureReason(candidate: unknown): candidate is DiveFailureReason {
     "oxygen-toxicity",
     "hypoxia",
     "decompression-sickness",
+    "pulmonary-barotrauma",
     "ccr-hypoxia",
     "ccr-hyperoxia",
     "ccr-co2",

@@ -111,6 +111,21 @@ test('decompression sickness shows legacy\'s label and all three explanation sec
   await expect(screen.locator('.game-over-prevention li').first()).toHaveText('Never ascend above your ceiling depth — watch the CEIL indicator');
 });
 
+test('pulmonary barotrauma shows legacy\'s label and all three explanation sections', async ({ page }) => {
+  // The end the model leaves: the timer at its 10 s (#189).
+  await resumeFailedDive(page, 'pulmonary-barotrauma', undefined, (state) => {
+    state.elapsedTimeS = Math.max(state.elapsedTimeS, 10);
+    state.failure.barotraumaS = 10;
+  });
+  const screen = page.locator('[data-game-over]');
+  await expect(page.locator('[data-game-over-reason]')).toHaveText('Pulmonary barotrauma — pneumothorax');
+  // GAME_OVER_INFO['PULMONARY BAROTRAUMA — PNEUMOTHORAX'].
+  await expect(screen).toContainText("Ascended too rapidly, causing lung over-expansion injury from Boyle's Law gas expansion.");
+  await expect(screen).toContainText('Rapid ascent causes air trapped in the lungs to expand.');
+  await expect(screen.locator('.game-over-prevention li')).toHaveCount(4);
+  await expect(screen.locator('.game-over-prevention li').first()).toHaveText('Never ascend faster than 9–10 m/min');
+});
+
 test('a dive that fails while running switches to game over, and Enter returns to the setup as it was', async ({ page }) => {
   // No edited save here: a 0% oxygen mix goes hypoxic at once and the model
   // fails the dive after 10 s, which is the path a player takes.

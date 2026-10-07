@@ -1228,6 +1228,77 @@ describe("SaveGame gradient factors", () => {
     });
   });
 
+  // v14 adds the barotrauma timer (#189).
+  describe("the barotrauma timer", () => {
+    type Encoded = { version: number; state: { failure: Record<string, unknown> } };
+    const rising = () => {
+      const base = createInitialDiveState(109);
+      return freezeDiveState({
+        ...base,
+        elapsedTimeS: seconds(600),
+        failure: { ...base.failure, barotraumaS: seconds(6.5) },
+      });
+    };
+    const encode = (state: DiveState) =>
+      JSON.parse(encodeSaveGame(createSaveGame(state, CONSERVATIVE_FACTORS, 1_735_689_600_000))) as Encoded;
+
+    it("round-trips in a current save", () => {
+      const decoded = decodeSaveGame(JSON.stringify(encode(rising())));
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      expect(decoded.saveGame.state.failure.barotraumaS).toBe(6.5);
+    });
+
+    it("resumes a v13 save at zero, which never ran it, whatever the payload carries", () => {
+      for (const carried of [undefined, 6.5]) {
+        const v13 = encode(rising());
+        v13.version = 13;
+        if (carried === undefined) delete v13.state.failure.barotraumaS;
+        const result = decodeSaveGame(JSON.stringify(v13));
+        expect(result.ok, String(carried)).toBe(true);
+        if (!result.ok) return;
+        expect(result.migratedFrom).toBe("save-game-v13");
+        expect(result.saveGame.state.failure.barotraumaS, String(carried)).toBe(0);
+      }
+    });
+
+    it("rejects a current save without a valid timer", () => {
+      for (const value of [undefined, -1, Number.NaN, "6.5"]) {
+        const save = encode(rising());
+        save.state.failure.barotraumaS = value;
+        expect(decodeSaveGame(JSON.stringify(save)).ok, String(value)).toBe(false);
+      }
+    });
+
+    it("accepts the save of a dive the model ended in barotrauma", () => {
+      // W held from neutral at 30 m in 60 Hz frames until the timer ends it.
+      const start = createInitialDiveState(113);
+      const model = new DiveModel(
+        freezeDiveState({ ...start, depthM: metres(30), maxDepthM: metres(30), bcdGasSurfaceLiters: neutralBcdSurfaceLitres(30) }),
+      );
+      for (let frame = 0; frame < 2000 && model.snapshot.failure.reason === null; frame++) {
+        model.advanceWithBuoyancy({ ceilingM: 0, floorM: 100 }, seconds(0.05), { inflate: true, vent: false });
+      }
+      const failed = model.snapshot;
+      expect(failed.failure.reason).toBe("pulmonary-barotrauma");
+      const decoded = decodeSaveGame(encodeSaveGame(createSaveGame(failed, CONSERVATIVE_FACTORS, 1)));
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      expect(decoded.saveGame.state.failure).toEqual(failed.failure);
+    });
+
+    it("carries legacy's barotraumaTime over, and resumes a save without one at zero", () => {
+      const carried = decodeSaveGame(JSON.stringify({ ...legacyV2Save(), barotraumaTime: 4.25 }));
+      expect(carried.ok).toBe(true);
+      if (!carried.ok) return;
+      expect(carried.saveGame.state.failure.barotraumaS).toBe(4.25);
+      const missing = decodeSaveGame(JSON.stringify(legacyV2Save()));
+      expect(missing.ok).toBe(true);
+      if (!missing.ok) return;
+      expect(missing.saveGame.state.failure.barotraumaS).toBe(0);
+    });
+  });
+
   describe("the dive mode", () => {
     const singleCylinder = () =>
       createInitialDiveState(81, {

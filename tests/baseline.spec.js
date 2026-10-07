@@ -145,7 +145,8 @@ test('baseline: generated contracts are complete and internally consistent', asy
     'buoyancy-ccr-inflate-12m',
     'trimix-dcs-above-stop',
     'trimix-dcs-surfaced',
-    'wreck-thirds'
+    'wreck-thirds',
+    'barotrauma-runaway-ascent-30m'
   ]);
   // #199: the one scenario simulated against its declared site. Legacy's
   // rule of thirds reads overheadAt(), which only a site with an overhead
