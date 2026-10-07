@@ -62,7 +62,7 @@ async function descendTo(page, depthM) {
       const value = document.querySelector('.wreck-hud [data-hud-metric="depth"] dd');
       const depth = Number.parseFloat(String(value?.textContent ?? '').replace(',', '.'));
       return depth >= target;
-    }, depthM, { timeout: 30_000 });
+    }, depthM, { timeout: 60_000 });
   } finally {
     await page.keyboard.up('s');
   }

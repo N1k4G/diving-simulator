@@ -1,5 +1,5 @@
 const { expect, test } = require('@playwright/test');
-const { beginDescent, startDive, startDiveAndWaitForCanvas } = require('./helpers/start-dive.cjs');
+const { descendTo, startDive, startDiveAndWaitForCanvas } = require('./helpers/start-dive.cjs');
 
 // Mirrors smoke.spec.js's MOBILE_VIEWPORT: a hand-rolled touch viewport
 // rather than Playwright's `devices['iPhone 12']`, which forbids overriding
@@ -155,9 +155,10 @@ test.describe('surface start by touch', () => {
 test('persisted safety states produce visible semantic warnings', async ({ page }) => {
   await page.goto('/dist/');
   await startDiveAndWaitForCanvas(page);
-  // A save of a dive under way: the codec refuses gas drawn from one still
-  // waiting at the surface (#199).
-  await beginDescent(page);
+  // A save of a dive under way, deep enough for pure oxygen to pass 1.6 bar:
+  // the dive starts at the surface (#199), and the codec refuses gas drawn
+  // from one still waiting there.
+  await descendTo(page, 7);
   await page.reload();
 
   // Issue #138: the status chip has to say which state it is in, not just turn
@@ -340,10 +341,6 @@ async function mutateSavedState(page, variant) {
       tank.gas.oxygenFraction = 1;
       tank.gas.heliumFraction = 0;
       tank.gas.nitrogenFraction = 0;
-      // Deep enough for pure oxygen to pass 1.6 bar. The dive now starts at
-      // the surface (#199), where it reads about 1.05.
-      save.state.depthM = 26;
-      save.state.maxDepthM = Math.max(save.state.maxDepthM, 26);
     } else if (selectedVariant === 'failure') {
       save.state.failure.reason = 'out-of-gas';
       save.state.events.push({

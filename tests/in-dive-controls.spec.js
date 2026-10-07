@@ -745,7 +745,12 @@ test.describe('fast-forward', () => {
 // updateCcrDiveButtonVisibility; and the loop's HUD rows and warnings, from
 // the CCR gas box and warning banner in src/renderer.js.
 
-async function startCcrDive(page) {
+/**
+ * A CCR dive, under way below the surface unless `descend` is false: the
+ * descent draws diluent into the loop, as legacy's updateCCRDiluent, so a
+ * spec that reads the cylinders as configured stays at the surface.
+ */
+async function startCcrDive(page, { descend = true } = {}) {
   await page.goto('/dist/');
   await page.evaluate(() => window.localStorage.clear());
   await acceptSafetyGate(page);
@@ -754,7 +759,7 @@ async function startCcrDive(page) {
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
   await expect(page.locator('[data-wreck-ccr]')).toBeVisible();
-  await descendTo(page, 1);
+  if (descend) await descendTo(page, 1);
 }
 
 /** Starts a CCR dive, edits its save with `mutate`, and resumes it. */
@@ -860,7 +865,7 @@ test.describe('rebreather controls', () => {
     // src/renderer.js draws SP, PO2, O2, DIL and SCR where the open-circuit
     // gas box would be. The gas row here would otherwise show tanks[0], the
     // codec's placeholder cylinder, at a pressure nobody draws down.
-    await startCcrDive(page);
+    await startCcrDive(page, { descend: false });
 
     for (const name of LOOP_ROWS) {
       await expect(hudRow(page, name), `${name} row`).toBeVisible();

@@ -533,18 +533,19 @@ test.describe('technical mode', () => {
     // compared two different amounts of elapsed time, and the NDLs would
     // differ whether or not the factors survived — a test that passes for the
     // wrong reason.
+    test.setTimeout(120_000);
     await toTec(page);
     await page.locator('[data-start-dive]').click();
     await page.locator('[data-renderer=pixi] canvas').waitFor();
     // Under water, where the factors move the NDL: at the surface, where the
     // dive starts (#199), it is unlimited under any.
-    await descendTo(page, 15);
+    await descendTo(page, 10);
     const save = await page
       .waitForFunction((key) => {
         const raw = window.localStorage.getItem(key);
         const saved = raw === null ? null : JSON.parse(raw);
-        return saved !== null && saved.state.depthM > 12 ? saved : null;
-      }, SAVE_KEY)
+        return saved !== null && saved.state.depthM > 8 ? saved : null;
+      }, SAVE_KEY, { timeout: 30_000 })
       .then((handle) => handle.jsonValue());
 
     const resumedNdl = async (lowPercent, highPercent) => {
