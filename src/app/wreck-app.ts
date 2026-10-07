@@ -78,6 +78,7 @@ interface HudElements {
   readonly warning: HTMLElement;
   readonly tanks: HTMLElement;
   readonly ccr: HTMLElement;
+  readonly movement: readonly HTMLButtonElement[];
   readonly torch: HTMLButtonElement;
   readonly fastForward: HTMLButtonElement;
   readonly mute: HTMLButtonElement;
@@ -633,6 +634,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   const controls = document.createElement("div");
   controls.className = "wreck-controls";
   controls.setAttribute("aria-label", translate(locale, "wreck.controls.heading"));
+  const movement: HTMLButtonElement[] = [];
   for (const [control, key, glyph] of [
     ["left", "wreck.controls.left", "←"],
     ["ascend", "wreck.controls.ascend", "↑"],
@@ -645,6 +647,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     button.setAttribute("aria-label", translate(locale, key));
     button.textContent = glyph;
     controls.append(button);
+    movement.push(button);
   }
   const torch = document.createElement("button");
   torch.type = "button";
@@ -757,6 +760,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     warning,
     tanks,
     ccr,
+    movement,
     torch,
     fastForward,
     mute,
@@ -794,13 +798,17 @@ function updateHud(
   );
   hud.zone.textContent = translate(locale, zoneMessageKeys[scene.zone]);
   hud.torch.setAttribute("aria-pressed", String(scene.torchOn));
-  // Legacy shows its torch button and reads T only in 'diving' (touch.js
-  // touchUpdateUI, game-loop.js D6): not while the dive waits at the
-  // surface, nor once it has ended (#223 Codex round 1).
-  hud.torch.hidden =
-    frame.awaitingDescent ||
-    presentation.completed ||
-    presentation.status === "failed";
+  // Legacy shows its nav pad and torch button, and reads their keys, only in
+  // 'diving' (touch.js touchUpdateUI, game-loop.js D6). At the surface its
+  // one button is the descent, S; after the dive there are none (#223 Codex
+  // round 1 and pre-review). Each button keeps its grid cell, so hiding one
+  // moves no other under a thumb.
+  const ended = presentation.completed || presentation.status === "failed";
+  for (const button of hud.movement) {
+    button.hidden =
+      ended || (frame.awaitingDescent && button.dataset.control !== "descend");
+  }
+  hud.torch.hidden = frame.awaitingDescent || ended;
   syncTankControls(hud.tanks, presentation, locale, frame.awaitingDescent);
 
   const severity = selectWarning(presentation);

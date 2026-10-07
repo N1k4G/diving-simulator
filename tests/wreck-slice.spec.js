@@ -137,9 +137,21 @@ test('the dive starts at the surface and begins on S', async ({ page }) => {
   // limit: legacy draws "---" for the 999 sentinel, not a duration (#223
   // pre-review).
   await expect(page.locator('.wreck-hud [data-hud-metric="ndl"] dd')).toHaveText('—');
+  // Legacy's surface offers one button, the descent; its nav pad and torch
+  // appear only once the dive is under way (#223 Codex round 1).
+  const pad = (control) => page.locator(`.wreck-controls [data-control="${control}"]`);
+  await expect(pad('descend')).toBeVisible();
+  for (const control of ['left', 'ascend', 'right']) {
+    await expect(pad(control), control).toBeHidden();
+  }
+  await expect(page.locator('[data-torch]')).toBeHidden();
 
   await page.keyboard.down('s');
   await expect(prompt).toBeHidden();
+  for (const control of ['left', 'ascend', 'descend', 'right']) {
+    await expect(pad(control), control).toBeVisible();
+  }
+  await expect(page.locator('[data-torch]')).toBeVisible();
   await expect.poll(async () => parseMetres(await depth.textContent())).toBeGreaterThan(0);
   await page.keyboard.up('s');
   await expect(time).not.toHaveText(waitingTime || '');
@@ -193,8 +205,9 @@ test('a dive completed at the surface leaves no save, and the next start is a ne
     undefined,
     { timeout: 30_000 },
   );
-  // The torch is offered only while diving (#223 Codex round 1).
+  // The pad and the torch are offered only while diving (#223 Codex round 1).
   await expect(page.locator('[data-torch]')).toBeHidden();
+  await expect(page.locator('.wreck-controls [data-control]:visible')).toHaveCount(0);
   // The dive's sound stops with it.
   await expect
     .poll(() =>
