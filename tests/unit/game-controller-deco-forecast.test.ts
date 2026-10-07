@@ -195,6 +195,27 @@ describe("the deco stop's numbers against the forecast's cadence", { timeout: 30
     controller.destroy();
   });
 
+  it("are dropped within about half a second of real time when fast-forward ends with the worker silent", async () => {
+    // Pre-review pass 5 on #226: a forecast asked at x30 has a 17 dive-s
+    // budget, which back at x3 is 5.7 s of real time. It is also bounded in
+    // real time: the interval at the rate it was asked at (67 ms) and the
+    // half-second latency budget.
+    const { controller, run } = await startAtStop();
+    await run(6, 3);
+    controller.toggleFastForward();
+    await run(20, 3);
+    controller.toggleFastForward();
+    const silent = await run(120, 3, false);
+    expect(silent.every((frame) => !frame.fastForward.active)).toBe(true);
+    expect(silent.every((frame) => frame.presentation.decoStop !== null)).toBe(true);
+    // The last answer was asked for at most a few frames before; at 20 ms
+    // a frame, 0.57 s is 28 frames, so by frame 40 (0.8 s) the numbers are
+    // gone, where the dive-time budget alone kept them for about 280.
+    expect(firstStopOf(silent[0]!)).not.toBeNull();
+    expect(silent.slice(40).every((frame) => firstStopOf(frame) === null)).toBe(true);
+    controller.destroy();
+  });
+
   it("show the title alone while the first request is pending", async () => {
     const { controller, run } = await startAtStop();
     const pending = await run(10, 3, false);

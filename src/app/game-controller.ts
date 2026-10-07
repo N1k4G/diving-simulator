@@ -62,12 +62,26 @@ const FAST_FORWARD_MULTIPLIER = 10;
 /**
  * Real seconds a forecast may take to be replaced beyond the scheduler's
  * interval before its stop is no longer shown as current (#226 Codex round
- * 2). The next request goes out on the first frame after the interval once
- * the last answer is in: one frame, capped at MAX_FRAME_SECONDS, plus the
- * worker's time, which is tens of milliseconds. Half a second covers a
- * capped frame and 0.4 s of worker time; a dropped or slow answer then
- * expires the stop's numbers about half a second of real time later,
- * whatever the clock rate.
+ * 2, pre-review pass 5).
+ *
+ * A request goes out on the first frame once the scheduler's 2 dive-s
+ * interval has passed and no request is in flight, so the next one waits
+ * for the previous answer:
+ *
+ * - At x3 the interval is 0.67 s of real time, longer than the worker
+ *   takes. The forecast on screen is replaced at a real age of
+ *   interval / rate + one frame + the worker's time, so half a second covers
+ *   a capped frame (MAX_FRAME_SECONDS) and 0.4 s of worker time.
+ * - At x30 the interval is 67 ms, shorter than a round trip, so the next
+ *   request leaves only once the previous answer has landed. The forecast
+ *   on screen is replaced at a real age of about two answers and a frame:
+ *   half a second covers about 0.2 s of worker time per answer with a
+ *   capped frame. The worker takes 12 to 24 ms on a desktop.
+ *
+ * A forecast is current for at most interval / (rate it was asked at) +
+ * this budget of real time after it was asked for: 1.17 s at x3 and 0.57 s
+ * at x30, whatever the rate after it, so a dropped or slow answer expires
+ * the stop's numbers then.
  */
 export const FORECAST_LATENCY_BUDGET_REAL_S = 0.5;
 
@@ -123,14 +137,16 @@ export class GameController {
 
   #planner: PlannerForecast | null = null;
   /**
-   * The state the forecast on screen was computed from, and the clock rate
-   * it was requested at (#226 Codex round 2): the stop box shows the
-   * forecast's stop only while it still describes the dive.
+   * The state the forecast on screen was computed from, the clock rate it
+   * was requested at, and the controller's real time then (#226 Codex
+   * round 2): the stop box shows the forecast's stop only while it still
+   * describes the dive.
    */
   #plannerSource: {
     readonly elapsedTimeS: number;
     readonly depthM: number;
     readonly timeMultiplier: number;
+    readonly elapsedRealS: number;
   } | null = null;
   #plannerPending = false;
   /**
@@ -505,10 +521,15 @@ export class GameController {
 
   /**
    * How far the forecast on screen may lag the dive (#226 Codex round 2):
-   * the scheduler's interval, in dive seconds, plus the latency budget in
-   * real seconds at the faster of the clock rates the forecast was asked at
-   * and runs at now, so that turning fast-forward on or off does not by
-   * itself expire a forecast that is keeping up.
+   *
+   * - in dive time, the scheduler's interval plus the latency budget at the
+   *   faster of the clock rates the forecast was asked at and runs at now,
+   *   so that turning fast-forward on does not by itself expire a forecast
+   *   that is keeping up;
+   * - in real time, the interval at the rate it was asked at plus the
+   *   latency budget (pre-review pass 5), so that a forecast asked at x30
+   *   does not keep its 17 dive-s budget for 5.7 s of real time once
+   *   fast-forward has ended.
    */
   #plannerFreshness(): PlannerForecastFreshness | null {
     const source = this.#plannerSource;
@@ -522,6 +543,10 @@ export class GameController {
         DEFAULT_FORECAST_INTERVAL_SECONDS +
         FORECAST_LATENCY_BUDGET_REAL_S *
           Math.max(source.timeMultiplier, this.#timeMultiplier()),
+      realAgeS: this.#elapsedRealS - source.elapsedRealS,
+      maxRealAgeS:
+        DEFAULT_FORECAST_INTERVAL_SECONDS / source.timeMultiplier +
+        FORECAST_LATENCY_BUDGET_REAL_S,
     };
   }
 
@@ -598,6 +623,7 @@ export class GameController {
       elapsedTimeS: snapshot.elapsedTimeS,
       depthM: snapshot.depthM,
       timeMultiplier: this.#timeMultiplier(),
+      elapsedRealS: this.#elapsedRealS,
     };
     void this.#plannerClient
       .forecast(snapshot, {

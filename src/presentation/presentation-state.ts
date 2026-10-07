@@ -164,6 +164,10 @@ export interface PlannerForecastFreshness {
   readonly sourceDepthM: number;
   /** Dive seconds the forecast may lag the state it is shown with. */
   readonly maxAgeS: number;
+  /** Real seconds since the forecast was requested. */
+  readonly realAgeS: number;
+  /** Real seconds it may be shown for after its request. */
+  readonly maxRealAgeS: number;
 }
 
 /**
@@ -176,7 +180,8 @@ export const FORECAST_MAX_DEPTH_DRIFT_M = 1.5;
 
 /**
  * Whether a forecast still describes the state (#226 Codex round 2): it was
- * computed from a state at most `maxAgeS` dive seconds earlier, and at most
+ * computed from a state at most `maxAgeS` dive seconds earlier, requested at
+ * most `maxRealAgeS` real seconds ago, and at most
  * FORECAST_MAX_DEPTH_DRIFT_M away. A breathed-gas change needs no check
  * here: the controller drops the forecast on it, and the answer to a request
  * made before it.
@@ -189,6 +194,7 @@ export function isForecastCurrent(
   return (
     ageS >= 0 &&
     ageS <= freshness.maxAgeS &&
+    freshness.realAgeS <= freshness.maxRealAgeS &&
     Math.abs(state.depthM - freshness.sourceDepthM) <= FORECAST_MAX_DEPTH_DRIFT_M
   );
 }

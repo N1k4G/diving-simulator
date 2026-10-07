@@ -175,8 +175,9 @@ describe("dive readouts", () => {
     };
 
     // underwaterState() is 300 s into the dive at 32 m. The budget is the
-    // controller's at x3: 2 s of interval and 0.5 s real of latency.
-    const fresh = { sourceElapsedTimeS: 300, sourceDepthM: 32, maxAgeS: 3.5 };
+    // controller's at x3: 2 s of interval and 0.5 s real of latency, in dive
+    // seconds (3.5) and in real seconds since the request (2 / 3 + 0.5).
+    const fresh = { sourceElapsedTimeS: 300, sourceDepthM: 32, maxAgeS: 3.5, realAgeS: 0, maxRealAgeS: 1.17 };
 
     it("shows the forecast's first stop, depth and minutes, while the model has a ceiling", () => {
       const presentation = createPresentationState(deco(4.2), plannerForecast(), fresh);
@@ -192,12 +193,15 @@ describe("dive readouts", () => {
         expect(firstStop({ ...fresh, sourceElapsedTimeS: 296.5 })).not.toBeNull();
         expect(firstStop({ ...fresh, sourceDepthM: 30.5 })).not.toBeNull();
         expect(firstStop({ ...fresh, sourceDepthM: 33.5 })).not.toBeNull();
+        expect(firstStop({ ...fresh, realAgeS: 1.1 })).not.toBeNull();
       });
 
       it("gives the title alone for a forecast older than the budget", () => {
         expect(firstStop({ ...fresh, sourceElapsedTimeS: 296 })).toBeNull();
         // A worker answer dropped under fast-forward: 150 dive seconds old.
         expect(firstStop({ ...fresh, sourceElapsedTimeS: 150, maxAgeS: 17 })).toBeNull();
+        // Within the dive-time budget, but asked for too long ago in real time.
+        expect(firstStop({ ...fresh, realAgeS: 1.2 })).toBeNull();
       });
 
       it("gives the title alone for a forecast naming another stop than the model's ceiling, within budget", () => {
