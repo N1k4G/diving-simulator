@@ -3,13 +3,13 @@
   "issue": 159,
   "slice": "PR 2b of 4 (#199 slice 8): the post-dive screen, legacy's drawPostDive() as DOM, with its routing from a dive completed at the surface, its text and the #120/#121 mobile checks",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "9b4889dbe3979510da0e7590ba347f410ec16b02",
-  "measuredTree": "9c080c7a830735e0aa474fbbdd7297414cda567d",
+  "measuredCommit": "e2c543416e1c76341bc69c1ff3de8709754f7c5d",
+  "measuredTree": "157e17a65c77fe1d42069d53d86440386f7ac974",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-07T07:26:27Z",
-  "runFinishedAt": "2026-10-07T07:38:22Z",
+  "recordedAt": "2026-10-07T12:31:33Z",
+  "runFinishedAt": "2026-10-07T12:40:51Z",
   "timestampProvenance": "Both are `date -u` output printed around the run. The visual checks and Playwright ran under the shared e2e port lock, taken at 07:27:10Z.",
-  "provenanceNote": "On main ce8b666 (#223, #199 slice 7a: the dive starts at the surface and ends by surfacing outside the wreck). The branch was rebased with `git rebase --onto origin/main 4487c76`, which dropped PR 2a's two commits (on main as dd6dac2, #217). Conflicts were in docs/baseline/claims-register.json (ASCENT-001 gained #218's barotrauma sources and this PR's post-dive label; both kept) and src/app/wreck-app.ts (7a's clear-on-completion and this PR's routing, merged into one `ended` flag: on the first completed authoritative state the save is cleared, then a microtask tears the dive down, audio included, and shows the debriefing). 9b4889d adapts the specs to the surface start and replaces the completed-save test with two live surfacing tests. The full run above is on 9b4889d; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "On main ce8b666 (#223, #199 slice 7a: the dive starts at the surface and ends by surfacing outside the wreck). The branch was rebased with `git rebase --onto origin/main 4487c76`, which dropped PR 2a's two commits (on main as dd6dac2, #217). Conflicts were in docs/baseline/claims-register.json (ASCENT-001 gained #218's barotrauma sources and this PR's post-dive label; both kept) and src/app/wreck-app.ts (7a's clear-on-completion and this PR's routing, merged into one `ended` flag: on the first completed authoritative state the save is cleared, then a microtask tears the dive down, audio included, and shows the debriefing). 9b4889d adapts the specs to the surface start and replaces the completed-save test with two live surfacing tests. e2c5434 anchors postDive.violations.none in the claims register (pre-review pass 1). The full run above is on e2c5434; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -27,7 +27,7 @@
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
     "unit": "515 passed (515 on main ce8b666; unchanged)",
     "parity": "266 passed (266 on main ce8b666; unchanged)",
-    "e2e": "158 passed in 8.3 min (149 on main ce8b666; +9 in tests/post-dive.spec.js; tests/wreck-slice.spec.js's completed-dive test now ends on the post-dive screen, same count)",
+    "e2e": "158 passed in 6.7 min (149 on main ce8b666; +9 in tests/post-dive.spec.js; tests/wreck-slice.spec.js's completed-dive test now ends on the post-dive screen, same count)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, against main's frames (none re-recorded)",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -40,14 +40,38 @@
   "counterChecks": {
     "method": "Run on 9b4889d. Each revert was applied to src/app/wreck-app.ts, src/app/post-dive.ts or src/app/diagnostic.css copied from a backup, dist/ was rebuilt (npm run build, typecheck included), the named Playwright tests were run under the port lock, and the file was restored byte for byte from the backup (cmp, then git status clean). The full chain above ran after the last restore.",
     "results": [
-      { "revert": "no route to the post-dive screen on completion (the save still cleared)", "result": "3 failed: both live surfacing tests and the #223 completed-dive test (the post-dive screen never shows)" },
-      { "revert": "routed to the post-dive screen without the dive's teardown", "result": "1 failed: the #223 completed-dive test reads the audio context as running, not closed" },
-      { "revert": "the save kept after completion (no clear on the completed state nor in endInPostDive)", "result": "3 failed: the main content test and the live stop-done test find the save, the #223 test waits for it to clear" },
-      { "revert": "the debriefing built from the last state before the completing step", "result": "1 failed: the live skipped-stop test finds no skipped entry" },
-      { "revert": "focus not moved to the heading (#138)", "result": "2 failed: the main content test and the live stop-done test" },
-      { "revert": "Enter does not dive again", "result": "1 failed: the main content test" },
-      { "revert": "gas and score rows may not wrap on a narrow screen", "result": "4 failed: every small-phone case" },
-      { "revert": "a completed save resumed into the dive instead of debriefed before the dive starts", "result": "0 failed (9 passed): expected, and recorded as not load-bearing. The model does not move a completed state and, since #223, the route no longer moves a save at the surface, so the first step's completed state routes it to the same debriefing. The guard only spares starting the renderer and audio for a dive that is over." }
+      {
+        "revert": "no route to the post-dive screen on completion (the save still cleared)",
+        "result": "3 failed: both live surfacing tests and the #223 completed-dive test (the post-dive screen never shows)"
+      },
+      {
+        "revert": "routed to the post-dive screen without the dive's teardown",
+        "result": "1 failed: the #223 completed-dive test reads the audio context as running, not closed"
+      },
+      {
+        "revert": "the save kept after completion (no clear on the completed state nor in endInPostDive)",
+        "result": "3 failed: the main content test and the live stop-done test find the save, the #223 test waits for it to clear"
+      },
+      {
+        "revert": "the debriefing built from the last state before the completing step",
+        "result": "1 failed: the live skipped-stop test finds no skipped entry"
+      },
+      {
+        "revert": "focus not moved to the heading (#138)",
+        "result": "2 failed: the main content test and the live stop-done test"
+      },
+      {
+        "revert": "Enter does not dive again",
+        "result": "1 failed: the main content test"
+      },
+      {
+        "revert": "gas and score rows may not wrap on a narrow screen",
+        "result": "4 failed: every small-phone case"
+      },
+      {
+        "revert": "a completed save resumed into the dive instead of debriefed before the dive starts",
+        "result": "0 failed (9 passed): expected, and recorded as not load-bearing. The model does not move a completed state and, since #223, the route no longer moves a save at the surface, so the first step's completed state routes it to the same debriefing. The guard only spares starting the renderer and audio for a dive that is over."
+      }
     ]
   },
   "decisions": {
@@ -64,9 +88,14 @@
     "src": "570c12cc354287d9e25fc2e77e74d27a07c47e54",
     "tests": "13c28890a09720ec642ac0e8877d80801f50b12b",
     "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
-    "docs": "8bd38db695eb023b82657beb65c3b685f4e14d61"
+    "docs": "f30af5f745ccb920e704eb9133c19f07f4d0e733"
   },
   "earlierRuns": [
+    {
+      "measuredCommit": "9b4889dbe3979510da0e7590ba347f410ec16b02",
+      "recordedAt": "2026-10-07T07:26:27Z",
+      "note": "Full run on main ce8b666 before the claims-register fix of pre-review pass 1 (postDive.violations.none unanchored); same counts. Superseded by the run above."
+    },
     {
       "measuredCommit": "3fe6d57a07f1f197b90d7e2e59311e4b08fa9a52",
       "recordedAt": "2026-10-07T00:32:29Z",
