@@ -5,7 +5,14 @@ import {
   type DiveState,
   type GasMix,
 } from "../core/dive-state";
-import { resolveInspiredGas } from "../core/dive-model";
+import {
+  SAFETY_STOP_BAND_MAX_M,
+  SAFETY_STOP_BAND_MIN_M,
+  THIRDS_RESERVE_FRACTION,
+  THIRDS_TURN_FRACTION,
+  resolveInspiredGas,
+  safetyStopDurationS,
+} from "../core/dive-model";
 import { bars, type Bars, type Litres } from "../core/units";
 import {
   compartmentSaturation,
@@ -39,6 +46,33 @@ export interface PresentationSaturation {
   readonly mValueRatios: readonly number[];
   readonly gf99Percent: number;
   readonly surfaceGfPercent: number;
+}
+
+/**
+ * The safety stop as legacy's stop box draws it (#199, src/renderer.js
+ * drawDiveComputer): planned until the countdown starts, then running in its
+ * band or paused outside it. Absent when no stop is owed.
+ */
+export interface PresentationSafetyStop {
+  readonly phase: "planned" | "running" | "paused";
+  /** The nominal stop depth, the middle of the band, rounded: 5 m. */
+  readonly targetDepthM: number;
+  /** What is left once started; the stop's length before that. */
+  readonly remainingS: number;
+}
+
+export type RuleOfThirdsPhase = "outbound" | "turn" | "reserve";
+
+/**
+ * Legacy's rule-of-thirds gauge (#199, Issue #27, hud-thirds): the phase and
+ * the gas left against the plan made on entering the overhead. Absent
+ * outside one.
+ */
+export interface PresentationRuleOfThirds {
+  readonly phase: RuleOfThirdsPhase;
+  readonly percent: number;
+  /** Latched on reaching the turn; legacy beeps once as it latches. */
+  readonly turnWarned: boolean;
 }
 
 export interface PresentationDecoStop {
@@ -89,6 +123,13 @@ export interface PresentationState {
   readonly saturation: PresentationSaturation;
   /** CNS oxygen exposure in percent (#186). */
   readonly cnsPercent: number;
+  /**
+   * Legacy's ascentRate over the last frame, in m/min, positive up (#197):
+   * src/game-loop.js `-(depth - prevDepth) / dtDiveMinutes`.
+   */
+  readonly ascentRateMpm: number;
+  readonly safetyStop: PresentationSafetyStop | null;
+  readonly ruleOfThirds: PresentationRuleOfThirds | null;
 }
 
 export function createPresentationState(
@@ -128,6 +169,55 @@ export function createPresentationState(
     planner: planner ? freezePlannerForecast(planner) : null,
     saturation: selectSaturation(state),
     cnsPercent: state.cnsPercent,
+    ascentRateMpm: state.log.ascentRateMpm,
+    safetyStop: selectSafetyStop(state),
+    ruleOfThirds: selectRuleOfThirds(state),
+  });
+}
+
+/** legacy's ssTargetD: the middle of the band the countdown runs in, rounded. */
+export const SAFETY_STOP_TARGET_DEPTH_M = Math.round(
+  (SAFETY_STOP_BAND_MIN_M + SAFETY_STOP_BAND_MAX_M) / 2,
+);
+
+/**
+ * The stop box's safety-stop half (src/renderer.js drawDiveComputer):
+ * shown while a stop is owed and not done, with what is left once the
+ * countdown has started and the planned length before.
+ */
+export function selectSafetyStop(state: DiveState): PresentationSafetyStop | null {
+  const stop = state.safetyStop;
+  if (!stop.needed || stop.complete) {
+    return null;
+  }
+  return Object.freeze({
+    phase: !stop.countdownStarted ? "planned" : stop.paused ? "paused" : "running",
+    targetDepthM: SAFETY_STOP_TARGET_DEPTH_M,
+    remainingS: stop.countdownStarted ? stop.remainingS : safetyStopDurationS(state),
+  });
+}
+
+/**
+ * Legacy's thirdsCurrentPhase and thirdsPct (src/game-loop.js, Issue #27):
+ * all cylinders' gas against the plan made on entering the overhead. The
+ * model keeps the plan only while the diver is under one.
+ */
+export function selectRuleOfThirds(state: DiveState): PresentationRuleOfThirds | null {
+  const { startingGasL, turnWarned } = state.thirds;
+  if (!(startingGasL > 0)) {
+    return null;
+  }
+  const gasL = state.tanks.reduce((sum, tank) => sum + tank.gasRemainingL, 0);
+  const fraction = Math.min(1, Math.max(0, gasL / startingGasL));
+  return Object.freeze({
+    phase:
+      fraction > THIRDS_TURN_FRACTION
+        ? "outbound"
+        : fraction > THIRDS_RESERVE_FRACTION
+          ? "turn"
+          : "reserve",
+    percent: Math.round(fraction * 100),
+    turnWarned,
   });
 }
 

@@ -6,6 +6,7 @@ import {
   formatDuration,
   formatGasFraction,
   formatPressure,
+  formatVerticalRate,
 } from "./formatters";
 
 describe("string catalogue", () => {
@@ -27,6 +28,13 @@ describe("locale-aware formatters", () => {
     expect(formatPressure(200, "en")).toMatch(/200\s*bar/);
     expect(formatGasFraction(0.215, "en")).toContain("21.5");
     expect(formatGasFraction(0.215, "de")).toContain("21,5");
+  });
+
+  it("formats a vertical rate in whole metres a minute, without its sign (#197)", () => {
+    expect(formatVerticalRate(12.4, "en")).toBe("12 m/min");
+    expect(formatVerticalRate(-9.6, "en")).toBe("10 m/min");
+    expect(formatVerticalRate(12.4, "de")).toBe("12 m/min");
+    expect(() => formatVerticalRate(Number.NaN, "en")).toThrow(RangeError);
   });
 
   it("formats elapsed time and rejects invalid domain values", () => {

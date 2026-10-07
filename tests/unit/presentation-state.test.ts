@@ -9,9 +9,12 @@ import {
 } from "../../src/core/dive-state";
 import { bars, litres, metres, minutes, seconds } from "../../src/core/units";
 import {
+  SAFETY_STOP_TARGET_DEPTH_M,
   createPresentationState,
   selectBreathingPo2Bar,
   selectDiveStatus,
+  selectRuleOfThirds,
+  selectSafetyStop,
   selectTankPressureBar,
 } from "../../src/presentation/presentation-state";
 import type { PlannerForecast } from "../../src/planner/dive-planner";
@@ -103,6 +106,67 @@ function underwaterState(): DiveState {
     ],
   });
 }
+
+// The HUD's dive readouts (#197, #199): what legacy's dive computer draws in
+// its ascent chevrons, its stop box and its hud-thirds gauge.
+describe("dive readouts", () => {
+  const owed = { needed: true, countdownStarted: false, remainingS: seconds(0), paused: false, complete: false };
+
+  it("passes the log's ascent rate through, positive up", () => {
+    const base = underwaterState();
+    const state = freezeDiveState({ ...base, log: { ...base.log, ascentRateMpm: 12.5 } });
+    expect(createPresentationState(state, null).ascentRateMpm).toBe(12.5);
+  });
+
+  it("shows no safety stop unless one is owed and not done", () => {
+    const base = underwaterState();
+    expect(selectSafetyStop(base)).toBeNull();
+    expect(selectSafetyStop(freezeDiveState({ ...base, safetyStop: { ...owed, complete: true } }))).toBeNull();
+  });
+
+  it("plans the stop's length until the countdown starts, at legacy's nominal 5 m", () => {
+    const base = freezeDiveState({ ...underwaterState(), maxDepthM: metres(20) });
+    expect(SAFETY_STOP_TARGET_DEPTH_M).toBe(5);
+    expect(selectSafetyStop(freezeDiveState({ ...base, safetyStop: owed }))).toEqual({
+      phase: "planned",
+      targetDepthM: 5,
+      remainingS: 180,
+    });
+    // Deeper than 30 m, the long stop: calculateSafetyStopDuration().
+    const deep = freezeDiveState({ ...base, maxDepthM: metres(32), safetyStop: owed });
+    expect(selectSafetyStop(deep)?.remainingS).toBe(300);
+  });
+
+  it("counts down once started, and says when it is paused outside the band", () => {
+    const base = underwaterState();
+    const running = { ...owed, countdownStarted: true, remainingS: seconds(161) };
+    expect(selectSafetyStop(freezeDiveState({ ...base, safetyStop: running }))).toEqual({
+      phase: "running",
+      targetDepthM: 5,
+      remainingS: 161,
+    });
+    expect(
+      selectSafetyStop(freezeDiveState({ ...base, safetyStop: { ...running, paused: true } }))?.phase,
+    ).toBe("paused");
+  });
+
+  it("has no rule of thirds outside an overhead", () => {
+    expect(selectRuleOfThirds(underwaterState())).toBeNull();
+  });
+
+  it("splits the gas against the plan into legacy's thirds, over all cylinders", () => {
+    // underwaterState() carries 1800 + 700 = 2500 L.
+    const base = underwaterState();
+    const plan = (startingGasL: number, turnWarned = false) =>
+      selectRuleOfThirds(
+        freezeDiveState({ ...base, thirds: { startingGasL: litres(startingGasL), turnWarned, reserveHit: false } }),
+      );
+    expect(plan(2500)).toEqual({ phase: "outbound", percent: 100, turnWarned: false });
+    // Exactly two thirds left is already the turn: legacy's `> 2/3`.
+    expect(plan(3750, true)).toEqual({ phase: "turn", percent: 67, turnWarned: true });
+    expect(plan(7500, true)).toEqual({ phase: "reserve", percent: 33, turnWarned: true });
+  });
+});
 
 function plannerForecast(): PlannerForecast {
   return {
