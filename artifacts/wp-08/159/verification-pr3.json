@@ -3,13 +3,13 @@
   "issue": 159,
   "slice": "PR 3 (#199 slice 8b): the dive-profile chart, legacy's drawDiveProfileChart() as SVG inside the post-dive screen, with a text alternative",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "5a752ab053c310ef5213f7b6668ebdf3b8c5e034",
-  "measuredTree": "e7df1f4aff4460d18d6a55b179aec4f0fd1ee09b",
+  "measuredCommit": "d74f4bfa5eb6c26d58091dc02a0bfcd7a2685f38",
+  "measuredTree": "bad55f1283f7721ee89e065c92cc11144622afe0",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-07T14:46:47Z",
-  "runFinishedAt": "2026-10-07T14:57:10Z",
+  "recordedAt": "2026-10-07T15:30:00Z",
+  "runFinishedAt": "2026-10-07T15:39:13Z",
   "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
-  "provenanceNote": "On main 99a7d0c (#227, #159 PR 2b: the post-dive screen). The branch was rebased with `git rebase --onto origin/main fc2ac3e`, which dropped PR 2b's commits (on main as the squash 99a7d0c) and kept the chart (ba55f03, was b35d34a) and its first evidence (aa5aa2d, was 6b16de7). Conflicts were in docs/baseline/claims-register.json (DECOMPRESSION-001 gained #227's postDive.violations.none and this PR's postDive.profile.*; both kept) and tests/post-dive.spec.js: the chart's ceiling assertions sat in the completed-save test that #227 replaced with two live surfacing tests, so they moved to a test of their own on a resumed completed save; the main test's chart checks now read the 18 m deepest point exactly and compare positions with toBeCloseTo. 5a752ab requires the whole SIMULATION boundary line in the viewport and adds the sideways cases at 844 x 390 and 667 x 375. The full run above is on 5a752ab; later commits only update this file.",
+  "provenanceNote": "On main 99a7d0c (#227, #159 PR 2b: the post-dive screen). The branch was rebased with `git rebase --onto origin/main fc2ac3e`, which dropped PR 2b's commits (on main as the squash 99a7d0c) and kept the chart (ba55f03, was b35d34a) and its first evidence (aa5aa2d, was 6b16de7). Conflicts were in docs/baseline/claims-register.json (DECOMPRESSION-001 gained #227's postDive.violations.none and this PR's postDive.profile.*; both kept) and tests/post-dive.spec.js: the chart's ceiling assertions sat in the completed-save test that #227 replaced with two live surfacing tests, so they moved to a test of their own on a resumed completed save; the main test's chart checks now read the 18 m deepest point exactly and compare positions with toBeCloseTo. 5a752ab requires the whole SIMULATION boundary line in the viewport and adds the sideways cases at 844 x 390 and 667 x 375. d74f4bf sets the plot area to legacy's 4 px inset (pad = 4) from 6 px (pre-review pass 1 on #230). The markers' positions are fractions of the plot area and the ceiling's points are in the SVG's own coordinates, so no test reads the inset and none changed. The full run above is on d74f4bf; later commits only update this file.",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -27,7 +27,7 @@
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
     "unit": "520 passed (515 on main 99a7d0c; +5 in tests/unit/profile-chart.test.ts)",
     "parity": "266 passed (266 on main 99a7d0c; unchanged)",
-    "e2e": "163 passed in 7.1 min (158 on main 99a7d0c; +5 in tests/post-dive.spec.js: the ceiling test and the four sideways cases)",
+    "e2e": "163 passed in 6.5 min (158 on main 99a7d0c; +5 in tests/post-dive.spec.js: the ceiling test and the four sideways cases)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, against main's frames (none re-recorded)",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -38,7 +38,7 @@
   "departuresInPresentation": "The lines are an SVG stretched to the screen's width with non-scaling strokes; labels and markers are HTML over it, so they stay round and legible at 320 px. Markers carry the number of their entry in the violations list, in its order, and the ceiling is dashed, so neither rests on colour alone (docs/decisions.md, Accessibility). The plot is one role=img with a sentence naming the dive's length, depth, deepest ceiling and number of marks; the legend is aria-hidden as that sentence carries it. The chart sits below legacy's SIMULATION boundary line (#227), which stays whole on the first screen.",
   "browserChecks": "tests/post-dive.spec.js: on the completed dive, the chart's accessible name (25 min 30 sec, deepest 18 m, no ceiling, 2 marks), the axis labels 0 m, 18 m and 25 min 30 sec, one grid line, one depth line and no ceiling, markers numbered 1 and 2 in the list's order at legacy's positions (the fast ascent at 1440 of 1530 s across and 60% down, the skipped stop at the end at 5 of 18 m, compared with toBeCloseTo), and the chart below the boundary line; on a resumed completed save with its stop done and a 2 m ceiling over two stretches of the hold, two ceiling runs from their first sample to their last at 2 m on the 18 m scale, 'The deco ceiling reached 2 m.' and one mark; at 844 x 390 and 667 x 375 in English and German, the boundary line whole without scrolling, the chart below it, and the #120/#121 layout checks; the boundary line whole (ratio 1) at the desktop size, 390 x 844 and 320 x 568, where the chart's name is also checked in English and German.",
   "counterChecks": {
-    "method": "Run on 5a752ab before the full run above. src/app/profile-chart.ts and src/app/post-dive.ts were copied to a backup; each revert was applied to the file, the geometry reverts were checked with tests/unit/profile-chart.test.ts and the screen reverts with the whole of tests/post-dive.spec.js after rebuilding dist/ (npm run build, typecheck included), under the port lock; after each, both files were restored from the backup (cmp, then git status clean). A clean rebuild with the whole spec passing (14 of 14) and the unit file passing (5 of 5) closed the set.",
+    "method": "Run on 5a752ab, before the inset fix in d74f4bf, which changes only one line of src/app/diagnostic.css and none of the reverted lines. src/app/profile-chart.ts and src/app/post-dive.ts were copied to a backup; each revert was applied to the file, the geometry reverts were checked with tests/unit/profile-chart.test.ts and the screen reverts with the whole of tests/post-dive.spec.js after rebuilding dist/ (npm run build, typecheck included), under the port lock; after each, both files were restored from the backup (cmp, then git status clean). A clean rebuild with the whole spec passing (14 of 14) and the unit file passing (5 of 5) closed the set.",
     "results": [
       { "revert": "time scaled to the last sample instead of the dive's length", "result": "2 of 5 unit tests failed" },
       { "revert": "one ceiling line across the stretches without a ceiling", "result": "1 of 5 unit tests failed" },
@@ -59,12 +59,22 @@
     "tissueLoading": "Legacy's tissue-loading bars below the chart: #221."
   },
   "durableProvenance": {
-    "src": "6a5d6fcfa7f79baaf25ebdc61c4231de827deed5",
+    "src": "f256b29edddd5a5db11d515f43fbd79b93044fd7",
     "tests": "1cf5a6381c20f380a1b0c818e3cc8bf3503f319b",
     "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
     "docs": "8d5ac1b6f29e131349293569c42611b66b26e954"
   },
   "earlierRuns": [
+    {
+      "measuredCommit": "d74f4bfa5eb6c26d58091dc02a0bfcd7a2685f38",
+      "recordedAt": "2026-10-07T15:07:17Z",
+      "note": "First full run on the same commit: e2e 160 passed and 3 failed in 19.3 min, none of them in tests/post-dive.spec.js. Two of them ran about 12 minutes against a 60 s test timeout, a stalled machine: in-dive-controls 'B bails out to open circuit' (the bailout not yet saved), setup-screen 'a resumed dive is planned on its save' (descendTo timed out), and wreck-slice 'the same input trace drives equivalent legacy and Pixi control semantics' (legacy read stationary, not deeper). All three passed in the run above, started straight after."
+    },
+    {
+      "measuredCommit": "5a752ab053c310ef5213f7b6668ebdf3b8c5e034",
+      "recordedAt": "2026-10-07T14:46:47Z",
+      "note": "Full run on main 99a7d0c before the inset fix (the plot area 6 px in, not legacy's 4 px), on tree e7df1f4aff4460d18d6a55b179aec4f0fd1ee09b: unit 520, parity 266, e2e 163 in 7.1 min, Pixi 0% changed pixels, all passing. Superseded by the run above."
+    },
     {
       "measuredCommit": "99a4cbb7f8d9665dac03be5ff41a37b004c895f9",
       "recordedAt": "2026-10-07T00:40:02Z",
