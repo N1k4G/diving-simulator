@@ -1834,6 +1834,9 @@ function captureBaselineCheckpoint(scenarioId, checkpointId) {
                 // #189: the barotrauma timer (dive seconds at 18 m/min or
                 // faster up, decaying 2:1 otherwise).
                 barotrauma_s: _baselineFinite(barotraumaTime),
+                // #189: the narcosis KO timer (dive seconds with the
+                // narcosis index at NARC_KO_THRESHOLD or more, reset below).
+                narcosisKO_s: _baselineFinite(narcosisKOTime),
                 // #199: the rule of thirds (Issue #27): whether the diver is
                 // under an overhead, the gas snapshotted on entering it (0
                 // outside), the turn beep's latch, and the reserve latch

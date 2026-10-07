@@ -76,8 +76,8 @@
     {
       "id": "NARCOSIS-001",
       "classification": "medical mechanism, thresholds, symptoms, and prevention advice",
-      "source": ["STRINGS.*.warnNarc", "STRINGS.*.helpNarc", "STRINGS.*.helpTec", "STRINGS.*.gameOverInfo.NITROGEN NARCOSIS — UNCONSCIOUSNESS"],
-      "ui": ["help", "HUD warning", "game over"],
+      "source": ["STRINGS.*.warnNarc", "STRINGS.*.helpNarc", "STRINGS.*.helpTec", "STRINGS.*.gameOverInfo.NITROGEN NARCOSIS — UNCONSCIOUSNESS", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.nitrogenNarcosis", "src/app/i18n/catalog.ts {en,de}: gameOver.info.nitrogenNarcosis.*"],
+      "ui": ["help", "HUD warning", "game over", "game over (migration client)"],
       "owner": "domain-reviewer",
       "reviewStatus": "unreviewed; research document records disputed/unverified points",
       "evidence": ["docs/research/nitrogen-narcosis.md"]
@@ -121,7 +121,7 @@
     {
       "id": "GAMEOVER-001",
       "classification": "medical consequence and prevention inventory",
-      "source": ["STRINGS.*.gameOverInfo.OUT OF GAS", "STRINGS.*.gameOverInfo.DECOMPRESSION SICKNESS", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.outOfGas", "src/app/i18n/catalog.ts {en,de}: gameOver.info.outOfGas.*", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.decompressionSickness", "src/app/i18n/catalog.ts {en,de}: gameOver.info.decompressionSickness.*", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.pulmonaryBarotrauma", "src/app/i18n/catalog.ts {en,de}: wreck.warning.failure", "src/app/i18n/catalog.ts {en,de}: wreck.hud.warning.failure"],
+      "source": ["STRINGS.*.gameOverInfo.OUT OF GAS", "STRINGS.*.gameOverInfo.DECOMPRESSION SICKNESS", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.outOfGas", "src/app/i18n/catalog.ts {en,de}: gameOver.info.outOfGas.*", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.decompressionSickness", "src/app/i18n/catalog.ts {en,de}: gameOver.info.decompressionSickness.*", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.pulmonaryBarotrauma", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.nitrogenNarcosis", "src/app/i18n/catalog.ts {en,de}: wreck.warning.failure", "src/app/i18n/catalog.ts {en,de}: wreck.hud.warning.failure"],
       "ui": ["game over", "game over (migration client)", "HUD warning (migration client)"],
       "owner": "domain-reviewer",
       "reviewStatus": "unreviewed",

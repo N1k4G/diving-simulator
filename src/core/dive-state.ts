@@ -85,6 +85,7 @@ export type DiveFailureReason =
   | "hypoxia"
   | "decompression-sickness"
   | "pulmonary-barotrauma"
+  | "nitrogen-narcosis"
   | "ccr-hypoxia"
   | "ccr-hyperoxia"
   | "ccr-co2";
@@ -105,6 +106,11 @@ export interface FailureState {
    * or faster, less twice the seconds since.
    */
   barotraumaS: Seconds;
+  /**
+   * Legacy's narcosisKOTime (#189): dive seconds the narcosis index has
+   * stayed at 0.95 or more; a step below it starts the count over.
+   */
+  narcosisKoS: Seconds;
 }
 
 export interface DiveEvent {
@@ -253,6 +259,12 @@ export interface DiveState {
    * lets it exceed 100 and so does this.
    */
   cnsPercent: number;
+  /**
+   * Nitrogen narcosis (#189), legacy's narcosisIndex (WP-020): 0 to 1, moved
+   * each step toward smoothstep(1.5, 8 bar) of the narcotic partial
+   * pressure, (1 - fHe) times the ambient pressure, faster down than up.
+   */
+  narcosisIndex: number;
   /**
    * Vertical motion (#192), as legacy integrates it: velocity in m/min,
    * positive downwards, and the BCD gas in surface-equivalent litres.
@@ -413,6 +425,7 @@ export function createInitialDiveState(
       options.surfaceAirConsumptionLpm ?? 15,
     ),
     cnsPercent: 0,
+    narcosisIndex: 0,
     verticalVelocityMpm: 0,
     // Legacy sets 2 L when a dive leaves the surface (updateSurface).
     bcdGasSurfaceLiters: options.bcdGasSurfaceLiters ?? 2,
@@ -427,6 +440,7 @@ export function createInitialDiveState(
       ccrHyperoxiaS: seconds(0),
       dcsViolationS: seconds(0),
       barotraumaS: seconds(0),
+      narcosisKoS: seconds(0),
     },
     events: [],
     log: createEmptyDiveLog(),

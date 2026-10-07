@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "diving-simulator-golden-traces",
-  "referenceCommit": "27476281f4d25a5a52647908bdfed4db33356c30",
+  "referenceCommit": "9e701b069cea19136a1335860db2c08870385477",
   "generator": "npm run baseline:generate",
   "tolerances": {
     "exact": [
@@ -77,6 +77,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -223,6 +224,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -6071,6 +6073,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -6687,6 +6690,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -6843,6 +6847,7 @@
               "frameCeiling_m": 11.495315972796579,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -10821,6 +10826,7 @@
               "frameCeiling_m": 10.683948442379783,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -11822,6 +11828,7 @@
               "frameCeiling_m": 10.662455443778889,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -12015,6 +12022,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -12161,6 +12169,7 @@
               "frameCeiling_m": 3.853940630976087,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -18021,6 +18030,7 @@
               "frameCeiling_m": 3.2524245991825573,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -18807,6 +18817,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -18953,6 +18964,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -21001,6 +21013,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -21152,6 +21165,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -21722,6 +21736,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -21868,6 +21883,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -23916,6 +23932,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -24067,6 +24084,7 @@
               "frameCeiling_m": 1.379485868918473,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -26173,6 +26191,7 @@
               "frameCeiling_m": 1.379485868918473,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -26332,6 +26351,7 @@
               "frameCeiling_m": 1.7915092490738704,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -26804,6 +26824,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -26960,6 +26981,7 @@
               "frameCeiling_m": 3.1403495588120256,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -29980,6 +30002,7 @@
               "frameCeiling_m": 3.2178666995032623,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -30460,6 +30483,7 @@
               "frameCeiling_m": 3.2178666995032623,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -30633,6 +30657,7 @@
               "frameCeiling_m": 1.0165591793126727,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -31375,6 +31400,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -31521,6 +31547,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -31999,6 +32026,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -33797,6 +33825,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -34850,6 +34879,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 7.299999999999982,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -37479,6 +37509,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 8.499999999999986,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -37689,6 +37720,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -37835,6 +37867,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -38148,6 +38181,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0.7500000000000001,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -38968,6 +39002,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -39124,6 +39159,7 @@
               "frameCeiling_m": 11.495315972796579,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -43102,6 +43138,7 @@
               "frameCeiling_m": 10.618282072024265,
               "dcsViolation_s": 30,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -43481,6 +43518,7 @@
               "frameCeiling_m": 9.793018393665884,
               "dcsViolation_s": 60,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -43866,6 +43904,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -44022,6 +44061,7 @@
               "frameCeiling_m": 11.495315972796579,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -48000,6 +48040,7 @@
               "frameCeiling_m": 11.459698010758256,
               "dcsViolation_s": 1,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -48187,6 +48228,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -48333,6 +48375,7 @@
               "frameCeiling_m": 2.084880047960598,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": true,
               "thirdsStartingGas_l": 2400,
               "thirdsTurnWarned": false,
@@ -50389,6 +50432,7 @@
               "frameCeiling_m": 5.452371100423932,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": true,
               "thirdsStartingGas_l": 2400,
               "thirdsTurnWarned": true,
@@ -52449,6 +52493,7 @@
               "frameCeiling_m": 7.0806073355312975,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": true,
               "thirdsStartingGas_l": 2400,
               "thirdsTurnWarned": true,
@@ -54133,6 +54178,7 @@
               "frameCeiling_m": 7.26298408790627,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -54493,6 +54539,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -54639,6 +54686,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0.9000000000000002,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -55243,6 +55291,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 3.899999999999994,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -55647,6 +55696,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 0.4999999999999909,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -55966,6 +56016,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 2.3999999999999995,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -56950,6 +57001,7 @@
               "frameCeiling_m": 0,
               "dcsViolation_s": 0,
               "barotrauma_s": 10.000000000000007,
+              "narcosisKO_s": 0,
               "inOverhead": false,
               "thirdsStartingGas_l": 0,
               "thirdsTurnWarned": false,
@@ -57702,6 +57754,2820 @@
               "t_min": 0.4666666666666704,
               "depth_m": 23.24343137829205,
               "ceiling_m": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scenarioId": "narcosis-air-65m",
+      "description": "Air at 65 m for 4 min, 45 s more in one-second ticks, 10 s at 45 m, then back at 65 m in one-second ticks until the narcosis KO timer ends the dive",
+      "checkpoints": [
+        {
+          "schemaVersion": 1,
+          "scenarioId": "narcosis-air-65m",
+          "checkpointId": "surface",
+          "simulatedGeometry": "open",
+          "state": {
+            "gameState": "diving",
+            "diveMode": "rec",
+            "diveSite": "shore",
+            "depth_m": 0,
+            "maxDepth_m": 0,
+            "diveTime_min": 0,
+            "diverX_m": 0,
+            "verticalVelocity_mpm": 0,
+            "horizontalVelocity_mps": 0,
+            "activeTankIndex": 0,
+            "cns_percent": 0,
+            "narcosisIndex": 0,
+            "ndlDroppedBelow5": false,
+            "bcdGasSurface_l": 1,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": null,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0,
+              "avgDepthAccum_ms": 0,
+              "avgDepthSamples_s": 0,
+              "profileTimer_s": 0,
+              "frameCeiling_m": 0,
+              "dcsViolation_s": 0,
+              "barotrauma_s": 0,
+              "narcosisKO_s": 0,
+              "inOverhead": false,
+              "thirdsStartingGas_l": 0,
+              "thirdsTurnWarned": false,
+              "thirdsReserveHit": false
+            },
+            "grade": {
+              "scores": [
+                100,
+                100,
+                100,
+                100,
+                100
+              ],
+              "notes": [
+                "Ascent rate stayed within the recommended 9 m/min limit.",
+                "Dive was too shallow to need a safety stop.",
+                "Surfaced with 200 bar. Aim for 50 bar reserve on the boat — buddy assists and delayed ascents burn gas fast.",
+                "Stayed well clear of any deco ceiling.",
+                "No sustained depth-hold phases in this dive to grade trim."
+              ],
+              "overall": 100,
+              "stars": 3
+            },
+            "gameOverReason": null,
+            "safetyStop": {
+              "needed": false,
+              "remaining_min": 0,
+              "countdownStarted": false,
+              "paused": false,
+              "complete": false
+            }
+          },
+          "configuration": {
+            "gfLow_percent": 35,
+            "gfHigh_percent": 75,
+            "amv_lpm": 15,
+            "tankVolume_l": 12
+          },
+          "planner": {
+            "ceiling_m": 0,
+            "ndl_min": 999,
+            "tts_min": 0,
+            "schedule": null
+          },
+          "tissues": {
+            "n2_bar": [
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001,
+              0.7404670000000001
+            ],
+            "he_bar": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "tanks": [
+            {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79,
+              "volume_l": 12,
+              "pressure_bar": 200,
+              "gasRemaining_l": 2400,
+              "totalGas_l": 2400,
+              "switchDepth_m": null
+            }
+          ],
+          "ccr": {
+            "targetPO2_bar": 0.7,
+            "actualPO2_bar": 0.21,
+            "diluent": {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79
+            },
+            "o2Pressure_bar": 200,
+            "diluentPressure_bar": 200,
+            "scrubberRemaining_min": 180,
+            "o2PressureStart_bar": 200,
+            "diluentPressureStart_bar": 200,
+            "scrubberTotal_min": 180,
+            "onBailout": false
+          },
+          "events": [],
+          "trajectory": [],
+          "profile": []
+        },
+        {
+          "schemaVersion": 1,
+          "scenarioId": "narcosis-air-65m",
+          "checkpointId": "bottom-4min",
+          "simulatedGeometry": "open",
+          "state": {
+            "gameState": "diving",
+            "diveMode": "rec",
+            "diveSite": "shore",
+            "depth_m": 65,
+            "maxDepth_m": 65,
+            "diveTime_min": 4.000000000000002,
+            "diverX_m": 0,
+            "verticalVelocity_mpm": 0,
+            "horizontalVelocity_mps": 0,
+            "activeTankIndex": 0,
+            "cns_percent": 8.880000000000006,
+            "narcosisIndex": 0.9336659710712494,
+            "ndlDroppedBelow5": true,
+            "bcdGasSurface_l": 35.848582195485456,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": 0,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0,
+              "avgDepthAccum_ms": 15600,
+              "avgDepthSamples_s": 240,
+              "profileTimer_s": 0,
+              "frameCeiling_m": 1.4183826720716741,
+              "dcsViolation_s": 0,
+              "barotrauma_s": 0,
+              "narcosisKO_s": 0,
+              "inOverhead": false,
+              "thirdsStartingGas_l": 0,
+              "thirdsTurnWarned": false,
+              "thirdsReserveHit": false
+            },
+            "grade": {
+              "scores": [
+                100,
+                30,
+                100,
+                100,
+                100
+              ],
+              "notes": [
+                "Ascent rate stayed within the recommended 9 m/min limit.",
+                "Safety stop skipped. A 3-min pause at 5 m sharply cuts DCS risk on any dive that reached 12 m.",
+                "Surfaced with 163 bar. Aim for 50 bar reserve on the boat — buddy assists and delayed ascents burn gas fast.",
+                "Cut it very close to the no-deco limit (0 min NDL). Turn shallower earlier to keep a buffer.",
+                "Depth held to ±0.00 m stddev during your stops. Aim for ±0.5 m — bobbing wastes gas and stirs silt."
+              ],
+              "overall": 86,
+              "stars": 2
+            },
+            "gameOverReason": null,
+            "safetyStop": {
+              "needed": true,
+              "remaining_min": 0,
+              "countdownStarted": false,
+              "paused": false,
+              "complete": false
+            }
+          },
+          "configuration": {
+            "gfLow_percent": 35,
+            "gfHigh_percent": 75,
+            "amv_lpm": 15,
+            "tankVolume_l": 12
+          },
+          "planner": {
+            "ceiling_m": 1.4183826720716741,
+            "ndl_min": 0,
+            "tts_min": 13,
+            "schedule": {
+              "stops": [
+                {
+                  "depth": 3,
+                  "time": 5
+                }
+              ],
+              "tts": 13
+            }
+          },
+          "tissues": {
+            "n2_bar": [
+              2.92618397354511,
+              2.2444736786070827,
+              1.7619731785772945,
+              1.4551554381181298,
+              1.241601633463337,
+              1.0990604646704405,
+              0.9960815595852761,
+              0.9220769654579852,
+              0.8694366806240419,
+              0.8370622724573531,
+              0.8160403544579315,
+              0.7996928572011228,
+              0.7869349581048626,
+              0.7768432950903073,
+              0.7689764055970469,
+              0.7628389785379408
+            ],
+            "he_bar": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "tanks": [
+            {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79,
+              "volume_l": 12,
+              "pressure_bar": 200,
+              "gasRemaining_l": 1950,
+              "totalGas_l": 2400,
+              "switchDepth_m": null
+            }
+          ],
+          "ccr": {
+            "targetPO2_bar": 0.7,
+            "actualPO2_bar": 0.21,
+            "diluent": {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79
+            },
+            "o2Pressure_bar": 200,
+            "diluentPressure_bar": 200,
+            "scrubberRemaining_min": 180,
+            "o2PressureStart_bar": 200,
+            "diluentPressureStart_bar": 200,
+            "scrubberTotal_min": 180,
+            "onBailout": false
+          },
+          "events": [],
+          "trajectory": [
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.1
+            }
+          ],
+          "profile": [
+            {
+              "t_min": 0.03333333333333334,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.06666666666666668,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.1,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.13333333333333336,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.16666666666666669,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.2,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.2333333333333334,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.2666666666666667,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.30000000000000004,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.33333333333333337,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.3666666666666667,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.4,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.43333333333333335,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.4666666666666667,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.5,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.5333333333333333,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.5666666666666667,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.6,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.6333333333333333,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.6666666666666666,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.7,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.7333333333333333,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.7666666666666666,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.7999999999999999,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.8333333333333333,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.8666666666666666,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.8999999999999999,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.9333333333333332,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.9666666666666666,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 0.9999999999999999,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.0333333333333332,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.0666666666666664,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.0999999999999999,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.1333333333333333,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.1666666666666665,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.2,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.2333333333333334,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.2666666666666666,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.3,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.3333333333333335,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.3666666666666667,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.4000000000000001,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.4333333333333336,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.4666666666666668,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.5000000000000002,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.5333333333333337,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.5666666666666669,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.6000000000000003,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.6333333333333337,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.666666666666667,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.7000000000000004,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.7333333333333338,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.766666666666667,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.8000000000000005,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.833333333333334,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.8666666666666671,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.9000000000000006,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.9333333333333338,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 1.966666666666667,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.0000000000000004,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.0333333333333337,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.0666666666666673,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.1000000000000005,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.1333333333333337,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.1666666666666674,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.2000000000000006,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.233333333333334,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.2666666666666675,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.3000000000000007,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.333333333333334,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.3666666666666676,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.400000000000001,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.433333333333334,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.4666666666666677,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.500000000000001,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.533333333333334,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.5666666666666678,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.600000000000001,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.633333333333334,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.666666666666668,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.700000000000001,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.7333333333333343,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.766666666666668,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.800000000000001,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.8333333333333344,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.866666666666668,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.9000000000000012,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.9333333333333345,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 2.966666666666668,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 3.0000000000000013,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 3.0333333333333345,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 3.066666666666668,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 3.1000000000000014,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 3.1333333333333346,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 3.1666666666666683,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 3.2000000000000015,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 3.2333333333333347,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 3.2666666666666684,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 3.3000000000000016,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 3.333333333333335,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 3.3666666666666685,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 3.4000000000000017,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 3.433333333333335,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 3.4666666666666686,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 3.5000000000000018,
+              "depth_m": 65,
+              "ceiling_m": 0
+            },
+            {
+              "t_min": 3.533333333333335,
+              "depth_m": 65,
+              "ceiling_m": 0.19842799386187826
+            },
+            {
+              "t_min": 3.5666666666666687,
+              "depth_m": 65,
+              "ceiling_m": 0.19842799386187826
+            },
+            {
+              "t_min": 3.600000000000002,
+              "depth_m": 65,
+              "ceiling_m": 0.19842799386187826
+            },
+            {
+              "t_min": 3.633333333333335,
+              "depth_m": 65,
+              "ceiling_m": 0.44923024627030905
+            },
+            {
+              "t_min": 3.6666666666666687,
+              "depth_m": 65,
+              "ceiling_m": 0.44923024627030905
+            },
+            {
+              "t_min": 3.700000000000002,
+              "depth_m": 65,
+              "ceiling_m": 0.44923024627030905
+            },
+            {
+              "t_min": 3.733333333333335,
+              "depth_m": 65,
+              "ceiling_m": 0.6965796299561022
+            },
+            {
+              "t_min": 3.766666666666669,
+              "depth_m": 65,
+              "ceiling_m": 0.6965796299561022
+            },
+            {
+              "t_min": 3.800000000000002,
+              "depth_m": 65,
+              "ceiling_m": 0.6965796299561022
+            },
+            {
+              "t_min": 3.8333333333333353,
+              "depth_m": 65,
+              "ceiling_m": 0.9405236815833073
+            },
+            {
+              "t_min": 3.866666666666669,
+              "depth_m": 65,
+              "ceiling_m": 0.9405236815833073
+            },
+            {
+              "t_min": 3.900000000000002,
+              "depth_m": 65,
+              "ceiling_m": 0.9405236815833073
+            },
+            {
+              "t_min": 3.933333333333335,
+              "depth_m": 65,
+              "ceiling_m": 1.1811092833646741
+            },
+            {
+              "t_min": 3.9666666666666686,
+              "depth_m": 65,
+              "ceiling_m": 1.1811092833646741
+            },
+            {
+              "t_min": 4.000000000000002,
+              "depth_m": 65,
+              "ceiling_m": 1.1811092833646741
+            }
+          ]
+        },
+        {
+          "schemaVersion": 1,
+          "scenarioId": "narcosis-air-65m",
+          "checkpointId": "ko-counting",
+          "simulatedGeometry": "open",
+          "state": {
+            "gameState": "diving",
+            "diveMode": "rec",
+            "diveSite": "shore",
+            "depth_m": 65,
+            "maxDepth_m": 65,
+            "diveTime_min": 4.749999999999999,
+            "diverX_m": 0,
+            "verticalVelocity_mpm": 0,
+            "horizontalVelocity_mps": 0,
+            "activeTankIndex": 0,
+            "cns_percent": 10.545000000000043,
+            "narcosisIndex": 0.954411010971576,
+            "ndlDroppedBelow5": true,
+            "bcdGasSurface_l": 35.848582195485456,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": 0,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0,
+              "avgDepthAccum_ms": 18525,
+              "avgDepthSamples_s": 285,
+              "profileTimer_s": 1,
+              "frameCeiling_m": 3.0968576383316937,
+              "dcsViolation_s": 0,
+              "barotrauma_s": 0,
+              "narcosisKO_s": 12,
+              "inOverhead": false,
+              "thirdsStartingGas_l": 0,
+              "thirdsTurnWarned": false,
+              "thirdsReserveHit": false
+            },
+            "grade": {
+              "scores": [
+                100,
+                30,
+                100,
+                100,
+                100
+              ],
+              "notes": [
+                "Ascent rate stayed within the recommended 9 m/min limit.",
+                "Safety stop skipped. A 3-min pause at 5 m sharply cuts DCS risk on any dive that reached 12 m.",
+                "Surfaced with 155 bar. Aim for 50 bar reserve on the boat — buddy assists and delayed ascents burn gas fast.",
+                "Cut it very close to the no-deco limit (0 min NDL). Turn shallower earlier to keep a buffer.",
+                "Depth held to ±0.00 m stddev during your stops. Aim for ±0.5 m — bobbing wastes gas and stirs silt."
+              ],
+              "overall": 86,
+              "stars": 2
+            },
+            "gameOverReason": null,
+            "safetyStop": {
+              "needed": true,
+              "remaining_min": 0,
+              "countdownStarted": false,
+              "paused": false,
+              "complete": false
+            }
+          },
+          "configuration": {
+            "gfLow_percent": 35,
+            "gfHigh_percent": 75,
+            "amv_lpm": 15,
+            "tankVolume_l": 12
+          },
+          "planner": {
+            "ceiling_m": 3.0968576383316937,
+            "ndl_min": 0,
+            "tts_min": 15,
+            "schedule": {
+              "stops": [
+                {
+                  "depth": 6,
+                  "time": 6
+                },
+                {
+                  "depth": 3,
+                  "time": 1
+                }
+              ],
+              "tts": 15
+            }
+          },
+          "tissues": {
+            "n2_bar": [
+              3.217424308037257,
+              2.4729219186873626,
+              1.9295399720430328,
+              1.5776396767418825,
+              1.3299690397572475,
+              1.1634544266156999,
+              1.0425731863903156,
+              0.955406810536088,
+              0.8932554028703237,
+              0.854970555728582,
+              0.830086038399303,
+              0.8107214187359482,
+              0.795600771488779,
+              0.7836351071290926,
+              0.774304271168285,
+              0.767022860597911
+            ],
+            "he_bar": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "tanks": [
+            {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79,
+              "volume_l": 12,
+              "pressure_bar": 200,
+              "gasRemaining_l": 1865.625,
+              "totalGas_l": 2400,
+              "switchDepth_m": null
+            }
+          ],
+          "ccr": {
+            "targetPO2_bar": 0.7,
+            "actualPO2_bar": 0.21,
+            "diluent": {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79
+            },
+            "o2Pressure_bar": 200,
+            "diluentPressure_bar": 200,
+            "scrubberRemaining_min": 180,
+            "o2PressureStart_bar": 200,
+            "diluentPressureStart_bar": 200,
+            "scrubberTotal_min": 180,
+            "onBailout": false
+          },
+          "events": [],
+          "trajectory": [
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            }
+          ],
+          "profile": [
+            {
+              "t_min": 4.033333333333335,
+              "depth_m": 65,
+              "ceiling_m": 1.457609427237856
+            },
+            {
+              "t_min": 4.066666666666668,
+              "depth_m": 65,
+              "ceiling_m": 1.5357915612148232
+            },
+            {
+              "t_min": 4.100000000000001,
+              "depth_m": 65,
+              "ceiling_m": 1.6136132504657619
+            },
+            {
+              "t_min": 4.133333333333335,
+              "depth_m": 65,
+              "ceiling_m": 1.6910761567565258
+            },
+            {
+              "t_min": 4.166666666666668,
+              "depth_m": 65,
+              "ceiling_m": 1.7681819341916882
+            },
+            {
+              "t_min": 4.200000000000001,
+              "depth_m": 65,
+              "ceiling_m": 1.8449322292498849
+            },
+            {
+              "t_min": 4.233333333333334,
+              "depth_m": 65,
+              "ceiling_m": 1.921328680818939
+            },
+            {
+              "t_min": 4.2666666666666675,
+              "depth_m": 65,
+              "ceiling_m": 1.9973729202308865
+            },
+            {
+              "t_min": 4.300000000000001,
+              "depth_m": 65,
+              "ceiling_m": 2.0730665712967933
+            },
+            {
+              "t_min": 4.333333333333334,
+              "depth_m": 65,
+              "ceiling_m": 2.1484112503414354
+            },
+            {
+              "t_min": 4.366666666666667,
+              "depth_m": 65,
+              "ceiling_m": 2.223408566237819
+            },
+            {
+              "t_min": 4.4,
+              "depth_m": 65,
+              "ceiling_m": 2.2980601204415207
+            },
+            {
+              "t_min": 4.433333333333334,
+              "depth_m": 65,
+              "ceiling_m": 2.372367507024906
+            },
+            {
+              "t_min": 4.466666666666667,
+              "depth_m": 65,
+              "ceiling_m": 2.446332312711139
+            },
+            {
+              "t_min": 4.5,
+              "depth_m": 65,
+              "ceiling_m": 2.519956116908093
+            },
+            {
+              "t_min": 4.533333333333333,
+              "depth_m": 65,
+              "ceiling_m": 2.593240491742055
+            },
+            {
+              "t_min": 4.566666666666666,
+              "depth_m": 65,
+              "ceiling_m": 2.666187002091316
+            },
+            {
+              "t_min": 4.6,
+              "depth_m": 65,
+              "ceiling_m": 2.7387972056195675
+            },
+            {
+              "t_min": 4.633333333333333,
+              "depth_m": 65,
+              "ceiling_m": 2.8110726528091723
+            },
+            {
+              "t_min": 4.666666666666666,
+              "depth_m": 65,
+              "ceiling_m": 2.883014886994275
+            },
+            {
+              "t_min": 4.699999999999999,
+              "depth_m": 65,
+              "ceiling_m": 2.9546254443937547
+            },
+            {
+              "t_min": 4.7333333333333325,
+              "depth_m": 65,
+              "ceiling_m": 3.0259058541440265
+            }
+          ]
+        },
+        {
+          "schemaVersion": 1,
+          "scenarioId": "narcosis-air-65m",
+          "checkpointId": "ascended-45m",
+          "simulatedGeometry": "open",
+          "state": {
+            "gameState": "diving",
+            "diveMode": "rec",
+            "diveSite": "shore",
+            "depth_m": 45,
+            "maxDepth_m": 65,
+            "diveTime_min": 4.916666666666665,
+            "diverX_m": 0,
+            "verticalVelocity_mpm": 0,
+            "horizontalVelocity_mps": 0,
+            "activeTankIndex": 0,
+            "cns_percent": 10.638333333333383,
+            "narcosisIndex": 0.8907977103867811,
+            "ndlDroppedBelow5": true,
+            "bcdGasSurface_l": 24.66167513979678,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": 0,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0,
+              "avgDepthAccum_ms": 18975,
+              "avgDepthSamples_s": 295,
+              "profileTimer_s": 1,
+              "frameCeiling_m": 3.2387620857199684,
+              "dcsViolation_s": 0,
+              "barotrauma_s": 0,
+              "narcosisKO_s": 0,
+              "inOverhead": false,
+              "thirdsStartingGas_l": 0,
+              "thirdsTurnWarned": false,
+              "thirdsReserveHit": false
+            },
+            "grade": {
+              "scores": [
+                100,
+                30,
+                100,
+                100,
+                100
+              ],
+              "notes": [
+                "Ascent rate stayed within the recommended 9 m/min limit.",
+                "Safety stop skipped. A 3-min pause at 5 m sharply cuts DCS risk on any dive that reached 12 m.",
+                "Surfaced with 154 bar. Aim for 50 bar reserve on the boat — buddy assists and delayed ascents burn gas fast.",
+                "Cut it very close to the no-deco limit (0 min NDL). Turn shallower earlier to keep a buffer.",
+                "Depth held to ±0.00 m stddev during your stops. Aim for ±0.5 m — bobbing wastes gas and stirs silt."
+              ],
+              "overall": 86,
+              "stars": 2
+            },
+            "gameOverReason": null,
+            "safetyStop": {
+              "needed": true,
+              "remaining_min": 0,
+              "countdownStarted": false,
+              "paused": false,
+              "complete": false
+            }
+          },
+          "configuration": {
+            "gfLow_percent": 35,
+            "gfHigh_percent": 75,
+            "amv_lpm": 15,
+            "tankVolume_l": 12
+          },
+          "planner": {
+            "ceiling_m": 3.2387620857199684,
+            "ndl_min": 0,
+            "tts_min": 9,
+            "schedule": {
+              "stops": [
+                {
+                  "depth": 6,
+                  "time": 4
+                },
+                {
+                  "depth": 3,
+                  "time": 1
+                }
+              ],
+              "tts": 9
+            }
+          },
+          "tissues": {
+            "n2_bar": [
+              3.242046837150915,
+              2.4990513854874443,
+              1.9513050497594562,
+              1.594558457293577,
+              1.3426303690076113,
+              1.1728873024016622,
+              1.0494864380034485,
+              0.9604142075873945,
+              0.8968593541260739,
+              0.8576918196184242,
+              0.832226214191031,
+              0.8124054200589748,
+              0.7969261611251666,
+              0.7846752164807658,
+              0.7751210050867687,
+              0.7676647263843956
+            ],
+            "he_bar": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "tanks": [
+            {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79,
+              "volume_l": 12,
+              "pressure_bar": 200,
+              "gasRemaining_l": 1851.875,
+              "totalGas_l": 2400,
+              "switchDepth_m": null
+            }
+          ],
+          "ccr": {
+            "targetPO2_bar": 0.7,
+            "actualPO2_bar": 0.21,
+            "diluent": {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79
+            },
+            "o2Pressure_bar": 200,
+            "diluentPressure_bar": 200,
+            "scrubberRemaining_min": 180,
+            "o2PressureStart_bar": 200,
+            "diluentPressureStart_bar": 200,
+            "scrubberTotal_min": 180,
+            "onBailout": false
+          },
+          "events": [],
+          "trajectory": [
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 45,
+              "dtDive_min": 0.016666666666666666
+            }
+          ],
+          "profile": [
+            {
+              "t_min": 4.766666666666666,
+              "depth_m": 45,
+              "ceiling_m": 3.0968576383316937
+            },
+            {
+              "t_min": 4.799999999999999,
+              "depth_m": 45,
+              "ceiling_m": 3.125501427078461
+            },
+            {
+              "t_min": 4.833333333333332,
+              "depth_m": 45,
+              "ceiling_m": 3.1540131587674036
+            },
+            {
+              "t_min": 4.866666666666665,
+              "depth_m": 45,
+              "ceiling_m": 3.1823934422239364
+            },
+            {
+              "t_min": 4.899999999999999,
+              "depth_m": 45,
+              "ceiling_m": 3.2106428834665923
+            }
+          ]
+        },
+        {
+          "schemaVersion": 1,
+          "scenarioId": "narcosis-air-65m",
+          "checkpointId": "back-60s",
+          "simulatedGeometry": "open",
+          "state": {
+            "gameState": "diving",
+            "diveMode": "rec",
+            "diveSite": "shore",
+            "depth_m": 65,
+            "maxDepth_m": 65,
+            "diveTime_min": 5.916666666666662,
+            "diverX_m": 0,
+            "verticalVelocity_mpm": 0,
+            "horizontalVelocity_mps": 0,
+            "activeTankIndex": 0,
+            "cns_percent": 12.858333333333432,
+            "narcosisIndex": 0.9383972148245545,
+            "ndlDroppedBelow5": true,
+            "bcdGasSurface_l": 35.848582195485456,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": 0,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0,
+              "avgDepthAccum_ms": 22875,
+              "avgDepthSamples_s": 355,
+              "profileTimer_s": 1,
+              "frameCeiling_m": 5.203405191296535,
+              "dcsViolation_s": 0,
+              "barotrauma_s": 0,
+              "narcosisKO_s": 0,
+              "inOverhead": false,
+              "thirdsStartingGas_l": 0,
+              "thirdsTurnWarned": false,
+              "thirdsReserveHit": false
+            },
+            "grade": {
+              "scores": [
+                100,
+                30,
+                100,
+                100,
+                100
+              ],
+              "notes": [
+                "Ascent rate stayed within the recommended 9 m/min limit.",
+                "Safety stop skipped. A 3-min pause at 5 m sharply cuts DCS risk on any dive that reached 12 m.",
+                "Surfaced with 145 bar. Aim for 50 bar reserve on the boat — buddy assists and delayed ascents burn gas fast.",
+                "Cut it very close to the no-deco limit (0 min NDL). Turn shallower earlier to keep a buffer.",
+                "Depth held to ±0.00 m stddev during your stops. Aim for ±0.5 m — bobbing wastes gas and stirs silt."
+              ],
+              "overall": 86,
+              "stars": 2
+            },
+            "gameOverReason": null,
+            "safetyStop": {
+              "needed": true,
+              "remaining_min": 0,
+              "countdownStarted": false,
+              "paused": false,
+              "complete": false
+            }
+          },
+          "configuration": {
+            "gfLow_percent": 35,
+            "gfHigh_percent": 75,
+            "amv_lpm": 15,
+            "tankVolume_l": 12
+          },
+          "planner": {
+            "ceiling_m": 5.203405191296535,
+            "ndl_min": 0,
+            "tts_min": 19,
+            "schedule": {
+              "stops": [
+                {
+                  "depth": 6,
+                  "time": 9
+                },
+                {
+                  "depth": 3,
+                  "time": 3
+                }
+              ],
+              "tts": 19
+            }
+          },
+          "tissues": {
+            "n2_bar": [
+              3.5829415938363542,
+              2.779280229952595,
+              2.162983579985309,
+              1.7519854281158738,
+              1.457516885204278,
+              1.2572283290093562,
+              1.1106992362720067,
+              1.0044605295439561,
+              0.9284186078570924,
+              0.8814576661039837,
+              0.8508852377833707,
+              0.8270680256279164,
+              0.8084546178197334,
+              0.7937150474470469,
+              0.7822150437804423,
+              0.7732372100344493
+            ],
+            "he_bar": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "tanks": [
+            {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79,
+              "volume_l": 12,
+              "pressure_bar": 200,
+              "gasRemaining_l": 1739.375,
+              "totalGas_l": 2400,
+              "switchDepth_m": null
+            }
+          ],
+          "ccr": {
+            "targetPO2_bar": 0.7,
+            "actualPO2_bar": 0.21,
+            "diluent": {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79
+            },
+            "o2Pressure_bar": 200,
+            "diluentPressure_bar": 200,
+            "scrubberRemaining_min": 180,
+            "o2PressureStart_bar": 200,
+            "diluentPressureStart_bar": 200,
+            "scrubberTotal_min": 180,
+            "onBailout": false
+          },
+          "events": [],
+          "trajectory": [
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            }
+          ],
+          "profile": [
+            {
+              "t_min": 4.933333333333332,
+              "depth_m": 65,
+              "ceiling_m": 3.2387620857199684
+            },
+            {
+              "t_min": 4.966666666666665,
+              "depth_m": 65,
+              "ceiling_m": 3.308732534375194
+            },
+            {
+              "t_min": 4.999999999999998,
+              "depth_m": 65,
+              "ceiling_m": 3.3783803968088266
+            },
+            {
+              "t_min": 5.033333333333331,
+              "depth_m": 65,
+              "ceiling_m": 3.447707160246869
+            },
+            {
+              "t_min": 5.066666666666665,
+              "depth_m": 65,
+              "ceiling_m": 3.5167143050587257
+            },
+            {
+              "t_min": 5.099999999999998,
+              "depth_m": 65,
+              "ceiling_m": 3.5854033047888345
+            },
+            {
+              "t_min": 5.133333333333331,
+              "depth_m": 65,
+              "ceiling_m": 3.653775626188105
+            },
+            {
+              "t_min": 5.166666666666664,
+              "depth_m": 65,
+              "ceiling_m": 3.721832729245269
+            },
+            {
+              "t_min": 5.1999999999999975,
+              "depth_m": 65,
+              "ceiling_m": 3.7895760672180367
+            },
+            {
+              "t_min": 5.233333333333331,
+              "depth_m": 65,
+              "ceiling_m": 3.8570070866641304
+            },
+            {
+              "t_min": 5.266666666666664,
+              "depth_m": 65,
+              "ceiling_m": 3.9241272274721783
+            },
+            {
+              "t_min": 5.299999999999997,
+              "depth_m": 65,
+              "ceiling_m": 3.990937922892468
+            },
+            {
+              "t_min": 5.33333333333333,
+              "depth_m": 65,
+              "ceiling_m": 4.057440599567532
+            },
+            {
+              "t_min": 5.366666666666664,
+              "depth_m": 65,
+              "ceiling_m": 4.123636677562632
+            },
+            {
+              "t_min": 5.399999999999997,
+              "depth_m": 65,
+              "ceiling_m": 4.189527570396063
+            },
+            {
+              "t_min": 5.43333333333333,
+              "depth_m": 65,
+              "ceiling_m": 4.255114685069358
+            },
+            {
+              "t_min": 5.466666666666663,
+              "depth_m": 65,
+              "ceiling_m": 4.320399422097319
+            },
+            {
+              "t_min": 5.4999999999999964,
+              "depth_m": 65,
+              "ceiling_m": 4.385383175537916
+            },
+            {
+              "t_min": 5.53333333333333,
+              "depth_m": 65,
+              "ceiling_m": 4.450067333022081
+            },
+            {
+              "t_min": 5.566666666666663,
+              "depth_m": 65,
+              "ceiling_m": 4.514453275783302
+            },
+            {
+              "t_min": 5.599999999999996,
+              "depth_m": 65,
+              "ceiling_m": 4.5785423786871515
+            },
+            {
+              "t_min": 5.633333333333329,
+              "depth_m": 65,
+              "ceiling_m": 4.642336010260628
+            },
+            {
+              "t_min": 5.6666666666666625,
+              "depth_m": 65,
+              "ceiling_m": 4.705835532721383
+            },
+            {
+              "t_min": 5.699999999999996,
+              "depth_m": 65,
+              "ceiling_m": 4.769042302006801
+            },
+            {
+              "t_min": 5.733333333333329,
+              "depth_m": 65,
+              "ceiling_m": 4.831957667802966
+            },
+            {
+              "t_min": 5.766666666666662,
+              "depth_m": 65,
+              "ceiling_m": 4.894582973573474
+            },
+            {
+              "t_min": 5.799999999999995,
+              "depth_m": 65,
+              "ceiling_m": 4.95691955658812
+            },
+            {
+              "t_min": 5.833333333333329,
+              "depth_m": 65,
+              "ceiling_m": 5.01896874795146
+            },
+            {
+              "t_min": 5.866666666666662,
+              "depth_m": 65,
+              "ceiling_m": 5.08073187263123
+            },
+            {
+              "t_min": 5.899999999999995,
+              "depth_m": 65,
+              "ceiling_m": 5.142210249486641
+            }
+          ]
+        },
+        {
+          "schemaVersion": 1,
+          "scenarioId": "narcosis-air-65m",
+          "checkpointId": "narcosis",
+          "simulatedGeometry": "open",
+          "state": {
+            "gameState": "gameover",
+            "diveMode": "rec",
+            "diveSite": "shore",
+            "depth_m": 65,
+            "maxDepth_m": 65,
+            "diveTime_min": 6.816666666666658,
+            "diverX_m": 0,
+            "verticalVelocity_mpm": 0,
+            "horizontalVelocity_mps": 0,
+            "activeTankIndex": 0,
+            "cns_percent": 14.856333333333476,
+            "narcosisIndex": 0.9598360373103882,
+            "ndlDroppedBelow5": true,
+            "bcdGasSurface_l": 35.848582195485456,
+            "debrief": {
+              "ascentRate_mpm": 0,
+              "minNdlSeen_min": 0,
+              "fastAscentAccum_s": 0,
+              "fastAscentPeak_mpm": 0,
+              "ceilingViolationAccum_s": 0,
+              "avgDepthAccum_ms": 26385,
+              "avgDepthSamples_s": 409,
+              "profileTimer_s": 1,
+              "frameCeiling_m": 6.7531651038856815,
+              "dcsViolation_s": 0,
+              "barotrauma_s": 0,
+              "narcosisKO_s": 30,
+              "inOverhead": false,
+              "thirdsStartingGas_l": 0,
+              "thirdsTurnWarned": false,
+              "thirdsReserveHit": false
+            },
+            "grade": {
+              "scores": [
+                100,
+                30,
+                100,
+                100,
+                100
+              ],
+              "notes": [
+                "Ascent rate stayed within the recommended 9 m/min limit.",
+                "Safety stop skipped. A 3-min pause at 5 m sharply cuts DCS risk on any dive that reached 12 m.",
+                "Surfaced with 137 bar. Aim for 50 bar reserve on the boat — buddy assists and delayed ascents burn gas fast.",
+                "Cut it very close to the no-deco limit (0 min NDL). Turn shallower earlier to keep a buffer.",
+                "Depth held to ±0.00 m stddev during your stops. Aim for ±0.5 m — bobbing wastes gas and stirs silt."
+              ],
+              "overall": 86,
+              "stars": 2
+            },
+            "gameOverReason": "NITROGEN NARCOSIS — UNCONSCIOUSNESS",
+            "safetyStop": {
+              "needed": true,
+              "remaining_min": 0,
+              "countdownStarted": false,
+              "paused": false,
+              "complete": false
+            }
+          },
+          "configuration": {
+            "gfLow_percent": 35,
+            "gfHigh_percent": 75,
+            "amv_lpm": 15,
+            "tankVolume_l": 12
+          },
+          "planner": {
+            "ceiling_m": 6.7531651038856815,
+            "ndl_min": 0,
+            "tts_min": 23,
+            "schedule": {
+              "stops": [
+                {
+                  "depth": 9,
+                  "time": 7
+                },
+                {
+                  "depth": 6,
+                  "time": 3
+                },
+                {
+                  "depth": 3,
+                  "time": 6
+                }
+              ],
+              "tts": 23
+            }
+          },
+          "tissues": {
+            "n2_bar": [
+              3.8518479549068965,
+              3.0115444035968357,
+              2.343713671961243,
+              1.8887137629995019,
+              1.558423005282144,
+              1.3318411507887413,
+              1.1651266306180776,
+              1.0437646311045556,
+              0.9566508545060586,
+              0.9027506714245819,
+              0.8676193269685211,
+              0.8402280613994773,
+              0.8188078518175326,
+              0.8018371698500859,
+              0.7885912418830276,
+              0.778247247209789
+            ],
+            "he_bar": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "tanks": [
+            {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79,
+              "volume_l": 12,
+              "pressure_bar": 200,
+              "gasRemaining_l": 1638.125,
+              "totalGas_l": 2400,
+              "switchDepth_m": null
+            }
+          ],
+          "ccr": {
+            "targetPO2_bar": 0.7,
+            "actualPO2_bar": 0.21,
+            "diluent": {
+              "fO2": 0.21,
+              "fHe": 0,
+              "fN2": 0.79
+            },
+            "o2Pressure_bar": 200,
+            "diluentPressure_bar": 200,
+            "scrubberRemaining_min": 180,
+            "o2PressureStart_bar": 200,
+            "diluentPressureStart_bar": 200,
+            "scrubberTotal_min": 180,
+            "onBailout": false
+          },
+          "events": [],
+          "trajectory": [
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            },
+            {
+              "depth_m": 65,
+              "dtDive_min": 0.016666666666666666
+            }
+          ],
+          "profile": [
+            {
+              "t_min": 5.933333333333328,
+              "depth_m": 65,
+              "ceiling_m": 5.203405191296535
+            },
+            {
+              "t_min": 5.9666666666666615,
+              "depth_m": 65,
+              "ceiling_m": 5.264318004787425
+            },
+            {
+              "t_min": 5.999999999999995,
+              "depth_m": 65,
+              "ceiling_m": 5.324949990661397
+            },
+            {
+              "t_min": 6.033333333333328,
+              "depth_m": 65,
+              "ceiling_m": 5.38530244362388
+            },
+            {
+              "t_min": 6.066666666666661,
+              "depth_m": 65,
+              "ceiling_m": 5.445376652411302
+            },
+            {
+              "t_min": 6.099999999999994,
+              "depth_m": 65,
+              "ceiling_m": 5.505173899818592
+            },
+            {
+              "t_min": 6.1333333333333275,
+              "depth_m": 65,
+              "ceiling_m": 5.564695462726592
+            },
+            {
+              "t_min": 6.166666666666661,
+              "depth_m": 65,
+              "ceiling_m": 5.623942612129309
+            },
+            {
+              "t_min": 6.199999999999994,
+              "depth_m": 65,
+              "ceiling_m": 5.68291661316106
+            },
+            {
+              "t_min": 6.233333333333327,
+              "depth_m": 65,
+              "ceiling_m": 5.741618725123489
+            },
+            {
+              "t_min": 6.26666666666666,
+              "depth_m": 65,
+              "ceiling_m": 5.800050201512452
+            },
+            {
+              "t_min": 6.299999999999994,
+              "depth_m": 65,
+              "ceiling_m": 5.858212290044791
+            },
+            {
+              "t_min": 6.333333333333327,
+              "depth_m": 65,
+              "ceiling_m": 5.916106232684967
+            },
+            {
+              "t_min": 6.36666666666666,
+              "depth_m": 65,
+              "ceiling_m": 5.973733265671594
+            },
+            {
+              "t_min": 6.399999999999993,
+              "depth_m": 65,
+              "ceiling_m": 6.031094619543826
+            },
+            {
+              "t_min": 6.4333333333333265,
+              "depth_m": 65,
+              "ceiling_m": 6.08819151916763
+            },
+            {
+              "t_min": 6.46666666666666,
+              "depth_m": 65,
+              "ceiling_m": 6.145025183761961
+            },
+            {
+              "t_min": 6.499999999999993,
+              "depth_m": 65,
+              "ceiling_m": 6.201596826924771
+            },
+            {
+              "t_min": 6.533333333333326,
+              "depth_m": 65,
+              "ceiling_m": 6.257907656658945
+            },
+            {
+              "t_min": 6.566666666666659,
+              "depth_m": 65,
+              "ceiling_m": 6.313958875398075
+            },
+            {
+              "t_min": 6.5999999999999925,
+              "depth_m": 65,
+              "ceiling_m": 6.36975168003217
+            },
+            {
+              "t_min": 6.633333333333326,
+              "depth_m": 65,
+              "ceiling_m": 6.425287261933166
+            },
+            {
+              "t_min": 6.666666666666659,
+              "depth_m": 65,
+              "ceiling_m": 6.480566806980413
+            },
+            {
+              "t_min": 6.699999999999992,
+              "depth_m": 65,
+              "ceiling_m": 6.53559149558596
+            },
+            {
+              "t_min": 6.733333333333325,
+              "depth_m": 65,
+              "ceiling_m": 6.590362502719794
+            },
+            {
+              "t_min": 6.766666666666659,
+              "depth_m": 65,
+              "ceiling_m": 6.6448809979349015
+            },
+            {
+              "t_min": 6.799999999999992,
+              "depth_m": 65,
+              "ceiling_m": 6.699148145392256
             }
           ]
         }

@@ -1299,6 +1299,86 @@ describe("SaveGame gradient factors", () => {
     });
   });
 
+  // v15 adds nitrogen narcosis (#189).
+  describe("nitrogen narcosis", () => {
+    type Encoded = { version: number; state: Record<string, unknown> & { failure: Record<string, unknown> } };
+    const deep = () => {
+      const base = createInitialDiveState(127);
+      return freezeDiveState({
+        ...base,
+        elapsedTimeS: seconds(600),
+        narcosisIndex: 0.96,
+        failure: { ...base.failure, narcosisKoS: seconds(12) },
+      });
+    };
+    const encode = (state: DiveState) =>
+      JSON.parse(encodeSaveGame(createSaveGame(state, CONSERVATIVE_FACTORS, 1_735_689_600_000))) as Encoded;
+
+    it("round-trips in a current save", () => {
+      const decoded = decodeSaveGame(JSON.stringify(encode(deep())));
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      expect(decoded.saveGame.state.narcosisIndex).toBe(0.96);
+      expect(decoded.saveGame.state.failure.narcosisKoS).toBe(12);
+    });
+
+    it("resumes a v14 save at zero, which never tracked it, whatever the payload carries", () => {
+      for (const carried of [false, true]) {
+        const v14 = encode(deep());
+        v14.version = 14;
+        if (!carried) {
+          delete v14.state.narcosisIndex;
+          delete v14.state.failure.narcosisKoS;
+        }
+        const result = decodeSaveGame(JSON.stringify(v14));
+        expect(result.ok, String(carried)).toBe(true);
+        if (!result.ok) return;
+        expect(result.migratedFrom).toBe("save-game-v14");
+        expect(result.saveGame.state.narcosisIndex, String(carried)).toBe(0);
+        expect(result.saveGame.state.failure.narcosisKoS, String(carried)).toBe(0);
+      }
+    });
+
+    it("rejects a current save without a valid index or KO timer", () => {
+      for (const value of [undefined, -0.1, 1.1, Number.NaN, "0.5"]) {
+        const save = encode(deep());
+        save.state.narcosisIndex = value;
+        expect(decodeSaveGame(JSON.stringify(save)).ok, `index ${String(value)}`).toBe(false);
+      }
+      for (const value of [undefined, -1, Number.NaN, "12"]) {
+        const save = encode(deep());
+        save.state.failure.narcosisKoS = value;
+        expect(decodeSaveGame(JSON.stringify(save)).ok, `KO timer ${String(value)}`).toBe(false);
+      }
+    });
+
+    it("accepts the save of a dive the model ended in narcosis", () => {
+      // Air at 65 m, in one-second steps, until the KO timer ends it.
+      const model = new DiveModel(createInitialDiveState(131));
+      model.advance({ depthM: metres(65) }, seconds(15 * 60));
+      const failed = model.snapshot;
+      expect(failed.failure.reason).toBe("nitrogen-narcosis");
+      const decoded = decodeSaveGame(encodeSaveGame(createSaveGame(failed, CONSERVATIVE_FACTORS, 1)));
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      expect(decoded.saveGame.state.narcosisIndex).toBe(failed.narcosisIndex);
+      expect(decoded.saveGame.state.failure).toEqual(failed.failure);
+    });
+
+    it("carries legacy's narcosisIndex and narcosisKOTime over, and resumes a save without them at zero", () => {
+      const carried = decodeSaveGame(JSON.stringify({ ...legacyV2Save(), narcosisIndex: 0.42, narcosisKOTime: 3.5 }));
+      expect(carried.ok).toBe(true);
+      if (!carried.ok) return;
+      expect(carried.saveGame.state.narcosisIndex).toBe(0.42);
+      expect(carried.saveGame.state.failure.narcosisKoS).toBe(3.5);
+      const missing = decodeSaveGame(JSON.stringify(legacyV2Save()));
+      expect(missing.ok).toBe(true);
+      if (!missing.ok) return;
+      expect(missing.saveGame.state.narcosisIndex).toBe(0);
+      expect(missing.saveGame.state.failure.narcosisKoS).toBe(0);
+    });
+  });
+
   describe("the dive mode", () => {
     const singleCylinder = () =>
       createInitialDiveState(81, {

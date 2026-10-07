@@ -119,7 +119,13 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // v14 adds state.failure.barotraumaS, the barotrauma timer (#189). Older
 // saves never ran it and resume at zero, which gives a diver ascending fast
 // the full 10 seconds again. Legacy saves carry barotraumaTime and keep it.
-export const CURRENT_SAVE_GAME_VERSION = 14;
+//
+// v15 adds state.narcosisIndex and state.failure.narcosisKoS, nitrogen
+// narcosis (#189). Older saves never tracked it and resume at zero: a diver
+// at depth builds the index up again from nothing. Legacy saves carry
+// narcosisIndex and narcosisKOTime and keep them.
+export const CURRENT_SAVE_GAME_VERSION = 15;
+export const FOURTEENTH_SAVE_GAME_VERSION = 14;
 export const THIRTEENTH_SAVE_GAME_VERSION = 13;
 export const TWELFTH_SAVE_GAME_VERSION = 12;
 export const ELEVENTH_SAVE_GAME_VERSION = 11;
@@ -192,6 +198,7 @@ export type SaveGameMigration =
   | "save-game-v11"
   | "save-game-v12"
   | "save-game-v13"
+  | "save-game-v14"
   | null;
 
 /**
@@ -389,13 +396,25 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     }
     // Before v14 there was no barotrauma timer: it resumes at zero.
     if (
-      v < CURRENT_SAVE_GAME_VERSION &&
+      v < FOURTEENTH_SAVE_GAME_VERSION &&
       isRecord(candidate.state) &&
       isRecord(candidate.state.failure)
     ) {
       candidate.state = {
         ...candidate.state,
         failure: { ...candidate.state.failure, barotraumaS: 0 },
+      };
+    }
+    // Before v15 there was no narcosis: index and KO timer resume at zero.
+    if (
+      v < CURRENT_SAVE_GAME_VERSION &&
+      isRecord(candidate.state) &&
+      isRecord(candidate.state.failure)
+    ) {
+      candidate.state = {
+        ...candidate.state,
+        narcosisIndex: 0,
+        failure: { ...candidate.state.failure, narcosisKoS: 0 },
       };
     }
     // A v1 payload has no gradientFactors and is filled with the defaults; a
@@ -513,6 +532,11 @@ function migrateLegacyV2(candidate: Record<string, unknown>): SaveGame | null {
     cnsPercent: isNonNegativeFinite(candidate.cnsPercent)
       ? (candidate.cnsPercent as number)
       : 0,
+    // Legacy saves both and refuses a restore without them (#189); a save
+    // that lacks them anyway resumes at zero rather than being lost.
+    narcosisIndex: isFraction(candidate.narcosisIndex)
+      ? candidate.narcosisIndex
+      : 0,
     // Legacy saves both since its save-state v2.
     verticalVelocityMpm: Number.isFinite(candidate.verticalVelocity)
       ? (candidate.verticalVelocity as number)
@@ -544,6 +568,9 @@ function migrateLegacyV2(candidate: Record<string, unknown>): SaveGame | null {
       barotraumaS: (isNonNegativeFinite(candidate.barotraumaTime)
         ? candidate.barotraumaTime
         : 0) as DiveState["failure"]["barotraumaS"],
+      narcosisKoS: (isNonNegativeFinite(candidate.narcosisKOTime)
+        ? candidate.narcosisKOTime
+        : 0) as DiveState["failure"]["narcosisKoS"],
     },
     events: [],
     log,
@@ -740,6 +767,7 @@ function isDiveState(
     (candidate.activeTankIndex as number) < candidate.tanks.length &&
     isNonNegativeFinite(candidate.surfaceAirConsumptionLpm) &&
     isNonNegativeFinite(candidate.cnsPercent) &&
+    isFraction(candidate.narcosisIndex) &&
     Number.isFinite(candidate.verticalVelocityMpm) &&
     isNonNegativeFinite(candidate.bcdGasSurfaceLiters) &&
     (candidate.ccr === null || isCcrState(candidate.ccr, candidate.elapsedTimeS as number)) &&
@@ -1325,7 +1353,8 @@ function isFailureState(
     !isNonNegativeFinite(candidate.ccrHypoxiaS) ||
     !isNonNegativeFinite(candidate.ccrHyperoxiaS) ||
     !isNonNegativeFinite(candidate.dcsViolationS) ||
-    !isNonNegativeFinite(candidate.barotraumaS)
+    !isNonNegativeFinite(candidate.barotraumaS) ||
+    !isNonNegativeFinite(candidate.narcosisKoS)
   ) {
     return false;
   }
@@ -1438,6 +1467,7 @@ function isFailureReason(candidate: unknown): candidate is DiveFailureReason {
     "hypoxia",
     "decompression-sickness",
     "pulmonary-barotrauma",
+    "nitrogen-narcosis",
     "ccr-hypoxia",
     "ccr-hyperoxia",
     "ccr-co2",

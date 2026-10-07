@@ -126,6 +126,23 @@ test('pulmonary barotrauma shows legacy\'s label and all three explanation secti
   await expect(screen.locator('.game-over-prevention li').first()).toHaveText('Never ascend faster than 9–10 m/min');
 });
 
+test('nitrogen narcosis shows legacy\'s label and all three explanation sections', async ({ page }) => {
+  // The end the model leaves: the index past 0.95 and the KO timer at its
+  // 30 s (#189).
+  await resumeFailedDive(page, 'nitrogen-narcosis', undefined, (state) => {
+    state.elapsedTimeS = Math.max(state.elapsedTimeS, 30);
+    state.narcosisIndex = 0.96;
+    state.failure.narcosisKoS = 30;
+  });
+  const screen = page.locator('[data-game-over]');
+  await expect(page.locator('[data-game-over-reason]')).toHaveText('Nitrogen narcosis — unconsciousness');
+  // GAME_OVER_INFO['NITROGEN NARCOSIS — UNCONSCIOUSNESS'].
+  await expect(screen).toContainText('Narcotic partial pressure exceeded safe limits for too long, causing loss of consciousness at depth.');
+  await expect(screen).toContainText('Nitrogen narcosis occurs when breathing nitrogen at elevated partial pressures during deep dives.');
+  await expect(screen.locator('.game-over-prevention li')).toHaveCount(6);
+  await expect(screen.locator('.game-over-prevention li').last()).toHaveText('Most training agencies recommend a maximum depth of 40m on air');
+});
+
 test('a dive that fails while running switches to game over, and Enter returns to the setup as it was', async ({ page }) => {
   // No edited save here: a 0% oxygen mix goes hypoxic at once and the model
   // fails the dive after 10 s, which is the path a player takes.
