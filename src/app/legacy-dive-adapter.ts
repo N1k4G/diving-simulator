@@ -3,11 +3,13 @@ import {
   createEmptyDiveLog,
   createGasMix,
   createInitialDiveState,
+  createSharkState,
   freezeDiveState,
   type DiveLog,
   type DiveFailureReason,
   type DiveLogEntry,
   type DiveState,
+  type SharkState,
   type TissueState,
 } from "../core/dive-state";
 import {
@@ -35,6 +37,22 @@ export interface LegacyTissueCheckpoint {
     cns_percent?: number;
     /** Legacy's narcosisIndex (#189), 0 to 1. */
     narcosisIndex?: number;
+    /** Legacy's diverX, world metres. */
+    diverX_m?: number;
+    /**
+     * The shark encounter (#219): legacy's sharkTimer, and the shark while
+     * one swims, in world metres.
+     */
+    shark?: {
+      timer_s: number;
+      active: {
+        x_m: number;
+        depth_m: number;
+        direction: number;
+        speed_mps: number;
+        passed: boolean;
+      } | null;
+    };
     verticalVelocity_mpm?: number;
     bcdGasSurface_l?: number;
     ndlDroppedBelow5?: boolean;
@@ -222,6 +240,7 @@ export function diveStateFromLegacyCheckpoint(
       ? initialState.events
       : [{ type: "failure", elapsedTimeS: elapsedTimeS, failureReason }],
     log: logFromLegacyCheckpoint(checkpoint, earlierProfile),
+    shark: sharkFromLegacyCheckpoint(checkpoint),
     safetyStop: checkpoint.state.safetyStop
       ? {
           needed: checkpoint.state.safetyStop.needed,
@@ -232,6 +251,30 @@ export function diveStateFromLegacyCheckpoint(
         }
       : initialState.safetyStop,
   });
+}
+
+/**
+ * The shark encounter (#219) a legacy checkpoint continues from, the shark
+ * held relative to the diver, as the model holds it.
+ */
+function sharkFromLegacyCheckpoint(checkpoint: LegacyTissueCheckpoint): SharkState {
+  const recorded = checkpoint.state.shark;
+  if (!recorded) {
+    return createSharkState();
+  }
+  const active = recorded.active;
+  return {
+    timerS: seconds(recorded.timer_s),
+    encounter: active
+      ? {
+          offsetM: active.x_m - (checkpoint.state.diverX_m ?? 0),
+          depthM: metres(active.depth_m),
+          direction: active.direction < 0 ? -1 : 1,
+          speedMps: active.speed_mps,
+          passed: active.passed,
+        }
+      : null,
+  };
 }
 
 /**
@@ -300,6 +343,9 @@ function failureReasonFromLegacy(gameOverReason: string | null | undefined): Div
   }
   if (gameOverReason === "NITROGEN NARCOSIS \u2014 UNCONSCIOUSNESS") {
     return "nitrogen-narcosis";
+  }
+  if (gameOverReason === "SHARK ATTACK") {
+    return "shark-attack";
   }
   throw new Error(`Unsupported legacy game over: ${gameOverReason}`);
 }

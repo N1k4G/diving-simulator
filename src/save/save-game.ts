@@ -3,6 +3,7 @@ import {
   createEmptyDiveLog,
   createRuleOfThirdsState,
   createSafetyStopState,
+  createSharkState,
   freezeDiveState,
   type DiveLog,
   type DiveLogEntry,
@@ -124,7 +125,14 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // narcosis (#189). Older saves never tracked it and resume at zero: a diver
 // at depth builds the index up again from nothing. Legacy saves carry
 // narcosisIndex and narcosisKOTime and keep them.
-export const CURRENT_SAVE_GAME_VERSION = 15;
+//
+// v16 adds state.shark, the shark encounter (#219): the roll timer and the
+// shark while one swims. Older saves never rolled and resume as a new dive
+// does, a full minute to the first roll and no shark. Legacy saves carry
+// sharkTimer and keep it; legacy does not save the shark itself and
+// resumes without one, as this does.
+export const CURRENT_SAVE_GAME_VERSION = 16;
+export const FIFTEENTH_SAVE_GAME_VERSION = 15;
 export const FOURTEENTH_SAVE_GAME_VERSION = 14;
 export const THIRTEENTH_SAVE_GAME_VERSION = 13;
 export const TWELFTH_SAVE_GAME_VERSION = 12;
@@ -199,6 +207,7 @@ export type SaveGameMigration =
   | "save-game-v12"
   | "save-game-v13"
   | "save-game-v14"
+  | "save-game-v15"
   | null;
 
 /**
@@ -407,7 +416,7 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
     }
     // Before v15 there was no narcosis: index and KO timer resume at zero.
     if (
-      v < CURRENT_SAVE_GAME_VERSION &&
+      v < FIFTEENTH_SAVE_GAME_VERSION &&
       isRecord(candidate.state) &&
       isRecord(candidate.state.failure)
     ) {
@@ -416,6 +425,14 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
         narcosisIndex: 0,
         failure: { ...candidate.state.failure, narcosisKoS: 0 },
       };
+    }
+    // Before v16 there was no shark: a minute to the first roll, none
+    // swimming. Nor could a dive have ended in an attack.
+    if (v < CURRENT_SAVE_GAME_VERSION && isRecord(candidate.state)) {
+      if (isRecord(candidate.state.failure) && candidate.state.failure.reason === "shark-attack") {
+        return { ok: false, reason: "invalid-data" };
+      }
+      candidate.state = { ...candidate.state, shark: createSharkState() };
     }
     // A v1 payload has no gradientFactors and is filled with the defaults; a
     // v2 payload must carry a valid pair rather than fall back to them, or a
@@ -549,6 +566,14 @@ function migrateLegacyV2(candidate: Record<string, unknown>): SaveGame | null {
     thirds: {
       ...createRuleOfThirdsState(),
       reserveHit: candidate.thirdsReserveHitThisDive === true,
+    },
+    // Legacy saves its sharkTimer and refuses a restore without it (#219),
+    // but not the shark: it resumes with none swimming.
+    shark: {
+      ...createSharkState(),
+      ...(isPositiveFinite(candidate.sharkTimer)
+        ? { timerS: candidate.sharkTimer as DiveState["shark"]["timerS"] }
+        : {}),
     },
     failure: {
       reason: null,
@@ -777,6 +802,7 @@ function isDiveState(
       ceilingM,
     }) &&
     isRuleOfThirds(candidate.thirds, candidate.tanks as unknown[]) &&
+    isSharkState(candidate.shark) &&
     isEventHistory(
       candidate.events,
       (candidate.tanks as unknown[]).length,
@@ -1388,7 +1414,37 @@ function isFailureState(
         context.ceilingM > SURFACE_DCS_CEILING_M)
     );
   }
-  return reason === "out-of-gas" || reason === "oxygen-toxicity" || dcsS < DCS_VIOLATION_FAILURE_SECONDS;
+  // Legacy checks the shark, out of gas and oxygen toxicity before the DCS
+  // timer, so a dive they end can have run it to its limit on that step.
+  return (
+    reason === "shark-attack" ||
+    reason === "out-of-gas" ||
+    reason === "oxygen-toxicity" ||
+    dcsS < DCS_VIOLATION_FAILURE_SECONDS
+  );
+}
+
+/**
+ * The shark encounter (#219): a positive timer, as every step leaves it,
+ * and a shark, if one swims, heading left or right at a finite place, depth
+ * and speed.
+ */
+function isSharkState(candidate: unknown): boolean {
+  if (!isRecord(candidate) || !isPositiveFinite(candidate.timerS)) {
+    return false;
+  }
+  const encounter = candidate.encounter;
+  if (encounter === null) {
+    return true;
+  }
+  return (
+    isRecord(encounter) &&
+    Number.isFinite(encounter.offsetM) &&
+    isNonNegativeFinite(encounter.depthM) &&
+    (encounter.direction === 1 || encounter.direction === -1) &&
+    isPositiveFinite(encounter.speedMps) &&
+    typeof encounter.passed === "boolean"
+  );
 }
 
 function isDiveEvent(
@@ -1468,6 +1524,7 @@ function isFailureReason(candidate: unknown): candidate is DiveFailureReason {
     "decompression-sickness",
     "pulmonary-barotrauma",
     "nitrogen-narcosis",
+    "shark-attack",
     "ccr-hypoxia",
     "ccr-hyperoxia",
     "ccr-co2",

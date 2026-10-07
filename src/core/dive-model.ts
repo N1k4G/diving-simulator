@@ -10,8 +10,11 @@ import {
   CCR_SETPOINT_MAX_BAR,
   CCR_SETPOINT_MIN_BAR,
   freezeDiveState,
+  SHARK_ROLL_INTERVAL_S,
   type BreathingSource,
   type CcrState,
+  type SharkEncounter,
+  type SharkState,
   type DiveEvent,
   type DiveFailureReason,
   type DiveProfileSample,
@@ -21,6 +24,7 @@ import {
   type GasMix,
 } from "./dive-state";
 import { NO_INPUT, type InputIntent } from "./inputs";
+import { nextRandom } from "./rng";
 import {
   applyBcdControls,
   integrateBuoyancy,
@@ -71,6 +75,25 @@ export const NARCOSIS_RAMP_UP_PER_S = 0.012;
 export const NARCOSIS_RAMP_DOWN_PER_S = 0.025;
 export const NARCOSIS_KO_INDEX = 0.95;
 export const NARCOSIS_FAILURE_SECONDS = seconds(30);
+// Legacy's shark (#219, src/game-loop.js TASK-043): each roll spawns one at
+// 0.005; it spawns within 10 m of the diver's depth, 5 m (100 px at legacy's
+// 0.05 m/px) beyond the view's edge, swims 7.5 m per real second and tracks
+// the diver's depth by 0.3 m per dive second, 0.5 m clear of the floor.
+// Within 2 m across and 3 m in depth it rolls once: 0.33 attacks, otherwise
+// it speeds up to 12 m/s and leaves, 7.5 m (150 px) beyond the view.
+export const SHARK_SPAWN_PROBABILITY = 0.005;
+export const SHARK_SPAWN_DEPTH_SPREAD_M = 10;
+export const SHARK_MAX_DEPTH_M = 300;
+export const SHARK_SPAWN_MARGIN_M = 5;
+export const SHARK_DESPAWN_MARGIN_M = 7.5;
+export const SHARK_SPEED_MPS = 7.5;
+export const SHARK_PASSED_SPEED_MPS = 12;
+export const SHARK_DEPTH_TRACK_MPS = 0.3;
+export const SHARK_DEPTH_DEADBAND_M = 0.1;
+export const SHARK_FLOOR_MARGIN_M = 0.5;
+export const SHARK_CONTACT_ACROSS_M = 2;
+export const SHARK_CONTACT_DEPTH_M = 3;
+export const SHARK_ATTACK_PROBABILITY = 0.33;
 // Legacy's end of a dive at the surface: shallower than 0.3 m after more
 // than half a dive minute, the ceiling cleared to 0.1 m, the dive deeper
 // than 2 m (#199).
@@ -104,6 +127,35 @@ export interface DiveEnvironment {
    * False when absent.
    */
   inOverhead?: boolean;
+  /**
+   * What the shark encounter (#219) needs from the world. Without it no
+   * shark is simulated: the timer stands and nothing is drawn from the
+   * random state, as for a dictated-depth replay or a forecast.
+   */
+  shark?: SharkFrame;
+}
+
+/**
+ * The world around the diver, for the shark (#219), in renderer-neutral
+ * terms. Rates rather than amounts, so a step split in two moves the same.
+ */
+export interface SharkFrame {
+  /**
+   * Dive seconds per real second, legacy's timeMultiplier: the shark swims
+   * in real time, its depth and the roll timer run in dive time.
+   */
+  readonly timeMultiplier: number;
+  /** The diver's horizontal velocity, metres per dive second, positive right. */
+  readonly diverVelocityMps: number;
+  /**
+   * Half the view's width in metres, legacy's cssWidth *
+   * DIVER_SCREEN_X_FRACTION * 0.05, the diver at its centre.
+   */
+  readonly viewHalfWidthM: number;
+  /** The floor's depth under the shark, legacy's floorAt(shark.x). */
+  readonly floorM: number;
+  /** The site's noShark: the timer still rolls, nothing spawns. */
+  readonly noShark: boolean;
 }
 
 /** src/constants.js FAST_ASCENT_RATE and FAST_ASCENT_EVENT_SEC. */
@@ -407,6 +459,11 @@ export function advanceDiveStep(
     elapsedS,
   );
   nextState = applyBailoutIntent(nextState, intent.bailout);
+  // Legacy moves the shark after the frame's other updates and before its
+  // dive-ending checks, which the failure update makes.
+  const shark = environment.shark
+    ? sharkStepOnRandomState(nextState, environment.shark, elapsedS)
+    : null;
 
   const settled = updateFailureState(
     nextState,
@@ -415,6 +472,7 @@ export function advanceDiveStep(
     limits,
     stepAscentRateMpm(nextState, previousDepthM, elapsedS),
     narcosis,
+    shark,
   );
   // Legacy's rebreather checks run in updateCCR() and return from
   // updateDiving() before the debriefing capture; its other dive-ending
@@ -464,6 +522,101 @@ function narcosisStep(
 interface NarcosisStep {
   readonly narcosisIndex: number;
   readonly narcosisKoS: Seconds;
+}
+
+export interface SharkStep {
+  readonly shark: SharkState;
+  /** Contact was rolled this step and the roll attacked. */
+  readonly attacked: boolean;
+}
+
+/**
+ * Legacy's shark for one step (#219, src/game-loop.js TASK-043), with its
+ * rolls from `draw`, in legacy's order: the diver's move, the roll timer,
+ * the spawn, the swim, the depth tracking and floor guard, contact, and the
+ * exit past the view. Legacy draws the spawn roll only while no shark
+ * swims, before it reads the site's noShark, then the heading and the depth;
+ * contact draws once. An attack leaves the shark where it struck.
+ */
+export function advanceShark(
+  shark: SharkState,
+  diverDepthM: number,
+  frame: SharkFrame,
+  elapsedS: Seconds,
+  draw: () => number,
+): SharkStep {
+  let encounter: SharkEncounter | null = shark.encounter
+    ? { ...shark.encounter, offsetM: shark.encounter.offsetM - frame.diverVelocityMps * elapsedS }
+    : null;
+  const remainingS = shark.timerS - elapsedS;
+  // Legacy restarts it at 60 on a roll, dropping what the step overran.
+  const timerS = remainingS > 0 ? seconds(remainingS) : SHARK_ROLL_INTERVAL_S;
+  if (remainingS <= 0 && !encounter && draw() < SHARK_SPAWN_PROBABILITY && !frame.noShark) {
+    const direction = draw() < 0.5 ? 1 : -1;
+    const spread = draw() * 2 * SHARK_SPAWN_DEPTH_SPREAD_M - SHARK_SPAWN_DEPTH_SPREAD_M;
+    encounter = {
+      offsetM: -direction * (frame.viewHalfWidthM + SHARK_SPAWN_MARGIN_M),
+      depthM: metres(Math.max(0, Math.min(SHARK_MAX_DEPTH_M, diverDepthM + spread))),
+      direction,
+      speedMps: SHARK_SPEED_MPS,
+      passed: false,
+    };
+  }
+  if (!encounter) {
+    return { shark: { timerS, encounter: null }, attacked: false };
+  }
+
+  const offsetM =
+    encounter.offsetM + encounter.direction * encounter.speedMps * (elapsedS / frame.timeMultiplier);
+  let depthM: number = encounter.depthM;
+  const gapM = diverDepthM - depthM;
+  if (Math.abs(gapM) > SHARK_DEPTH_DEADBAND_M) {
+    depthM += Math.sign(gapM) * Math.min(SHARK_DEPTH_TRACK_MPS * elapsedS, Math.abs(gapM));
+  }
+  depthM = Math.min(depthM, frame.floorM - SHARK_FLOOR_MARGIN_M);
+  let { speedMps, passed } = encounter;
+  if (
+    !passed &&
+    Math.abs(offsetM) < SHARK_CONTACT_ACROSS_M &&
+    Math.abs(depthM - diverDepthM) < SHARK_CONTACT_DEPTH_M
+  ) {
+    passed = true;
+    if (draw() < SHARK_ATTACK_PROBABILITY) {
+      const struck = { ...encounter, offsetM, depthM: metres(depthM), passed };
+      return { shark: { timerS, encounter: struck }, attacked: true };
+    }
+    speedMps = SHARK_PASSED_SPEED_MPS;
+  }
+  const exitM = frame.viewHalfWidthM + SHARK_DESPAWN_MARGIN_M;
+  const gone = encounter.direction > 0 ? offsetM > exitM : offsetM < -exitM;
+  return {
+    shark: {
+      timerS,
+      encounter: gone
+        ? null
+        : { ...encounter, offsetM, depthM: metres(depthM), speedMps, passed },
+    },
+    attacked: false,
+  };
+}
+
+interface SharkOutcome extends SharkStep {
+  readonly randomState: number;
+}
+
+/** advanceShark drawing from the dive's seeded random state. */
+function sharkStepOnRandomState(
+  state: DiveState,
+  frame: SharkFrame,
+  elapsedS: Seconds,
+): SharkOutcome {
+  let randomState = state.randomState;
+  const step = advanceShark(state.shark, state.depthM, frame, elapsedS, () => {
+    const sample = nextRandom(randomState);
+    randomState = sample.state;
+    return sample.value;
+  });
+  return { ...step, randomState };
 }
 
 /** Legacy's smoothstep() in src/physics.js. */
@@ -1090,6 +1243,7 @@ function updateFailureState(
   limits: DecompressionLimits,
   ascentRateMpm: number,
   narcosis: NarcosisStep,
+  shark: SharkOutcome | null,
 ): DiveState {
   const ccrActive = Boolean(state.ccr && !state.ccr.onBailout);
   const inspiredPo2Bar =
@@ -1169,17 +1323,21 @@ function updateFailureState(
     ccr,
     failure,
     narcosisIndex: narcosis.narcosisIndex,
+    shark: shark?.shark ?? state.shark,
+    randomState: shark?.randomState ?? state.randomState,
   });
-  const reason = detectFailure(nextState, limits);
+  const reason = detectFailure(nextState, limits, shark?.attacked ?? false);
 
   if (reason) {
     // A rebreather failure returns from legacy's updateDiving() before its
     // DCS and barotrauma checks run, so both timers stay where they were on
-    // that step.
+    // that step, and before the shark moves (#219).
     const beforeTheChecks = FAILURES_BEFORE_THE_LOG.has(reason);
     nextState = withEvent(
       {
         ...nextState,
+        shark: beforeTheChecks ? state.shark : nextState.shark,
+        randomState: beforeTheChecks ? state.randomState : nextState.randomState,
         failure: {
           ...nextState.failure,
           reason,
@@ -1200,22 +1358,15 @@ function updateFailureState(
 
 /**
  * Legacy's dive-ending checks in their order, those the model has: the
- * rebreather's in updateCCR(), then out of gas, oxygen toxicity, the DCS
- * timer, barotrauma, hypoxia, narcosis and surfacing with a ceiling.
+ * rebreather's in updateCCR(), the shark's contact roll (#219), then out of
+ * gas, oxygen toxicity, the DCS timer, barotrauma, hypoxia, narcosis and
+ * surfacing with a ceiling.
  */
 function detectFailure(
   state: DiveState,
   limits: DecompressionLimits,
+  sharkAttacked: boolean,
 ): DiveFailureReason | null {
-  if (state.ccr?.onBailout && state.ccr.diluentCylinderPressureBar <= 0) {
-    return "out-of-gas";
-  }
-  if (!state.ccr) {
-    const activeRemainingL = state.tanks[state.activeTankIndex]?.gasRemainingL ?? 0;
-    if (activeRemainingL <= 0 && recommendBestGasIndex(state, state.depthM) < 0) {
-      return "out-of-gas";
-    }
-  }
   if (state.ccr && !state.ccr.onBailout) {
     if (state.failure.ccrHypoxiaS >= CCR_HYPOXIA_FAILURE_SECONDS) {
       return "ccr-hypoxia";
@@ -1225,6 +1376,18 @@ function detectFailure(
     }
     if (state.ccr.co2BuildupS >= CCR_CO2_FAILURE_SECONDS) {
       return "ccr-co2";
+    }
+  }
+  if (sharkAttacked) {
+    return "shark-attack";
+  }
+  if (state.ccr?.onBailout && state.ccr.diluentCylinderPressureBar <= 0) {
+    return "out-of-gas";
+  }
+  if (!state.ccr) {
+    const activeRemainingL = state.tanks[state.activeTankIndex]?.gasRemainingL ?? 0;
+    if (activeRemainingL <= 0 && recommendBestGasIndex(state, state.depthM) < 0) {
+      return "out-of-gas";
     }
   }
   if (state.failure.oxygenToxicityS >= OXYGEN_TOXICITY_FAILURE_SECONDS) {

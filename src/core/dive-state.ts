@@ -86,6 +86,7 @@ export type DiveFailureReason =
   | "decompression-sickness"
   | "pulmonary-barotrauma"
   | "nitrogen-narcosis"
+  | "shark-attack"
   | "ccr-hypoxia"
   | "ccr-hyperoxia"
   | "ccr-co2";
@@ -244,6 +245,39 @@ export function createSafetyStopState(): SafetyStopState {
   };
 }
 
+/**
+ * A shark on its pass (#219), legacy's `shark` (src/game-loop.js TASK-043),
+ * held relative to the diver: the model has no horizontal position, so
+ * `offsetM` is legacy's shark.x - diverX, positive ahead (to the right).
+ * Its sprite's size and swimming phase are the renderer's.
+ */
+export interface SharkEncounter {
+  offsetM: number;
+  depthM: Metres;
+  /** 1 swims right, -1 left. */
+  direction: 1 | -1;
+  /** Metres per real second: 7.5 on its pass, 12 once past the diver. */
+  speedMps: number;
+  /** Legacy's shark.passed: contact has been rolled for. */
+  passed: boolean;
+}
+
+/**
+ * The shark encounter (#219): legacy's sharkTimer, dive seconds to the next
+ * roll, and the shark while one swims.
+ */
+export interface SharkState {
+  timerS: Seconds;
+  encounter: SharkEncounter | null;
+}
+
+/** src/state.js: `sharkTimer = 60` on every new dive. */
+export const SHARK_ROLL_INTERVAL_S = seconds(60);
+
+export function createSharkState(): SharkState {
+  return { timerS: SHARK_ROLL_INTERVAL_S, encounter: null };
+}
+
 export interface DiveState {
   elapsedTimeS: Seconds;
   depthM: Metres;
@@ -279,6 +313,7 @@ export interface DiveState {
    */
   completed: boolean;
   thirds: RuleOfThirdsState;
+  shark: SharkState;
   events: readonly DiveEvent[];
   log: DiveLog;
   safetyStop: SafetyStopState;
@@ -432,6 +467,7 @@ export function createInitialDiveState(
     ccr: options.ccr ?? null,
     completed: false,
     thirds: createRuleOfThirdsState(),
+    shark: createSharkState(),
     failure: {
       reason: null,
       oxygenToxicityS: seconds(0),
@@ -501,6 +537,12 @@ export function freezeDiveState(state: DiveState): DiveState {
 
   const safetyStop = Object.freeze({ ...state.safetyStop });
   const thirds = Object.freeze({ ...state.thirds });
+  const shark = Object.freeze({
+    ...state.shark,
+    encounter: state.shark.encounter
+      ? Object.freeze({ ...state.shark.encounter })
+      : null,
+  });
 
   return Object.freeze({
     ...state,
@@ -512,5 +554,6 @@ export function freezeDiveState(state: DiveState): DiveState {
     log,
     safetyStop,
     thirds,
+    shark,
   });
 }
