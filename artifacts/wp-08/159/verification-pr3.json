@@ -1,0 +1,60 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 159,
+  "slice": "PR 3 (#199 slice 8b): the dive-profile chart, legacy's drawDiveProfileChart() as SVG inside the post-dive screen, with a text alternative",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "99a4cbb7f8d9665dac03be5ff41a37b004c895f9",
+  "measuredTree": "db2821a2d9b7c807cb618f8261c1e31c119e3f3a",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-10-07T00:40:02Z",
+  "runFinishedAt": "2026-10-07T00:50:26Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "Stacked on PR 2b (the screen) and PR 2a (the summary) on main d44a239 (#216). The full run above is on 99a4cbb. Later commits add only evidence files under artifacts/wp-08/159/ (this one, and PR 2a's and 2b's beneath it when the stack is restacked), so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass: site resources match src/sites.js (4 sites)",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "447 passed (442 before, +5 in tests/unit/profile-chart.test.ts)",
+    "parity": "189 passed (unchanged)",
+    "e2e": "151 passed in 7.1 min (unchanged count; the chart's checks extend two tests in tests/post-dive.spec.js)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "portedFromTheOracle": {
+    "chart": "src/renderer.js drawDiveProfileChart(): no chart below two samples; depth scaled to the deepest sample (at least 1 m) and time to the dive's length (at least a minute); a grid line every 10 m; the depth polyline; the ceiling polyline only where the ceiling is above 0, in separate runs; a marker per diveEvents entry at the depth of the sample nearest its time, the skipped stop at the last sample's time at 5 m, red for violations and amber for the skipped stop; 0 m, the deepest depth and the dive time as axis labels; the chart drawn after the safety-stop warning, inside a 4 px inset.",
+    "text": "The axis labels use the locale formatters; postDive.profile.* (en, de) names the chart, its legend and its text alternative, anchored under DECOMPRESSION-001."
+  },
+  "departuresInPresentation": "The lines are an SVG stretched to the screen's width with non-scaling strokes; labels and markers are HTML over it, so they stay round and legible at 320 px. Markers carry the number of their entry in the violations list, and the ceiling is dashed, so neither rests on colour alone (docs/decisions.md, Accessibility). The plot is one role=img with a sentence naming the dive's length, depth, deepest ceiling and number of marks; the legend is aria-hidden as that sentence carries it.",
+  "browserChecks": "tests/post-dive.spec.js: the chart's accessible name, one depth line and no ceiling on the completed dive, markers numbered 1 and 2 at legacy's positions (the fast ascent at 94.12% across and 60% down, the skipped stop at the end at 5 m); two ceiling runs and the singular mark on the stop-done dive; the #120/#121 small-phone and mobile cases pass with the chart in the page.",
+  "counterChecks": {
+    "method": "Geometry reverts were applied from a backup copy and tests/unit/profile-chart.test.ts was run; screen reverts were applied, dist/ rebuilt and the named Playwright test run. Each file was restored byte for byte, and a clean rebuild with the whole spec passing (10 of 10, with two screenshot cases) closed the set.",
+    "results": [
+      { "revert": "time scaled to the last sample instead of the dive's length", "result": "2 of 5 unit tests failed" },
+      { "revert": "one ceiling line across the stretches without a ceiling", "result": "1 of 5 unit tests failed" },
+      { "revert": "marker at the first sample's depth instead of the nearest sample's", "result": "1 of 5 unit tests failed" },
+      { "revert": "skipped stop at its own time at the surface instead of the last sample at 5 m", "result": "1 of 5 unit tests failed" },
+      { "revert": "a chart drawn for a single sample", "result": "1 of 5 unit tests failed" },
+      { "revert": "the chart left off the screen", "result": "1 failed: the main e2e test" },
+      { "revert": "markers without the numbers of the violations list", "result": "1 failed: the main e2e test" },
+      { "revert": "the plot without its text alternative", "result": "1 failed: the main e2e test" },
+      { "revert": "ceiling runs not drawn", "result": "1 failed: the stop-done e2e test" }
+    ]
+  },
+  "durableProvenance": {
+    "src": "1004e666cacf2ef12dce14d0f49d650e7fe40894",
+    "tests": "cd4d18d8b52deb89b08740196a41f72cf6c05ace",
+    "scripts": "6b40e24c03f7c63b0f9bf818108d20a6f6f2244f",
+    "docs": "c0789087dcc42f2a428382f1f72215ab05aedf0f"
+  }
+}
