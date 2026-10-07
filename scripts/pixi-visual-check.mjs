@@ -131,18 +131,24 @@ const HIDE_CHROME_STYLE = `
 const SCENES = [
   {
     id: 'wreck-exterior-start',
-    // As mounted: backdrop, terrain, structure and foreground all visible,
-    // including the torch beam, which the controller enables by default.
+    // As mounted: the dive waits at the surface (#199), so the sky, the water
+    // surface and the hull below are all on screen, with the torch beam the
+    // controller enables by default.
     frames: 30,
     expectTorch: true,
   },
   {
     id: 'wreck-descended',
-    // Camera travelled, so culling and marker pooling have resynced. 75 frames
-    // at 60 Hz is the 1.25 s descent the e2e specs use, expressed in frames so
-    // it does not depend on how fast the machine ran.
+    // Camera travelled, so culling and marker pooling have resynced. Since
+    // the dive starts at the surface (#199) the camera only follows the diver
+    // below about 10 m and resyncs after 4 m more, so S is held for 20 s of
+    // real time: 1200 frames at 60 Hz, expressed in frames so it does not
+    // depend on how fast the machine ran. It was 75 frames from the old 26 m
+    // start, which from the surface leaves the diver 0.3 m down and the camera
+    // where it began. minDepthM asserts the descent really happened.
     frames: 30,
-    hold: { key: 'ArrowDown', frames: 75 },
+    hold: { key: 'ArrowDown', frames: 1200 },
+    minDepthM: 15,
     expectTorch: true,
   },
   {
@@ -289,6 +295,16 @@ async function captureScene(browser, baseUrl, scene) {
       throw new Error(
         `${scene.id}: expected the torch ${scene.expectTorch ? 'on' : 'off'} but it is ` +
         `${actual ? 'on' : 'off'} — the scene is not exercising what its name says.`,
+      );
+    }
+  }
+  if (scene.minDepthM !== undefined) {
+    const text = await page.locator('.wreck-hud [data-hud-metric="depth"] dd').textContent();
+    const depthM = Number.parseFloat(String(text ?? '').replace(',', '.'));
+    if (!(depthM >= scene.minDepthM)) {
+      throw new Error(
+        `${scene.id}: expected the diver at ${scene.minDepthM} m or deeper but the HUD reads ` +
+        `"${text}" — the scene is not exercising what its name says.`,
       );
     }
   }
