@@ -375,7 +375,9 @@ describe("the controller drives the buoyancy model frame by frame", () => {
 // The route through the wreck (#199 slice 7, owner decision A on #199): open
 // water to the surface outside the wreck, the deck as the ceiling inside it,
 // and the hull in between, which stops a diver who swims into it.
-describe("the route through the wreck", () => {
+// A swim along the route is a couple of thousand frames, which a loaded
+// machine runs past vitest's 5 s default.
+describe("the route through the wreck", { timeout: 30_000 }, () => {
   const FIN_FRAMES_PER_METRE = 1000 / FRAME_MS / 5;
 
   it("enters the cargo hold under the deck, where the deck is the ceiling and the rule of thirds runs", async () => {
