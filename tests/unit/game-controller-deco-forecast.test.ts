@@ -216,6 +216,25 @@ describe("the deco stop's numbers against the forecast's cadence", { timeout: 30
     controller.destroy();
   });
 
+  it("are dropped on the dive-time budget when fast-forward starts with the worker silent", async () => {
+    // The other bound: a forecast asked at x3 may be shown for 1.17 s of
+    // real time, which at x30 is 35 dive seconds. The dive-time budget, 2 s
+    // and half a second of real time at x30, is 17 dive seconds, about 28
+    // frames from a forecast that has just landed.
+    const { controller, run } = await startAtStop();
+    // The first answer lands three frames after its request.
+    await run(6, 3);
+    controller.toggleFastForward();
+    const silent = await run(80, 3, false);
+    expect(silent.every((frame) => frame.fastForward.active)).toBe(true);
+    expect(firstStopOf(silent[0]!)).not.toBeNull();
+    // By 40 frames (0.8 s) the numbers are gone, before the real-time bound
+    // alone would take them (about 53 frames).
+    expect(silent.slice(40).every((frame) => frame.presentation.decoStop !== null)).toBe(true);
+    expect(silent.slice(40).every((frame) => firstStopOf(frame) === null)).toBe(true);
+    controller.destroy();
+  });
+
   it("show the title alone while the first request is pending", async () => {
     const { controller, run } = await startAtStop();
     const pending = await run(10, 3, false);
