@@ -3,13 +3,13 @@
   "issue": 199,
   "slice": "Slice 7a: the dive starts at the surface, descends on S beside the wreck, and ends by surfacing outside it; the surface is the ceiling outside the wreck and the deck inside (owner decision A, 2026-09-30)",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "9a45b803ef97e77749fa6bb4e055094049ad22b2",
-  "measuredTree": "beb5ed1940f99f67e57b1489640fe6bb32cd4fed",
+  "measuredCommit": "25cde48f242bd76eb8e5f5e0406bbd2470107fd7",
+  "measuredTree": "21abb1d69c84d55fc7de0244ad88f13a9698b181",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-07T02:37:48Z",
-  "runFinishedAt": "2026-10-07T02:47:33Z",
+  "recordedAt": "2026-10-07T03:21:54Z",
+  "runFinishedAt": "2026-10-07T03:32:50Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "On main dd6dac2 (#217). Rebased after #216, #218 (pulmonary barotrauma) and #217; the route test now surfaces at a controlled rate, since a runaway ascent ends in barotrauma as in legacy. The full run above is on 9a45b80; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "On main dd6dac2 (#217), after #216, #218 (pulmonary barotrauma) and #217; the route test surfaces at a controlled rate, since a runaway ascent ends in barotrauma as in legacy. The full run above is on 25cde48, which fixes the six findings of the #223 pre-review; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -25,9 +25,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "472 passed (454 on main; +18: 10 in tests/unit/wreck-route.test.ts, 6 net in tests/unit/game-controller-buoyancy.test.ts, 1 in tests/unit/game-controller-fast-forward.test.ts, 1 in src/render/camera.test.ts, with four main tests rewritten for the surface route)",
-    "parity": "211 passed (unchanged; this slice changes no model code)",
-    "e2e": "146 passed in 7.3 min (144 on main, +2 in tests/wreck-slice.spec.js: the surface start by keyboard and by touch)",
+    "unit": "481 passed (454 on main; +27: 10 in tests/unit/wreck-route.test.ts, 6 net in tests/unit/game-controller-buoyancy.test.ts, 5 in tests/unit/game-controller-surface.test.ts, 3 in tests/unit/leave-surface.test.ts, 1 in tests/unit/game-controller-fast-forward.test.ts, 1 in src/render/camera.test.ts, 1 more in tests/unit/wreck-route.test.ts for the stern wall; four main tests rewritten for the surface route)",
+    "parity": "211 passed (unchanged)",
+    "e2e": "147 passed in 8.2 min (144 on main, +3 in tests/wreck-slice.spec.js: the surface start by keyboard and by touch, and a completed dive leaving no save)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, against frames re-recorded in this slice",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -38,14 +38,15 @@
     "sceneChange": "wreck-descended holds S for 1200 frames instead of 75, and scripts/pixi-visual-check.mjs asserts the HUD reads 15 m or deeper before capturing: from the surface, 75 frames left the diver 0.3 m down and the camera unmoved, so the scene no longer covered the camera travel and culling resync it exists for."
   },
   "portedFromTheOracle": {
-    "surfaceStart": "src/game-loop.js updateSurface(): no dive time at the surface; S or the down arrow sets 2 L in the BCD, at rest, the loop's PO2, and starts the dive, whose next frame vents. createInitialDiveState already holds those values, so the transition changes no state. Legacy's 'surface' autosave is kept: the waiting state is handed to the save.",
-    "bounds": "Legacy's ceilingAt/floorAt, solidAt and overheadAt, on the migration scene's own hull (src/sites/wreck-route.ts, which the renderer now draws from): the surface to 34 m outside the hold; over the cargo hold and engine room, open water above the deck and, under it, the deck's underside to the hold's 33.5 m floor, which is the overhead. A horizontal stroke into the hull is not made.",
-    "completion": "Surfacing outside the wreck reaches the model's completion (slice 4b); under the deck the diver cannot surface.",
+    "surfaceStart": "src/game-loop.js updateSurface(): no dive time at the surface, and S or the down arrow the only input; the cylinder, setpoint and bailout keys and buttons wait for the dive, as legacy reads them only in updateDiving() and shows only its descend button at the surface. S applies updateSurface()'s 2 L in the BCD, at rest, and the loop's PO2 through DiveModel.leaveSurface(): a fresh state already holds those, a legacy save written at the surface holds 0 L. Legacy's 'surface' autosave is kept: the waiting state is handed to the save.",
+    "bounds": "Legacy's ceilingAt/floorAt, solidAt and overheadAt, on the migration scene's own hull (src/sites/wreck-route.ts, which the renderer now draws from): the surface to 34 m outside the hold; over the cargo hold and engine room, open water above the deck and, under it, the deck's underside to the hold's 33.5 m floor, which is the overhead. A horizontal stroke into the hull is not made. The under-deck space ends at the stern wall the scene draws, from (99, 33.5) to (103, 29.5); past it there is only water above the deck.",
+    "completion": "Surfacing outside the wreck reaches the model's completion (slice 4b); under the deck the diver cannot surface. As legacy's clearSavedDive() on leaving 'diving', the app clears the save on the first completed state and writes none after it, and the ended dive claims no keys.",
     "fastForward": "canFastForward = atDecoStop || atSafetyStop, the safety-stop half deferred from #206.",
-    "surface": "src/renderer.js drawScene: the sky gradient #c4e6f0 to #83bcd2, the two-sine wave band in rgba(135,206,235,0.3) a metre deep, and the _drawSurfaceUnderside highlight."
+    "surface": "src/renderer.js drawScene: the sky gradient #c4e6f0 to #83bcd2, the two-sine wave band in rgba(135,206,235,0.3) a metre deep, and the _drawSurfaceUnderside highlight.",
+    "ndl": "src/renderer.js drawDiveComputer: `ndl >= 999 ? '---' : ndl > 99 ? '99' : ndl`, reachable since the dive starts at the surface; the HUD shows the unavailable mark and whole minutes up to 99 through the gas page's ndlText()."
   },
   "counterChecks": {
-    "method": "Each revert was applied to a copy restored from a backup, tests/unit/game-controller-buoyancy.test.ts, tests/unit/wreck-route.test.ts, tests/unit/game-controller-fast-forward.test.ts and src/render/camera.test.ts were run, and the file was restored byte for byte (cmp). Run on 0abe8ef, before the rebase; the route, controller and camera code is unchanged since, and the one rebased test change (a controlled ascent) keeps the completion assertion the counter-checks rely on.",
+    "method": "Each revert was applied to a copy restored from a backup, tests/unit/game-controller-buoyancy.test.ts, tests/unit/wreck-route.test.ts, tests/unit/game-controller-fast-forward.test.ts and src/render/camera.test.ts were run, and the file was restored byte for byte (cmp). Run on 0abe8ef, before the rebase; the route, controller and camera code is unchanged since, and the one rebased test change (a controlled ascent) keeps the completion assertion the counter-checks rely on. The #223 pre-review fixes were checked the same way: unit reverts against tests/unit/game-controller-surface.test.ts, tests/unit/leave-surface.test.ts and tests/unit/wreck-route.test.ts; app reverts against a fresh build and the named Playwright tests under the port lock.",
     "results": [
       {
         "revert": "no surface wait: a fresh dive starts at once",
@@ -82,13 +83,45 @@
       {
         "revert": "camera top back at 10 m",
         "result": "1 failed: the camera shows the surface"
+      },
+      {
+        "revert": "cylinder switching live while waiting at the surface",
+        "result": "1 failed: no cylinder switch at the surface"
+      },
+      {
+        "revert": "bailout and setpoint live while waiting",
+        "result": "1 failed: no bailout or setpoint at the surface"
+      },
+      {
+        "revert": "S does not apply updateSurface()",
+        "result": "2 failed: the 2 L BCD from a 0 L save, the loop's PO2"
+      },
+      {
+        "revert": "keys claimed after the dive has ended",
+        "result": "1 failed: the ended dive takes no keys"
+      },
+      {
+        "revert": "the hold runs through the stern wall",
+        "result": "1 failed: the stern wall"
+      },
+      {
+        "revert": "a completed dive keeps its save",
+        "result": "1 failed (e2e): a completed dive leaves no save"
+      },
+      {
+        "revert": "the dock's switches shown while waiting",
+        "result": "2 failed (e2e): the cylinder and rebreather helpers expect them hidden at the surface"
+      },
+      {
+        "revert": "the NDL sentinel shown as a duration",
+        "result": "1 failed (e2e): the surface start reads the unavailable mark"
       }
     ]
   },
   "deferred": "The post-dive screen on completion is slice 8 (#159 PR 2). The HUD pieces (safety-stop countdown, rule-of-thirds gauge and turn beep, ascent rate and fast-ascent warning, #197) are slice 7b, stacked on this branch. Legacy's boat at the surface is not drawn.",
   "durableProvenance": {
-    "src": "1ff347d06f8ebf6840bda8e40b903a76f8081a21",
-    "tests": "db86457eb6934252e32d5c09cec306b23e7c265b",
+    "src": "f66f517651fa007e1af56403dc483dd3b58ff9fd",
+    "tests": "4057335b278efccdd9c67cc31c91fc2e0e7706a4",
     "scripts": "23580a15f8fd8d61af1f2b9919bd3260a43fb244",
     "docs": "818932abd7bd27d22971a567cd73133580b6ddcd"
   },
@@ -107,6 +140,11 @@
       "measuredCommit": "0abe8ef60c4db81b3e142c6215a6a11cebf4a8d4",
       "recordedAt": "2026-10-07T01:20:47Z",
       "note": "On main cb35009, before the rebase onto dd6dac2 (#216, #217, #218); superseded by the run above."
+    },
+    {
+      "measuredCommit": "9a45b803ef97e77749fa6bb4e055094049ad22b2",
+      "recordedAt": "2026-10-07T02:37:48Z",
+      "note": "On main dd6dac2 before the #223 pre-review fixes (25cde48); superseded by the run above."
     }
   ]
 }
