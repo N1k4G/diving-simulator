@@ -3,13 +3,13 @@
   "issue": 199,
   "slice": "Slice 7a: the dive starts at the surface, descends on S beside the wreck, and ends by surfacing outside it; the surface is the ceiling outside the wreck and the deck inside (owner decision A, 2026-09-30)",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "0abe8ef60c4db81b3e142c6215a6a11cebf4a8d4",
-  "measuredTree": "74e971e07405aba0c82ad34ac89187876705238b",
+  "measuredCommit": "9a45b803ef97e77749fa6bb4e055094049ad22b2",
+  "measuredTree": "beb5ed1940f99f67e57b1489640fe6bb32cd4fed",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-07T01:20:47Z",
-  "runFinishedAt": "2026-10-07T01:31:44Z",
+  "recordedAt": "2026-10-07T02:37:48Z",
+  "runFinishedAt": "2026-10-07T02:47:33Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "On main cb35009 (#215, slice 6b). The full run above is on 0abe8ef, the slice's last code or test commit; the only later commit adds this file.",
+  "provenanceNote": "On main dd6dac2 (#217). Rebased after #216, #218 (pulmonary barotrauma) and #217; the route test now surfaces at a controlled rate, since a runaway ascent ends in barotrauma as in legacy. The full run above is on 9a45b80; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -25,9 +25,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "454 passed (436 on main; +18: 10 in tests/unit/wreck-route.test.ts, 6 net in tests/unit/game-controller-buoyancy.test.ts, 1 in tests/unit/game-controller-fast-forward.test.ts, 1 in src/render/camera.test.ts, with four main tests rewritten for the surface route)",
-    "parity": "142 passed (unchanged; this slice changes no model code)",
-    "e2e": "145 passed in 8.2 min (143 on main, +2 in tests/wreck-slice.spec.js: the surface start by keyboard and by touch)",
+    "unit": "472 passed (454 on main; +18: 10 in tests/unit/wreck-route.test.ts, 6 net in tests/unit/game-controller-buoyancy.test.ts, 1 in tests/unit/game-controller-fast-forward.test.ts, 1 in src/render/camera.test.ts, with four main tests rewritten for the surface route)",
+    "parity": "211 passed (unchanged; this slice changes no model code)",
+    "e2e": "146 passed in 7.3 min (144 on main, +2 in tests/wreck-slice.spec.js: the surface start by keyboard and by touch)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, against frames re-recorded in this slice",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -45,25 +45,52 @@
     "surface": "src/renderer.js drawScene: the sky gradient #c4e6f0 to #83bcd2, the two-sine wave band in rgba(135,206,235,0.3) a metre deep, and the _drawSurfaceUnderside highlight."
   },
   "counterChecks": {
-    "method": "Each revert was applied to a copy restored from a backup, tests/unit/game-controller-buoyancy.test.ts, tests/unit/wreck-route.test.ts, tests/unit/game-controller-fast-forward.test.ts and src/render/camera.test.ts were run, and the file was restored byte for byte (cmp).",
+    "method": "Each revert was applied to a copy restored from a backup, tests/unit/game-controller-buoyancy.test.ts, tests/unit/wreck-route.test.ts, tests/unit/game-controller-fast-forward.test.ts and src/render/camera.test.ts were run, and the file was restored byte for byte (cmp). Run on 0abe8ef, before the rebase; the route, controller and camera code is unchanged since, and the one rebased test change (a controlled ascent) keeps the completion assertion the counter-checks rely on.",
     "results": [
-      { "revert": "no surface wait: a fresh dive starts at once", "result": "3 failed: the surface start, the surface autosave, the resumed waiting dive" },
-      { "revert": "inOverhead not passed to the model", "result": "1 failed: the cargo hold with the rule of thirds" },
-      { "revert": "open water everywhere: no deck ceiling in the hold", "result": "7 failed, controller and route tests" },
-      { "revert": "the hull does not stop the diver", "result": "3 failed: the deck's edge (controller and route), the steep stern" },
-      { "revert": "no slide along gentle slopes", "result": "2 failed: the slide test, and swimming out of the hold under the deck" },
-      { "revert": "fast-forward without the safety stop", "result": "1 failed: the saved safety stop with fast-forward" },
-      { "revert": "no autosave while waiting at the surface", "result": "1 failed: the surface autosave" },
-      { "revert": "zone from position only, not depth", "result": "1 failed: open water above the deck" },
-      { "revert": "camera top back at 10 m", "result": "1 failed: the camera shows the surface" }
+      {
+        "revert": "no surface wait: a fresh dive starts at once",
+        "result": "3 failed: the surface start, the surface autosave, the resumed waiting dive"
+      },
+      {
+        "revert": "inOverhead not passed to the model",
+        "result": "1 failed: the cargo hold with the rule of thirds"
+      },
+      {
+        "revert": "open water everywhere: no deck ceiling in the hold",
+        "result": "7 failed, controller and route tests"
+      },
+      {
+        "revert": "the hull does not stop the diver",
+        "result": "3 failed: the deck's edge (controller and route), the steep stern"
+      },
+      {
+        "revert": "no slide along gentle slopes",
+        "result": "2 failed: the slide test, and swimming out of the hold under the deck"
+      },
+      {
+        "revert": "fast-forward without the safety stop",
+        "result": "1 failed: the saved safety stop with fast-forward"
+      },
+      {
+        "revert": "no autosave while waiting at the surface",
+        "result": "1 failed: the surface autosave"
+      },
+      {
+        "revert": "zone from position only, not depth",
+        "result": "1 failed: open water above the deck"
+      },
+      {
+        "revert": "camera top back at 10 m",
+        "result": "1 failed: the camera shows the surface"
+      }
     ]
   },
   "deferred": "The post-dive screen on completion is slice 8 (#159 PR 2). The HUD pieces (safety-stop countdown, rule-of-thirds gauge and turn beep, ascent rate and fast-ascent warning, #197) are slice 7b, stacked on this branch. Legacy's boat at the surface is not drawn.",
   "durableProvenance": {
-    "src": "17b911c0d4efaa3defab502cbfed72bda62ac239",
-    "tests": "30a53d5942aae2b4f5739c8af6658623e4021675",
-    "scripts": "c3ce36a9dd4924b83048efadd4d2a972462b2512",
-    "docs": "2cf0bb4f463fc5b6fb9ebc81e7dfee3c846a7b15"
+    "src": "1ff347d06f8ebf6840bda8e40b903a76f8081a21",
+    "tests": "db86457eb6934252e32d5c09cec306b23e7c265b",
+    "scripts": "23580a15f8fd8d61af1f2b9919bd3260a43fb244",
+    "docs": "818932abd7bd27d22971a567cd73133580b6ddcd"
   },
   "earlierRuns": [
     {
@@ -75,6 +102,11 @@
       "measuredCommit": "888f06e61654a9f7a08b628cb4d44b08f970b2a6",
       "recordedAt": "2026-10-07T01:19:06Z",
       "note": "Stopped at test:unit: one route swim timed out at vitest's 5 s default under load, given 30 s in 0abe8ef."
+    },
+    {
+      "measuredCommit": "0abe8ef60c4db81b3e142c6215a6a11cebf4a8d4",
+      "recordedAt": "2026-10-07T01:20:47Z",
+      "note": "On main cb35009, before the rebase onto dd6dac2 (#216, #217, #218); superseded by the run above."
     }
   ]
 }
