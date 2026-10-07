@@ -1,15 +1,15 @@
 {
   "schema": "issue-evidence/1",
   "issue": 159,
-  "slice": "PR 2b of 4 (#199 slice 8): the post-dive screen, legacy's drawPostDive() as DOM, with its routing, text and the #120/#121 mobile checks",
+  "slice": "PR 2b of 4 (#199 slice 8): the post-dive screen, legacy's drawPostDive() as DOM, with its routing from a dive completed at the surface, its text and the #120/#121 mobile checks",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "3fe6d57a07f1f197b90d7e2e59311e4b08fa9a52",
-  "measuredTree": "4306ce2f69da5d45a9b57b5fe69595ddd0ef6b31",
+  "measuredCommit": "9b4889dbe3979510da0e7590ba347f410ec16b02",
+  "measuredTree": "9c080c7a830735e0aa474fbbdd7297414cda567d",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-07T00:32:29Z",
-  "runFinishedAt": "2026-10-07T00:40:00Z",
-  "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "Stacked on PR 2a (the summary) on main d44a239 (#216). The full run above is on 3fe6d57. Later commits add only evidence files under artifacts/wp-08/159/ (this one, and PR 2a's beneath it when the stack is restacked), so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "recordedAt": "2026-10-07T07:26:27Z",
+  "runFinishedAt": "2026-10-07T07:38:22Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run. The visual checks and Playwright ran under the shared e2e port lock, taken at 07:27:10Z.",
+  "provenanceNote": "On main ce8b666 (#223, #199 slice 7a: the dive starts at the surface and ends by surfacing outside the wreck). The branch was rebased with `git rebase --onto origin/main 4487c76`, which dropped PR 2a's two commits (on main as dd6dac2, #217). Conflicts were in docs/baseline/claims-register.json (ASCENT-001 gained #218's barotrauma sources and this PR's post-dive label; both kept) and src/app/wreck-app.ts (7a's clear-on-completion and this PR's routing, merged into one `ended` flag: on the first completed authoritative state the save is cleared, then a microtask tears the dive down, audio included, and shows the debriefing). 9b4889d adapts the specs to the surface start and replaces the completed-save test with two live surfacing tests. The full run above is on 9b4889d; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -25,42 +25,52 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "442 passed (unchanged from PR 2a)",
-    "parity": "189 passed (unchanged from PR 2a)",
-    "e2e": "151 passed in 5.4 min (143 before, +8 in tests/post-dive.spec.js)",
-    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "unit": "515 passed (515 on main ce8b666; unchanged)",
+    "parity": "266 passed (266 on main ce8b666; unchanged)",
+    "e2e": "158 passed in 8.3 min (149 on main ce8b666; +9 in tests/post-dive.spec.js; tests/wreck-slice.spec.js's completed-dive test now ends on the post-dive screen, same count)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels, against main's frames (none re-recorded)",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
   "portedFromTheOracle": {
     "content": "src/renderer.js drawPostDive(): the DIVE LOG kicker and DIVE COMPLETE heading, the stats card (dive time, max and average depth), the debriefing card (stars, the overall score, five rows with their tier colour and note), the gas lines (per tank, or the rebreather's oxygen, diluent, scrubber and bailout), the safety-stop-skipped warning with STRINGS.safetyExpl, and the dive-again prompt. The dive log's entries, which legacy shows only as chart markers, are listed with their dive time.",
-    "flow": "src/game-loop.js: the dive switches to 'post-dive' on the tick it surfaces; maybeSaveDiveState() clears the save outside 'diving'; Enter returns to the gas setup with the same settings. src/touch.js shows a dive-again button for touch.",
+    "flow": "src/game-loop.js: the dive switches from 'diving' to 'post-dive' on the tick it surfaces; maybeSaveDiveState() saves only in 'diving', 'surface' and 'drill', and clearSavedDive() runs on leaving 'diving', so the app clears the save on the first completed state and writes none after it (#223); the post-dive state draws no scene and plays no sound, so the dive view, its listeners and its audio are torn down as for a game over; Enter returns to the gas setup with the same settings. src/touch.js shows a dive-again button (touch-postdive) for touch, here the [data-dive-again] button.",
     "text": "STRINGS.{en,de} diveComplete, diveTimeLbl, maxDepthLbl, avgDepthLbl, debriefTitle, ccrO2Cyl, ccrDilCyl, ccrScrubber, gasUsed, barLeft, ccrBailout, safetySkipped, safetyExpl and diveAgain, in the catalogue's sentence case as postDive.* and result.avgDepth; legacy's gasLabel() (Air, EANxx, Tx o2/he) as postDive.mix.*. Anchored in docs/baseline/claims-register.json under SAFETY-STOP-001, ASCENT-001, DECOMPRESSION-001 and GAS-001."
   },
-  "browserChecks": "tests/post-dive.spec.js resumes a save the model could have written, completed at the surface, as tests/game-over.spec.js resumes a failed one, until #199 slice 7 makes the surface reachable. It checks the content (stats, overall 83 and two stars by legacy's rules, the five rows, the gas line, the warning, the violations), focus on the heading and no live region (#138), the save cleared, Enter and the button; a rebreather's gas lines and bailout; a completed save with its stop done debriefed as it ended; and #120/#121 at 390 x 844 and at 320 x 568 in English and German, open circuit and rebreather: content taller than the viewport reachable by scrolling, nothing past either edge, 44 px targets 8 px apart.",
+  "browserChecks": "tests/post-dive.spec.js checks the screen's content on a save the model could have written, completed at the surface, as tests/game-over.spec.js checks a failure's, taken from a dive that has begun (the codec refuses gas drawn by one still waiting at the surface): stats, overall 83 and two stars by legacy's rules, the five rows, the gas line, the warning, the violations, focus on the heading and no live region (#138), the save cleared, Enter and the button; a rebreather's gas lines and bailout; and #120/#121 at 390 x 844 and at 320 x 568 in English and German, open circuit and rebreather. Two tests surface a live dive a metre down: with its stop done it is debriefed as done, with focus on the heading, the dive view gone and no save; with its stop needed and not begun the surface logs it skipped on the completing tick and the screen shows it. tests/wreck-slice.spec.js's completed-dive test (#223) now ends on the post-dive screen: the dive view gone with its pad, torch and keys, the audio context closed, no save after a reload, and the next start a new dive at the surface.",
   "counterChecks": {
-    "method": "Each revert was applied from a backup copy, dist/ was rebuilt, the named Playwright test was run, and the file was restored byte for byte; a clean rebuild and the whole spec passing (8 of 8) closed the set.",
+    "method": "Run on 9b4889d. Each revert was applied to src/app/wreck-app.ts, src/app/post-dive.ts or src/app/diagnostic.css copied from a backup, dist/ was rebuilt (npm run build, typecheck included), the named Playwright tests were run under the port lock, and the file was restored byte for byte from the backup (cmp, then git status clean). The full chain above ran after the last restore.",
     "results": [
-      { "revert": "a completed save resumed into the model instead of debriefed as it ended", "result": "1 failed: the stop-done save read as skipped" },
-      { "revert": "no route to the post-dive screen (neither the resumed save nor the live completion)", "result": "1 failed: the main test" },
-      { "revert": "the save kept after the dive ended", "result": "1 failed: the main test" },
-      { "revert": "focus not moved to the heading (#138)", "result": "1 failed: the main test" },
-      { "revert": "Enter does not dive again", "result": "1 failed: the main test" },
-      { "revert": "gas and score rows may not wrap on a narrow screen", "result": "4 failed: every small-phone case" }
+      { "revert": "no route to the post-dive screen on completion (the save still cleared)", "result": "3 failed: both live surfacing tests and the #223 completed-dive test (the post-dive screen never shows)" },
+      { "revert": "routed to the post-dive screen without the dive's teardown", "result": "1 failed: the #223 completed-dive test reads the audio context as running, not closed" },
+      { "revert": "the save kept after completion (no clear on the completed state nor in endInPostDive)", "result": "3 failed: the main content test and the live stop-done test find the save, the #223 test waits for it to clear" },
+      { "revert": "the debriefing built from the last state before the completing step", "result": "1 failed: the live skipped-stop test finds no skipped entry" },
+      { "revert": "focus not moved to the heading (#138)", "result": "2 failed: the main content test and the live stop-done test" },
+      { "revert": "Enter does not dive again", "result": "1 failed: the main content test" },
+      { "revert": "gas and score rows may not wrap on a narrow screen", "result": "4 failed: every small-phone case" },
+      { "revert": "a completed save resumed into the dive instead of debriefed before the dive starts", "result": "0 failed (9 passed): expected, and recorded as not load-bearing. The model does not move a completed state and, since #223, the route no longer moves a save at the surface, so the first step's completed state routes it to the same debriefing. The guard only spares starting the renderer and audio for a dive that is over." }
     ]
   },
   "decisions": {
+    "completedSave": "After #223 no client writes a completed save: the migration client clears it on the first completed state and writes none after it, legacy saves only in 'diving', 'surface' and 'drill', and the codec reads every legacy save as not completed. The codec still accepts one from v12 on. The resume guard stays and the content specs resume such a save to reach the screen with a known dive, as the game-over spec resumes failed saves no client writes either; the test \"a completed save is debriefed as it ended\" was replaced by the two live surfacing tests, since its reason (the route moving a surfaced save back under 11 m) no longer holds.",
     "preV13Saves": "A dive resumed from a save older than the grade's inputs (v1-v12) is graded on defaults for the history it never held (the open note on #159 from Codex's review of #215). The screen does not mark those categories: no shipped writer produces such a save, since the migration client is unreachable until #170, and recording the missing history would need a save-version bump for a case no user can reach.",
     "violationList": "Legacy has no text list of the dive log's entries, only chart markers; the screen lists them with their dive time so they are reachable without the chart, and the chart (PR 3) numbers its markers to match.",
     "safetyStopOutcome": "Shown as legacy shows it: a warning with the explanation only when the stop was needed and not done; the grade's safety-stop row says when it was done or not needed."
   },
   "deferred": {
-    "liveCompletion": "The live transition (the tick the diver surfaces) is routed through the presentation snapshot's completed flag but cannot be reached in a browser until #199 slice 7 opens the route to the surface; its e2e belongs with slice 7.",
-    "tissueLoading": "Legacy's tissue-loading bar graph below the chart is not in #159's scope list; a follow-up issue is suggested."
+    "tissueLoading": "Legacy's tissue-loading bars below the chart: #221.",
+    "profileChart": "Legacy's dive-profile chart: #159 PR 3 (feat/159-profile-chart), stacked on this branch."
   },
   "durableProvenance": {
-    "src": "b257a0c27fa007229f4aaabed191c290b391bd3b",
-    "tests": "c29ce7e9ee60bf14aa21e51a9c4231733a29a649",
-    "scripts": "6b40e24c03f7c63b0f9bf818108d20a6f6f2244f",
-    "docs": "b44906ba7e5094eb3acd2fbdcde9e6c652e8740a"
-  }
+    "src": "570c12cc354287d9e25fc2e77e74d27a07c47e54",
+    "tests": "13c28890a09720ec642ac0e8877d80801f50b12b",
+    "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
+    "docs": "8bd38db695eb023b82657beb65c3b685f4e14d61"
+  },
+  "earlierRuns": [
+    {
+      "measuredCommit": "3fe6d57a07f1f197b90d7e2e59311e4b08fa9a52",
+      "recordedAt": "2026-10-07T00:32:29Z",
+      "note": "Stacked on PR 2a on main d44a239 (#216), before #223 made the surface reachable: unit 442, parity 189, e2e 151 (+8 in tests/post-dive.spec.js), all passing. Superseded by the run above after the rebase onto ce8b666."
+    }
+  ]
 }
