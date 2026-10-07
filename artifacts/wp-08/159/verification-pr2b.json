@@ -3,13 +3,13 @@
   "issue": 159,
   "slice": "PR 2b of 4 (#199 slice 8): the post-dive screen, legacy's drawPostDive() as DOM, with its routing from a dive completed at the surface, its text and the #120/#121 mobile checks",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "e2c543416e1c76341bc69c1ff3de8709754f7c5d",
-  "measuredTree": "157e17a65c77fe1d42069d53d86440386f7ac974",
+  "measuredCommit": "fe0ca9d1444e56eaabb016ef520f600f408c62a6",
+  "measuredTree": "82c32a1b892465aa9cd87873888efa3ee5ae558e",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-07T12:31:33Z",
-  "runFinishedAt": "2026-10-07T12:40:51Z",
+  "recordedAt": "2026-10-07T13:27:23Z",
+  "runFinishedAt": "2026-10-07T13:40:16Z",
   "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
-  "provenanceNote": "On main ce8b666 (#223, #199 slice 7a: the dive starts at the surface and ends by surfacing outside the wreck). The branch was rebased with `git rebase --onto origin/main 4487c76`, which dropped PR 2a's two commits (on main as dd6dac2, #217). Conflicts were in docs/baseline/claims-register.json (ASCENT-001 gained #218's barotrauma sources and this PR's post-dive label; both kept) and src/app/wreck-app.ts (7a's clear-on-completion and this PR's routing, merged into one `ended` flag: on the first completed authoritative state the save is cleared, then a microtask tears the dive down, audio included, and shows the debriefing). 9b4889d adapts the specs to the surface start and replaces the completed-save test with two live surfacing tests. e2c5434 anchors postDive.violations.none in the claims register (pre-review pass 1). The full run above is on e2c5434; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "On main ce8b666 (#223, #199 slice 7a: the dive starts at the surface and ends by surfacing outside the wreck). The branch was rebased with `git rebase --onto origin/main 4487c76`, which dropped PR 2a's two commits (on main as dd6dac2, #217). Conflicts were in docs/baseline/claims-register.json (ASCENT-001 gained #218's barotrauma sources and this PR's post-dive label; both kept) and src/app/wreck-app.ts (7a's clear-on-completion and this PR's routing, merged into one `ended` flag: on the first completed authoritative state the save is cleared, then a microtask tears the dive down, audio included, and shows the debriefing). 9b4889d adapts the specs to the surface start and replaces the completed-save test with two live surfacing tests. e2c5434 anchors postDive.violations.none in the claims register (pre-review pass 1). fe0ca9d adds legacy's simulation boundary line to the screen, anchored under USE-BOUNDARY-001 (Codex round 1). The full run above is on fe0ca9d; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -27,7 +27,7 @@
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
     "unit": "515 passed (515 on main ce8b666; unchanged)",
     "parity": "266 passed (266 on main ce8b666; unchanged)",
-    "e2e": "158 passed in 6.7 min (149 on main ce8b666; +9 in tests/post-dive.spec.js; tests/wreck-slice.spec.js's completed-dive test now ends on the post-dive screen, same count)",
+    "e2e": "158 passed in 8.5 min (149 on main ce8b666; +9 in tests/post-dive.spec.js; tests/wreck-slice.spec.js's completed-dive test now ends on the post-dive screen, same count)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, against main's frames (none re-recorded)",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -71,6 +71,10 @@
       {
         "revert": "a completed save resumed into the dive instead of debriefed before the dive starts",
         "result": "0 failed (9 passed): expected, and recorded as not load-bearing. The model does not move a completed state and, since #223, the route no longer moves a save at the surface, so the first step's completed state routes it to the same debriefing. The guard only spares starting the renderer and audio for a dive that is over."
+      },
+      {
+        "revert": "the simulation boundary line not appended",
+        "result": "5 of the 9 tests in tests/post-dive.spec.js fail: the main test and the four 320 × 568 cases"
       }
     ]
   },
@@ -85,12 +89,22 @@
     "profileChart": "Legacy's dive-profile chart: #159 PR 3 (feat/159-profile-chart), stacked on this branch."
   },
   "durableProvenance": {
-    "src": "570c12cc354287d9e25fc2e77e74d27a07c47e54",
-    "tests": "13c28890a09720ec642ac0e8877d80801f50b12b",
+    "src": "e179520a0f203455f32acfbb4af9f2a1d7cca290",
+    "tests": "8e90286edae3d27279cfa033049dbfc11e280c3e",
     "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
-    "docs": "f30af5f745ccb920e704eb9133c19f07f4d0e733"
+    "docs": "0a8b60af5ae8d02267321ad9b827ecf5bbd18923"
   },
   "earlierRuns": [
+    {
+      "measuredCommit": "fe0ca9d1444e56eaabb016ef520f600f408c62a6",
+      "recordedAt": "2026-10-07T13:25:59Z",
+      "note": "First full run on the same commit: stopped in the unit step when tests/unit/dive-model.test.ts 'converges as the ascent step size shrinks' hit its 5 s timeout under load (514 of 515 passed). The test is unrelated to this PR's change and passed in the run above."
+    },
+    {
+      "measuredCommit": "e2c543416e1c76341bc69c1ff3de8709754f7c5d",
+      "recordedAt": "2026-10-07T12:31:33Z",
+      "note": "Full run before the fix for Codex round 1 (no visible SIMULATION boundary on the post-dive screen); same counts. Superseded by the run above."
+    },
     {
       "measuredCommit": "9b4889dbe3979510da0e7590ba347f410ec16b02",
       "recordedAt": "2026-10-07T07:26:27Z",
