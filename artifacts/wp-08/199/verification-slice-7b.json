@@ -3,13 +3,13 @@
   "issue": 199,
   "slice": "Slice 7b (with #197): legacy's stop box (the deco stop, else the safety-stop countdown), the rule-of-thirds gauge and its turn beep, and the ascent rate with the fast-ascent warning in the migration HUD, on main after slice 7a (#223)",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "e020fe117467849f07a1bf1f47f13b507d04de70",
-  "measuredTree": "b0274dc8426b5279e9e6facc7416b74a04f0c241",
+  "measuredCommit": "eef09ab84185c3d4d1ba2c586727b6bb0fb2edaf",
+  "measuredTree": "d7fb402c7c29bde790f6ace3c047ef4e130f0a1f",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-07T08:58:56Z",
-  "runFinishedAt": "2026-10-07T09:09:45Z",
+  "recordedAt": "2026-10-07T09:56:01Z",
+  "runFinishedAt": "2026-10-07T10:08:03Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "On main ce8b666, the squash of slice 7a (#223). After 811fc86, 7a gained a silent completed dive, the torch and the nav pad only while diving, the waves stopped after the end, and the 18 m BCD fixture compared to 12 places. The rebase onto ce8b666 (git rebase --onto origin/main 811fc86) kept this slice's own commits and applied without conflicts: updateHud keeps 7a's hiding of the nav pad and torch beside this slice's readouts, and the claims register keeps main's anchors beside this slice's. 17cecdf compares the 28 m neutral BCD fixture to 12 places, as Math.pow differs in the last bits on linux CI. 0c4e812 reads a completed dive's ascent rate as 0 and shows it no safety stop: a completed dive is never stepped again, so a dive surfaced fast past a paused stop kept the SLOW DOWN warning, '⚠ ↑ 25 m/min' and the paused stop row on its HUD for good, where legacy's post-dive state draws no dive computer. f1a7b30 addresses pre-review pass 1 on #226: the stop row keeps legacy's 'SAFETY STOP / Complete' once done, until the stop starts over below 11 m or the dive ends, and gives way to deco on the model's ceiling of the same tick (log.lastCeilingM at the dive's GF high, legacy's frameCalc.ceiling) instead of the worker's forecast, which is pending after every gas switch, setpoint change and bailout and on a resumed dive. 9119385 and 9fc2322 close two first-frame races in existing specs: the CNS test lost an I press on linux CI (run for 722438f), and the cross-client trace failed once on 9119385 under load (below); both now wait for the dive's first frame, with no assertion changed. The surface wait reads 0 m/min with no stop and no gauge, as legacy's drawSurface() draws the dive computer at rest. e020fe1 addresses Codex round 1 on #226: under a ceiling the safety stop gave way but the row hid, so no HUD path showed the decompression stop. The row is now legacy's whole stop box: while the model's ceiling of the tick is above 0 it reads 'Deco stop' in the danger tone with the forecast's first stop (legacy's frameCalc.schedule.stops[0], minutes rounded up), and the title alone while no forecast with stops is in hand, as legacy's box without a schedule. The full run above is on e020fe1; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "On main ce8b666, the squash of slice 7a (#223). After 811fc86, 7a gained a silent completed dive, the torch and the nav pad only while diving, the waves stopped after the end, and the 18 m BCD fixture compared to 12 places. The rebase onto ce8b666 (git rebase --onto origin/main 811fc86) kept this slice's own commits and applied without conflicts: updateHud keeps 7a's hiding of the nav pad and torch beside this slice's readouts, and the claims register keeps main's anchors beside this slice's. 17cecdf compares the 28 m neutral BCD fixture to 12 places, as Math.pow differs in the last bits on linux CI. 0c4e812 reads a completed dive's ascent rate as 0 and shows it no safety stop: a completed dive is never stepped again, so a dive surfaced fast past a paused stop kept the SLOW DOWN warning, '⚠ ↑ 25 m/min' and the paused stop row on its HUD for good, where legacy's post-dive state draws no dive computer. f1a7b30 addresses pre-review pass 1 on #226: the stop row keeps legacy's 'SAFETY STOP / Complete' once done, until the stop starts over below 11 m or the dive ends, and gives way to deco on the model's ceiling of the same tick (log.lastCeilingM at the dive's GF high, legacy's frameCalc.ceiling) instead of the worker's forecast, which is pending after every gas switch, setpoint change and bailout and on a resumed dive. 9119385 and 9fc2322 close two first-frame races in existing specs: the CNS test lost an I press on linux CI (run for 722438f), and the cross-client trace failed once on 9119385 under load (below); both now wait for the dive's first frame, with no assertion changed. The surface wait reads 0 m/min with no stop and no gauge, as legacy's drawSurface() draws the dive computer at rest. e020fe1 addresses Codex round 1 on #226: under a ceiling the safety stop gave way but the row hid, so no HUD path showed the decompression stop. The row is now legacy's whole stop box: while the model's ceiling of the tick is above 0 it reads 'Deco stop' in the danger tone with the forecast's first stop (legacy's frameCalc.schedule.stops[0], minutes rounded up), and the title alone while no forecast with stops is in hand, as legacy's box without a schedule. eef09ab addresses Codex round 2 on #226: the deco row took its numbers from whatever forecast was cached, and a dropped worker answer under fast-forward left them for the client's 5 s timeout (150 dive seconds at x30). The controller keeps, with each accepted forecast, the dive time and depth of the state it was requested for and the clock rate it was requested at; the numbers show only while the forecast is current, else the title alone: its age at most the scheduler's 2 s interval plus 0.5 s of real time at the faster of the requested and current clock rates (3.5 dive s at x3, 17 at x30), and its depth within 1.5 m (the scheduler re-asks on each whole metre). The full run above is on eef09ab; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -25,9 +25,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "534 passed (515 on main ce8b666; +19: 14 in tests/unit/presentation-state.test.ts, 4 in tests/unit/thirds-turn-beep.test.ts, 1 in src/app/i18n/i18n.test.ts)",
+    "unit": "542 passed (515 on main ce8b666; +27: 18 in tests/unit/presentation-state.test.ts, 4 in tests/unit/game-controller-deco-forecast.test.ts, 4 in tests/unit/thirds-turn-beep.test.ts, 1 in src/app/i18n/i18n.test.ts)",
     "parity": "266 passed (266 on main ce8b666; unchanged, this slice changes no model code)",
-    "e2e": "156 passed in 7.6 min (149 on main ce8b666; +7 in tests/hud-readouts.spec.js)",
+    "e2e": "156 passed in 8.0 min (149 on main ce8b666; +7 in tests/hud-readouts.spec.js)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels against main's frames (the HUD is outside the captured viewport; no frame changes)",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -38,10 +38,10 @@
     "ruleOfThirds": "hud-thirds: shown under an overhead, the phase by legacy's strict > 2/3 and > 1/3 over all cylinders' gas against the plan, and Math.round of the fraction; the turn in the caution tone, the reserve with the ⚠ of its danger tone; playAlertBeep() once as thirdsTurnWarned latches, not again on resuming a latched dive.",
     "claims": "docs/baseline/claims-register.json anchors the new strings in both locales: wreck.warning.fastAscent, wreck.hud.warning.fastAscent and wreck.hud.ascentRate* under ASCENT-001, wreck.hud.safetyStop* (Complete included) under SAFETY-STOP-001, wreck.hud.decoStop* under DECOMPRESSION-001, wreck.hud.thirds* under GAS-001.",
     "afterTheEnd": "Legacy's post-dive state draws no dive computer, and updateCompletion logs a stop not made as skipped as the dive ends: the presentation reads a completed dive's rate as 0 and owes it no stop, so the rate row, the SLOW DOWN warning and the stop row do not stay frozen on the ended dive's HUD.",
-    "decoStop": "The stop box's decompression half, `if (inDeco)` with inDeco = decoStop(frameCalc.ceiling) > 0: shown while the model's log.lastCeilingM, legacy's frameCalc.ceiling of the same tick at the dive's GF high, is above 0; the DECO STOP title in the danger tone, here 'Deco stop' / 'Dekompressionsstopp' (legacy's English literal, in the catalogue's decompression wording); with `schedule && schedule.stops.length > 0`, the first stop's depth in m and its minutes, from the forecast's schedule (frameCalc.schedule, which the worker computes here; the planner rounds the minutes up as calculateDecoSchedule's Math.ceil). With no schedule, the title alone. No banner or beep is added; legacy's deco banners are their own."
+    "decoStop": "The stop box's decompression half, `if (inDeco)` with inDeco = decoStop(frameCalc.ceiling) > 0: shown while the model's log.lastCeilingM, legacy's frameCalc.ceiling of the same tick at the dive's GF high, is above 0; the DECO STOP title in the danger tone, here 'Deco stop' / 'Dekompressionsstopp' (legacy's English literal, in the catalogue's decompression wording); with `schedule && schedule.stops.length > 0`, the first stop's depth in m and its minutes, from the forecast's schedule (frameCalc.schedule, which the worker computes here; the planner rounds the minutes up as calculateDecoSchedule's Math.ceil). With no schedule, the title alone. No banner or beep is added; legacy's deco banners are their own. Legacy reads frameCalc.schedule of the same frame; the worker's forecast is asynchronous, so its numbers are shown only while it still describes the dive (isForecastCurrent): computed from a state at most the scheduler's interval plus 0.5 s real (at the faster of the requested and current clock rates) earlier, and within 1.5 m of the diver's depth. The schedule's first stop is decoStop() of the ceiling at GF high, in legacy (src/physics.js calculateDecoSchedule, firstStop = decoStop(frameCalc.ceiling)) and in the planner (calculateDecoSchedule, decoStopDepth(calculateCeiling) at gfHighPercent); GF low only shapes the stops' lengths."
   },
   "counterChecks": {
-    "method": "Each revert was applied to a copy restored from a backup and the named tests were run: unit reverts against tests/unit/presentation-state.test.ts, tests/unit/thirds-turn-beep.test.ts and src/app/i18n/i18n.test.ts; HUD reverts against a fresh build and tests/hud-readouts.spec.js under the port lock. Each file was restored byte for byte (filecmp) and the tree checked clean after the set. Run on e020fe1 with fresh backups: all seventeen fail as listed. The former check 'the safety stop shown when already complete' encoded legacy's missing Complete state and is replaced by the three Complete checks.",
+    "method": "Each revert was applied to a copy restored from a backup and the named tests were run: unit reverts against tests/unit/presentation-state.test.ts, tests/unit/thirds-turn-beep.test.ts and src/app/i18n/i18n.test.ts; HUD reverts against a fresh build and tests/hud-readouts.spec.js under the port lock. Each file was restored byte for byte (filecmp) and the tree checked clean after the set. Unit reverts also run tests/unit/game-controller-deco-forecast.test.ts. Run on eef09ab with fresh backups: all twenty fail as listed. The former check 'the safety stop shown when already complete' encoded legacy's missing Complete state and is replaced by the three Complete checks.",
     "results": [
       {
         "revert": "ascent rate not passed through to the presentation",
@@ -69,15 +69,27 @@
       },
       {
         "revert": "the deco stop not shown, so the row hides under a ceiling",
-        "result": "2 failed (unit): the forecast's first stop, the title alone; 1 failed (e2e): the deco stop at 18 m"
+        "result": "7 failed (unit): the forecast's first stop, the freshness budget, the title alone, and the cadence tests at x3, x30 and after a silent worker; 1 failed (e2e): the deco stop at 18 m"
       },
       {
         "revert": "deco decided on the forecast's ceiling, which lags, instead of the model's tick",
-        "result": "2 failed: the title alone with no forecast, and ceiling 0 back to the safety stop with a forecast still holding stops"
+        "result": "3 failed: the title alone with no forecast, ceiling 0 back to the safety stop with a forecast still holding stops, and the title alone while the first request is pending"
       },
       {
         "revert": "the row hidden, not titled, while no forecast with stops is in hand",
-        "result": "1 failed: the title alone"
+        "result": "3 failed: the title alone, the title after a silent worker at x30, and the title while the first request is pending"
+      },
+      {
+        "revert": "the forecast's staleness not checked",
+        "result": "4 failed: too old, another depth, no source or one ahead of the state, and the numbers dropped after a silent worker at x30"
+      },
+      {
+        "revert": "the age budget infinite",
+        "result": "1 failed: the numbers dropped after a silent worker at x30"
+      },
+      {
+        "revert": "the forecast's depth not checked",
+        "result": "1 failed: a forecast from another depth"
       },
       {
         "revert": "the row keeps its Safety stop label under a ceiling",
@@ -115,12 +127,17 @@
   },
   "deferred": "Legacy's red screen flash for a fast ascent, its chevron count and its flashing past 18 m/min are not drawn (#222); the alert, the chip, the beep and the row's ⚠ carry the warning. Showing the readouts on the post-dive screen is #159 PR 2b.",
   "durableProvenance": {
-    "src": "0842cbdb1036f00ae4e97c550e1a4ee89b91a110",
-    "tests": "c3e05b4920bd6492a5cfa708188101b255c4969c",
+    "src": "9cf6b843a403ca8b6985bb2614d28d174ba9d52b",
+    "tests": "d1abe91068c518417c99beee1653a90b8c6f227f",
     "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
     "docs": "119fee958622d290f12f41d3288b4e38e05ad1f0"
   },
   "earlierRuns": [
+    {
+      "measuredCommit": "e020fe117467849f07a1bf1f47f13b507d04de70",
+      "recordedAt": "2026-10-07T08:58:56Z",
+      "note": "Before Codex round 2 on #226: 534 unit, 266 parity, 156 e2e, all passing, with seventeen counter-checks; superseded by the run above."
+    },
     {
       "measuredCommit": "9fc23220a2d08cf215e19d136087800c44386ae1",
       "recordedAt": "2026-10-07T08:05:25Z",
