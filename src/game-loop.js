@@ -1804,6 +1804,18 @@ function captureBaselineCheckpoint(scenarioId, checkpointId) {
             activeTankIndex: activeTank,
             cns_percent: _baselineFinite(cnsPercent),
             narcosisIndex: _baselineFinite(narcosisIndex),
+            // #219: the shark encounter (TASK-043): the roll timer in dive
+            // seconds, and the shark while one swims, in world metres.
+            shark: {
+                timer_s: _baselineFinite(sharkTimer),
+                active: shark ? {
+                    x_m: _baselineFinite(shark.x),
+                    depth_m: _baselineFinite(shark.depth),
+                    direction: shark.direction,
+                    speed_mps: _baselineFinite(shark.speed),
+                    passed: !!shark.passed
+                } : null
+            },
             // Latched in updateDiving() after calculateTTS() has already run for
             // the tick, so it cannot be derived from a checkpoint's recomputed
             // NDL. It widens the safety stop from 3 to 5 minutes, so a planner

@@ -19,7 +19,8 @@ import {
   encodeSaveGame,
 } from "../../src/save/save-game";
 import { neutralBcdSurfaceLitres } from "../../src/core/buoyancy";
-import { DiveModel } from "../../src/core/dive-model";
+import { DiveModel, advanceDiveStep } from "../../src/core/dive-model";
+import { nextRandom } from "../../src/core/rng";
 
 describe("SaveGame", () => {
   it("round-trips every authoritative DiveState field", () => {
@@ -1376,6 +1377,94 @@ describe("SaveGame gradient factors", () => {
       if (!missing.ok) return;
       expect(missing.saveGame.state.narcosisIndex).toBe(0);
       expect(missing.saveGame.state.failure.narcosisKoS).toBe(0);
+    });
+  });
+
+  // v16 adds the shark encounter (#219).
+  describe("the shark encounter", () => {
+    type Encoded = { version: number; state: Record<string, unknown> & { shark: Record<string, unknown>; failure: Record<string, unknown> } };
+    const swimming = (seed = 137) =>
+      freezeDiveState({
+        ...createInitialDiveState(seed),
+        depthM: metres(10),
+        maxDepthM: metres(10),
+        shark: {
+          timerS: seconds(42),
+          encounter: { offsetM: -1, depthM: metres(10), direction: 1, speedMps: 7.5, passed: false },
+        },
+      });
+    const encode = (state: DiveState) =>
+      JSON.parse(encodeSaveGame(createSaveGame(state, CONSERVATIVE_FACTORS, 1_735_689_600_000))) as Encoded;
+
+    it("round-trips in a current save", () => {
+      const decoded = decodeSaveGame(JSON.stringify(encode(swimming())));
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      expect(decoded.saveGame.state.shark).toEqual(swimming().shark);
+    });
+
+    it("resumes a v15 save as a new dive, which never rolled, whatever the payload carries", () => {
+      for (const carried of [false, true]) {
+        const v15 = encode(swimming());
+        v15.version = 15;
+        if (!carried) delete (v15.state as Record<string, unknown>).shark;
+        const result = decodeSaveGame(JSON.stringify(v15));
+        expect(result.ok, String(carried)).toBe(true);
+        if (!result.ok) return;
+        expect(result.migratedFrom).toBe("save-game-v15");
+        expect(result.saveGame.state.shark, String(carried)).toEqual({ timerS: 60, encounter: null });
+      }
+      const attacked = encode(swimming());
+      attacked.version = 15;
+      attacked.state.failure.reason = "shark-attack";
+      expect(decodeSaveGame(JSON.stringify(attacked)).ok).toBe(false);
+    });
+
+    it("rejects a current save without a valid timer or shark", () => {
+      const broken: [string, unknown][] = [
+        ["timerS", 0], ["timerS", -1], ["timerS", Number.NaN], ["timerS", "42"],
+        ["encounter", undefined], ["encounter", 1],
+      ];
+      for (const [field, value] of broken) {
+        const save = encode(swimming());
+        save.state.shark[field] = value;
+        expect(decodeSaveGame(JSON.stringify(save)).ok, `${field} ${String(value)}`).toBe(false);
+      }
+      const brokenShark: [string, unknown][] = [
+        ["offsetM", Number.NaN], ["depthM", -1], ["direction", 0], ["speedMps", 0], ["passed", "no"],
+      ];
+      for (const [field, value] of brokenShark) {
+        const save = encode(swimming());
+        (save.state.shark.encounter as Record<string, unknown>)[field] = value;
+        expect(decodeSaveGame(JSON.stringify(save)).ok, `${field} ${String(value)}`).toBe(false);
+      }
+    });
+
+    it("accepts the save of a dive the model ended in a shark attack", () => {
+      // A seed whose contact roll is under 0.33, the shark a metre short.
+      let seed = 0;
+      while (nextRandom(seed).value >= 0.33) seed += 1;
+      const failed = advanceDiveStep(swimming(seed), {
+        depthM: metres(10),
+        shark: { timeMultiplier: 3, diverVelocityMps: 0, viewHalfWidthM: 25, floorM: 300, noShark: false },
+      }, seconds(1));
+      expect(failed.failure.reason).toBe("shark-attack");
+      const decoded = decodeSaveGame(encodeSaveGame(createSaveGame(failed, CONSERVATIVE_FACTORS, 1)));
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      expect(decoded.saveGame.state.shark).toEqual(failed.shark);
+      expect(decoded.saveGame.state.failure.reason).toBe("shark-attack");
+    });
+
+    it("carries legacy's sharkTimer over, without a shark, and resumes a save without one a minute from the roll", () => {
+      const carried = decodeSaveGame(JSON.stringify({ ...legacyV2Save(), sharkTimer: 12.5 }));
+      expect(carried.ok).toBe(true);
+      if (!carried.ok) return;
+      expect(carried.saveGame.state.shark).toEqual({ timerS: 12.5, encounter: null });
+      const missing = decodeSaveGame(JSON.stringify(legacyV2Save()));
+      expect(missing.ok).toBe(true);
+      if (!missing.ok) return;
+      expect(missing.saveGame.state.shark).toEqual({ timerS: 60, encounter: null });
     });
   });
 

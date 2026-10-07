@@ -143,6 +143,21 @@ test('nitrogen narcosis shows legacy\'s label and all three explanation sections
   await expect(screen.locator('.game-over-prevention li').last()).toHaveText('Most training agencies recommend a maximum depth of 40m on air');
 });
 
+test('a shark attack shows legacy\'s label and all three explanation sections', async ({ page }) => {
+  // The end the model leaves: the shark where it struck, past its contact
+  // roll (#219).
+  await resumeFailedDive(page, 'shark-attack', undefined, (state) => {
+    state.shark.encounter = { offsetM: 0.5, depthM: state.depthM, direction: 1, speedMps: 7.5, passed: true };
+  });
+  const screen = page.locator('[data-game-over]');
+  await expect(page.locator('[data-game-over-reason]')).toHaveText('Shark attack');
+  // GAME_OVER_INFO['SHARK ATTACK'].
+  await expect(screen).toContainText('A shark decided you looked like lunch.');
+  await expect(screen).toContainText('Sharks rarely attack divers, but when they do, it tends to be memorable.');
+  await expect(screen.locator('.game-over-prevention li')).toHaveCount(3);
+  await expect(screen.locator('.game-over-prevention li').last()).toHaveText('Do not carry bleeding fish or shiny objects');
+});
+
 test('a dive that fails while running switches to game over, and Enter returns to the setup as it was', async ({ page }) => {
   // No edited save here: a 0% oxygen mix goes hypoxic at once and the model
   // fails the dive after 10 s, which is the path a player takes.

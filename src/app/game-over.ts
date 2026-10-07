@@ -27,8 +27,7 @@ export interface GameOverOptions {
 /**
  * Legacy's cause label for each failure the model can produce. The three
  * rebreather causes are the labels game-loop.js assigns (S('ccrHypoxia') and
- * so on). The model has no shark failure yet, so neither has this screen
- * (#189).
+ * so on).
  */
 const REASON_KEYS: Readonly<Record<DiveFailureReason, MessageKey>> = {
   "out-of-gas": "gameOver.reason.outOfGas",
@@ -37,6 +36,7 @@ const REASON_KEYS: Readonly<Record<DiveFailureReason, MessageKey>> = {
   "decompression-sickness": "gameOver.reason.decompressionSickness",
   "pulmonary-barotrauma": "gameOver.reason.pulmonaryBarotrauma",
   "nitrogen-narcosis": "gameOver.reason.nitrogenNarcosis",
+  "shark-attack": "gameOver.reason.sharkAttack",
   "ccr-hypoxia": "gameOver.reason.ccrHypoxia",
   "ccr-hyperoxia": "gameOver.reason.ccrHyperoxia",
   "ccr-co2": "gameOver.reason.ccrCo2",
@@ -115,6 +115,15 @@ const EXPLANATIONS: Partial<Record<DiveFailureReason, ExplanationKeys>> = {
       "gameOver.info.nitrogenNarcosis.prevention4",
       "gameOver.info.nitrogenNarcosis.prevention5",
       "gameOver.info.nitrogenNarcosis.prevention6",
+    ],
+  },
+  "shark-attack": {
+    cause: "gameOver.info.sharkAttack.cause",
+    medical: "gameOver.info.sharkAttack.medical",
+    prevention: [
+      "gameOver.info.sharkAttack.prevention1",
+      "gameOver.info.sharkAttack.prevention2",
+      "gameOver.info.sharkAttack.prevention3",
     ],
   },
 };

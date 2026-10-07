@@ -1,0 +1,91 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 219,
+  "slice": "The shark encounter, part 1: legacy's roll timer, spawn, pass and contact roll in the core on the dive's seeded random state, its game-over text in English and German, save v16, and the recorded legacy dive with scripted rolls it is replayed against. The sprite and the client's wiring are part 2.",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "4c216a33bd3e134ec9396ac91ce92bbc7952fa2f",
+  "measuredTree": "f74086875692863c0ffbb756e48bfe5d83f3af9b",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-10-07T04:25:11Z",
+  "runFinishedAt": "2026-10-07T04:32:32Z",
+  "timestampProvenance": "Both are `date -u` output printed around the run.",
+  "provenanceNote": "On main 79f9aef (#224). The full run above is on 4c216a3; the commit after it only adds this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent.",
+    "unit": "487 passed (470 on main, +12 in tests/unit/shark-encounter.test.ts, +5 in tests/unit/save-game.test.ts)",
+    "parity": "266 passed (241 on main, +4 in tests/parity/shark-encounter.test.ts, +7 each in dive-grade, dive-planner and post-dive, which run one test per recorded checkpoint and pick up the seven new ones)",
+    "e2e": "146 passed in 5.5 min (145 on main, +1 in tests/game-over.spec.js: the shark screen)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "portedFromTheOracle": {
+    "timer": "src/game-loop.js TASK-043: sharkTimer counts down in dive seconds and, at or below zero, is set to 60 (src/state.js's initial and resetDive() value), dropping what the tick overran, and rolls.",
+    "spawn": "`!shark && Math.random() < 0.005 && !noShark`: the roll is drawn only while no shark swims, before the site's noShark is read; then the heading (`< 0.5` right) and the depth, depth + (r * 20 - 10) clamped to 0..MAX_DEPTH (300). It starts (cssWidth * DIVER_SCREEN_X_FRACTION + 100) * 0.05 m behind its heading: half the view plus 5 m, DIVER_SCREEN_X_FRACTION being 0.5.",
+    "swim": "x moves by direction * speed * dtReal, real seconds, 7.5 m/s (2.5 * 0.05 * 60); the depth moves toward the diver's by 0.3 m per dive second when more than 0.1 m off, then stays FAUNA_AVOID_MARGIN (0.5 m) above floorAt(x).",
+    "contact": "`!passed && |x - diverX| < 2 && |depth - diverDepth| < 3`: passed is set, one roll, under 0.33 the dive ends with SHARK ATTACK and nothing else of the tick runs; otherwise the speed becomes 12 m/s (4 * 0.05 * 60). The shark is removed beyond half the view plus 7.5 m (150 px) in its heading.",
+    "order": "The shark runs after the frame's other updates and before updateDiving()'s game-over checks, so it comes before out of gas; the rebreather checks return before it.",
+    "text": "STRINGS.{en,de}.gameOverReasons and gameOverInfo['SHARK ATTACK'], taken verbatim from src/constants.js and checked by evaluating it in a Node vm, the label in the catalogue's sentence case, as gameOver.reason.sharkAttack and gameOver.info.sharkAttack.*; anchored under SHARK-001 and GAMEOVER-001 for both locales."
+  },
+  "decisions": [
+    "The rolls come from the dive's seeded randomState (src/core/rng.ts), drawn in legacy's order, so a replay is deterministic. Legacy draws from Math.random, so parity covers the deterministic parts and the outcome of a given roll: advanceShark() takes the draws as a function, and the parity test passes legacy's scripted rolls.",
+    "The model holds no horizontal position, so the shark is held relative to the diver: offsetM is legacy's shark.x - diverX. DiveEnvironment.shark brings what the shark needs from the world, as rates: the time multiplier (the shark swims in real time), the diver's horizontal velocity per dive second, half the view's width in metres, the floor under the shark, and the site's noShark. Without it no shark is simulated and nothing is drawn. The route position (#222) need not be saved for it.",
+    "The client does not pass DiveEnvironment.shark yet: a shark that can end a dive arrives with its sprite, in part 2.",
+    "Save v16: older saves resume as a new dive does (60 s to the first roll, no shark) and one claiming a shark attack is refused; legacy saves keep a positive finite sharkTimer and resume with no shark, as legacy, which does not save the shark. Validation requires a positive finite timer and, when one swims, a finite offset, a non-negative depth, a heading of 1 or -1, a positive speed and a boolean passed.",
+    "A shark attack is valid with the DCS timer at its limit, as out of gas and oxygen toxicity are: legacy checks it first."
+  ],
+  "parity": "shark-encounter-5m scripts legacy's rolls through the baseline's Math.random stub, one value for every draw of a tick, at 5 m on air with the view pinned 1000 px wide: three rolls at 0.5, a spawn at 0.004 (heading right, 9.92 m up, clamped to the surface), contact survived at 0.5, the shark gone past the view, a second spawn, and an attack at 0.2. advanceShark() replays it tick by tick with the same rolls at the depth legacy read back: the timer, offset, depth, heading, speed and passed match at every checkpoint, and the attack lands on legacy's last tick and on no earlier one. In the full model the timer reaches legacy's 39 s through three rolls with exactly three draws from the random state, and the recorded game over restores as a shark attack that goes no further. Not comparable: legacy's random stream itself.",
+  "fixture": "Regenerated by npm run baseline:generate (exit 0) from the capture commit 347caf7 (referenceCommit 347caf78d5b90575702531d01490d510406bc3c7). Additive: with state.shark (58 values) and the new scenario removed, the fixture is identical to the one before; the test inventory differs only in referenceCommit.",
+  "counterChecks": {
+    "method": "Each revert was applied to the working copy, tests/unit/shark-encounter.test.ts, tests/parity/shark-encounter.test.ts and tests/unit/save-game.test.ts were run, and the file was restored; the tree was clean afterwards. The first set let two reverts pass (a roll on every step inside the window, and the exit at 5 m); 4c216a3 adds the tests that catch them, and the results below are from the run after it.",
+    "results": [
+      { "revert": "the timer adding 60 rather than restarting at 60", "result": "3 failed | 110 passed (113)" },
+      { "revert": "the site's noShark ignored", "result": "1 failed | 112 passed (113)" },
+      { "revert": "the spawn depth not clamped to 0..300 m", "result": "2 failed | 111 passed (113)" },
+      { "revert": "the spawn on the side it heads to", "result": "2 failed | 111 passed (113)" },
+      { "revert": "the shark swimming in dive time rather than real time", "result": "8 failed | 105 passed (113)" },
+      { "revert": "the diver's own motion ignored", "result": "1 failed | 112 passed (113)" },
+      { "revert": "the depth tracking without its 0.1 m dead band", "result": "1 failed | 112 passed (113)" },
+      { "revert": "no floor guard", "result": "1 failed | 112 passed (113)" },
+      { "revert": "the contact window widened to 2.5 m across, inclusive", "result": "2 failed | 111 passed (113)" },
+      { "revert": "the attack roll inclusive (<= 0.33)", "result": "1 failed | 112 passed (113)" },
+      { "revert": "a contact roll on every step in the window, not once per pass", "result": "1 failed | 112 passed (113)" },
+      { "revert": "no speed-up after a survived contact", "result": "2 failed | 111 passed (113)" },
+      { "revert": "the exit at the spawn margin (5 m) rather than 7.5 m", "result": "1 failed | 112 passed (113)" },
+      { "revert": "the rolls from Math.random rather than the random state", "result": "5 failed | 108 passed (113)" },
+      { "revert": "the shark checked after out of gas", "result": "3 failed | 110 passed (113)" },
+      { "revert": "the shark moving on a rebreather failure's step", "result": "1 failed | 112 passed (113)" },
+      { "revert": "no pre-v16 migration: an older save keeps whatever it carries", "result": "1 failed | 112 passed (113)" },
+      { "revert": "the save not validating the shark", "result": "1 failed | 112 passed (113)" },
+      { "revert": "legacy's sharkTimer ignored", "result": "1 failed | 112 passed (113)" },
+      { "revert": "the adapter dropping the shark", "result": "1 failed | 112 passed (113)" },
+      { "revert": "the adapter not reading legacy's shark attack", "result": "1 failed | 112 passed (113)" }
+    ]
+  },
+  "deferred": "Part 2 of #219: the shark sprite in the Pixi scene and the client passing DiveEnvironment.shark. Open owner question: the client seeds every wreck dive with the constant 0x57524543, whose first spawn roll is the 193rd, so no shark would appear in a real dive without a per-dive seed.",
+  "durableProvenance": {
+    "src": "2b7be133f9bc321bb5e87fcb89c216757af215e9",
+    "tests": "c24e08694f58a1fb1bd551f5281f99a3199a1c9c",
+    "scripts": "85f999eea5e7530475163178afea0c1feaac3437",
+    "docs": "be4ccff71c90d68a71ff35868fbedd96cde6ecc3"
+  },
+  "earlierRuns": [
+    {
+      "measuredCommit": "4c216a33bd3e134ec9396ac91ce92bbc7952fa2f",
+      "recordedAt": "2026-10-07T04:15:37Z",
+      "note": "Same commit; everything passed except one e2e test, tests/wreck-slice.spec.js 'production starts the Pixi wreck shell', whose restored depth (28.5 m) had drifted 1.4 m from the saved 27.1 m within its 5 s poll, the race that spec's own comment describes. It passed three times in a row alone, and the run above passed in full."
+    }
+  ]
+}

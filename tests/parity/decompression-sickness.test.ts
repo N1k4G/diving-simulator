@@ -111,8 +111,9 @@ describe("decompression sickness against the recorded legacy dives", () => {
 
   it("refuses a recorded game over it has no failure for, rather than read it as a dive going on", () => {
     const recorded = checkpoints("trimix-dcs-surfaced").at(-1)!;
-    const unknown = { ...recorded, state: { ...recorded.state, gameOverReason: "SHARK ATTACK" } };
-    expect(() => diveStateFromLegacyCheckpoint(unknown, 23)).toThrow(/SHARK ATTACK/);
+    // No recording runs out of gas, so the adapter has no reading of it.
+    const unknown = { ...recorded, state: { ...recorded.state, gameOverReason: "OUT OF GAS" } };
+    expect(() => diveStateFromLegacyCheckpoint(unknown, 23)).toThrow(/OUT OF GAS/);
   });
 
   it("ends a dive that surfaces with a ceiling deeper than 3 m on that tick", () => {
