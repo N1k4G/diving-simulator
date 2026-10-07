@@ -1,4 +1,5 @@
 const { expect, test } = require('@playwright/test');
+const { descendTo } = require('./helpers/start-dive.cjs');
 
 /** The safety gate in either language: the shared helper names its English button. */
 async function acceptSafetyGate(page) {
@@ -10,19 +11,29 @@ async function acceptSafetyGate(page) {
 // of src/constants.js and the flow of src/game-loop.js: surfacing ends the
 // dive on that tick, the save is cleared, and Enter returns to the setup.
 //
-// Until the route reaches the surface (#199 slice 7), a completed dive is
-// reached the way tests/game-over.spec.js reaches a failed one: a running
-// dive's save is turned into one that ended at the surface, and resumed.
+// The screen's content is checked the way tests/game-over.spec.js checks a
+// failure's: a running dive's save is turned into one that ended at the
+// surface, and resumed, so the whole dive behind the debriefing is known. The
+// live end, a dive surfacing on screen, is checked below and in
+// tests/wreck-slice.spec.js.
 
 const SAVE_KEY = 'diving-simulator.save-game';
 /** The dive's length in the edited save: 25.5 dive minutes. */
 const END_S = 1530;
+/** The deepest point of the edited dives: past 11 m, so the safety stop is needed. */
+const DEEPEST_M = 18;
 
+/**
+ * The save of a dive under way. The dive starts at the surface (#199) and the
+ * codec refuses gas drawn by one still waiting there, so it is taken from a
+ * dive that has begun.
+ */
 const persistedSave = (page) =>
   page
     .waitForFunction((key) => {
       const raw = window.localStorage.getItem(key);
-      return raw === null ? null : JSON.parse(raw);
+      const parsed = raw === null ? null : JSON.parse(raw);
+      return parsed !== null && parsed.state.elapsedTimeS > 0 ? parsed : null;
     }, SAVE_KEY)
     .then((handle) => handle.jsonValue());
 
@@ -34,7 +45,7 @@ const persistedSave = (page) =>
  * the save's, which a few seconds at depth leave without a ceiling.
  */
 function completeAtSurface(state) {
-  const deepest = state.maxDepthM;
+  const deepest = DEEPEST_M;
   const profile = [];
   for (let t = 0; t <= END_S; t += 2) {
     const depth = t < 120 ? (deepest * t) / 120
@@ -46,6 +57,7 @@ function completeAtSurface(state) {
   Object.assign(state, {
     elapsedTimeS: END_S,
     depthM: 0.1,
+    maxDepthM: DEEPEST_M,
     verticalVelocityMpm: 0,
     completed: true,
     thirds: { startingGasL: 0, turnWarned: false, reserveHit: false },
@@ -78,6 +90,7 @@ async function resumeCompletedDive(page, { configure, editState } = {}) {
   if (configure) await configure(page);
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
+  await descendTo(page, 1);
 
   const saved = await persistedSave(page);
   completeAtSurface(saved.state);
@@ -188,21 +201,62 @@ test('a rebreather dive reports its oxygen, diluent and scrubber, and the bailou
   await expect(screen.locator('.post-dive-bailout')).toHaveText('⚠ Bailout: the dive ended on open circuit');
 });
 
-test('a completed save is debriefed as it ended, not moved back onto the route', async ({ page }) => {
-  // The stop done: no skipped entry, no warning, full marks. Resumed into
-  // the model, the route would put the diver back at depth, below 11 m,
-  // where the stop starts over and would read as skipped.
-  await resumeCompletedDive(page, {
-    editState: (state) => {
-      state.safetyStop = { needed: true, countdownStarted: true, remainingS: 0, paused: false, complete: true };
-      state.log.entries.pop();
-    },
+/**
+ * A dive a metre down, light enough to drift up and surface gently, after a
+ * minute and a half that went to 18 m: the model ends it on screen, on the
+ * tick it surfaces, as legacy's updateDiving() does. `safetyStop` is the stop
+ * it surfaces with.
+ */
+async function surfaceLiveDive(page, safetyStop) {
+  await page.goto('/dist/');
+  await page.evaluate(() => window.localStorage.clear());
+  await acceptSafetyGate(page);
+  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  await descendTo(page, 1);
+
+  const saved = await persistedSave(page);
+  Object.assign(saved.state, {
+    elapsedTimeS: 90,
+    depthM: 1,
+    maxDepthM: DEEPEST_M,
+    verticalVelocityMpm: 0,
+    bcdGasSurfaceLiters: 3,
+    safetyStop,
   });
+  await page.goto('/dist/');
+  await page.evaluate(
+    ([key, value]) => window.localStorage.setItem(key, value),
+    [SAVE_KEY, JSON.stringify(saved)],
+  );
+  await acceptSafetyGate(page);
+  await page.locator('[data-start-dive]').click();
+  // The dive itself first: it is resumed under way, not debriefed.
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  await page.locator('[data-post-dive]').waitFor({ timeout: 30_000 });
+}
+
+test('a dive that surfaces with its stop done is debriefed with the stop done', async ({ page }) => {
+  // The stop done before the last metre: no skipped entry, no warning.
+  await surfaceLiveDive(page, { needed: true, countdownStarted: true, remainingS: 0, paused: false, complete: true });
   const screen = page.locator('[data-post-dive]');
+  await expect(page.locator('#post-dive-heading')).toBeFocused();
   await expect(screen).toHaveAttribute('data-safety-stop', 'done');
   await expect(screen.locator('.post-dive-safety-skipped')).toHaveCount(0);
   await expect(screen.locator('[data-grade-category=safetyStop]')).toContainText('Safety stop completed — well done.');
-  await expect(screen.locator('.post-dive-violation-list li')).toHaveText([/Fast ascent/]);
+  await expect(screen.locator('.result-stats')).toContainText('Max depth18 m');
+  await expect(page.locator('.wreck-shell')).toHaveCount(0);
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), SAVE_KEY)).toBeNull();
+});
+
+test('a dive that surfaces without its stop is debriefed with the stop skipped', async ({ page }) => {
+  // Needed at 18 m and not begun: it starts above 6 m and pauses out of its
+  // band, and the surface logs it skipped on the tick the dive ends.
+  await surfaceLiveDive(page, { needed: true, countdownStarted: false, remainingS: 0, paused: false, complete: false });
+  const screen = page.locator('[data-post-dive]');
+  await expect(screen).toHaveAttribute('data-safety-stop', 'skipped');
+  await expect(screen.getByRole('heading', { name: '⚠ Safety stop skipped' })).toBeVisible();
+  await expect(screen.locator('[data-violation=safety-stop-skipped]')).toHaveCount(1);
 });
 
 /**

@@ -160,6 +160,8 @@ test('the dive starts at the surface and begins on S', async ({ page }) => {
 // Legacy clears its save once a dive leaves 'diving' for its post-dive state,
 // so a finished dive is never resumed (#223 pre-review). Before, the
 // completed dive went on being saved and came back, frozen, on every start.
+// The dive ends on the post-dive screen (#159), which tests/post-dive.spec.js
+// covers.
 test('a dive completed at the surface leaves no save, and the next start is a new dive', async ({ page }) => {
   // Every audio context the page opens, so the end of the dive can be shown
   // to close them: legacy is silent after the dive (#223 pre-review).
@@ -205,9 +207,11 @@ test('a dive completed at the surface leaves no save, and the next start is a ne
     undefined,
     { timeout: 30_000 },
   );
-  // The pad and the torch are offered only while diving (#223 Codex round 1).
-  await expect(page.locator('[data-torch]')).toBeHidden();
-  await expect(page.locator('.wreck-controls [data-control]:visible')).toHaveCount(0);
+  // The dive ends on the post-dive screen, legacy's 'post-dive' state, and
+  // its view goes with it: no pad, no torch, no dive keys (#223 Codex round 1).
+  await expect(page.locator('[data-post-dive]')).toBeVisible();
+  await expect(page.locator('.wreck-shell')).toHaveCount(0);
+  await expect(page.locator('[data-torch], [data-control]')).toHaveCount(0);
   // The dive's sound stops with it.
   await expect
     .poll(() =>
