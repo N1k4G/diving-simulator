@@ -168,6 +168,15 @@ summary:focus-visible {
   text-transform: uppercase;
 }
 
+.result-boundary {
+  margin: 0.5rem 0 1rem;
+  color: #ffd27a;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
 .game-over .result-heading {
   color: #ff7b7b;
 }
@@ -266,6 +275,136 @@ summary:focus-visible {
   color: #8694a1;
   font-size: 0.8rem;
   text-align: center;
+}
+
+/* The post-dive screen (#159), legacy's drawPostDive(). */
+.post-dive .result-heading {
+  color: #46f08f;
+}
+
+.post-dive-grade {
+  padding: 1rem;
+  border: 1px solid rgb(130 160 180 / 22%);
+  border-radius: 0.75rem;
+  background: rgb(10 30 40 / 70%);
+}
+
+.result-section .post-dive-rating {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  margin: 0 0 0.75rem;
+  color: #e9fbff;
+}
+
+.post-dive-stars {
+  color: #ffd24d;
+  font-size: 1.4rem;
+  letter-spacing: 0.1em;
+}
+
+.post-dive-scores {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Legacy's score tiers; the number beside each bar says the same. */
+.post-dive-scores li {
+  --tier: #46f08f;
+}
+
+.post-dive-scores li[data-tier="caution"] {
+  --tier: #ffb84d;
+}
+
+.post-dive-scores li[data-tier="danger"] {
+  --tier: #ff7b7b;
+}
+
+.post-dive-score-head,
+.post-dive-gas div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 0.75rem;
+}
+
+.post-dive-score-head {
+  color: #e9fbff;
+  font-weight: 700;
+}
+
+.post-dive-overall strong,
+.post-dive-score-value,
+.post-dive-gas dd,
+.post-dive-violation-time {
+  font-family: ui-monospace, monospace;
+}
+
+.post-dive-score-value {
+  color: var(--tier);
+}
+
+.post-dive-score-bar {
+  height: 0.375rem;
+  margin: 0.3rem 0;
+  background: rgb(130 160 180 / 16%);
+}
+
+.post-dive-score-bar span {
+  display: block;
+  height: 100%;
+  background: var(--tier);
+}
+
+.result-section .post-dive-score-note {
+  font-size: 0.85rem;
+}
+
+.post-dive-gas,
+.post-dive-violation-list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.post-dive-gas div {
+  color: #aab6c1;
+}
+
+.post-dive-gas dd {
+  margin: 0;
+  color: #e9fbff;
+}
+
+.post-dive-violation-list {
+  padding-left: 1.4rem;
+}
+
+.post-dive-violation-time {
+  color: #e9fbff;
+}
+
+.result-section .post-dive-bailout {
+  margin-top: 0.5rem;
+  color: #ffb84d;
+  font-weight: 700;
+}
+
+.post-dive-safety-skipped {
+  padding: 0.9rem 1rem;
+  border: 1px solid rgb(255 184 77 / 55%);
+  border-radius: 0.5rem;
+  background: rgb(255 184 77 / 8%);
+}
+
+.post-dive-safety-skipped .result-section-heading {
+  color: #ffb84d;
 }
 
 .wreck-shell {
