@@ -17,13 +17,23 @@ const persistedSave = (page) =>
     .then((handle) => handle.jsonValue());
 
 /**
+ * The safety gate by its data attribute, as tests/post-dive.spec.js clicks it:
+ * the shared helper finds the button by its English name, and the sideways
+ * cases below run in German.
+ */
+async function acceptGateInAnyLocale(page) {
+  await page.locator('[data-accept-safety]').click();
+  await page.locator('.setup-screen').waitFor();
+}
+
+/**
  * Starts a dive, turns its save into a failure with `reason`, and resumes it.
  * `editState` makes the saved state one that failure could have ended.
  */
 async function resumeFailedDive(page, reason, configure, editState) {
   await page.goto('/dist/');
   await page.evaluate(() => window.localStorage.clear());
-  await acceptSafetyGate(page);
+  await acceptGateInAnyLocale(page);
   if (configure) await configure(page);
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
@@ -41,7 +51,7 @@ async function resumeFailedDive(page, reason, configure, editState) {
     ([key, value]) => window.localStorage.setItem(key, value),
     [SAVE_KEY, JSON.stringify(saved)],
   );
-  await acceptSafetyGate(page);
+  await acceptGateInAnyLocale(page);
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-game-over]').waitFor();
   return saved;
@@ -61,6 +71,13 @@ test('an out-of-gas failure ends on the game-over screen with legacy\'s explanat
 
   await expect(screen.getByRole('heading', { level: 1 })).toHaveText('Game over');
   await expect(page.locator('[data-game-over-reason]')).toHaveText('Out of gas');
+  // The screen reports a dive's end, so the simulation boundary stays on it,
+  // whole and without scrolling (docs/decisions.md, #229).
+  const boundary = screen.locator('[data-simulation-boundary]');
+  await expect(boundary).toHaveText(
+    'SIMULATION ONLY — Not a dive computer or dive-planning tool. Do not use these outputs for a real dive.',
+  );
+  await expect(boundary).toBeInViewport({ ratio: 1 });
   // GAME_OVER_INFO['OUT OF GAS'], all three sections.
   await expect(screen.getByRole('heading', { name: 'What happened' })).toBeVisible();
   await expect(screen).toContainText('All tanks depleted — no breathing gas remaining.');
@@ -196,6 +213,8 @@ test.describe('small phone', () => {
 
   test('the whole screen is reachable by scrolling, nothing runs off an edge, and the retry target is 44px', async ({ page }) => {
     await resumeFailedDive(page, 'oxygen-toxicity');
+    // The boundary line is whole on the first screen, before any scrolling.
+    await expect(page.locator('[data-simulation-boundary]')).toBeInViewport({ ratio: 1 });
 
     const overflow = await page.evaluate(() => {
       const doc = document.scrollingElement;
@@ -228,3 +247,20 @@ test.describe('small phone', () => {
     await page.locator('.setup-screen').waitFor();
   });
 });
+
+for (const [locale, viewport, text] of [
+  ['en-US', { width: 844, height: 390 }, /^SIMULATION ONLY — /],
+  ['de-DE', { width: 667, height: 375 }, /^NUR SIMULATION — /],
+]) {
+  test.describe(`sideways at ${viewport.width}×${viewport.height} in ${locale}`, () => {
+    test.use({ locale, viewport, hasTouch: true });
+
+    test('the simulation boundary is whole on the first screen (#229)', async ({ page }) => {
+      await resumeFailedDive(page, 'out-of-gas');
+      const boundary = page.locator('[data-game-over] [data-simulation-boundary]');
+      await expect(boundary).toHaveText(text);
+      expect(await page.evaluate(() => window.scrollY)).toBe(0);
+      await expect(boundary).toBeInViewport({ ratio: 1 });
+    });
+  });
+}

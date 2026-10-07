@@ -1268,6 +1268,10 @@ test.describe('gas information', () => {
     await acceptSafetyGate(page);
     await page.locator('[data-start-dive]').click();
     await page.locator('[data-renderer=pixi] canvas').waitFor();
+    // I reads the dive's first frame, which the canvas can come before: the
+    // toggle shows once that frame has offered the pages. Without the wait
+    // linux CI lost one press and stopped on the tissue page.
+    await expect(gasInfoToggle(page)).toBeVisible();
 
     for (let i = 0; i < 3; i += 1) await page.keyboard.press('i');
     await expect(gasInfoHeading(page)).toHaveText('Gas information · Decompression');
