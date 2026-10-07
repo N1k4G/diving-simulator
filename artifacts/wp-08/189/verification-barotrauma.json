@@ -3,13 +3,13 @@
   "issue": 189,
   "slice": "Pulmonary barotrauma: legacy's runaway-ascent timer in the core, its game-over text in English and German, save v14, and the recorded legacy dive it is replayed against",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "933e187368db2ad6fb1709bf0e4ab35e42506629",
-  "measuredTree": "6520c95380750898d18d4a8566f776683943c016",
+  "measuredCommit": "18ca9e0e503a71ed818f0dbb3a86695f633ca31d",
+  "measuredTree": "c7c7319835ae7214d0831c4f636b981c5957fa36",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-06T23:37:52Z",
-  "runFinishedAt": "2026-10-06T23:45:43Z",
+  "recordedAt": "2026-10-07T00:53:25Z",
+  "runFinishedAt": "2026-10-07T01:01:19Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "Branch feat/189-barotrauma on main cb35009 (#215). The full run above is on 933e187, the slice's code commit; the only later commit adds this file.",
+  "provenanceNote": "Rebased onto main d44a239 (#216, a test-only change to tests/game.spec.js) and the fixture regenerated from the rebased capture commit; identical apart from referenceCommit. The full run above is on 18ca9e0; the only later commit updates this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -27,7 +27,7 @@
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent.",
     "unit": "448 passed (436 on main, +7 in tests/unit/pulmonary-barotrauma.test.ts, +5 in tests/unit/save-game.test.ts)",
     "parity": "158 passed (142 on main, +4 in tests/parity/pulmonary-barotrauma.test.ts, +6 each in dive-grade and dive-planner, which run one test per recorded checkpoint and pick up the six new ones; tests/parity/buoyancy.test.ts also compares the timer now)",
-    "e2e": "144 passed (5.7m) (143 on main, +1 in tests/game-over.spec.js: the barotrauma screen)",
+    "e2e": "144 passed in 5.6 min (143 on main, +1 in tests/game-over.spec.js: the barotrauma screen)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -102,8 +102,15 @@
   "deferred": "Nitrogen narcosis: feat/189-narcosis, stacked on this branch. The shark: legacy's encounter is scripted in updateDiving() and needs an encounter system the model does not have; a follow-up issue.",
   "durableProvenance": {
     "src": "b59c5ab2f6d3ff19aed41203de785c7396b74703",
-    "tests": "6d78e5c2a30780ec974889627a477a94825d538a",
+    "tests": "2f10240e0b25d0e30359ab93c69589ec8bf7c485",
     "scripts": "18bc2f4882a8c0fc30657f275d815a1c44581985",
-    "docs": "fade7c2ef63d55e469e0dfc59b102accffb0418c"
-  }
+    "docs": "818932abd7bd27d22971a567cd73133580b6ddcd"
+  },
+  "earlierRuns": [
+    {
+      "measuredCommit": "933e187368db2ad6fb1709bf0e4ab35e42506629",
+      "recordedAt": "2026-10-06T23:37:52Z",
+      "note": "On main cb35009, before the rebase onto d44a239 (#216); superseded by the run above."
+    }
+  ]
 }
