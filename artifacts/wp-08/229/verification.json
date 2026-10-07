@@ -1,0 +1,44 @@
+{
+  "schema": "wp-08-verification/v1",
+  "issue": 229,
+  "slice": "the SIMULATION boundary on the game-over screen",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "31a516f526ba52fa8252d12d20a5f6ba02826708",
+  "measuredTree": "f03f4317aac1923f746239f2cf071f111e5b857d",
+  "workingTree": "clean before and after the run (git status --porcelain empty)",
+  "recordedAt": "2026-10-07T15:48:42Z",
+  "runFinishedAt": "2026-10-07T15:58:41Z",
+  "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
+  "provenanceNote": "On main 99a7d0c (#227, the post-dive screen and its boundary line). The full run above is on 31a516f; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass",
+    "unit": "515 passed (515 on main 99a7d0c; unchanged)",
+    "parity": "266 passed (266 on main 99a7d0c; unchanged)",
+    "e2e": "160 passed in 6.9 min (158 on main 99a7d0c; +2 in tests/game-over.spec.js: the boundary whole on the first screen at 844×390 in English and 667×375 in German; the out-of-gas test and the 320×568 test also assert it)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels, nothing re-recorded",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "rule": "docs/decisions.md, Safety and claims: keep SIMULATION visible wherever a screen could be mistaken for a real dive computer or exported plan. Legacy shows its simulationBoundary only on the gas setup; the migration client adds it to the post-dive screen (#227) and now to the game-over screen, which reports a dive's end with its time and depth.",
+  "change": "src/app/game-over.ts appends p.result-boundary[data-simulation-boundary] (catalogue key result.simulationBoundary, legacy STRINGS.*.simulationBoundary verbatim) under the reason. docs/baseline/claims-register.json adds the game-over screen to USE-BOUNDARY-001's ui list. tests/game-over.spec.js clicks the safety gate by its data attribute, as tests/post-dive.spec.js does, so the German case can pass it.",
+  "counterChecks": {
+    "method": "The boundary line not appended (src/app/game-over.ts restored byte for byte from a backup afterwards, cmp), built, and tests/game-over.spec.js run under the port lock, on the code of this commit before it was committed.",
+    "results": [
+      {
+        "revert": "the boundary line not appended",
+        "result": "4 of 11 fail: the out-of-gas test, the 320×568 test and both sideways cases"
+      }
+    ]
+  },
+  "durableProvenance": {
+    "src": "26a5a38003b7539376b66de570d4e4ef0fcd894e",
+    "tests": "eb5c693e8b9e5b2499497273256509fa94f3cdbd",
+    "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
+    "docs": "fa5b761bb095ba7b673f7148f19f8cbd0e77b85d"
+  }
+}
