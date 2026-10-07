@@ -3,13 +3,13 @@
   "issue": 199,
   "slice": "Slice 7a: the dive starts at the surface, descends on S beside the wreck, and ends by surfacing outside it; the surface is the ceiling outside the wreck and the deck inside (owner decision A, 2026-09-30)",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "d777b05cfda0876eafa84af519387427300a1617",
-  "measuredTree": "9ab00a743664f2bfc05a4a336ce66abd5d0c362b",
+  "measuredCommit": "20f4d317a87d4643521a9a17608f8c8c8bf027e3",
+  "measuredTree": "61a72257a5c53b63cf3f6fb66011f61a9f094fa7",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-07T05:20:31Z",
-  "runFinishedAt": "2026-10-07T05:31:29Z",
+  "recordedAt": "2026-10-07T05:45:52Z",
+  "runFinishedAt": "2026-10-07T05:57:02Z",
   "timestampProvenance": "Both are `date -u` output printed around the run.",
-  "provenanceNote": "On main ea2921c (#225, the shark in the model), after #218 (pulmonary barotrauma), #224 (nitrogen narcosis) and #225; the route test surfaces at a controlled rate, since a runaway ascent ends in barotrauma as in legacy. The rebase onto ea2921c applied without conflicts and needed no fixture regeneration. The full run above is on d777b05: it holds the fixes for pre-review passes 1 and 2 and for Codex round 1 (3b8c4e0: the torch only while diving, a still scene after the dive), and the linux frame recorded for them. Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "On main ea2921c (#225, the shark in the model), after #218 (pulmonary barotrauma), #224 (nitrogen narcosis) and #225; the route test surfaces at a controlled rate, since a runaway ascent ends in barotrauma as in legacy. The rebase onto ea2921c applied without conflicts and needed no fixture regeneration. The full run above is on 20f4d31: it holds the fixes for pre-review passes 1 and 2 and for Codex round 1 (3b8c4e0: the torch only while diving, a still scene after the dive), the linux frame recorded for them, and 20f4d31, the rest of that finding: the nav pad only while diving, as pre-review pass 4 found. Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -27,7 +27,7 @@
     "distCheck": "pass: 17 files scanned, no source maps, 4 diagnostic markers absent",
     "unit": "515 passed (487 on main ea2921c; +28: 11 in tests/unit/wreck-route.test.ts, 6 net in tests/unit/game-controller-buoyancy.test.ts, 6 in tests/unit/game-controller-surface.test.ts, 3 in tests/unit/leave-surface.test.ts, 1 in tests/unit/game-controller-fast-forward.test.ts, 1 in src/render/camera.test.ts; four main tests rewritten for the surface route)",
     "parity": "266 passed (266 on main ea2921c; unchanged)",
-    "e2e": "149 passed in 7.7 min (146 on main ea2921c, +3 in tests/wreck-slice.spec.js: the surface start by keyboard and by touch, and a completed dive leaving no save, closing its audio and hiding its torch; tests/game-over.spec.js, including the narcosis and shark tests, passes unchanged)",
+    "e2e": "149 passed in 7.6 min (146 on main ea2921c, +3 in tests/wreck-slice.spec.js: the surface start by keyboard and by touch, and a completed dive leaving no save, closing its audio and hiding its torch and nav pad; the surface start shows only the descent button; tests/game-over.spec.js, including the narcosis and shark tests, passes unchanged)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, against frames re-recorded in this slice",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -139,17 +139,26 @@
       {
         "revert": "the HUD not hiding the torch button",
         "result": "2 failed (e2e): visible at the surface and after a completed dive"
+      },
+      {
+        "revert": "the nav pad shown at the surface and after the end",
+        "result": "2 failed (e2e): ←, ↑ and → visible while waiting, and the pad visible after a completed dive"
       }
     ]
   },
   "deferred": "The post-dive screen on completion is slice 8 (#159 PR 2). The HUD pieces (safety-stop countdown, rule-of-thirds gauge and turn beep, ascent rate and fast-ascent warning, #197) are slice 7b, stacked on this branch. Legacy's boat at the surface is not drawn.",
   "durableProvenance": {
-    "src": "b4fa5092ecae03800337febe0cff7ba54c6c0b4c",
-    "tests": "4c473f1d4a7bd2bff12bc0e38ef122bb9ddb8eb8",
+    "src": "a9d7833589258159b1b8aac7c2f8826ba7053a38",
+    "tests": "e4fcf1c18ba35e96359572aec77b1b85122f1bb3",
     "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
     "docs": "be4ccff71c90d68a71ff35868fbedd96cde6ecc3"
   },
   "earlierRuns": [
+    {
+      "measuredCommit": "d777b05cfda0876eafa84af519387427300a1617",
+      "recordedAt": "2026-10-07T05:20:31Z",
+      "note": "Full run before the nav-pad fix of pre-review pass 4; same counts; superseded by the run above."
+    },
     {
       "measuredCommit": "6b3e414a037c5fb28d0f6ca244df71d8bf88b0c0",
       "recordedAt": "2026-10-07T04:33:45Z",
