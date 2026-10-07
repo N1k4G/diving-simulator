@@ -7,38 +7,38 @@
   "scenes": {
     "wreck-exterior-start": {
       "statistics": {
-        "meanLuma": 43.459,
-        "sdLuma": 25.197,
+        "meanLuma": 42.239,
+        "sdLuma": 31.252,
         "meanRGB": [
-          21.826,
-          48.611,
-          56.128
+          17.44,
+          47.902,
+          59.169
         ],
-        "channelSpread": 34.302
+        "channelSpread": 41.729
       }
     },
     "wreck-descended": {
       "statistics": {
-        "meanLuma": 43.54,
-        "sdLuma": 24.931,
+        "meanLuma": 41.328,
+        "sdLuma": 20.62,
         "meanRGB": [
-          21.892,
-          48.698,
-          56.195
+          17.718,
+          46.867,
+          55.981
         ],
-        "channelSpread": 34.303
+        "channelSpread": 38.263
       }
     },
     "wreck-torch-off": {
       "statistics": {
-        "meanLuma": 41.355,
-        "sdLuma": 24.555,
+        "meanLuma": 41.172,
+        "sdLuma": 30.364,
         "meanRGB": [
-          20.207,
-          46.391,
-          53.734
+          16.532,
+          46.796,
+          58.023
         ],
-        "channelSpread": 33.527
+        "channelSpread": 41.491
       }
     }
   }
