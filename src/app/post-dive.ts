@@ -52,7 +52,13 @@ export function renderPostDiveScreen(
   const heading = element("h1", "result-heading", t("postDive.heading"));
   heading.id = "post-dive-heading";
   heading.tabIndex = -1;
-  screen.append(eyebrow, heading);
+  // docs/decisions.md: SIMULATION stays visible wherever a screen could be
+  // mistaken for a real dive computer, and a dive log with grading is one.
+  // Legacy's own boundary line (STRINGS.*.simulationBoundary), right under
+  // the heading so it is on screen without scrolling (#227 Codex round 1).
+  const boundary = element("p", "result-boundary", t("result.simulationBoundary"));
+  boundary.dataset.simulationBoundary = "true";
+  screen.append(eyebrow, heading, boundary);
 
   // Legacy's stats card: dive time, max and average depth.
   const stats = document.createElement("dl");

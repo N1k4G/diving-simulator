@@ -130,6 +130,12 @@ test('a dive completed at the surface opens legacy\'s debriefing, and clears the
   const screen = page.locator('[data-post-dive]');
 
   await expect(screen.getByRole('heading', { level: 1 })).toHaveText('Dive complete');
+  // A dive log could pass for a real dive computer's: legacy's boundary line
+  // stays on it (docs/decisions.md, #227 Codex round 1).
+  await expect(screen.locator('[data-simulation-boundary]')).toHaveText(
+    'SIMULATION ONLY — Not a dive computer or dive-planning tool. Do not use these outputs for a real dive.',
+  );
+  await expect(screen.locator('[data-simulation-boundary]')).toBeInViewport();
   // Focus moves to the heading instead of an aria-live announcement (#138).
   await expect(page.locator('#post-dive-heading')).toBeFocused();
   await expect(screen.locator('[aria-live], [role=alert], [role=status]')).toHaveCount(0);
@@ -339,8 +345,8 @@ test.describe('on a small phone', () => {
   // draws. The text checks make sure each case draws what it says it does.
   test.use({ viewport: { width: 320, height: 568 }, hasTouch: true, isMobile: true });
   const TEXT = {
-    'en-US': { heading: 'Dive complete', ascent: 'Fast ascent, peak 14.2 m/min', again: 'Dive again' },
-    'de-DE': { heading: 'Tauchgang beendet', ascent: 'Zu schneller Aufstieg, Spitze 14,2 m/min', again: 'Neuer Tauchgang' },
+    'en-US': { heading: 'Dive complete', ascent: 'Fast ascent, peak 14.2 m/min', again: 'Dive again', boundary: /^SIMULATION ONLY/ },
+    'de-DE': { heading: 'Tauchgang beendet', ascent: 'Zu schneller Aufstieg, Spitze 14,2 m/min', again: 'Neuer Tauchgang', boundary: /^NUR SIMULATION/ },
   };
 
   for (const locale of ['en-US', 'de-DE']) {
@@ -352,6 +358,8 @@ test.describe('on a small phone', () => {
           await resumeCompletedDive(page, rebreather ? { configure: configureCcr, editState: drawDownLoop } : {});
           const screen = page.locator('[data-post-dive]');
           await expect(screen.getByRole('heading', { level: 1 })).toHaveText(TEXT[locale].heading);
+          await expect(screen.locator('[data-simulation-boundary]')).toHaveText(TEXT[locale].boundary);
+          await expect(screen.locator('[data-simulation-boundary]')).toBeInViewport();
           await expect(screen.locator('.post-dive-violation-list li').first()).toContainText(TEXT[locale].ascent);
           await expect(screen.locator('[data-dive-again]')).toHaveText(TEXT[locale].again);
           await expect(screen.locator('[data-gas=oxygen]')).toHaveCount(rebreather ? 1 : 0);

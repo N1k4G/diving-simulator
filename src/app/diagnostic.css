@@ -168,6 +168,15 @@ summary:focus-visible {
   text-transform: uppercase;
 }
 
+.result-boundary {
+  margin: 0.5rem 0 1rem;
+  color: #ffd27a;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
 .game-over .result-heading {
   color: #ff7b7b;
 }

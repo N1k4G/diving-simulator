@@ -13,8 +13,8 @@
     {
       "id": "USE-BOUNDARY-001",
       "classification": "intended-use boundary",
-      "source": ["STRINGS.en.simulationBoundary", "STRINGS.de.simulationBoundary", "src/app/i18n/catalog.ts {en,de}: wreck.safety.*"],
-      "ui": ["gas setup", "safety gate (migration client)"],
+      "source": ["STRINGS.en.simulationBoundary", "STRINGS.de.simulationBoundary", "src/app/i18n/catalog.ts {en,de}: wreck.safety.*", "src/app/i18n/catalog.ts {en,de}: result.simulationBoundary"],
+      "ui": ["gas setup", "safety gate (migration client)", "post-dive screen (migration client)"],
       "owner": "product",
       "reviewStatus": "provisional; legal and domain review required before public store release",
       "evidence": []
