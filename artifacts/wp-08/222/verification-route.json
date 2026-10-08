@@ -1,0 +1,71 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 222,
+  "slice": "The wreck route's bow and engine block (two items of #222): the overhead and the zone map's cargo hold start at 27, where the drawn hold is under the deck at its full height, instead of 45; the engine block stays passable, as legacy's engines are",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "20d0a8cef073f2b16e927fca870464d734bf2592",
+  "measuredTree": "28862c2ba6dcc2d39ff1975a0c01562117ab7239",
+  "workingTree": "clean before the run and still clean after it",
+  "recordedAt": "2026-10-08T05:10:43Z",
+  "runFinishedAt": "2026-10-08T05:24:25Z",
+  "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
+  "provenanceNote": "On main 5e8d4ee (#234): the change is 20d0a8c alone. The full run above is on 20d0a8c; later commits only update this file.",
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass: site resources match src/sites.js (4 sites)",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass: 16 files scanned, no source maps, 4 diagnostic markers absent",
+    "unit": "530 passed (+3 over main 5e8d4ee: +2 in tests/unit/wreck-route.test.ts, the overhead's start and the engine block; +1 in tests/unit/game-controller-buoyancy.test.ts, the overhead at 35 m along the route)",
+    "parity": "332 passed (none added; the rule-of-thirds parity replays legacy's recorded inOverhead and does not read the route)",
+    "e2e": "166 passed in 8.5 min (none added; no spec swims along the route between 27 and 45)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels, against main's frames (none re-recorded: the hull drawing is unchanged)",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "oracle": {
+    "bow": "src/sites.js: the bow stem is solid at x 14..16 (line 322); the main deck is a structure from x 22 to 78 (line 327), after the bow-visor opening left at x 14..22 (line 326); overheadAt (line 977) is true when any structure with its bottom above the diver spans its x. So under legacy's deck, from x 22, a diver is in the overhead, and only the opening ahead of it is open to the surface. Legacy's zone map (visualZones) puts the vehicle deck, an interior zone, at x 14..170, d 28..40 (line 560): it agrees with the overhead flags from x 22 on and disagrees with them at the bow opening (x 16..22: interior zone, not overhead). The renderer draws that opening as the BOW entry, marked from above on the main-deck line, x 16..22 (src/renderer.js line 4962), with the visor hinged up over it (src/sites.js line 449).",
+    "engine": "src/sites.js lines 503..508: the engines are site features ({kind:'engine'}), not structures. solidAt, solidBoxAt and solidOverlapArea (src/sites.js lines 797, 817, 843) iterate only s.structures, and the diver's movement is stopped only through them (src/physics.js lines 147 and 202, diverOverlapGrew). The renderer draws the engines as features (src/renderer.js drawEngine, line 5644, called at line 6318). Legacy's diver swims through its engines."
+  },
+  "implemented": "src/sites/wreck-route.ts: CARGO_HOLD_FROM_M 45 -> 27, the first point of the drawn deck's underside. It is both where routeSpacesAt splits the water into above the deck and under it (inOverhead, which runs the rule of thirds, #214) and where selectWreckZone's cargo hold starts, so the controller's zone (inOverhead ? selectWreckZone : exterior, src/app/game-controller.ts, unchanged) stays consistent. The engine block: no behaviour change, a comment on moveAlongRoute and a test pinning legacy's passability. Neither src/app/game-controller.ts nor src/app/wreck-app.ts is changed, and the hull drawing is not.",
+  "gameplayEffect": "Under the deck between 27 and 45 the diver is now in the overhead, as legacy is under its deck: the rule of thirds sets its plan there (legacy updateDiving, Issue #27), the HUD's location reads Cargo hold, and the deck is the ceiling, so the diver can no longer rise through the drawn deck there. Entering and leaving the hold now happens at 27 instead of 45.",
+  "counterChecks": {
+    "method": "Each mutation was applied on 20d0a8c to the file copied from a backup taken just before it, and checked with tests/unit/wreck-route.test.ts, src/render/renderer.test.ts and tests/unit/game-controller-buoyancy.test.ts (34 tests). After each, the file was restored from the backup and its sha256 compared with the one taken before the mutation (all equal), and git status was clean at the end. No e2e mutation: the change has no browser-visible part the specs reach.",
+    "results": [
+      {
+        "revert": "the overhead and the zone map's cargo hold back at 45 (CARGO_HOLD_FROM_M = 45)",
+        "result": "5 of 34 failed: the overhead's start, the deck above the hold, the deck's edge at 27, the zone map test and the controller's overhead at 35 m"
+      },
+      {
+        "revert": "the zone map at 27 but the overhead still starting at 45 (routeSpacesAt's split at a literal 45)",
+        "result": "6 of 34 failed: the overhead's start, the deck above the hold, the overhead matching the zone, the deck's edge at 27, and in the controller the overhead at 35 m and the diver stopped at the deck's edge"
+      },
+      {
+        "revert": "the overhead at 27 but the zone map's cargo hold still at 45 (selectWreckZone at a literal 45)",
+        "result": "4 of 34 failed: the overhead's start, the overhead matching the zone, the zone map test and the controller's overhead at 35 m"
+      },
+      {
+        "revert": "the engine block made solid: a stroke into the 3.1 m circle about (87, 30.5) refused",
+        "result": "1 of 34 failed: the engine-block test"
+      }
+    ]
+  },
+  "durableProvenance": {
+    "src": "1e4a89a08d4007190c7a8fc675006837e66b72a7",
+    "tests": "f1265617bd42bd6350d8f598e0ea3e53bc604914",
+    "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
+    "docs": "962eda1ab1e91d08608f30422da66916f4af0471"
+  },
+  "openQuestions": [
+    "The bow ahead of the hold (x 14..27) is still drawn as solid hull and still swum through: the diver enters and leaves the hold there, horizontally between 24.5 and 33.5 m, and can rise from it through the drawn bow. Legacy has a solid stem (x 14..16) and an opening in the deck (x 16..22) entered from above. Making the drawn bow solid would seal the hold; opening it like legacy's visor changes the hull drawing and the reference frames. Left for the owner.",
+    "The engine block: legacy's engines do not stop the diver, so it stays passable. Making it solid would depart from legacy; left for the owner."
+  ]
+}
