@@ -3,13 +3,13 @@
   "issue": 222,
   "slice": "The wreck route's bow and engine block (two items of #222): the overhead and the zone map's cargo hold start at 27, where the drawn hold is under the deck at its full height, instead of 45; the engine block stays passable, as legacy's engines are",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "20d0a8cef073f2b16e927fca870464d734bf2592",
-  "measuredTree": "28862c2ba6dcc2d39ff1975a0c01562117ab7239",
+  "measuredCommit": "39247a4089c51b60a37eae67a81ec7bf7c115864",
+  "measuredTree": "aa06a23e930e5b6e1ee76930f06a279c1d4bd4bc",
   "workingTree": "clean before the run and still clean after it",
-  "recordedAt": "2026-10-08T05:10:43Z",
-  "runFinishedAt": "2026-10-08T05:24:25Z",
+  "recordedAt": "2026-10-08T06:21:26Z",
+  "runFinishedAt": "2026-10-08T06:33:41Z",
   "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
-  "provenanceNote": "On main 5e8d4ee (#234): the change is 20d0a8c alone. The full run above is on 20d0a8c; later commits only update this file.",
+  "provenanceNote": "On main ac3e019 (#234, #236, #237: dependency bumps), rebased from 5e8d4ee without conflicts; the change is 39247a4 alone (was 20d0a8c). The full run above is on 39247a4; later commits only update this file.",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -27,7 +27,7 @@
     "distCheck": "pass: 16 files scanned, no source maps, 4 diagnostic markers absent",
     "unit": "530 passed (+3 over main 5e8d4ee: +2 in tests/unit/wreck-route.test.ts, the overhead's start and the engine block; +1 in tests/unit/game-controller-buoyancy.test.ts, the overhead at 35 m along the route)",
     "parity": "332 passed (none added; the rule-of-thirds parity replays legacy's recorded inOverhead and does not read the route)",
-    "e2e": "166 passed in 8.5 min (none added; no spec swims along the route between 27 and 45)",
+    "e2e": "166 passed in 8.3 min (none added; no spec swims along the route between 27 and 45)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, against main's frames (none re-recorded: the hull drawing is unchanged)",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -67,5 +67,22 @@
   "openQuestions": [
     "The bow ahead of the hold (x 14..27) is still drawn as solid hull and still swum through: the diver enters and leaves the hold there, horizontally between 24.5 and 33.5 m, and can rise from it through the drawn bow. Legacy has a solid stem (x 14..16) and an opening in the deck (x 16..22) entered from above. Making the drawn bow solid would seal the hold; opening it like legacy's visor changes the hull drawing and the reference frames. Left for the owner.",
     "The engine block: legacy's engines do not stop the diver, so it stays passable. Making it solid would depart from legacy; left for the owner."
+  ],
+  "earlierRuns": [
+    {
+      "measuredCommit": "39247a4089c51b60a37eae67a81ec7bf7c115864",
+      "recordedAt": "2026-10-08T06:07:25Z",
+      "note": "Second full run on the same commit: 530 unit and 332 parity passed; e2e 164 passed and 2 failed, the same cross-client trace and the legacy tests/reload-resume.spec.js 'an old save-version (v1) payload is rejected' timing out in page.reload(). Run alone, the trace passed 4 of 4 on this commit (--repeat-each=4). It starts at route position 10, before the changed overhead start at 27, and it failed the same way on other branches under load (#226's run on e363bea). Both tests passed in the run above."
+    },
+    {
+      "measuredCommit": "39247a4089c51b60a37eae67a81ec7bf7c115864",
+      "recordedAt": "2026-10-08T05:52:29Z",
+      "note": "First full run on the same commit: 530 unit and 332 parity passed; e2e 165 passed and 1 failed, the cross-client trace in tests/wreck-slice.spec.js reading 'stationary' instead of 'deeper'."
+    },
+    {
+      "measuredCommit": "20d0a8cef073f2b16e927fca870464d734bf2592",
+      "recordedAt": "2026-10-08T05:10:43Z",
+      "note": "Full run on main 5e8d4ee, before the rebase onto ac3e019 (lockfile-only bumps #236, #237); 530 unit, 332 parity, 166 e2e. Superseded by the run above."
+    }
   ]
 }
