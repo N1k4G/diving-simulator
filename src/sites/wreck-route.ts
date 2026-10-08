@@ -56,8 +56,17 @@ export const ROUTE_MAX_POSITION_M = 106;
  */
 export const ROUTE_START_POSITION_M = 10;
 
-/** Where the overhead starts: src/render/renderer.ts selectWreckZone(). */
-export const CARGO_HOLD_FROM_M = 45;
+/**
+ * Where the overhead starts, and with it the zone map's cargo hold
+ * (src/render/renderer.ts selectWreckZone()): the start of the deck's
+ * underside, where the drawn hold is under the deck at its full height
+ * (#222). Legacy counts any diver with solid structure above as in the
+ * overhead (src/sites.js overheadAt), and its main deck covers the hull from
+ * x 22 (src/sites.js, the deck after the bow-visor opening), so a diver
+ * under the drawn deck is in the overhead. Until #222 it started at 45, and
+ * the hold under the deck before that counted as open water.
+ */
+export const CARGO_HOLD_FROM_M = 27;
 export const ENGINE_ROOM_FROM_M = 76;
 
 /**
@@ -147,6 +156,11 @@ export function routeSpaceNear(positionM: number, depthM: number): RouteSpace {
  * stops the diver at a structure, and the diver has to rise or sink to get
  * past it. The overhead is entered only between the deck and the hold's
  * floor, and the deck is crossed above it.
+ *
+ * The engine block the scene draws in the hold does not stop the diver
+ * (#222): legacy's engines are site features, drawn but never collided with,
+ * since its collision reads only the site's structures (src/sites.js
+ * solidOverlapArea, src/physics.js updateHorizontalPhysics).
  */
 export function moveAlongRoute(fromM: number, toM: number, depthM: number): number {
   const targetM = Math.min(ROUTE_MAX_POSITION_M, Math.max(ROUTE_MIN_POSITION_M, toM));

@@ -40,7 +40,7 @@ describe("where the diver can be along the wreck route", () => {
   });
 
   it("has the deck above the diver in the cargo hold and the engine room, and open water above the deck", () => {
-    for (const position of [CARGO_HOLD_FROM_M, 60, ENGINE_ROOM_FROM_M, 90, WRECK_HOLD_STERN_X_M]) {
+    for (const position of [CARGO_HOLD_FROM_M, 35, 45, 60, ENGINE_ROOM_FROM_M, 90, WRECK_HOLD_STERN_X_M]) {
       const [above, under] = routeSpacesAt(position);
       expect(above).toEqual({ ceilingM: 0, floorM: profileAt(WRECK_DECK_TOP, position), inOverhead: false });
       expect(under).toEqual({
@@ -52,6 +52,26 @@ describe("where the diver can be along the wreck route", () => {
       expect(under!.ceilingM).toBeGreaterThan(above!.floorM);
       expect(under!.floorM - under!.ceilingM).toBeGreaterThan(3);
     }
+  });
+
+  it("has the overhead start where the drawn hold is under the deck at its full height (#222)", () => {
+    // Legacy: any diver with a structure above is in the overhead
+    // (src/sites.js overheadAt), and its main deck covers the hull from x 22.
+    // The drawn deck's underside starts at 27; until #222 the hold under it
+    // counted as open water up to 45.
+    expect(CARGO_HOLD_FROM_M).toBe(WRECK_DECK_UNDERSIDE[0]!.x);
+    for (const position of [27, 30, 35, 40, 44.5]) {
+      expect(routeSpaceNear(position, 28), `at ${position} m`).toEqual({
+        ceilingM: profileAt(WRECK_DECK_UNDERSIDE, position),
+        floorM: WRECK_HOLD_FLOOR_M,
+        inOverhead: true,
+      });
+      expect(selectWreckZone(position), `at ${position} m`).toBe("cargo-hold");
+    }
+    // Ahead of the drawn hold it is still open water to the surface.
+    expect(routeSpacesAt(26.9)).toEqual([
+      { ceilingM: 0, floorM: OPEN_WATER_FLOOR_M, inOverhead: false },
+    ]);
   });
 
   it("ends the hold at the stern wall the scene draws, with only open water past it (#223 pre-review)", () => {
@@ -99,20 +119,35 @@ describe("swimming along the route", () => {
   });
 
   it("enters the hold under the deck, and crosses over it above the deck", () => {
-    expect(moveAlongRoute(44.9, 45.1, 28)).toBe(45.1);
-    expect(moveAlongRoute(44.9, 45.1, 10)).toBe(45.1);
+    expect(moveAlongRoute(26.9, 27.1, 28)).toBe(27.1);
+    expect(moveAlongRoute(26.9, 27.1, 10)).toBe(27.1);
   });
 
   it("is stopped by the deck's edge and by the hull's bottom", () => {
-    // The deck at the hold's start runs from about 22.2 m to 24.0 m.
-    expect(moveAlongRoute(44.9, 45.1, 23)).toBe(44.9);
+    // The deck at the hold's start runs from about 22.8 m to 24.5 m.
+    expect(moveAlongRoute(26.9, 27.1, 23)).toBe(26.9);
     // Open water reaches 34 m, the hold's floor 33.5 m.
-    expect(moveAlongRoute(44.9, 45.1, 33.9)).toBe(44.9);
+    expect(moveAlongRoute(26.9, 27.1, 33.9)).toBe(26.9);
   });
 
   it("always leaves the hold into open water", () => {
-    for (const depth of [24.1, 28, 33.5]) {
-      expect(moveAlongRoute(45.1, 44.9, depth)).toBe(44.9);
+    for (const depth of [24.6, 28, 33.5]) {
+      expect(moveAlongRoute(27.1, 26.9, depth)).toBe(26.9);
+    }
+  });
+
+  it("swims through the engine block the scene draws, as legacy's engines do not stop the diver (#222)", () => {
+    // src/render/pixi-renderer.ts draws it in the hold: a 3.1 m circle about
+    // (87, 30.5) on a base from 81 to 95 m at 33 m. Legacy's engines are
+    // site features (src/sites.js), and its collision reads only the
+    // structures, so the diver swims through them.
+    for (const depth of [28, 30.5, 33.3]) {
+      let position = 80;
+      while (position < 96) {
+        const next = moveAlongRoute(position, position + 0.1, depth);
+        expect(next, `at ${position} m, ${depth} m deep`).toBeCloseTo(position + 0.1, 12);
+        position = next;
+      }
     }
   });
 
