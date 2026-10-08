@@ -416,6 +416,22 @@ describe("the route through the wreck", { timeout: 30_000 }, () => {
     controller.destroy();
   });
 
+  it("is in the overhead under the deck from the drawn hold's start, not from 45 m (#222)", async () => {
+    const { controller, frames } = await startController(neutralAt(28));
+    controller.setControl("right", true);
+    step(25 * FIN_FRAMES_PER_METRE);
+    controller.setControl("right", false);
+    expect(frames.at(-1)?.scene.routePositionM).toBeCloseTo(35, 9);
+    expect(frames.at(-1)?.scene.zone).toBe("cargo-hold");
+    expect(controller.authoritativeState.thirds.startingGasL).toBeGreaterThan(0);
+
+    // The deck holds the diver under it there too.
+    controller.setControl("ascend", true);
+    step(300);
+    expect(controller.authoritativeState.depthM).toBeCloseTo(profileAt(WRECK_DECK_UNDERSIDE, 35), 9);
+    controller.destroy();
+  });
+
   it("ends the dive at the surface once the diver has swum out of the wreck", async () => {
     // In the hold and out again, neutral at 28 m: the deck as the ceiling is
     // the test above. A diver who left the hold pressed against the deck with

@@ -11,6 +11,9 @@ describe("renderer selection", () => {
 
   it("maps the representative route to stable wreck zones", () => {
     expect(selectWreckZone(20)).toBe("exterior");
+    // The hold starts where the deck's underside does (#222).
+    expect(selectWreckZone(26.9)).toBe("exterior");
+    expect(selectWreckZone(27)).toBe("cargo-hold");
     expect(selectWreckZone(45)).toBe("cargo-hold");
     expect(selectWreckZone(76)).toBe("engine-room");
   });
