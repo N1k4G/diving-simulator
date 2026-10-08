@@ -9,7 +9,7 @@
   "recordedAt": "2026-10-08T06:21:26Z",
   "runFinishedAt": "2026-10-08T06:33:41Z",
   "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
-  "provenanceNote": "On main ac3e019 (#234, #236, #237: dependency bumps), rebased from 5e8d4ee without conflicts; the change is 39247a4 alone (was 20d0a8c). The full run above is on 39247a4; later commits only update this file.",
+  "provenanceNote": "On main ac3e019 (#234, #236, #237: dependency bumps), rebased from 5e8d4ee without conflicts; the change is 5a832d0 alone (was 20d0a8c), and 39247a4 adds this file. The full run above is on 39247a4; later commits only update this file.",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
