@@ -3,13 +3,13 @@
   "issue": 228,
   "slice": "legacy's remaining HUD warnings: above the ceiling, low NDL and narcosis, and low gas split from the gas reserve, with legacy's ranking and beep terms",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "cf901237d1d9195056d64d7e8b58c600d135d077",
-  "measuredTree": "ef1922d4925dcc8cbd4fd809395443ec2a6af5e2",
+  "measuredCommit": "86b19b021ae86be53ff5fd84baf55c81c2249a5c",
+  "measuredTree": "f0174c39722c85016784b631bafadf0580d70176",
   "workingTree": "clean before and after the run (git status --porcelain empty)",
-  "recordedAt": "2026-10-10T14:48:02Z",
-  "runFinishedAt": "2026-10-10T14:59:04Z",
+  "recordedAt": "2026-10-10T15:41:53Z",
+  "runFinishedAt": "2026-10-10T15:53:29Z",
   "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
-  "provenanceNote": "On main 44012dd (#232, the dive computer reads English in both languages). The full run above is on cf90123, the test commit after the second implementation commit 25f0233 (low gas and the gas reserve, by the coordinator's decision); the first implementation is 536bcd1 with its tests c6e4e6f. Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "Rebased onto main 8b8c0bb (#243, the trace and reload test fixes; #241, the bow opening and a solid engine) without conflicts; git range-diff shows every commit unchanged. The full run above is on 86b19b0, the rebased branch; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance). Before the rebase: On main 44012dd (#232, the dive computer reads English in both languages). The full run above is on cf90123, the test commit after the second implementation commit 25f0233 (low gas and the gas reserve, by the coordinator's decision); the first implementation is 536bcd1 with its tests c6e4e6f.",
   "results": {
     "typecheck": "pass",
     "lint": "pass",
@@ -18,13 +18,18 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass",
-    "unit": "584 passed (+21 in tests/unit/hud-warning.test.ts: each condition at legacy's boundaries, low gas under 30 and the reserve under 50 on the active cylinder and on no rebreather cylinder, the full ranking on open circuit, on the loop and after a bailout, the beep terms, and the presentation's decoStopDepthM, nearNdlMin and narcosisIndex, the near NDL against the full 200-minute search over a 0-16 min exposure sweep and at two GF highs)",
-    "parity": "332 passed (unchanged)",
-    "e2e": "186 passed in 8.2 min, no retries, no flake (+8 in tests/hud-warnings.spec.js, each in en-US and de-DE: above the ceiling, the gas reserve, low NDL and narcosis show legacy's English text in the alert and the chip, both lang=en; the ceiling, the reserve and narcosis sound the alarm, the low NDL stays silent for two alarm periods. tests/wreck-slice.spec.js's low-gas variant moves from 40 to 20 bar, under legacy's 30)",
+    "unit": "590 passed (569 on main 8b8c0bb; +21 in tests/unit/hud-warning.test.ts: each condition at legacy's boundaries, low gas under 30 and the reserve under 50 on the active cylinder and on no rebreather cylinder, the full ranking on open circuit, on the loop and after a bailout, the beep terms, and the presentation's decoStopDepthM, nearNdlMin and narcosisIndex, the near NDL against the full 200-minute search over a 0-16 min exposure sweep and at two GF highs)",
+    "parity": "336 passed (336 on main 8b8c0bb; unchanged)",
+    "e2e": "186 passed in 8.8 min (178 on main 8b8c0bb), no retries, no flake (+8 in tests/hud-warnings.spec.js, each in en-US and de-DE: above the ceiling, the gas reserve, low NDL and narcosis show legacy's English text in the alert and the chip, both lang=en; the ceiling, the reserve and narcosis sound the alarm, the low NDL stays silent for two alarm periods. tests/wreck-slice.spec.js's low-gas variant moves from 40 to 20 bar, under legacy's 30)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, nothing re-recorded",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
   "earlierRuns": [
+    {
+      "measuredCommit": "cf901237d1d9195056d64d7e8b58c600d135d077",
+      "recordedAt": "2026-10-10T14:48:02Z",
+      "note": "Full run on main 44012dd, before the rebase onto 8b8c0bb; 584 unit, 332 parity, 186 e2e, all passing. Superseded by the run above."
+    },
     {
       "commit": "c6e4e6f315ea016ae3a38fec939c51883bfd1b00",
       "tree": "eefd246e4976956ce11a5aff25575aeb1a36b5bb",
@@ -53,23 +58,74 @@
   "counterChecks": {
     "method": "Each mutation applied with sed to a file copied to a backup beforehand; tests/unit/hud-warning.test.ts run, and for the e2e cases the client rebuilt and the named specs run under the port lock with --retries=0. The first thirteen ran on the code of c6e4e6f (19 unit tests then, 6 e2e), the last four on cf90123 (21 unit tests, 8 e2e in tests/hud-warnings.spec.js plus tests/wreck-slice.spec.js:248). Each file was then restored from its backup and compared with cmp: byte for byte identical in every case.",
     "results": [
-      { "revert": "ceiling condition removed (src/app/hud-warning.ts)", "result": "unit: 6 of 19 fail; e2e: 2 of 6 fail, the ceiling case in both locales" },
-      { "revert": "ceiling boundary made inclusive, depth <= decoStopDepth", "result": "unit: 1 of 19 fails" },
-      { "revert": "open-circuit oxygen ranked over the ceiling", "result": "unit: 3 of 19 fail" },
-      { "revert": "low NDL without ndl > 0", "result": "unit: 1 of 19 fails" },
-      { "revert": "low NDL inclusive, ndl <= 5", "result": "unit: 1 of 19 fails" },
-      { "revert": "narcosis caution inclusive, >= 0.20", "result": "unit: 2 of 19 fail" },
-      { "revert": "both narcosis warnings removed", "result": "unit: 6 of 19 fail; e2e: 2 of 6 fail, the narcosis case in both locales" },
-      { "revert": "the alarm counts the low NDL (isWarningBeepActive)", "result": "unit: 1 of 19 fails" },
-      { "revert": "the alarm wired back to any selected warning (src/app/wreck-app.ts)", "result": "e2e: 2 of 6 fail, the silent low-NDL case in both locales" },
-      { "revert": "the NDL search ignores its bound (src/core/decompression.ts)", "result": "unit: 1 of 19 fails" },
-      { "revert": "the near NDL also read in deco (src/presentation/presentation-state.ts)", "result": "unit: 1 of 19 fails" },
-      { "revert": "the near NDL at the default GF high instead of the dive's", "result": "unit: 1 of 19 fails" },
-      { "revert": "diveComputer.alert.ceiling translated to 'Über Ceiling — abtauchen' (src/app/i18n/catalog.ts)", "result": "e2e: 2 of 6 fail, the ceiling case in both locales" },
-      { "revert": "low gas inclusive, tBar <= 30 (src/app/hud-warning.ts, on cf90123)", "result": "unit: 1 of 21 fails" },
-      { "revert": "reserve inclusive, tBar <= 50", "result": "unit: 1 of 21 fails" },
-      { "revert": "the reserve merged back into low gas", "result": "unit: 3 of 21 fail; e2e: 2 of 9 fail, the reserve case in both locales" },
-      { "revert": "the open-circuit cylinder read on a rebreather", "result": "unit: 1 of 21 fails" }
+      {
+        "revert": "ceiling condition removed (src/app/hud-warning.ts)",
+        "result": "unit: 6 of 19 fail; e2e: 2 of 6 fail, the ceiling case in both locales"
+      },
+      {
+        "revert": "ceiling boundary made inclusive, depth <= decoStopDepth",
+        "result": "unit: 1 of 19 fails"
+      },
+      {
+        "revert": "open-circuit oxygen ranked over the ceiling",
+        "result": "unit: 3 of 19 fail"
+      },
+      {
+        "revert": "low NDL without ndl > 0",
+        "result": "unit: 1 of 19 fails"
+      },
+      {
+        "revert": "low NDL inclusive, ndl <= 5",
+        "result": "unit: 1 of 19 fails"
+      },
+      {
+        "revert": "narcosis caution inclusive, >= 0.20",
+        "result": "unit: 2 of 19 fail"
+      },
+      {
+        "revert": "both narcosis warnings removed",
+        "result": "unit: 6 of 19 fail; e2e: 2 of 6 fail, the narcosis case in both locales"
+      },
+      {
+        "revert": "the alarm counts the low NDL (isWarningBeepActive)",
+        "result": "unit: 1 of 19 fails"
+      },
+      {
+        "revert": "the alarm wired back to any selected warning (src/app/wreck-app.ts)",
+        "result": "e2e: 2 of 6 fail, the silent low-NDL case in both locales"
+      },
+      {
+        "revert": "the NDL search ignores its bound (src/core/decompression.ts)",
+        "result": "unit: 1 of 19 fails"
+      },
+      {
+        "revert": "the near NDL also read in deco (src/presentation/presentation-state.ts)",
+        "result": "unit: 1 of 19 fails"
+      },
+      {
+        "revert": "the near NDL at the default GF high instead of the dive's",
+        "result": "unit: 1 of 19 fails"
+      },
+      {
+        "revert": "diveComputer.alert.ceiling translated to 'Über Ceiling — abtauchen' (src/app/i18n/catalog.ts)",
+        "result": "e2e: 2 of 6 fail, the ceiling case in both locales"
+      },
+      {
+        "revert": "low gas inclusive, tBar <= 30 (src/app/hud-warning.ts, on cf90123)",
+        "result": "unit: 1 of 21 fails"
+      },
+      {
+        "revert": "reserve inclusive, tBar <= 50",
+        "result": "unit: 1 of 21 fails"
+      },
+      {
+        "revert": "the reserve merged back into low gas",
+        "result": "unit: 3 of 21 fail; e2e: 2 of 9 fail, the reserve case in both locales"
+      },
+      {
+        "revert": "the open-circuit cylinder read on a rebreather",
+        "result": "unit: 1 of 21 fails"
+      }
     ]
   },
   "environment": {
@@ -80,9 +136,9 @@
     "playwrightWorkers": 4
   },
   "durableProvenance": {
-    "src": "c0d0dd12e1b3e73e9d03464eea5479f70fcf06cc",
-    "tests": "ed9a49162bf3b80eb7eef3b82394a72fc633c3d0",
+    "src": "c0c6371df4f80d694758338804debf289b89de9c",
+    "tests": "bb9d4127889ef7bac7abf09485a980219053671b",
     "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
-    "docs": "8eddc3aeec7918c9e2d3e963b29724e2a3af993c"
+    "docs": "701239d0a12657dc2ee7c25e2d1e98d7bd1d9134"
   }
 }
