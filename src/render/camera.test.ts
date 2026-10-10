@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createCameraTransform, worldToScreen } from "./camera";
+import { createCameraTransform, worldToScreen, wreckCameraFocusX, wreckViewAround } from "./camera";
 
 describe("wreck camera", () => {
   it("centres its focus and keeps world coordinates stable", () => {
@@ -41,5 +41,33 @@ describe("wreck camera", () => {
     expect(() =>
       createCameraTransform({ width: 0, height: 300 }, { x: 20, y: 20 }),
     ).toThrow(RangeError);
+  });
+});
+
+// The view to either side of the diver, for the shark's spawn and exit (#219
+// part 2, owner decision of 2026-10-07): the camera's edges, lead and clamp
+// included, whatever the viewport.
+describe("the wreck camera's view around the diver", () => {
+  it.each([
+    [10, 1],
+    [10, -1],
+    [50, 1],
+    [50, -1],
+    [100, 1],
+    [100, -1],
+  ] as const)("reaches the screen's edges from route position %d facing %d", (positionM, facing) => {
+    for (const viewport of [{ width: 1160, height: 600 }, { width: 390, height: 844 }]) {
+      const camera = createCameraTransform(viewport, { x: wreckCameraFocusX(positionM, facing), y: 20 });
+      const view = wreckViewAround(positionM, facing);
+      expect(worldToScreen({ x: positionM - view.leftM, y: 20 }, camera).x).toBeCloseTo(0, 9);
+      expect(worldToScreen({ x: positionM + view.rightM, y: 20 }, camera).x).toBeCloseTo(viewport.width, 9);
+    }
+  });
+
+  it("leads the diver by 8 m where the scene's bounds allow", () => {
+    expect(wreckViewAround(50, 1)).toEqual({ leftM: 21, rightM: 37 });
+    expect(wreckViewAround(50, -1)).toEqual({ leftM: 37, rightM: 21 });
+    // Held at the bow's bound: the diver is 10 m from the left edge.
+    expect(wreckViewAround(10, 1)).toEqual({ leftM: 10, rightM: 48 });
   });
 });

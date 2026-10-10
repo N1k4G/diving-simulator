@@ -21,6 +21,7 @@ import {
   WRECK_STERN_X_M,
   WRECK_VISOR,
   engineTopAt,
+  floorUnder,
   holdFloorAt,
   moveAlongRoute,
   profileAt,
@@ -365,5 +366,28 @@ describe("the route as a whole (#222)", () => {
       }
     }
     expect(crossings).toBeGreaterThan(1000);
+  });
+});
+
+// The shark's floor guard (#219 part 2): legacy's floorAt(shark.x), on the
+// route's stretches of water, and beyond them where a shark swims past the
+// view and the diver never goes.
+describe("the floor under a passing shark", () => {
+  it("is the floor of the stretch of water it swims in", () => {
+    expect(floorUnder(ROUTE_START_POSITION_M, 20)).toBe(OPEN_WATER_FLOOR_M);
+    expect(floorUnder(-20, 20)).toBe(OPEN_WATER_FLOOR_M);
+    expect(floorUnder(15, 30)).toBe(WRECK_STEM_TOP_M);
+    expect(floorUnder(19, 30)).toBe(WRECK_HOLD_FLOOR_M);
+    // Over the deck, or under it in the hold, by the depth it holds.
+    expect(floorUnder(50, 10)).toBeCloseTo(profileAt(WRECK_DECK_TOP, 50), 12);
+    expect(floorUnder(50, 28)).toBe(WRECK_HOLD_FLOOR_M);
+    expect(floorUnder(WRECK_ENGINE.centreX, 26)).toBeCloseTo(WRECK_ENGINE.centreD - WRECK_ENGINE.radiusM, 12);
+  });
+
+  it("is open water past the deck's after end, where the route keeps the deck level", () => {
+    const sternEnd = WRECK_DECK_TOP[WRECK_DECK_TOP.length - 1]!;
+    expect(floorUnder(sternEnd.x, 20)).toBe(sternEnd.d);
+    expect(floorUnder(sternEnd.x + 0.1, 20)).toBe(OPEN_WATER_FLOOR_M);
+    expect(floorUnder(140, 30)).toBe(OPEN_WATER_FLOOR_M);
   });
 });

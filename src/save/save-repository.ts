@@ -3,6 +3,7 @@ import {
   decodeSaveGame,
   encodeSaveGame,
   type SaveGame,
+  type SaveGameDecodeOptions,
   type SaveGameDecodeResult,
   type SavedDiveMode,
   type SavedGradientFactors,
@@ -48,9 +49,15 @@ export type SaveRepositoryLoadResult =
 
 export class LocalSaveRepository {
   readonly #store: KeyValueStore;
+  readonly #decodeOptions: Readonly<SaveGameDecodeOptions>;
 
-  constructor(store: KeyValueStore) {
+  /**
+   * `options.legacySeed` seeds a dive migrated from a legacy save (#219); the
+   * migrated save is written back with it, so it is drawn once.
+   */
+  constructor(store: KeyValueStore, options: Readonly<SaveGameDecodeOptions> = {}) {
     this.#store = store;
+    this.#decodeOptions = options;
   }
 
   /**
@@ -101,7 +108,7 @@ export class LocalSaveRepository {
     raw: string,
     legacySource: boolean,
   ): SaveRepositoryLoadResult {
-    const result = decodeSaveGame(raw);
+    const result = decodeSaveGame(raw, this.#decodeOptions);
     if (!result.ok) {
       if (result.reason !== "unsupported-version") {
         this.#store.removeItem(sourceKey);

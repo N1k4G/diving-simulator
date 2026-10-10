@@ -1,0 +1,155 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 219,
+  "slice": "part 2: the shark in the migration client, the controller's wiring, a seed for each dive, and legacy's sprite",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "81f124237fa182be7e4e36c900dd5c27073b1d53",
+  "measuredTree": "8ea62591780eb01579d6cd621b7d291bc08e4416",
+  "workingTree": "clean before and after the run (git status --porcelain empty)",
+  "recordedAt": "2026-10-10T18:01:31Z",
+  "runFinishedAt": "2026-10-10T18:13:21Z",
+  "earlierRuns": [
+    {
+      "measuredCommit": "e488852b20103610dcb3edc08725c390e084c5b7",
+      "measuredTree": "86fcd62b82fe6cf3dcb25515e1732819dffb98b0",
+      "recordedAt": "2026-10-10T17:44:58Z",
+      "runFinishedAt": "2026-10-10T17:57:05Z",
+      "note": "Full run on the branch rebased onto main 8f0b3da, before tests/hud-warnings.spec.js went through the pinned dive seed; 616 unit, 341 parity, 191 e2e in 8.8 min, all passing. Superseded by the run above."
+    },
+    {
+      "measuredCommit": "d9228b40cffe78f64bc775d16d294426e649dded",
+      "measuredTree": "1d4e8ea76a1f59b117c3f212eae73b399f20f53e",
+      "recordedAt": "2026-10-10T17:29:59Z",
+      "runFinishedAt": "2026-10-10T17:41:02Z",
+      "note": "Full run on main 8b8c0bb, before the rebase onto 8f0b3da; 591 unit, 341 parity, 183 e2e in 8.2 min, all passing. Superseded by the run above."
+    }
+  ],
+  "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
+  "provenanceNote": "On main 8f0b3da (#245, legacy's remaining HUD warnings). The full run above is on 81f1242, after the rebase onto it (e488852, without conflicts, git range-diff showing every patch unchanged) and the switch of tests/hud-warnings.spec.js, merged with #245, to the pinned dive seed, with a guard. Before the rebase, on main 8b8c0bb: d9228b4, d4a9780 and 07592fa (earlierRuns). The counter-checks M1 to M16 were taken on d4a9780, P1 to P3 on 07592fa, S1 to S3 on d9228b4 and G1 on 81f1242, with the same patch. Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass",
+    "unit": "618 passed (594 on main 8f0b3da, +24: tests/unit/game-controller-shark.test.ts 5, src/render/camera.test.ts 7, tests/unit/dive-seed.test.ts 3, tests/unit/shark-encounter.test.ts 2, tests/unit/wreck-route.test.ts 2, tests/unit/save-repository.test.ts 2, tests/unit/site-layers.test.ts 1, tests/unit/e2e-dive-seed-guard.test.ts 2: every spec that opens /dist/ goes through tests/helpers/pinned-seed.cjs)",
+    "parity": "341 passed (336 on main 8f0b3da, +5 in tests/parity/shark-encounter.test.ts). The new tests: every recorded checkpoint a shark swims at, named, all four in shark-encounter-5m on the reef; the camera's 8 m lead against numbers written in the test; the named checkpoints on the camera's mid-route view, with legacy's values except the departing ones at spawned, second-spawn, contact-survived, gone and shark-attack; the route's floors against written numbers and legacy's 66 m floorAt, and where the depth departs; no recorded checkpoint reached by the route's floors. The replay of shark-encounter-5m on legacy's centred 1000 px view is unchanged.",
+    "e2e": "191 passed in 8.7 min on the first run, no retries, no flake (186 on main 8f0b3da; tests/hud-warnings.spec.js now runs on the pinned dive seed; +5 in tests/shark.spec.js: the seed drawn at a dive's start is in its save; a dive resumed from a legacy save is seeded from the page's draw and its migrated save keeps it; a resumed shark 3 m behind attacks on a roll under 0.33 and passes, faster, on one above; two resumed dives on frames stepped by hand render the same frame, and with a shark in view a different one)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels, max delta 0, nothing re-recorded",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "rule": "Owner decision on #219 (2026-10-07): each dive draws its own seed at its start and keeps it in randomState, so a resumed dive stays deterministic; the shark's spawn and exit distances follow the wreck camera's lead, so it appears just outside the visible edge. The second is recorded in docs/decisions.md as a departure from legacy's centred view. Beside it is the shark's floor guard on the route's floors, where legacy's reads the wreck's 66 m seabed (owner, 2026-10-10). Both rows name the checkpoints tests/parity/shark-encounter.test.ts asserts.",
+  "change": "src/app/dive-seed.ts draws the seed from crypto.getRandomValues, and createWreckInitialState() starts each dive on it. src/app/game-controller.ts hands advanceWithBuoyancy() a DiveEnvironment.shark every frame: the clock's rate with fast-forward, the diver's swim along the route per dive second, the view to either side from wreckViewAround() (src/render/camera.ts: the 8 m lead and the camera's bound), the floor from floorUnder() (src/sites/wreck-route.ts) at the shark's position and depth, and the wreck's noShark. SharkFrame's viewHalfWidthM becomes viewLeftM and viewRightM, and its floorM a floorAt(offsetM, depthM) read after the swim. src/render/pixi-renderer.ts draws legacy's shark (src/renderer.js 1069-1124) once in the fauna layer and moves it each frame while DiveState.shark.encounter exists. The migration e2e specs (tests/helpers/pinned-seed.cjs) and scripts/pixi-visual-check.mjs pin the page's 32-bit draws to the seed the client used before, 0x57524543, so no run meets a shark by chance. A dive migrated from a legacy save (src/save/save-game.ts migrateLegacyV2) draws its seed once, from the legacySeed source LocalSaveRepository takes and wreck-app passes as drawDiveSeed; the migrated save written back keeps it, so a later resume goes on the same stream, and a current save is never re-seeded. Without a source the state stays 0, for tests. tests/hud-warnings.spec.js, merged with #245, goes through tests/helpers/pinned-seed.cjs like the other specs that open /dist/, and tests/unit/e2e-dive-seed-guard.test.ts fails for any that does not.",
+  "counterChecks": {
+    "method": "Each mutation applied by a script to a file backed up beforehand, the named tests run (for e2e, after rebuilding the client) under the port lock with --retries=0, on the code of d4a9780 (M1 to M16) of 07592fa (P1 to P3, tests/parity/shark-encounter.test.ts; src is the same tree) of d9228b4 (S1 to S3, the legacy import's seed) and of 81f1242 (G1, the guard). The first S3 mutation did not typecheck, so its build failed and the e2e ran on the previous build; the result below is from the typechecking form [drawDiveSeed][1]. Each file was then restored from its backup and compared with filecmp (shallow=False): byte for byte identical in every case. The first versions of the M7 and M8 mutations did not typecheck, so their builds failed before any e2e ran; the e2e results below are from the typechecking forms, void this.#sharkFrame(...) and drawDiveSeed() * 0 + 0x57524543.",
+    "results": [
+      {
+        "revert": "M1: the controller hands the model TIME_ACCELERATION, not the fast-forward rate (src/app/game-controller.ts)",
+        "result": "1 of 5 in tests/unit/game-controller-shark.test.ts fails: the fast-forward's rate"
+      },
+      {
+        "revert": "M2: diverVelocityMps 0 (src/app/game-controller.ts)",
+        "result": "1 of 5 fails: the frame the controller hands the model"
+      },
+      {
+        "revert": "M3: legacy's centred view, 29 m to either edge (src/app/game-controller.ts)",
+        "result": "2 of 5 fail: the frame, and the spawn beyond the camera's edge"
+      },
+      {
+        "revert": "M4: the view always for a diver facing right (src/app/game-controller.ts)",
+        "result": "1 of 5 fails: the frame, turned round 40 m along"
+      },
+      {
+        "revert": "M5: the floor under the diver, not under the shark (src/app/game-controller.ts)",
+        "result": "1 of 5 fails: the frame"
+      },
+      {
+        "revert": "M6: noShark true (src/app/game-controller.ts)",
+        "result": "2 of 5 fail: the frame, and the spawn"
+      },
+      {
+        "revert": "M7: no DiveEnvironment.shark handed to the model (src/app/game-controller.ts)",
+        "result": "unit: 5 of 5 in tests/unit/game-controller-shark.test.ts and 6 of 20 in tests/unit/game-controller-buoyancy.test.ts fail; e2e: 2 of 4 in tests/shark.spec.js fail, the attack and the pass"
+      },
+      {
+        "revert": "M8: every dive back on the constant seed 0x57524543 (src/app/game-controller.ts)",
+        "result": "unit: 1 of 3 in tests/unit/dive-seed.test.ts fails; e2e: 1 of 4 fails, the seed in the save"
+      },
+      {
+        "revert": "M9: a shark heading right spawns beyond the right edge (src/core/dive-model.ts)",
+        "result": "1 of 14 in tests/unit/shark-encounter.test.ts fails: the view that is not centred; parity unchanged"
+      },
+      {
+        "revert": "M10: a shark heading left leaves beyond the right edge (src/core/dive-model.ts)",
+        "result": "1 of 14 fails: the view that is not centred"
+      },
+      {
+        "revert": "M11: the floor read where the shark was before it swam (src/core/dive-model.ts)",
+        "result": "1 of 14 fails: the floor read after the swim"
+      },
+      {
+        "revert": "M12: past the deck's after end, the route's level deck instead of open water (src/sites/wreck-route.ts)",
+        "result": "1 of 20 in tests/unit/wreck-route.test.ts fails"
+      },
+      {
+        "revert": "M13: the view around the diver without the camera's bound (src/render/camera.ts)",
+        "result": "5 of 11 in src/render/camera.test.ts and 2 of 5 in tests/unit/game-controller-shark.test.ts fail"
+      },
+      {
+        "revert": "M14: the scene's shark at its offset, not its route position (src/app/game-controller.ts)",
+        "result": "1 of 5 in tests/unit/game-controller-shark.test.ts fails: the spawn the scene draws"
+      },
+      {
+        "revert": "M15: the sprite never shown (src/render/pixi-renderer.ts)",
+        "result": "e2e: 1 of 4 in tests/shark.spec.js fails"
+      },
+      {
+        "revert": "M16: the sprite in the foreground layer, over the diver (src/render/layer-assignment.ts)",
+        "result": "1 of 21 in tests/unit/site-layers.test.ts fails"
+      },
+      {
+        "revert": "P1: the wreck camera's lead 6 m, not 8 (src/render/camera.ts)",
+        "result": "1 of 9 in tests/parity/shark-encounter.test.ts fails: the camera's lead against the written numbers"
+      },
+      {
+        "revert": "P2: the stem's top 1 m deeper (src/sites/wreck-route.ts)",
+        "result": "1 of 9 fails: the route's floors against the written numbers"
+      },
+      {
+        "revert": "P3: the shark's floor guard on legacy's 66 m seabed, floorAt ignored (src/core/dive-model.ts)",
+        "result": "1 of 9 fails: where the depth departs, over the stem and off the bow"
+      },
+      {
+        "revert": "S1: a legacy import back on random state 0 (src/save/save-game.ts)",
+        "result": "1 of 10 in tests/unit/save-repository.test.ts fails: the legacy import seeded from its source, once"
+      },
+      {
+        "revert": "S2: the migrated save written back on state 0, without the seed drawn for it (src/save/save-repository.ts)",
+        "result": "1 of 10 fails: the second load resumes the same stream"
+      },
+      {
+        "revert": "S3: wreck-app passes no seed source to the repository (src/app/wreck-app.ts)",
+        "result": "e2e: 1 of 5 in tests/shark.spec.js fails: the dive resumed from a legacy save"
+      },
+      {
+        "revert": "G1: tests/hud-warnings.spec.js back on @playwright/test",
+        "result": "1 of 2 in tests/unit/e2e-dive-seed-guard.test.ts fails, naming ../hud-warnings.spec.js"
+      }
+    ]
+  },
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "durableProvenance": {
+    "src": "91666b290de0e033928b7ebaff24dffa536e86c4",
+    "tests": "55f8f83f56acfba2e838edc7d343c9c767683be4",
+    "scripts": "7c6f0c28cdf70f68e1f1b578759d4dc9647af926",
+    "docs": "b0d780a30f6ece3afb425951986e58d1d3f3490d"
+  }
+}

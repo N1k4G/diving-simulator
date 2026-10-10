@@ -41,6 +41,7 @@ import { renderGameOverScreen } from "./game-over";
 import { renderPostDiveScreen } from "./post-dive";
 import { createPostDiveSummary } from "../presentation/post-dive-summary";
 import { siteGameplay } from "../sites/site-resources";
+import { drawDiveSeed } from "./dive-seed";
 import { isTurnBeepDue } from "./thirds-turn-beep";
 import {
   isWarningBeepActive,
@@ -318,7 +319,8 @@ async function startWreckSimulation(
   locale: SupportedLocale,
   setup: DiveSetup,
 ): Promise<void> {
-  const repository = new LocalSaveRepository(window.localStorage);
+  // A dive resumed from a legacy save gets its own seed too (#219).
+  const repository = new LocalSaveRepository(window.localStorage, { legacySeed: drawDiveSeed });
   const loadResult = repository.load();
   const resumed = loadResult.status === "loaded" ? loadResult.saveGame : null;
   // A save of a dive that has already ended at the surface is not resumed

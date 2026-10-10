@@ -17,6 +17,7 @@ import {
   type TankState,
 } from "../core/dive-state";
 import { neutralBcdSurfaceLitres } from "../core/buoyancy";
+import { normalizeSeed } from "../core/rng";
 import { NDL_UNLIMITED_MINUTES, ceilingDepthM, decoStopDepth } from "../core/decompression";
 import {
   CEILING_VIOLATION_TOLERANCE_M,
@@ -295,7 +296,21 @@ export function encodeSaveGame(saveGame: SaveGame): string {
   return JSON.stringify(saveGame);
 }
 
-export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
+export interface SaveGameDecodeOptions {
+  /**
+   * The seed a dive migrated from a legacy save starts its random state on
+   * (#219, owner decision of 2026-10-07: each dive on its own seed). Legacy
+   * saves none, as it rolls Math.random(); drawn once, at the migration, and
+   * kept from then on in the migrated save. Without it the state is 0, which
+   * is deterministic for tests: the app passes its own seed source in.
+   */
+  readonly legacySeed?: () => number;
+}
+
+export function decodeSaveGame(
+  raw: string | null,
+  options: Readonly<SaveGameDecodeOptions> = {},
+): SaveGameDecodeResult {
   if (raw === null || raw.trim() === "") {
     return { ok: false, reason: "empty" };
   }
@@ -478,7 +493,7 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
   }
 
   if (candidate.saveVersion === LEGACY_SAVE_STATE_VERSION) {
-    const migrated = migrateLegacyV2(candidate);
+    const migrated = migrateLegacyV2(candidate, options.legacySeed);
     return migrated
       ? { ok: true, saveGame: migrated, migratedFrom: "legacy-v2" }
       : { ok: false, reason: "invalid-data" };
@@ -491,7 +506,10 @@ export function decodeSaveGame(raw: string | null): SaveGameDecodeResult {
   return { ok: false, reason: "invalid-data" };
 }
 
-function migrateLegacyV2(candidate: Record<string, unknown>): SaveGame | null {
+function migrateLegacyV2(
+  candidate: Record<string, unknown>,
+  legacySeed: (() => number) | undefined,
+): SaveGame | null {
   if (
     !isPositiveFinite(candidate.savedAt) ||
     !isNonNegativeFinite(candidate.depth) ||
@@ -540,7 +558,7 @@ function migrateLegacyV2(candidate: Record<string, unknown>): SaveGame | null {
       nitrogenBar: candidate.tissues as DiveState["tissues"]["nitrogenBar"],
       heliumBar: candidate.tissuesHe as DiveState["tissues"]["heliumBar"],
     },
-    randomState: 0,
+    randomState: legacySeed ? normalizeSeed(legacySeed()) : 0,
     tanks: tanks as readonly TankState[],
     activeTankIndex: candidate.activeTank as number,
     surfaceAirConsumptionLpm:

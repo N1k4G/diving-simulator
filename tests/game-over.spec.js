@@ -1,4 +1,4 @@
-const { expect, test } = require('@playwright/test');
+const { expect, test } = require('./helpers/pinned-seed.cjs');
 const { acceptSafetyGate, beginDescent } = require('./helpers/start-dive.cjs');
 
 // The game-over screen (#159): legacy's drawGameOver() as DOM. The text

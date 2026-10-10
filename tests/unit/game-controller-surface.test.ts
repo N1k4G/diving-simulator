@@ -24,6 +24,8 @@ import { bars, metres, seconds } from "../../src/core/units";
 type KeyHandler = (event: KeyboardEvent) => void;
 
 const FRAME_MS = 20;
+/** A dive's seed, fixed here as the client's was before each dive drew one (#219). */
+const DIVE_SEED = 0x57524543;
 let queue: FrameRequestCallback[] = [];
 let nowMs = 0;
 let listeners: Map<string, KeyHandler>;
@@ -94,11 +96,11 @@ function press(key: string, type: "keydown" | "keyup" = "keydown"): boolean {
 function twoCylinders(): DiveState {
   return createWreckInitialState({
     tanks: [createTankState(createGasMix(0.21, 0)), createTankState(createGasMix(0.32, 0))],
-  });
+  }, DIVE_SEED);
 }
 
 function rebreather(): DiveState {
-  return createWreckInitialState({ ccr: createCcrState(createGasMix(0.21, 0)) });
+  return createWreckInitialState({ ccr: createCcrState(createGasMix(0.21, 0)) }, DIVE_SEED);
 }
 
 describe("waiting at the surface, as legacy's updateSurface()", () => {
@@ -134,7 +136,7 @@ describe("waiting at the surface, as legacy's updateSurface()", () => {
 
   it("works no torch, by key or by button, while the waves still move", async () => {
     // Legacy reads T inside updateDiving() only (#223 Codex round 1).
-    const { controller, frames } = await startController(createWreckInitialState());
+    const { controller, frames } = await startController(createWreckInitialState({}, DIVE_SEED));
     const torch = frames.at(-1)?.scene.torchOn;
     const waves = frames.at(-1)?.scene.elapsedRealS ?? 0;
     expect(press("t")).toBe(false);
@@ -152,7 +154,7 @@ describe("waiting at the surface, as legacy's updateSurface()", () => {
   it("leaves the surface with legacy's 2 L in the BCD, at rest, even from a save holding 0 L", async () => {
     // A legacy save written in 'surface': resetDive() leaves the BCD empty.
     const legacySurface = freezeDiveState({
-      ...createWreckInitialState(),
+      ...createWreckInitialState({}, DIVE_SEED),
       bcdGasSurfaceLiters: 0,
     });
     const { controller, frames } = await startController(legacySurface);

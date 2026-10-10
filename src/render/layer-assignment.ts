@@ -23,7 +23,8 @@ export type RetainedElement =
   | "engine"
   | "route"
   | "silt"
-  | "diver";
+  | "diver"
+  | "shark";
 
 /**
  * Insertion order within a layer is preserved, so `route` before `silt` before
@@ -39,6 +40,9 @@ export type RetainedElement =
  * - `route`, `silt`, `diver` — everything between the camera and the wreck.
  *   Silt is suspended particulate, not ground cover; below `structure` the hull
  *   eats it.
+ * - `shark` — the shark encounter (#219). In front of the wreck, behind the
+ *   diver and the bubbles: legacy draws it after its wildlife and before the
+ *   diver (src/renderer.js drawScene).
  */
 export const RETAINED_LAYER_ASSIGNMENT: Readonly<Record<RetainedElement, LayerId>> =
   Object.freeze({
@@ -52,6 +56,7 @@ export const RETAINED_LAYER_ASSIGNMENT: Readonly<Record<RetainedElement, LayerId
     route: "foreground",
     silt: "foreground",
     diver: "foreground",
+    shark: "fauna",
   });
 
 /** Bubbles are pooled separately from the retained elements but share a layer. */

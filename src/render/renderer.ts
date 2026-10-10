@@ -14,6 +14,17 @@ export interface WreckSceneState {
   readonly facing: -1 | 1;
   readonly torchOn: boolean;
   readonly zone: WreckZone;
+  /**
+   * The shark while one swims (#219), DiveState.shark.encounter: its world
+   * position along the route, its depth, and its heading. Null otherwise.
+   */
+  readonly shark: Readonly<SceneShark> | null;
+}
+
+export interface SceneShark {
+  readonly positionM: number;
+  readonly depthM: number;
+  readonly direction: -1 | 1;
 }
 
 export interface SceneRenderer {
