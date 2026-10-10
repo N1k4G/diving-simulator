@@ -65,6 +65,45 @@ async function resumeWithSharkClosing(page, randomState) {
   await page.locator('[data-start-dive]').click();
 }
 
+// The page's frames, stepped by hand as scripts/pixi-visual-check.mjs steps
+// them, so two resumed dives render the same frame but for their saves.
+const PIN_FRAMES = () => {
+  let now = 0;
+  let queue = [];
+  window.requestAnimationFrame = (callback) => queue.push(callback);
+  window.cancelAnimationFrame = () => {};
+  window.performance.now = () => now;
+  window.__stepFrames = (frames) => {
+    for (let i = 0; i < frames; i += 1) {
+      now += 1000 / 60;
+      const due = queue;
+      queue = [];
+      for (const callback of due) callback(now);
+    }
+  };
+};
+
+test('the scene draws the shark while one swims, and only then', async ({ page }) => {
+  const saved = await firstSave(page);
+  Object.assign(saved.state, { elapsedTimeS: 120, depthM: 18, maxDepthM: 18, verticalVelocityMpm: 0 });
+  await page.addInitScript(PIN_FRAMES);
+  const frameWith = async (encounter) => {
+    saved.state.shark = { timerS: 60, encounter };
+    await page.goto('/dist/');
+    await page.evaluate(([key, value]) => window.localStorage.setItem(key, value), [SAVE_KEY, JSON.stringify(saved)]);
+    await acceptSafetyGate(page);
+    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+    await page.evaluate(() => window.__stepFrames(30));
+    return page.locator('[data-wreck-viewport]').screenshot();
+  };
+  const without = await frameWith(null);
+  expect((await frameWith(null)).equals(without), 'the same dive renders the same frame').toBe(true);
+  // 6 m ahead and 3 m above the diver, all but still, past its contact roll.
+  const shark = await frameWith({ offsetM: 6, depthM: 15, direction: 1, speedMps: 0.001, passed: true });
+  expect(shark.equals(without)).toBe(false);
+});
+
 test.describe('a dive on a seed of its own', () => {
   test.use({ diveSeed: 0x0badf00d });
 
