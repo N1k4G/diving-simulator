@@ -3,13 +3,13 @@
   "issue": 222,
   "slice": "The owner's decisions of 2026-10-10 on #222: the bow becomes legacy's solid stem (x 14..16) and bow-visor opening (x 16..22), entered from above, with the main deck, its underside and the overhead from x 22 (replacing #238's 27); and the engine block becomes solid. The solid engine block and the solid raised visor are departures from legacy, recorded in docs/decisions.md and covered by tests/parity/wreck-route.test.ts (Codex round 1 on #241), which also names the recorded wreck checkpoints, none at a departure (pre-review pass 3)",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "04b28efbeddcd7294aceb478dc8572fb7fae6bbb",
-  "measuredTree": "2c56ce43129378e0d39f8c43a6c7c16d36e8d981",
+  "measuredCommit": "68b30127d486549570586571fb4773d76e12c96e",
+  "measuredTree": "2ef9f7c8b131027bff2a937c5ca76251930104ff",
   "workingTree": "clean before the run and still clean after it (git status --porcelain empty at both ends)",
-  "recordedAt": "2026-10-10T14:19:12Z",
-  "runFinishedAt": "2026-10-10T14:30:42Z",
+  "recordedAt": "2026-10-10T15:11:15Z",
+  "runFinishedAt": "2026-10-10T15:21:37Z",
   "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
-  "provenanceNote": "Branch feat/222-bow-visor-engine from main e2a59ce (#226), PR #241. The change is 2876b2b, 7fe204d and 04b28ef: 7fe204d answers Codex round 1 (the visor's departure recorded, the parity test for both departures, a comment on WRECK_VISOR), and 04b28ef answers pre-review pass 3 (the parity test names the recorded wreck checkpoints; both decisions.md rows say none reaches a departure). Between them, e13eb7c, 5d499cf, 717dd82, 5b4ce2d and f556ceb touch only this file, and b98a5dd only the linux reference frames, recorded by the workflow. The full run above is on 04b28ef, the second on that commit (earlierRuns); later commits only update this file.",
+  "provenanceNote": "Rebased onto main b0acff3 (#242, the dive computer in English; #243, the trace and reload test fixes) without conflicts; git range-diff shows every commit unchanged. The full run above is on 68b3012, the rebased branch; later commits only update this file. Before the rebase: Branch feat/222-bow-visor-engine from main e2a59ce (#226), PR #241. The change is 2876b2b, 7fe204d and 04b28ef: 7fe204d answers Codex round 1 (the visor's departure recorded, the parity test for both departures, a comment on WRECK_VISOR), and 04b28ef answers pre-review pass 3 (the parity test names the recorded wreck checkpoints; both decisions.md rows say none reaches a departure). Between them, e13eb7c, 5d499cf, 717dd82, 5b4ce2d and f556ceb touch only this file, and b98a5dd only the linux reference frames, recorded by the workflow.",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -25,9 +25,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass: 16 files scanned, no source maps, 4 diagnostic markers absent",
-    "unit": "568 passed in 49 files (+6 over main e2a59ce, counted from the changed test files: tests/unit/wreck-route.test.ts 13 -> 18, tests/unit/game-controller-buoyancy.test.ts route block 5 -> 6)",
-    "parity": "336 passed in 17 files (+4 over main e2a59ce: tests/parity/wreck-route.test.ts)",
-    "e2e": "173 passed in 7.9 min, no retries (none added; tests/hud-readouts.spec.js's rule-of-thirds test now enters the hold through the bow visor's opening)",
+    "unit": "569 passed (563 on main b0acff3; +6 in the route and controller test files)",
+    "parity": "336 passed (332 on main b0acff3; +4 in tests/parity/wreck-route.test.ts)",
+    "e2e": "178 passed in 7.7 min (178 on main b0acff3; none added, tests/hud-readouts.spec.js's thirds test adapted)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, against the win32 frames re-recorded in 2876b2b (unchanged since)",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -135,12 +135,17 @@
     }
   },
   "durableProvenance": {
-    "src": "3f5fcddd5f98e5cf6a62800e97a4cbe894ea9c08",
-    "tests": "d61d767f94a31a59b7218f0669ea36e6fea72b3e",
+    "src": "291e11e0a8dea5bbc0efa386fa89fac861bf3440",
+    "tests": "5a51b80c5553a8a66135bb5629642de7da0f763a",
     "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
-    "docs": "e1c6d1bbaf6d0df8b8409209f144bc0edbb6688b"
+    "docs": "7aa04244d9a5b41b1084f67fba18ea400af904b4"
   },
   "earlierRuns": [
+    {
+      "measuredCommit": "04b28efbeddcd7294aceb478dc8572fb7fae6bbb",
+      "recordedAt": "2026-10-10T14:19:12Z",
+      "note": "Full run on main e2a59ce, before the rebase onto b0acff3; 568 unit, 336 parity, 173 e2e. Superseded by the run above."
+    },
     {
       "measuredCommit": "04b28efbeddcd7294aceb478dc8572fb7fae6bbb",
       "recordedAt": "2026-10-10T14:03:59Z",
