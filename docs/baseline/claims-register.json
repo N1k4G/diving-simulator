@@ -49,8 +49,8 @@
     {
       "id": "GAS-001",
       "classification": "gas planning and consumption advice",
-      "source": ["STRINGS.*.helpGTR", "STRINGS.*.helpAMV", "STRINGS.*.helpBest", "STRINGS.*.helpTank", "STRINGS.*.gradeNotes.gas*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.gas*", "src/app/i18n/catalog.ts {en,de}: postDive.gas.*", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.alert.lowGas", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.status.lowGas", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.thirds*"],
-      "ui": ["help", "HUD", "debrief", "HUD warning (migration client)", "post-dive (migration client)", "HUD (migration client)"],
+      "source": ["STRINGS.*.helpGTR", "STRINGS.*.helpAMV", "STRINGS.*.helpBest", "STRINGS.*.helpTank", "STRINGS.*.gradeNotes.gas*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.gas*", "src/app/i18n/catalog.ts {en,de}: postDive.gas.*", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.alert.lowGas", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.status.lowGas", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.thirds*", "STRINGS.*.warnLowGas", "STRINGS.*.warnReserve", "src/app/i18n/catalog.ts {diveComputer, #228}: diveComputer.alert.reserve", "src/app/i18n/catalog.ts {diveComputer, #228}: diveComputer.status.reserve"],
+      "ui": ["help", "HUD", "debrief", "HUD warning (migration client)", "post-dive (migration client)", "HUD (migration client)", "HUD warning"],
       "owner": "domain-reviewer",
       "reviewStatus": "unreviewed",
       "evidence": ["docs/research/algorithm-realism-current-anchors.md"]

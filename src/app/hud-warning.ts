@@ -26,6 +26,7 @@ export type WarningSeverity =
   | "narcosis"
   | "fastAscent"
   | "lowGas"
+  | "reserve"
   | "lowNdl";
 
 /** Legacy's critical narcosis banner: `narcosisIndex > 0.70`. */
@@ -34,12 +35,18 @@ export const NARCOSIS_CRITICAL_INDEX = 0.7;
 export const NARCOSIS_CAUTION_INDEX = 0.2;
 
 /**
- * Open circuit: legacy's banner warns above PO2_HIGH. The low bound and the
- * inclusive 50 bar are the migration's, unchanged here.
+ * Open circuit: legacy's banner warns above PO2_HIGH; the low bound is the
+ * migration's, unchanged here.
  */
 const OC_PO2_LOW_WARNING_BAR = 0.16;
 const OC_PO2_HIGH_WARNING_BAR = 1.6;
-const OC_LOW_GAS_BAR = 50;
+/**
+ * Legacy's `tBar < 30` (warnLowGas, critical) and `tBar < 50` (warnReserve,
+ * caution, and the beep term). tBar is tankBar(), the active cylinder's
+ * gasRemaining / volume: the presentation's pressureBar of the active tank.
+ */
+export const LOW_GAS_BAR = 30;
+export const RESERVE_BAR = 50;
 
 /**
  * Every warning that holds, most urgent first.
@@ -48,8 +55,12 @@ const OC_LOW_GAS_BAR = 50;
  *   (TASK-032E), in its effective order SCR LOW > CO2! > PO2, the first two
  *   exclusive through scrubberFailed (#182 review).
  * - Then legacy's banner chain: above the ceiling, O₂, narcosis > 0.70,
- *   fast ascent, low gas and reserve, low NDL, narcosis > 0.20 (#228). The
+ *   fast ascent, low gas, reserve, low NDL, narcosis > 0.20 (#228). The
  *   open-circuit oxygen warning is the banner's warnO2, under the ceiling.
+ *   Low gas and reserve read the open-circuit cylinder only: on a
+ *   rebreather legacy's tBar is tanks[activeTank], a cylinder the loop does
+ *   not breathe, and the migration's tanks[0] there is the codec's
+ *   placeholder.
  * - Low gas on a rebreather last: either of its own cylinders under
  *   legacy's 30 bar row threshold (#163 review round 2 on PR #182), the
  *   oxygen cylinder only while the loop is breathed. Legacy's banner does
@@ -109,8 +120,10 @@ export function activeWarnings(
   const activeTank = ccr
     ? undefined
     : presentation.tanks[presentation.activeTankIndex];
-  if (activeTank && activeTank.pressureBar <= OC_LOW_GAS_BAR) {
+  if (activeTank && activeTank.pressureBar < LOW_GAS_BAR) {
     warnings.push("lowGas");
+  } else if (activeTank && activeTank.pressureBar < RESERVE_BAR) {
+    warnings.push("reserve");
   }
   // Legacy's `!inDeco && ndl > 0 && ndl < 5`; nearNdlMin is null in deco.
   const ndl = presentation.nearNdlMin;

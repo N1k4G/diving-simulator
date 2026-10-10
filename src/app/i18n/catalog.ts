@@ -580,9 +580,12 @@ const diveComputerMessages = {
   "diveComputer.alert.fastAscent": "Ascending too fast — slow down",
   "diveComputer.alert.co2": "Scrubber failed — simulated CO₂ buildup, bail out",
   "diveComputer.alert.failure": "Simulated dive failure — return to the surface",
-  // Legacy's STRINGS.en warnCeiling, warnLowNDL and warnNarc (#228), in
-  // sentence case; the chip adds the ⚠ legacy's text carries.
+  // Legacy's STRINGS.en warnCeiling, warnReserve, warnLowNDL and warnNarc
+  // (#228), in sentence case; the chip adds the ⚠ legacy's text carries.
+  // warnLowGas is status.lowGas above, word for word.
   "diveComputer.alert.ceiling": "Above ceiling — descend",
+  "diveComputer.alert.reserve": "Gas reserve",
+  "diveComputer.status.reserve": "Gas reserve",
   "diveComputer.alert.lowNdl": "Low NDL",
   "diveComputer.alert.narcosis": "Narcosis",
   "diveComputer.status.ceiling": "Above ceiling",

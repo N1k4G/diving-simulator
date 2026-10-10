@@ -131,6 +131,7 @@ const warningAlertKeys: Record<WarningSeverity, DiveComputerKey> = {
   co2: "diveComputer.alert.co2",
   failure: "diveComputer.alert.failure",
   ceiling: "diveComputer.alert.ceiling",
+  reserve: "diveComputer.alert.reserve",
   lowNdl: "diveComputer.alert.lowNdl",
   narcosis: "diveComputer.alert.narcosis",
 };
@@ -145,6 +146,7 @@ const warningStatusKeys: Record<WarningSeverity, DiveComputerKey> = {
   co2: "diveComputer.status.co2",
   failure: "diveComputer.status.failure",
   ceiling: "diveComputer.status.ceiling",
+  reserve: "diveComputer.status.reserve",
   lowNdl: "diveComputer.status.lowNdl",
   narcosis: "diveComputer.status.narcosis",
 };
