@@ -10,7 +10,7 @@
   "runFinishedAt": "2026-10-10T22:42:34Z",
   "earlierRuns": [
     {
-      "measuredCommit": "bcf5d2d24f6ab6466c6ca2004e2004ddd75c9d4e",
+      "measuredCommit": "bcf5d2d6b1603240c3905facbec8343f2d199583",
       "note": "Rebased onto main 43edf40 (#249, part 1 squash-merged) without conflicts as c0682d7, 2e056ba and 612a8ea; bcf5d2d adds the linux reference for wreck-narcosis, recorded by .github/workflows/pixi-baseline.yml (run 38088231915). Full run on bcf5d2d, 2026-10-10T21:45:57Z to 21:58:58Z: unit, parity, Pixi 4 scenes at 0% and interior ok; e2e 193 passed, 1 failed: the frame-time check, narcosed median 3.2 against sober 2.1 ms under the suite's load, over the bound 1.25x + 0.5 ms. c9f8c44 interleaves in runs of 10 and bounds at 1.5x + 1 ms."
     },
     {
