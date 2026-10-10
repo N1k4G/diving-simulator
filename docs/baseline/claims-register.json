@@ -40,8 +40,8 @@
     {
       "id": "DECOMPRESSION-001",
       "classification": "model output and real-world risk advice",
-      "source": ["STRINGS.*.helpNDL", "STRINGS.*.helpDeco", "STRINGS.*.helpTTS", "STRINGS.*.hintNdl", "STRINGS.*.hintDeco", "STRINGS.*.gradeNotes.deco*", "STRINGS.*.tissueLoading", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.deco*", "src/app/i18n/catalog.ts {en,de}: postDive.violation.ceiling", "src/app/i18n/catalog.ts {en,de}: postDive.violations.none", "src/app/i18n/catalog.ts {en,de}: postDive.profile.*", "src/app/i18n/catalog.ts {en,de}: postDive.tissues*", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.ndl", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.info.deco.*", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.info.tissues.caption", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.info.tissues.compartment", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.info.severity.*", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.decoStop*"],
-      "ui": ["help", "HUD", "onboarding hint", "debrief", "HUD (migration client)", "gas information (migration client)", "post-dive (migration client)"],
+      "source": ["STRINGS.*.helpNDL", "STRINGS.*.helpDeco", "STRINGS.*.helpTTS", "STRINGS.*.hintNdl", "STRINGS.*.hintDeco", "STRINGS.*.gradeNotes.deco*", "STRINGS.*.tissueLoading", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.deco*", "src/app/i18n/catalog.ts {en,de}: postDive.violation.ceiling", "src/app/i18n/catalog.ts {en,de}: postDive.violations.none", "src/app/i18n/catalog.ts {en,de}: postDive.profile.*", "src/app/i18n/catalog.ts {en,de}: postDive.tissues*", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.ndl", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.info.deco.*", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.info.tissues.caption", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.info.tissues.compartment", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.info.severity.*", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.decoStop*", "STRINGS.*.warnCeiling", "STRINGS.*.warnLowNDL", "src/app/i18n/catalog.ts {diveComputer, #228}: diveComputer.alert.ceiling", "src/app/i18n/catalog.ts {diveComputer, #228}: diveComputer.status.ceiling", "src/app/i18n/catalog.ts {diveComputer, #228}: diveComputer.alert.lowNdl", "src/app/i18n/catalog.ts {diveComputer, #228}: diveComputer.status.lowNdl"],
+      "ui": ["help", "HUD", "onboarding hint", "debrief", "HUD (migration client)", "gas information (migration client)", "post-dive (migration client)", "HUD warning", "HUD warning (migration client)"],
       "owner": "model",
       "reviewStatus": "algorithm audit exists but source anchors are stale",
       "evidence": ["docs/research/algorithm-realism-current-anchors.md"]
@@ -76,8 +76,8 @@
     {
       "id": "NARCOSIS-001",
       "classification": "medical mechanism, thresholds, symptoms, and prevention advice",
-      "source": ["STRINGS.*.warnNarc", "STRINGS.*.helpNarc", "STRINGS.*.helpTec", "STRINGS.*.gameOverInfo.NITROGEN NARCOSIS — UNCONSCIOUSNESS", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.nitrogenNarcosis", "src/app/i18n/catalog.ts {en,de}: gameOver.info.nitrogenNarcosis.*"],
-      "ui": ["help", "HUD warning", "game over", "game over (migration client)"],
+      "source": ["STRINGS.*.warnNarc", "STRINGS.*.helpNarc", "STRINGS.*.helpTec", "STRINGS.*.gameOverInfo.NITROGEN NARCOSIS — UNCONSCIOUSNESS", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.nitrogenNarcosis", "src/app/i18n/catalog.ts {en,de}: gameOver.info.nitrogenNarcosis.*", "src/app/i18n/catalog.ts {diveComputer, #228}: diveComputer.alert.narcosis", "src/app/i18n/catalog.ts {diveComputer, #228}: diveComputer.status.narcosis"],
+      "ui": ["help", "HUD warning", "game over", "game over (migration client)", "HUD warning (migration client)"],
       "owner": "domain-reviewer",
       "reviewStatus": "unreviewed; research document records disputed/unverified points",
       "evidence": ["docs/research/nitrogen-narcosis.md"]

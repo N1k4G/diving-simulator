@@ -35,19 +35,18 @@ import {
   formatWholeMinutes,
 } from "./i18n/formatters";
 import { CCR_SETPOINT_STEP_BAR } from "../core/dive-state";
-import {
-  CCR_PO2_HIGH_WARNING_BAR,
-  CCR_PO2_LOW_WARNING_BAR,
-  SCRUBBER_LOW_WARNING_S,
-  isCcrCylinderLow,
-  selectLoopRowDanger,
-} from "./loop-danger";
+import { selectLoopRowDanger } from "./loop-danger";
 import { renderSetupScreen } from "./setup/setup-screen";
 import { renderGameOverScreen } from "./game-over";
 import { renderPostDiveScreen } from "./post-dive";
 import { createPostDiveSummary } from "../presentation/post-dive-summary";
 import { siteGameplay } from "../sites/site-resources";
 import { isTurnBeepDue } from "./thirds-turn-beep";
+import {
+  isWarningBeepActive,
+  selectWarning,
+  type WarningSeverity,
+} from "./hud-warning";
 
 /** src/game-loop.js SAVE_INTERVAL_MS: an autosave at most every 3 real seconds. */
 const SAVE_INTERVAL_MS = 3000;
@@ -114,14 +113,8 @@ const zoneMessageKeys: Record<WreckZone, MessageKey> = {
 // selection and then overwrite the chip with the normal string three lines
 // later, so a failing dive still read "Simulation running" and the only thing
 // saying otherwise was the chip turning red — meaning encoded through colour
-// alone, which docs/decisions.md:100 rules out.
-type WarningSeverity =
-  | "lowGas"
-  | "scrubberLow"
-  | "oxygen"
-  | "fastAscent"
-  | "co2"
-  | "failure";
+// alone, which docs/decisions.md:100 rules out. src/app/hud-warning.ts
+// chooses the severity.
 
 // The dive computer reads English in every locale (#232): its labels, its
 // warnings and the numbers it shows, which DC formats. Everything else here
@@ -129,8 +122,7 @@ type WarningSeverity =
 const DC = DIVE_COMPUTER_LOCALE;
 
 // Full sentence for the role=alert region. Both maps are the dive
-// computer's (#232); a new severity (#228) adds a member to the union and an
-// entry to each.
+// computer's (#232), English in every locale.
 const warningAlertKeys: Record<WarningSeverity, DiveComputerKey> = {
   lowGas: "diveComputer.alert.lowGas",
   scrubberLow: "diveComputer.alert.scrubberLow",
@@ -138,6 +130,9 @@ const warningAlertKeys: Record<WarningSeverity, DiveComputerKey> = {
   fastAscent: "diveComputer.alert.fastAscent",
   co2: "diveComputer.alert.co2",
   failure: "diveComputer.alert.failure",
+  ceiling: "diveComputer.alert.ceiling",
+  lowNdl: "diveComputer.alert.lowNdl",
+  narcosis: "diveComputer.alert.narcosis",
 };
 
 // Short form for the status chip, which sits in the topbar away from the
@@ -149,6 +144,9 @@ const warningStatusKeys: Record<WarningSeverity, DiveComputerKey> = {
   fastAscent: "diveComputer.status.fastAscent",
   co2: "diveComputer.status.co2",
   failure: "diveComputer.status.failure",
+  ceiling: "diveComputer.status.ceiling",
+  lowNdl: "diveComputer.status.lowNdl",
+  narcosis: "diveComputer.status.narcosis",
 };
 
 const thirdsPhaseKeys: Record<RuleOfThirdsPhase, DiveComputerKey> = {
@@ -426,7 +424,7 @@ async function startWreckSimulation(
       );
       audio.update({
         elapsedRealS: frame.scene.elapsedRealS,
-        warningActive: selectWarning(frame.presentation) !== null,
+        warningActive: isWarningBeepActive(frame.presentation),
       });
       // Legacy's playAlertBeep() as the turn of the rule of thirds latches
       // (src/game-loop.js, Issue #27): once, on the frame it latches. A dive
@@ -1185,73 +1183,6 @@ function bindLoopControls(
       controller.bailOut();
     }
   });
-}
-
-// Returns the severity rather than a message, so callers cannot pick one
-// wording for the chip and a different state for the styling.
-//
-// The loop warnings keep the legacy banner's effective precedence
-// (src/renderer.js TASK-032E): LOW/HIGH PO2 is assigned first, CO2!
-// overwrites it once the scrubber has failed, and SCR LOW overwrites
-// whatever is there while the scrubber is under ten minutes and has not
-// failed — so SCR LOW > CO2! > PO2, with the first two mutually exclusive
-// through scrubberFailed. A first cut of this ranked PO₂ above the scrubber
-// on the argument that a hyperoxic loop is the more urgent of the two; the
-// #182 review held that the legacy harness is the behavioural oracle
-// (docs/decisions.md) and that a re-ranking needs its own committed
-// decision, which is right, so the order is the oracle's until one exists.
-function selectWarning(
-  presentation: Readonly<PresentationState>,
-): WarningSeverity | null {
-  if (presentation.failureReason) {
-    return "failure";
-  }
-  const { ccr } = presentation;
-  const loopBreathed = ccr !== null && !ccr.onBailout;
-  if (
-    loopBreathed &&
-    !ccr.scrubberFailed &&
-    ccr.scrubberRemainingS > 0 &&
-    ccr.scrubberRemainingS < SCRUBBER_LOW_WARNING_S
-  ) {
-    return "scrubberLow";
-  }
-  if (loopBreathed && ccr.scrubberFailed) {
-    return "co2";
-  }
-  if (
-    loopBreathed
-      ? ccr.actualPo2Bar < CCR_PO2_LOW_WARNING_BAR ||
-        ccr.actualPo2Bar > CCR_PO2_HIGH_WARNING_BAR
-      : presentation.breathingPo2Bar < 0.16 ||
-        presentation.breathingPo2Bar > 1.6
-  ) {
-    return "oxygen";
-  }
-  // Legacy's banner says SLOW DOWN past 9 m/min up, below the oxygen warning
-  // and above the gas ones (src/renderer.js), and its hasWarning beeps for it
-  // (#197).
-  if (presentation.ascentRateMpm > FAST_ASCENT_RATE_MPM) {
-    return "fastAscent";
-  }
-  // Low gas on a rebreather: either of its own cylinders under legacy's
-  // 30 bar row threshold (#163 review round 2 on PR #182), never tanks[0],
-  // which there is the codec's placeholder. The oxygen cylinder only while
-  // the loop is breathed — after a bailout nothing draws on it, so its level
-  // is a row marker and not a reason to interrupt the diver. Last in the
-  // order because legacy's banner does not carry it at all: it may speak
-  // only when none of the banner's warnings is active.
-  if (ccr) {
-    const lowOxygen =
-      !ccr.onBailout && isCcrCylinderLow(ccr.oxygenCylinderPressureBar);
-    const lowDiluent = isCcrCylinderLow(ccr.diluentCylinderPressureBar);
-    return lowOxygen || lowDiluent ? "lowGas" : null;
-  }
-  const activeTank = presentation.tanks[presentation.activeTankIndex];
-  if (activeTank && activeTank.pressureBar <= 50) {
-    return "lowGas";
-  }
-  return null;
 }
 
 /**
