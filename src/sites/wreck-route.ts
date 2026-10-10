@@ -58,7 +58,9 @@ export const WRECK_STEM_TOP_M = 24.5;
  * The bow visor, hinged up: a door slab legacy draws over the opening
  * (src/sites.js, the bowVisor feature; src/renderer.js drawBowVisor, 3.6 m
  * by 1 m). Here it stands upright on the deck's forward edge, clear of the
- * opening, and is solid like the rest of the drawn hull.
+ * opening, and is solid like the rest of the drawn hull: a departure from
+ * legacy, whose visor its collision never reads (#222, owner decision of
+ * 2026-10-10; docs/decisions.md, tests/parity/wreck-route.test.ts).
  */
 export const WRECK_VISOR = Object.freeze({ x1: 22, x2: 23, topM: 19.4 });
 
