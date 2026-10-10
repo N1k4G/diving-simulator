@@ -1,15 +1,15 @@
 {
   "schema": "issue-evidence/1",
   "issue": 244,
-  "slice": "the HUD's NDL row shows the model's NDL of the same tick, legacy's frameCalc.ndl, instead of the planner worker's asynchronous forecast",
+  "slice": "the HUD's NDL row and the decompression page's NDL row show the model's NDL of the same tick, legacy's frameCalc.ndl, instead of the planner worker's asynchronous forecast",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "80266174652748c419f76c0ab5bf28f81fb7a0e0",
-  "measuredTree": "4622469ab3de0ebff99c4a5d7cf2fd9d72d4b147",
+  "measuredCommit": "27b2564830bfc3532578df9e152b201a2c44a60f",
+  "measuredTree": "c0599f44c1bd2b21baf3566a4c79cc8edcebce8c",
   "workingTree": "clean before and after the run (git status --porcelain empty)",
-  "recordedAt": "2026-10-10T18:13:31Z",
-  "runFinishedAt": "2026-10-10T18:26:18Z",
+  "recordedAt": "2026-10-10T18:42:45Z",
+  "runFinishedAt": "2026-10-10T18:55:10Z",
   "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
-  "provenanceNote": "On main 8f0b3da. The full run above is on 8026617, the test commit after the fix 832d14c. Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "On main ba6d95e (#247, the shark in the client; rebased with no conflicts). The full run above is on 27b2564, the test commit after the pre-review pass 1 fix 24b9632 (the decompression page's NDL row reads the same tick as the HUD's). Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance). Before: 8026617 on main 8f0b3da (earlierRuns).",
   "results": {
     "typecheck": "pass",
     "lint": "pass",
@@ -18,21 +18,31 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass",
-    "unit": "603 passed (594 on main 8f0b3da; +9 in tests/unit/ndl-row.test.ts: the row equals legacy's NDL of the same tick right after a gas switch from air to EAN32 at 30 m while the forecast is dropped and then pending, over 30 frames with the worker silent; the row and the low-NDL warning agree on every tick, fresh and after 8 min at 30 m; the model's step NDL read back at the dive's GF high, searched again at GF 90, the loop's NDL kept on a step that bails out, as legacy's frame; the unavailable mark at the surface, 99 at 10 m, 0 in deco with the warning quiet, null once completed)",
-    "parity": "336 passed (336 on main 8f0b3da; unchanged)",
-    "e2e": "187 passed in 9.4 min (186 on main 8f0b3da), no retries, no flake (+1 in tests/planner-worker.spec.js: with the worker script served as an empty module that answers nothing, the NDL row reads '—' at the surface and whole minutes, at most 99, at 12 m, while the decompression page's TTS keeps '—'. The worker round-trip proof moves from the NDL row to that TTS, on a technical dive)",
+    "unit": "629 passed (618 on main ba6d95e; +11 in tests/unit/ndl-row.test.ts: the row equals legacy's NDL of the same tick right after a gas switch from air to EAN32 at 30 m while the forecast is dropped and then pending, the decompression page's NDL row with it, over 30 frames with the worker silent; the row and the low-NDL warning agree on every tick, fresh and after 8 min at 30 m; the decompression page's NDL row is the tick's NDL with legacy's danger severity whether or not a 42-min forecast is in hand, its TTS the forecast's, and '—' with no severity at the surface; the model's step NDL read back at the dive's GF high, searched again at GF 90, the loop's NDL kept on an intent-path step that bails out, as legacy's frame; the unavailable mark at the surface, 99 at 10 m, 0 in deco with the warning quiet, null once completed)",
+    "parity": "341 passed (341 on main ba6d95e; unchanged)",
+    "e2e": "192 passed in 9.0 min (191 on main ba6d95e), no retries, no flake (+1 in tests/planner-worker.spec.js: with the worker script served as an empty module that answers nothing, the NDL row reads '—' at the surface and whole minutes, at most 99, at 12 m, and the decompression page's NDL row reads the same minutes, both read in one task between frames, while its TTS keeps '—'. The worker round-trip proof moves from the NDL row to that TTS, on a technical dive)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, nothing re-recorded",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
+  "earlierRuns": [
+    {
+      "measuredCommit": "80266174652748c419f76c0ab5bf28f81fb7a0e0",
+      "measuredTree": "4622469ab3de0ebff99c4a5d7cf2fd9d72d4b147",
+      "recordedAt": "2026-10-10T18:13:31Z",
+      "runFinishedAt": "2026-10-10T18:26:18Z",
+      "note": "Full run on main 8f0b3da, before the rebase onto ba6d95e and before the pre-review pass 1 fix (the decompression page's NDL row); 603 unit, 336 parity, 187 e2e in 9.4 min, all passing. Superseded by the run above."
+    }
+  ],
   "legacyOracle": {
     "row": "src/renderer.js drawDiveComputer 7885 `var ndl = frameCalc.ndl`; 8165-8171 the NDL hero or small readout, `ndl >= 999 ? '---' : ndl > 99 ? '99' : String(ndl)`, drawn in deco too",
+    "page4": "src/renderer.js 8765-8780: the info page's NDL row reads the same `ndl` (frameCalc.ndl) as the hero, `ndl >= 999 ? '---' : (ndl > 99 ? '99' : ndl) + ' min'`, danger under 5, caution under 15",
     "frameCalc": "src/game-loop.js 497 `frameCalc.ndl = calculateNDL()`, right after updateTissues() in updateDiving()",
-    "bailout": "src/game-loop.js 708-713 TASK-032F: the bailout key is read after the frameCalc refresh, so the bailout frame draws the loop's NDL",
+    "bailout": "src/game-loop.js 708-713 TASK-032F: the bailout key is read after the frameCalc refresh, so legacy's bailout frame draws the loop's NDL. The model's intent path (advance with bailout: true) keeps that order. The client applies B through GameController.bailOut() -> DiveModel.bailOut() between frames, one frame earlier than legacy, the known order difference tracked in #202; its first frame after B shows the diluent's NDL.",
     "calculateNDL": "src/physics.js 286-322, ported as src/core/decompression.ts ndlMinutes and held to the recorded legacy trace in tests/unit/decompression.test.ts"
   },
-  "change": "src/core/dive-model.ts keeps each step's limits.ndlMin, with its GF high, in a module-level WeakMap keyed by the state the step returns (no change to DiveState, the save or its validator); frameNdlMinutes(state, gfHighPercent) reads it back, and for a state no step produced, or another GF high, searches once on the state's tissues, depth and decompression gas and keeps the answer. src/presentation/presentation-state.ts adds PresentationState.ndlMin (frameNdlMinutes at the dive's GF high, null once completed) and derives nearNdlMin from it (under 5 min, null in deco), so the row and the low-NDL warning read one value. src/app/wreck-app.ts draws the row from presentation.ndlMin through ndlText, unchanged. src/app/game-controller.ts is not touched (PR #247).",
+  "change": "src/core/dive-model.ts keeps each step's limits.ndlMin, with its GF high, in a module-level WeakMap keyed by the state the step returns (no change to DiveState, the save or its validator); it is captured at decompressionLimits, right after advanceTissues and before CNS, narcosis, the rule of thirds, life support, the bailout intent and the shark step, as legacy's frameCalc refresh. frameNdlMinutes(state, gfHighPercent) reads it back, and for a state no step produced, or another GF high, searches once on the state's tissues, depth and decompression gas and keeps the answer. src/presentation/presentation-state.ts adds PresentationState.ndlMin (frameNdlMinutes at the dive's GF high, null once completed) and derives nearNdlMin from it (under 5 min, null in deco), so the row and the low-NDL warning read one value. src/app/wreck-app.ts draws the HUD row from presentation.ndlMin through ndlText, unchanged; src/app/gas-info.ts draws the decompression page's NDL row and its severity from it too (the page's TTS stays on the forecast), and exports buildBlocks for the unit tests. src/app/game-controller.ts is not touched.",
   "counterChecks": {
-    "method": "Each mutation applied with sed to the committed file; tests/unit/ndl-row.test.ts run, and for the e2e case the client rebuilt and tests/planner-worker.spec.js run under the port lock. Each file was then restored with git checkout and the tree confirmed clean with git status.",
+    "method": "Each mutation applied with sed to the committed file; tests/unit/ndl-row.test.ts run, and for the e2e cases the client rebuilt and tests/planner-worker.spec.js run under the port lock. The first four ran on 8026617 (9 unit tests, 2 e2e), the last two on 27b2564 (11 unit tests, 2 e2e, --retries=0). Each file was then restored with git checkout and the tree confirmed clean with git status.",
     "results": [
       {
         "revert": "PresentationState.ndlMin reads planner?.ndlMin again (src/presentation/presentation-state.ts)",
@@ -49,6 +59,14 @@
       {
         "revert": "frameNdlMinutes returns the kept NDL whatever the GF high asked for",
         "result": "unit: 1 of 9 fails, the GF 90 read"
+      },
+      {
+        "revert": "the decompression page's NDL value reads planner?.ndlMin again (src/app/gas-info.ts, on 27b2564)",
+        "result": "unit: 3 of 11 fail; e2e: 1 of 2 fails, 'the NDL row does not wait for the planner Worker', at the page-against-HUD check"
+      },
+      {
+        "revert": "the decompression page's NDL severity reads the forecast",
+        "result": "unit: 1 of 11 fails"
       }
     ]
   },
@@ -60,9 +78,9 @@
     "playwrightWorkers": 4
   },
   "durableProvenance": {
-    "src": "2077bf5c515141d986d5afefb133d6dd3825bcf1",
-    "tests": "318d95dc50535cf085d0fcdb5ff12086f021bbc9",
-    "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
-    "docs": "701239d0a12657dc2ee7c25e2d1e98d7bd1d9134"
+    "src": "54debcb2690afd996c7b45ed147fb6e7e7872574",
+    "tests": "db5a4cf126887a12696432f7d532889b6fb40c71",
+    "scripts": "7c6f0c28cdf70f68e1f1b578759d4dc9647af926",
+    "docs": "b0d780a30f6ece3afb425951986e58d1d3f3490d"
   }
 }
