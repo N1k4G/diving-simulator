@@ -127,6 +127,12 @@ describe("the controller and narcosis's swallowed inputs", () => {
     expect(moved.filter((m) => m === STROKE_M).length).toBeGreaterThan(5);
     expect(moved.every((m) => m === 0 || m === STROKE_M)).toBe(true);
     expect(frames.slice(-50).every((frame) => frame.scene.facing === 1)).toBe(true);
+    // With both held, a frame that swallows D alone moves the diver left,
+    // and still does not turn it.
+    controller.setControl("left", true);
+    step(50);
+    expect(strokes(frames, 50).some((m) => m < 0)).toBe(true);
+    expect(frames.slice(-50).every((frame) => frame.scene.facing === 1)).toBe(true);
     controller.destroy();
   });
 });

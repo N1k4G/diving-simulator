@@ -83,6 +83,12 @@ describe("swallowed inputs", () => {
     expect(swallowInputs({ ...NONE, vent: true }, 0.65, 1 / 60, script(0.3).draw).vent).toBe(false);
     expect(swallowInputs({ ...NONE, vent: true }, 0.65, 1 / 60, script(0.31).draw).vent).toBe(true);
   });
+
+  it("scales the chance to the frame's real length, as legacy's issue #69 does", () => {
+    // Index 1 over a 0.1 s frame: 1 - 0.4^6, about 0.996, not 0.6.
+    expect(swallowInputs({ ...NONE, inflate: true }, 1, 0.1, script(0.9).draw).inflate).toBe(false);
+    expect(swallowInputs({ ...NONE, inflate: true }, 1, 0.1, script(0.997).draw).inflate).toBe(true);
+  });
 });
 
 describe("the drift", () => {
