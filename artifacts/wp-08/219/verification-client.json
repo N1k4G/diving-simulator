@@ -3,13 +3,13 @@
   "issue": 219,
   "slice": "part 2: the shark in the migration client, the controller's wiring, a seed for each dive, and legacy's sprite",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "d4a9780f0c344a8dbe85bf74e54e4271331cb4ef",
-  "measuredTree": "856545545dbcdca66edeed6bb8eccba9e81a1378",
+  "measuredCommit": "07592fa77f392dd9d7b6e0114c22784889f4f9dd",
+  "measuredTree": "c5f49d9d43510540b9ca1a48eef67a2c119641cf",
   "workingTree": "clean before and after the run (git status --porcelain empty)",
-  "recordedAt": "2026-10-10T16:24:24Z",
-  "runFinishedAt": "2026-10-10T16:35:36Z",
+  "recordedAt": "2026-10-10T17:03:28Z",
+  "runFinishedAt": "2026-10-10T17:15:03Z",
   "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
-  "provenanceNote": "On main 8b8c0bb (#222, legacy's bow opening and a solid engine block). The full run above is on d4a9780, the last of the four implementation and test commits; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "On main 8b8c0bb (#222, legacy's bow opening and a solid engine block). The full run above is on 07592fa, the last of the five implementation and test commits, after the parity test for the two departures. An earlier full run on d4a9780 also passed (unit 589, parity 336, e2e 182). src and scripts are identical between d4a9780 and 07592fa (src tree b30ba50), so the counter-checks taken on d4a9780 hold for the measured tree. Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "results": {
     "typecheck": "pass",
     "lint": "pass",
@@ -19,32 +19,92 @@
     "build": "pass",
     "distCheck": "pass",
     "unit": "589 passed (+20: tests/unit/game-controller-shark.test.ts 5, src/render/camera.test.ts 7, tests/unit/dive-seed.test.ts 3, tests/unit/shark-encounter.test.ts 2, tests/unit/wreck-route.test.ts 2, tests/unit/site-layers.test.ts 1)",
-    "parity": "336 passed (unchanged; tests/parity/shark-encounter.test.ts now gives legacy's centred 1000 px view as its two edges, 25 m each)",
-    "e2e": "182 passed in 8.1 min, no retries, no flake (+4 in tests/shark.spec.js: the seed drawn at a dive's start is in its save; a resumed shark 3 m behind attacks on a roll under 0.33 and passes, faster, on one above; two resumed dives on frames stepped by hand render the same frame, and with a shark in view a different one)",
+    "parity": "341 passed (+5 in tests/parity/shark-encounter.test.ts). The new tests: every recorded checkpoint a shark swims at, named, all four in shark-encounter-5m on the reef; the camera's 8 m lead against numbers written in the test; the named checkpoints on the camera's mid-route view, with legacy's values except the departing ones at spawned, second-spawn, contact-survived, gone and shark-attack; the route's floors against written numbers and legacy's 66 m floorAt, and where the depth departs; no recorded checkpoint reached by the route's floors. The replay of shark-encounter-5m on legacy's centred 1000 px view is unchanged.",
+    "e2e": "182 passed in 8.3 min, no retries, no flake (+4 in tests/shark.spec.js: the seed drawn at a dive's start is in its save; a resumed shark 3 m behind attacks on a roll under 0.33 and passes, faster, on one above; two resumed dives on frames stepped by hand render the same frame, and with a shark in view a different one)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, max delta 0, nothing re-recorded",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
-  "rule": "Owner decision on #219 (2026-10-07): each dive draws its own seed at its start and keeps it in randomState, so a resumed dive stays deterministic; the shark's spawn and exit distances follow the wreck camera's lead, so it appears just outside the visible edge. The second is recorded in docs/decisions.md as a departure from legacy's centred view.",
+  "rule": "Owner decision on #219 (2026-10-07): each dive draws its own seed at its start and keeps it in randomState, so a resumed dive stays deterministic; the shark's spawn and exit distances follow the wreck camera's lead, so it appears just outside the visible edge. The second is recorded in docs/decisions.md as a departure from legacy's centred view. Beside it is the shark's floor guard on the route's floors, where legacy's reads the wreck's 66 m seabed (owner, 2026-10-10). Both rows name the checkpoints tests/parity/shark-encounter.test.ts asserts.",
   "change": "src/app/dive-seed.ts draws the seed from crypto.getRandomValues, and createWreckInitialState() starts each dive on it. src/app/game-controller.ts hands advanceWithBuoyancy() a DiveEnvironment.shark every frame: the clock's rate with fast-forward, the diver's swim along the route per dive second, the view to either side from wreckViewAround() (src/render/camera.ts: the 8 m lead and the camera's bound), the floor from floorUnder() (src/sites/wreck-route.ts) at the shark's position and depth, and the wreck's noShark. SharkFrame's viewHalfWidthM becomes viewLeftM and viewRightM, and its floorM a floorAt(offsetM, depthM) read after the swim. src/render/pixi-renderer.ts draws legacy's shark (src/renderer.js 1069-1124) once in the fauna layer and moves it each frame while DiveState.shark.encounter exists. The migration e2e specs (tests/helpers/pinned-seed.cjs) and scripts/pixi-visual-check.mjs pin the page's 32-bit draws to the seed the client used before, 0x57524543, so no run meets a shark by chance.",
   "counterChecks": {
-    "method": "Each mutation applied by a script to a file backed up beforehand, the named tests run (for e2e, after rebuilding the client) under the port lock with --retries=0, on the code of d4a9780. Each file was then restored from its backup and compared with filecmp (shallow=False): byte for byte identical in every case. The first versions of the M7 and M8 mutations did not typecheck, so their builds failed before any e2e ran; the e2e results below are from the typechecking forms, void this.#sharkFrame(...) and drawDiveSeed() * 0 + 0x57524543.",
+    "method": "Each mutation applied by a script to a file backed up beforehand, the named tests run (for e2e, after rebuilding the client) under the port lock with --retries=0, on the code of d4a9780 (M1 to M16) and of 07592fa (P1 to P3, tests/parity/shark-encounter.test.ts; src is the same tree). Each file was then restored from its backup and compared with filecmp (shallow=False): byte for byte identical in every case. The first versions of the M7 and M8 mutations did not typecheck, so their builds failed before any e2e ran; the e2e results below are from the typechecking forms, void this.#sharkFrame(...) and drawDiveSeed() * 0 + 0x57524543.",
     "results": [
-      { "revert": "M1: the controller hands the model TIME_ACCELERATION, not the fast-forward rate (src/app/game-controller.ts)", "result": "1 of 5 in tests/unit/game-controller-shark.test.ts fails: the fast-forward's rate" },
-      { "revert": "M2: diverVelocityMps 0 (src/app/game-controller.ts)", "result": "1 of 5 fails: the frame the controller hands the model" },
-      { "revert": "M3: legacy's centred view, 29 m to either edge (src/app/game-controller.ts)", "result": "2 of 5 fail: the frame, and the spawn beyond the camera's edge" },
-      { "revert": "M4: the view always for a diver facing right (src/app/game-controller.ts)", "result": "1 of 5 fails: the frame, turned round 40 m along" },
-      { "revert": "M5: the floor under the diver, not under the shark (src/app/game-controller.ts)", "result": "1 of 5 fails: the frame" },
-      { "revert": "M6: noShark true (src/app/game-controller.ts)", "result": "2 of 5 fail: the frame, and the spawn" },
-      { "revert": "M7: no DiveEnvironment.shark handed to the model (src/app/game-controller.ts)", "result": "unit: 5 of 5 in tests/unit/game-controller-shark.test.ts and 6 of 20 in tests/unit/game-controller-buoyancy.test.ts fail; e2e: 2 of 4 in tests/shark.spec.js fail, the attack and the pass" },
-      { "revert": "M8: every dive back on the constant seed 0x57524543 (src/app/game-controller.ts)", "result": "unit: 1 of 3 in tests/unit/dive-seed.test.ts fails; e2e: 1 of 4 fails, the seed in the save" },
-      { "revert": "M9: a shark heading right spawns beyond the right edge (src/core/dive-model.ts)", "result": "1 of 14 in tests/unit/shark-encounter.test.ts fails: the view that is not centred; parity unchanged" },
-      { "revert": "M10: a shark heading left leaves beyond the right edge (src/core/dive-model.ts)", "result": "1 of 14 fails: the view that is not centred" },
-      { "revert": "M11: the floor read where the shark was before it swam (src/core/dive-model.ts)", "result": "1 of 14 fails: the floor read after the swim" },
-      { "revert": "M12: past the deck's after end, the route's level deck instead of open water (src/sites/wreck-route.ts)", "result": "1 of 20 in tests/unit/wreck-route.test.ts fails" },
-      { "revert": "M13: the view around the diver without the camera's bound (src/render/camera.ts)", "result": "5 of 11 in src/render/camera.test.ts and 2 of 5 in tests/unit/game-controller-shark.test.ts fail" },
-      { "revert": "M14: the scene's shark at its offset, not its route position (src/app/game-controller.ts)", "result": "1 of 5 in tests/unit/game-controller-shark.test.ts fails: the spawn the scene draws" },
-      { "revert": "M15: the sprite never shown (src/render/pixi-renderer.ts)", "result": "e2e: 1 of 4 in tests/shark.spec.js fails" },
-      { "revert": "M16: the sprite in the foreground layer, over the diver (src/render/layer-assignment.ts)", "result": "1 of 21 in tests/unit/site-layers.test.ts fails" }
+      {
+        "revert": "M1: the controller hands the model TIME_ACCELERATION, not the fast-forward rate (src/app/game-controller.ts)",
+        "result": "1 of 5 in tests/unit/game-controller-shark.test.ts fails: the fast-forward's rate"
+      },
+      {
+        "revert": "M2: diverVelocityMps 0 (src/app/game-controller.ts)",
+        "result": "1 of 5 fails: the frame the controller hands the model"
+      },
+      {
+        "revert": "M3: legacy's centred view, 29 m to either edge (src/app/game-controller.ts)",
+        "result": "2 of 5 fail: the frame, and the spawn beyond the camera's edge"
+      },
+      {
+        "revert": "M4: the view always for a diver facing right (src/app/game-controller.ts)",
+        "result": "1 of 5 fails: the frame, turned round 40 m along"
+      },
+      {
+        "revert": "M5: the floor under the diver, not under the shark (src/app/game-controller.ts)",
+        "result": "1 of 5 fails: the frame"
+      },
+      {
+        "revert": "M6: noShark true (src/app/game-controller.ts)",
+        "result": "2 of 5 fail: the frame, and the spawn"
+      },
+      {
+        "revert": "M7: no DiveEnvironment.shark handed to the model (src/app/game-controller.ts)",
+        "result": "unit: 5 of 5 in tests/unit/game-controller-shark.test.ts and 6 of 20 in tests/unit/game-controller-buoyancy.test.ts fail; e2e: 2 of 4 in tests/shark.spec.js fail, the attack and the pass"
+      },
+      {
+        "revert": "M8: every dive back on the constant seed 0x57524543 (src/app/game-controller.ts)",
+        "result": "unit: 1 of 3 in tests/unit/dive-seed.test.ts fails; e2e: 1 of 4 fails, the seed in the save"
+      },
+      {
+        "revert": "M9: a shark heading right spawns beyond the right edge (src/core/dive-model.ts)",
+        "result": "1 of 14 in tests/unit/shark-encounter.test.ts fails: the view that is not centred; parity unchanged"
+      },
+      {
+        "revert": "M10: a shark heading left leaves beyond the right edge (src/core/dive-model.ts)",
+        "result": "1 of 14 fails: the view that is not centred"
+      },
+      {
+        "revert": "M11: the floor read where the shark was before it swam (src/core/dive-model.ts)",
+        "result": "1 of 14 fails: the floor read after the swim"
+      },
+      {
+        "revert": "M12: past the deck's after end, the route's level deck instead of open water (src/sites/wreck-route.ts)",
+        "result": "1 of 20 in tests/unit/wreck-route.test.ts fails"
+      },
+      {
+        "revert": "M13: the view around the diver without the camera's bound (src/render/camera.ts)",
+        "result": "5 of 11 in src/render/camera.test.ts and 2 of 5 in tests/unit/game-controller-shark.test.ts fail"
+      },
+      {
+        "revert": "M14: the scene's shark at its offset, not its route position (src/app/game-controller.ts)",
+        "result": "1 of 5 in tests/unit/game-controller-shark.test.ts fails: the spawn the scene draws"
+      },
+      {
+        "revert": "M15: the sprite never shown (src/render/pixi-renderer.ts)",
+        "result": "e2e: 1 of 4 in tests/shark.spec.js fails"
+      },
+      {
+        "revert": "M16: the sprite in the foreground layer, over the diver (src/render/layer-assignment.ts)",
+        "result": "1 of 21 in tests/unit/site-layers.test.ts fails"
+      },
+      {
+        "revert": "P1: the wreck camera's lead 6 m, not 8 (src/render/camera.ts)",
+        "result": "1 of 9 in tests/parity/shark-encounter.test.ts fails: the camera's lead against the written numbers"
+      },
+      {
+        "revert": "P2: the stem's top 1 m deeper (src/sites/wreck-route.ts)",
+        "result": "1 of 9 fails: the route's floors against the written numbers"
+      },
+      {
+        "revert": "P3: the shark's floor guard on legacy's 66 m seabed, floorAt ignored (src/core/dive-model.ts)",
+        "result": "1 of 9 fails: where the depth departs, over the stem and off the bow"
+      }
     ]
   },
   "environment": {
@@ -56,8 +116,8 @@
   },
   "durableProvenance": {
     "src": "b30ba50a68bdc6c6d4e84d3a15bae670e70a3288",
-    "tests": "c75c5a8ce7caf94ecdc7050e0c7e9a067fea28bd",
+    "tests": "de57951233cd0d19904032f0e84fc68c0ebeb114",
     "scripts": "7c6f0c28cdf70f68e1f1b578759d4dc9647af926",
-    "docs": "0c17251c671edd997ff5425a1a5ba582ee6ad28f"
+    "docs": "de08ad244de81097112442531d5d7de21022c941"
   }
 }
