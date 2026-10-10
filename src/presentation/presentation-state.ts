@@ -228,9 +228,11 @@ export const LOW_NDL_WARNING_MIN = 5;
  * frameCalc.ndl, computed on the same tick. The planner's forecast arrives
  * asynchronously and is pending after every gas switch, so it is not used
  * here. The model's own NDL of the tick is not kept in its state. So it is
- * computed again, on the model's tissues, depth, gas and GF high, but
- * searched only over the warning's five minutes: ten steps instead of up to
- * four hundred, every frame.
+ * computed again, on the model's tissues, depth, gas and GF high. The
+ * warning asks only whether the limit is under five minutes, so the search
+ * stops there: ten steps instead of up to four hundred. That is a saving
+ * (about 0.01 ms against 0.5 ms worst case, warm), not a necessity; the model
+ * itself runs the full search every frame.
  */
 export function selectNearNdlMin(
   state: DiveState,
