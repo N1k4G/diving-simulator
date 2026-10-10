@@ -213,4 +213,60 @@ describe("narcosis below the KO against the recorded legacy dives", () => {
     expect(swallowInputs(held, legacyDropIndex, 1 / 60, () => 0)).toEqual(held);
     expect(swallowInputs(held, legacyDropIndex, 1 / 60, LEGACY_DRAW)).toEqual(held);
   });
+
+  // The departure recorded in docs/decisions.md (#220, 2026-10-10): legacy
+  // draws for every held key, also at a drop chance of 0, where the draw
+  // keeps the key; the model draws only where a key can be swallowed. It
+  // departs in the number of draws and nothing else. No recorded checkpoint
+  // holds a random state: buoyancy-vent-inflate-12m, buoyancy-ccr-inflate-12m
+  // and barotrauma-runaway-ascent-30m, the recordings that hold keys, stub
+  // Math.random, and their kept keys match legacy at every checkpoint.
+  it("departs from legacy only in the draws it makes at a drop chance of 0", () => {
+    // src/game-loop.js 389-397, written out: `(keys[k]) && Math.random() >
+    // narcDropP`, W, S, A, D.
+    const legacyKeys = (held: Record<"inflate" | "vent" | "left" | "right", boolean>, index: number, dtReal: number, random: () => number) => {
+      const narcDelay = index > 0.3 ? (index - 0.3) / 0.7 : 0;
+      const narcDropP = 1 - Math.pow(1 - narcDelay * 0.6, dtReal * 60);
+      const keep = (pressed: boolean) => pressed && random() > narcDropP;
+      const inflate = keep(held.inflate);
+      const vent = keep(held.vent);
+      const left = keep(held.left);
+      const right = keep(held.right);
+      return { inflate, vent, left, right };
+    };
+    const counting = (values: number[]) => {
+      let i = 0;
+      return { draw: () => values[i++ % values.length]!, drawn: () => i };
+    };
+    const held = { inflate: true, vent: false, left: true, right: true };
+    const ids = ["buoyancy-vent-inflate-12m", "buoyancy-ccr-inflate-12m", "barotrauma-runaway-ascent-30m"];
+    const named = scenarios.filter((scenario) => ids.includes(scenario.scenarioId));
+    expect(named.map((scenario) => scenario.scenarioId)).toEqual(ids);
+    for (const scenario of named) {
+      for (const checkpoint of scenario.checkpoints) {
+        const index = checkpoint.state.narcosisIndex;
+        for (const values of [[0.5], [Number.MIN_VALUE], [0.9, 0.01, 0.3]]) {
+          const legacy = counting(values);
+          const model = counting(values);
+          const label = `${scenario.scenarioId}/${checkpoint.checkpointId}`;
+          expect(swallowInputs(held, index, 1 / 60, model.draw), label)
+            .toEqual(legacyKeys(held, index, 1 / 60, legacy.draw));
+          // The departing value: legacy draws once per held key, the model
+          // not at all.
+          expect(legacy.drawn(), label).toBe(3);
+          expect(model.drawn(), label).toBe(0);
+        }
+      }
+    }
+    // Where a key can be swallowed the two draw alike, key for key.
+    for (const index of [0.31, 0.6, 0.95]) {
+      for (const dtReal of [1 / 144, 1 / 60, 0.05]) {
+        const values = [0.2, 0.7, 0.45, 0.99];
+        const legacy = counting(values);
+        const model = counting(values);
+        expect(swallowInputs(held, index, dtReal, model.draw)).toEqual(legacyKeys(held, index, dtReal, legacy.draw));
+        expect(model.drawn()).toBe(legacy.drawn());
+      }
+    }
+  });
 });

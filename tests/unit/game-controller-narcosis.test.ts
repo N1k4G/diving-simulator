@@ -138,4 +138,24 @@ describe("the controller and narcosis's swallowed inputs", () => {
     expect(frames.slice(-50).every((frame) => frame.scene.facing === 1)).toBe(true);
     controller.destroy();
   });
+
+  it("turns the diver to a newly held key only on a frame that kept it", async () => {
+    const initial = at(0.9);
+    const { controller, frames } = await startController(initial);
+    expect(frames.at(-1)!.scene.facing).toBe(1);
+    controller.setControl("left", true);
+    step(30);
+    const moved = strokes(frames, 30);
+    // A alone is held, so the frame's first draw is A's (Codex round 1:
+    // seed 97 swallows it on the first frame).
+    const p = 1 - Math.pow(1 - ((0.9 - 0.3) / 0.7) * 0.6, FRAME_MS / 1000 * 60);
+    expect(nextRandom(initial.randomState).value).toBeLessThanOrEqual(p);
+    expect(moved[0]).toBe(0);
+    expect(moved.some((m) => m < 0)).toBe(true);
+    // Right until the first stroke the model kept, left from it on.
+    const firstKept = moved.findIndex((m) => m < 0);
+    const facings = frames.slice(-30).map((frame) => frame.scene.facing);
+    expect(facings).toEqual(moved.map((_, i) => (i < firstKept ? 1 : -1)));
+    controller.destroy();
+  });
 });

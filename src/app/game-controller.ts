@@ -474,9 +474,9 @@ export class GameController {
   }
 
   #advanceView(elapsedS: number, controls: MovementControls): void {
-    // The sprite faces the keys held, so a swallowed key does not turn it
-    // for a frame; legacy turns it on the velocity, which a frame does not
-    // reverse either.
+    // The sprite turns to the one fin key held, and only on a frame that
+    // kept it: legacy turns it on the velocity, which a swallowed stroke
+    // leaves alone (#220 Codex round 1).
     const facing =
       (this.#pressed.has("right") ? 1 : 0) - (this.#pressed.has("left") ? 1 : 0);
     const horizontal = (controls.right ? 1 : 0) - (controls.left ? 1 : 0);
@@ -492,7 +492,7 @@ export class GameController {
     if (this.#awaitingDescent) {
       return;
     }
-    if (facing !== 0) {
+    if (facing !== 0 && horizontal === facing) {
       this.#facing = facing < 0 ? -1 : 1;
     }
     // The hull stops the diver as legacy's structures do (#199).

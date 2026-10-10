@@ -42,7 +42,7 @@ export interface MovementControls {
  * Legacy draws for every held key, also at a drop chance of 0, where the
  * draw keeps the key whatever it is. Those draws are skipped here: they
  * cannot change anything, and a dive without narcosis keeps the stream the
- * shark rolls from (#219).
+ * shark rolls from (#219): a departure recorded in docs/decisions.md.
  */
 export function swallowInputs(
   held: Readonly<MovementControls>,
