@@ -9,7 +9,7 @@
   "recordedAt": "2026-10-10T11:36:07Z",
   "runFinishedAt": "2026-10-10T11:52:09Z",
   "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
-  "provenanceNote": "Branch feat/222-bow-visor-engine from main e2a59ce (#226). The change is 2876b2b alone; the commit after it adds this file. The full run above is on 2876b2b; later commits only update this file and the linux reference frames (b98a5dd, recorded by the workflow).",
+  "provenanceNote": "Branch feat/222-bow-visor-engine from main e2a59ce (#226). The change is 2876b2b alone; the commit after it adds this file. The full run above is on 2876b2b; later commits only update this file and the linux reference frames (b98a5dd, recorded by the workflow). durableProvenance names the measured trees: src, scripts and docs are identical at HEAD, and tests/ differs only in tests/fixtures/reference-frames/pixi/linux (b98a5dd), which the win32 run does not read.",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
