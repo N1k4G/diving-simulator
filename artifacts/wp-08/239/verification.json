@@ -3,13 +3,13 @@
   "issue": 239,
   "slice": "flaky e2e under load: the cross-client trace holds by frame time, the reload tests accept the beforeunload prompt",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "c6d88a487efdb8ab73dcab8a0cfd88df32acc273",
-  "measuredTree": "6934801172fbdbfad2d02860343c9e6d891f9ce8",
+  "measuredCommit": "c2632c3db9da8dc6fe469d12c81b3a88d9d56169",
+  "measuredTree": "521b6bb13d0de9e218f366361772fd9a11fb1572",
   "workingTree": "clean before and after the run (git status --porcelain empty)",
-  "recordedAt": "2026-10-10T12:22:23Z",
-  "runFinishedAt": "2026-10-10T12:34:44Z",
+  "recordedAt": "2026-10-10T13:06:02Z",
+  "runFinishedAt": "2026-10-10T13:21:44Z",
   "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
-  "provenanceNote": "On main e2a59ce (#226). The full run above is on c6d88a4, the only code commit of this branch, and durableProvenance holds its src, tests, scripts and docs trees; later commits only update this file",
+  "provenanceNote": "On main 44012dd (#242), rebased from e2a59ce without conflicts; the code commit is e38bebd (was c6d88a4). The full run above is on c2632c3, after the rebase; the repeat runs below were measured before it, on the same test code. durableProvenance holds the measured src, tests, scripts and docs trees; later commits only update this file.",
   "results": {
     "typecheck": "pass",
     "lint": "pass",
@@ -18,9 +18,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass",
-    "unit": "562 passed (562 on main e2a59ce; unchanged)",
-    "parity": "332 passed (332 on main e2a59ce; unchanged)",
-    "e2e": "173 passed in 8.5 min with 4 workers (173 on main e2a59ce; unchanged, no test added or removed)",
+    "unit": "563 passed (563 on main 44012dd; unchanged)",
+    "parity": "332 passed (332 on main 44012dd; unchanged)",
+    "e2e": "178 passed in 10.2 min with 4 workers (178 on main 44012dd; unchanged)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, nothing re-recorded",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -155,12 +155,17 @@
     "cpus": 14
   },
   "durableProvenance": {
-    "src": "a328bda361732e4c5b99870c9b34a94816c041b5",
-    "tests": "38518ce07a7e6cf3e8d08346b72d317ee281ecd6",
+    "src": "fa872579fcbd63c449338148a233cbc80eb80043",
+    "tests": "447f9b0916980b70cc48fa7cf6ec7bf92dff5ff6",
     "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
-    "docs": "fe2014395e126b9dff6c445e62b51735ae9ef840"
+    "docs": "b1c3df15d315485158ce685a9f46b8486831f9e5"
   },
   "earlierRuns": [
+    {
+      "measuredCommit": "c6d88a487efdb8ab73dcab8a0cfd88df32acc273",
+      "recordedAt": "2026-10-10T12:22:23Z",
+      "note": "Full run on main e2a59ce, before the rebase onto 44012dd (#242); 562 unit, 332 parity, 173 e2e, all passing. Superseded by the run above."
+    },
     {
       "measuredCommit": "75b6a9c4668eebce847c90e4e43791b008276190",
       "recordedAt": "2026-10-10T11:52:37Z",
