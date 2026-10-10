@@ -163,9 +163,17 @@ export type WarningTier = "critical" | "caution";
 /**
  * The tier of the warning selectWarning shows, as legacy marks it: the gas
  * reserve and narcosis over 0.20 but not over 0.70 are cautions
- * (`warnCritical = false`, src/renderer.js 8251-8256), and so is the loop's
- * SCR LOW (ccrWarnColor = hudColor('caution'), 8893). Every other banner,
+ * (`warnCritical = false`, src/renderer.js 8251-8256). Every other banner,
  * the loop's other texts and the migration's own warnings are critical.
+ *
+ * SCR LOW is legacy's amber overlay text (ccrWarnColor = hudColor('caution'),
+ * 8893), drawn over the banner's pill, which keeps its own warnCritical. So
+ * while it shows, the tier is the banner's under it: critical if a critical
+ * banner term holds (the ceiling, PO2 over PO2_HIGH, which on the loop is
+ * its actual PO2 as calculatePO2() reads it, narcosis over 0.70, a fast
+ * ascent or a low NDL), else caution, as SCR LOW alone, or over the
+ * banner's narcosis caution. Legacy's low gas and reserve read tBar, which
+ * on the loop is a cylinder it does not breathe (see activeWarnings).
  */
 export function selectWarningTier(
   presentation: Readonly<PresentationState>,
@@ -174,7 +182,18 @@ export function selectWarningTier(
   if (severity === null) {
     return null;
   }
-  if (severity === "reserve" || severity === "scrubberLow") {
+  if (severity === "scrubberLow") {
+    const warnings = activeWarnings(presentation);
+    const narcosisIndex = presentation.completed ? 0 : presentation.narcosisIndex;
+    const bannerCritical =
+      warnings.includes("ceiling") ||
+      (presentation.ccr?.actualPo2Bar ?? 0) > OC_PO2_HIGH_WARNING_BAR ||
+      narcosisIndex > NARCOSIS_CRITICAL_INDEX ||
+      warnings.includes("fastAscent") ||
+      warnings.includes("lowNdl");
+    return bannerCritical ? "critical" : "caution";
+  }
+  if (severity === "reserve") {
     return "caution";
   }
   if (severity === "narcosis") {
