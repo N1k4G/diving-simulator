@@ -78,6 +78,41 @@ describe("LocalSaveRepository", () => {
     expect(store.getItem(SAVE_GAME_STORAGE_KEY)).not.toBeNull();
   });
 
+  // Each dive on its own seed (#219, owner decision of 2026-10-07): legacy
+  // saves none, so a dive migrated from one draws its seed once, at the
+  // migration, from the source the app passes in.
+  it("seeds a dive migrated from a legacy save from the source it is given, once", () => {
+    const seeded = (seed: number) => {
+      const store = new MemoryStore([[LEGACY_SAVE_STORAGE_KEY, JSON.stringify(minimalLegacyV2Save())]]);
+      let draws = 0;
+      const repository = new LocalSaveRepository(store, { legacySeed: () => (draws += 1, seed) });
+      const first = repository.load();
+      // Resumed again: from the migrated save written back, on the same seed,
+      // with no second draw.
+      const second = new LocalSaveRepository(store, { legacySeed: () => (draws += 1, seed + 1) }).load();
+      if (first.status !== "loaded" || second.status !== "loaded") throw new Error("not loaded");
+      expect(second.migrated).toBe(false);
+      expect(second.saveGame.state.randomState).toBe(first.saveGame.state.randomState);
+      expect(draws).toBe(1);
+      return first.saveGame.state.randomState;
+    };
+    expect(seeded(0x1234)).toBe(0x1234);
+    expect(seeded(0xbeef)).toBe(0xbeef);
+  });
+
+  it("does not re-seed a current save", () => {
+    const store = new MemoryStore();
+    new LocalSaveRepository(store).save(createInitialDiveState(77), DEFAULT_SAVED_GRADIENT_FACTORS);
+    const loaded = new LocalSaveRepository(store, {
+      legacySeed: () => {
+        throw new Error("a current save drew a seed");
+      },
+    }).load();
+    if (loaded.status !== "loaded") throw new Error("not loaded");
+    expect(loaded.migrated).toBe(false);
+    expect(loaded.saveGame.state.randomState).toBe(createInitialDiveState(77).randomState);
+  });
+
   it("carries the gradient factors back out of the store", () => {
     // #158 review: the repository persisted the DiveState alone, so a resumed
     // dive was re-planned on whatever the setup screen happened to show.

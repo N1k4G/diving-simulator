@@ -112,6 +112,26 @@ test.describe('a dive on a seed of its own', () => {
     expect(saved.state.randomState).toBe(0x0badf00d);
     expect(saved.state.randomState).not.toBe(PINNED_DIVE_SEED);
   });
+
+  test('draws one for a dive resumed from a legacy save, which carries none', async ({ page }) => {
+    await page.goto('/dist/');
+    await page.evaluate(() => {
+      window.localStorage.clear();
+      window.localStorage.setItem('diveSim_savedState', JSON.stringify({
+        saveVersion: 2, savedAt: 1_735_689_600_000, gameState: 'diving', depth: 10, maxDepth: 12, diveTime: 5,
+        amvRate: 15, po2ViolationTime: 0, hypoxiaTime: 0, ccrHypoxiaTime: 0, ccrHyperoxiaTime: 0,
+        tissues: Array(16).fill(0.75), tissuesHe: Array(16).fill(0), activeTank: 0, tankCount: 1, diveMode: 'rec',
+        tanks: [{ fO2: 0.21, fHe: 0, fN2: 0.79, volume: 12, gasRemaining: 2000 }],
+      }));
+    });
+    await acceptSafetyGate(page);
+    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+    // Migrated on load and written back under the new key with its seed.
+    const saved = await persistedSave(page);
+    expect(saved.state.elapsedTimeS).toBeGreaterThanOrEqual(300);
+    expect(saved.state.randomState).toBe(0x0badf00d);
+  });
 });
 
 test('a shark that reaches the diver on a roll under 0.33 ends the dive in a shark attack', async ({ page }) => {
