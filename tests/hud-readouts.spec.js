@@ -166,13 +166,17 @@ test('a dive surfaced fast past its stop ends on the post-dive screen, with no s
 
 test('the rule of thirds is kept under the deck, from the plan made on entering, and not outside', async ({ page }) => {
   test.setTimeout(120_000);
-  // Neutral at 28 m (tests/unit/thirds-turn-beep.test.ts pins the value), so
-  // the diver swims level into the cargo hold between its deck and floor.
+  // The hold is entered from above, through the bow visor's opening (#222):
+  // the diver starts at 21 m, over the stem's top at 24.5 m and below the
+  // raised visor's top at 19.4 m, light on gas so it sinks. Finning aft, it
+  // crosses the stem into the opening, where the visor and the deck's forward
+  // edge hold it until it has sunk below the deck, and then goes on under the
+  // deck into the cargo hold.
   await resumeWith(page, (state) => {
-    state.depthM = 28;
-    state.maxDepthM = Math.max(state.maxDepthM, 28);
+    state.depthM = 21;
+    state.maxDepthM = Math.max(state.maxDepthM, 21);
     state.verticalVelocityMpm = 0;
-    state.bcdGasSurfaceLiters = 15.337143629243002;
+    state.bcdGasSurfaceLiters = 5;
   });
   await expect(hudRow(page, 'thirds')).toBeHidden();
 
@@ -183,6 +187,8 @@ test('the rule of thirds is kept under the deck, from the plan made on entering,
   await expect(hudRow(page, 'thirds')).toBeVisible();
   await expect(hudValue(page, 'thirds')).toHaveText(/^Outbound · \d+%$/);
 
+  // Back out the same way: forward from under the deck into the opening,
+  // which is open water and not the overhead.
   await page.keyboard.down('a');
   await expect(zone).toHaveText('Wreck exterior', { timeout: 30_000 });
   await page.keyboard.up('a');

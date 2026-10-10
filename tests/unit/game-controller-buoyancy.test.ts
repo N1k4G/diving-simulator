@@ -19,8 +19,11 @@ import { bars, metres, seconds } from "../../src/core/units";
 import { DEFAULT_PLANNER_SETTINGS, type PlannerSettings } from "../../src/planner/dive-planner";
 import {
   CARGO_HOLD_FROM_M,
+  WRECK_BOW_X_M,
   WRECK_DECK_TOP,
   WRECK_DECK_UNDERSIDE,
+  WRECK_HOLD_BOW_X_M,
+  WRECK_HOLD_FLOOR_M,
   profileAt,
 } from "../../src/sites/wreck-route";
 
@@ -397,60 +400,101 @@ describe("the controller drives the buoyancy model frame by frame", () => {
 describe("the route through the wreck", { timeout: 30_000 }, () => {
   const FIN_FRAMES_PER_METRE = 1000 / FRAME_MS / 5;
 
-  it("enters the cargo hold under the deck, where the deck is the ceiling and the rule of thirds runs", async () => {
-    const { controller, frames } = await startController(neutralAt(28));
+  /**
+   * Into the hold the way the bow is built (#222): neutral at 18 m over the
+   * stem to route position 19, in the bow visor's opening, then vented down
+   * it onto the hold's floor. Starts from neutralAt(18).
+   */
+  function downTheVisor(controller: GameController, frames: GameFrame[]): void {
     controller.setControl("right", true);
-    step(40 * FIN_FRAMES_PER_METRE);
+    step(9 * FIN_FRAMES_PER_METRE);
+    controller.setControl("right", false);
+    expect(frames.at(-1)?.scene.routePositionM).toBeCloseTo(19, 9);
+    controller.setControl("descend", true);
+    for (let i = 0; i < 3000 && controller.authoritativeState.depthM < 26; i += 1) {
+      step(1);
+    }
+    controller.setControl("descend", false);
+    for (let i = 0; i < 6000 && controller.authoritativeState.depthM < WRECK_HOLD_FLOOR_M; i += 1) {
+      step(1);
+    }
+    expect(controller.authoritativeState.depthM).toBe(WRECK_HOLD_FLOOR_M);
+    // The opening is open to the surface: not the overhead yet.
+    expect(frames.at(-1)?.scene.zone).toBe("exterior");
+    expect(controller.authoritativeState.thirds.startingGasL).toBe(0);
+  }
+
+  it("enters the cargo hold under the deck, where the deck is the ceiling and the rule of thirds runs", async () => {
+    const { controller, frames } = await startController(neutralAt(18));
+    downTheVisor(controller, frames);
+    controller.setControl("right", true);
+    step(31 * FIN_FRAMES_PER_METRE);
     controller.setControl("right", false);
     expect(frames.at(-1)?.scene.routePositionM).toBeCloseTo(50, 9);
     expect(frames.at(-1)?.scene.zone).toBe("cargo-hold");
     // legacy updateDiving, Issue #27: the plan is set on entering the overhead.
     expect(controller.authoritativeState.thirds.startingGasL).toBeGreaterThan(0);
 
-    controller.setControl("ascend", true);
-    step(300);
+    // Up from the floor at a controlled rate, until the deck holds the diver.
+    ascendCarefully(controller, 3000);
     const state = controller.authoritativeState;
     expect(state.depthM).toBeCloseTo(profileAt(WRECK_DECK_UNDERSIDE, 50), 9);
     expect(state.verticalVelocityMpm).toBe(0);
     expect(state.completed).toBe(false);
+    expect(state.failure.reason).toBeNull();
     controller.destroy();
   });
 
-  it("is in the overhead under the deck from the drawn hold's start, not from 45 m (#222)", async () => {
-    const { controller, frames } = await startController(neutralAt(28));
+  it("is in the overhead under the deck from its forward edge at 22 m, not from 27 m (#222)", async () => {
+    const { controller, frames } = await startController(neutralAt(18));
+    downTheVisor(controller, frames);
     controller.setControl("right", true);
-    step(25 * FIN_FRAMES_PER_METRE);
+    step(5 * FIN_FRAMES_PER_METRE);
     controller.setControl("right", false);
-    expect(frames.at(-1)?.scene.routePositionM).toBeCloseTo(35, 9);
+    expect(frames.at(-1)?.scene.routePositionM).toBeCloseTo(24, 9);
     expect(frames.at(-1)?.scene.zone).toBe("cargo-hold");
     expect(controller.authoritativeState.thirds.startingGasL).toBeGreaterThan(0);
 
     // The deck holds the diver under it there too.
-    controller.setControl("ascend", true);
-    step(300);
-    expect(controller.authoritativeState.depthM).toBeCloseTo(profileAt(WRECK_DECK_UNDERSIDE, 35), 9);
+    ascendCarefully(controller, 3000);
+    expect(controller.authoritativeState.depthM).toBeCloseTo(profileAt(WRECK_DECK_UNDERSIDE, 24), 9);
     controller.destroy();
   });
 
-  it("ends the dive at the surface once the diver has swum out of the wreck", async () => {
-    // In the hold and out again, neutral at 28 m: the deck as the ceiling is
-    // the test above. A diver who left the hold pressed against the deck with
-    // the BCD full would rocket up past 18 m/min and end in barotrauma.
+  it("stops a diver level at 28 m at the bow's stem, outside the overhead (#222)", async () => {
     const { controller, frames } = await startController(neutralAt(28));
     controller.setControl("right", true);
     step(40 * FIN_FRAMES_PER_METRE);
+    const position = frames.at(-1)?.scene.routePositionM ?? Number.NaN;
+    expect(position).toBeLessThan(WRECK_BOW_X_M);
+    expect(position).toBeGreaterThan(WRECK_BOW_X_M - 0.2);
+    expect(frames.at(-1)?.scene.zone).toBe("exterior");
+    expect(controller.authoritativeState.thirds.startingGasL).toBe(0);
+    controller.destroy();
+  });
+
+  it("ends the dive at the surface once the diver has swum out of the wreck through the visor's opening", async () => {
+    // In the hold and out again; the deck as the ceiling is the test above.
+    const { controller, frames } = await startController(neutralAt(18));
+    downTheVisor(controller, frames);
+    controller.setControl("right", true);
+    step(31 * FIN_FRAMES_PER_METRE);
     controller.setControl("right", false);
     expect(frames.at(-1)?.scene.zone).toBe("cargo-hold");
     expect(controller.authoritativeState.completed).toBe(false);
 
-    // Out of the hold, the ceiling is the surface again, and legacy's last
-    // check in updateDiving() ends the dive there. The diver swims out, then
-    // rises at a controlled 6 to 12 m/min: about 24 m in two to four
-    // minutes of dive time.
+    // Forward out of the hold into the opening, where the stem stops the
+    // diver: the ceiling is the surface again, and legacy's last check in
+    // updateDiving() ends the dive there. The diver rises at a controlled 6
+    // to 12 m/min: about 33 m in three to six minutes of dive time.
     controller.setControl("left", true);
     step(40 * FIN_FRAMES_PER_METRE);
     controller.setControl("left", false);
-    ascendCarefully(controller, 6000);
+    const outAt = frames.at(-1)?.scene.routePositionM ?? Number.NaN;
+    expect(outAt).toBeGreaterThan(WRECK_HOLD_BOW_X_M);
+    expect(outAt).toBeLessThan(WRECK_HOLD_BOW_X_M + 0.2);
+    expect(frames.at(-1)?.scene.zone).toBe("exterior");
+    ascendCarefully(controller, 9000);
     const state = controller.authoritativeState;
     expect(state.failure.reason).toBeNull();
     expect(state.completed).toBe(true);
@@ -466,8 +510,9 @@ describe("the route through the wreck", { timeout: 30_000 }, () => {
   });
 
   it("stops a diver who swims into the deck's edge", async () => {
-    // Between the top of the deck and its underside where the hold begins.
-    const { controller, frames } = await startController(neutralAt(23));
+    // Between the top of the deck and its underside where the hold begins,
+    // over the stem, whose top is level with the underside (#222).
+    const { controller, frames } = await startController(neutralAt(23.75));
     controller.setControl("right", true);
     step(40 * FIN_FRAMES_PER_METRE);
     const position = frames.at(-1)?.scene.routePositionM ?? Number.NaN;

@@ -1,4 +1,5 @@
 import type { PresentationState } from "../presentation/presentation-state";
+import { WRECK_HOLD_EDGE, WRECK_HULL_EDGE, type RoutePoint } from "../sites/wreck-route";
 import { createCameraTransform, worldToScreen } from "./camera";
 import type { SceneRenderer, WreckSceneState } from "./renderer";
 
@@ -76,34 +77,29 @@ export class CanvasReferenceAdapter implements SceneRenderer {
     context.fillStyle = gradient;
     context.fillRect(0, 0, this.#viewport.width, this.#viewport.height);
 
-    const hull = [
-      point(14, 35),
-      point(22, 23),
-      point(82, 21),
-      point(108, 29),
-      point(103, 35),
-    ];
-    context.beginPath();
-    context.moveTo(hull[0]!.x, hull[0]!.y);
-    for (const hullPoint of hull.slice(1)) {
-      context.lineTo(hullPoint.x, hullPoint.y);
-    }
-    context.closePath();
+    // The hull and the hold the route holds the diver to, open at the bow
+    // visor as the Pixi scene draws them (#222).
+    const outline = (points: readonly RoutePoint[]) => {
+      context.beginPath();
+      for (const [index, { x, d }] of points.entries()) {
+        const screen = point(x, d);
+        if (index === 0) {
+          context.moveTo(screen.x, screen.y);
+        } else {
+          context.lineTo(screen.x, screen.y);
+        }
+      }
+    };
+    outline(WRECK_HULL_EDGE);
     context.fillStyle = "#30484a";
     context.fill();
+    outline(WRECK_HOLD_EDGE);
+    context.fillStyle = "#091c22";
+    context.fill();
+    outline(WRECK_HULL_EDGE);
     context.strokeStyle = "#78918d";
     context.lineWidth = Math.max(1, camera.scale * 0.3);
     context.stroke();
-
-    const interiorTopLeft = point(27, 24.5);
-    const interiorBottomRight = point(99, 33.5);
-    context.fillStyle = "#091c22";
-    context.fillRect(
-      interiorTopLeft.x,
-      interiorTopLeft.y,
-      interiorBottomRight.x - interiorTopLeft.x,
-      interiorBottomRight.y - interiorTopLeft.y,
-    );
 
     if (scene.torchOn) {
       const origin = point(scene.routePositionM, scene.diverDepthM);

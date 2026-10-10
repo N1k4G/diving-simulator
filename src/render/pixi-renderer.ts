@@ -4,14 +4,12 @@ import type { PresentationState } from "../presentation/presentation-state";
 import { LAYERS, type LayerId, type QualityTier } from "../sites/asset-manifest";
 import { buildSceneLayers } from "../sites/layer-factory";
 import {
-  WRECK_BOW_X_M,
   WRECK_DECK_TOP,
-  WRECK_DECK_UNDERSIDE,
-  WRECK_HOLD_BOW_X_M,
-  WRECK_HOLD_FLOOR_M,
-  WRECK_HOLD_STERN_X_M,
-  WRECK_KEEL_M,
-  WRECK_STERN_X_M,
+  WRECK_ENGINE,
+  WRECK_HOLD_EDGE,
+  WRECK_HULL_EDGE,
+  WRECK_VISOR,
+  profileAt,
   type RoutePoint,
 } from "../sites/wreck-route";
 import { createCameraTransform, type CameraTransform } from "./camera";
@@ -295,22 +293,30 @@ export class PixiWreckRenderer implements SceneRenderer {
       .stroke({ color: 0x315b52, width: 0.2, alpha: 0.8 });
 
     // The deck and the floor the diver is held to (src/sites/wreck-route.ts),
-    // so the hull on screen is the one in the physics.
+    // so the hull on screen is the one in the physics. The edges are open
+    // paths, so no line closes the bow visor's opening (#222).
+    const hullEdge = flatten(WRECK_HULL_EDGE);
+    const holdEdge = flatten(WRECK_HOLD_EDGE);
+    const visorHeightM = profileAt(WRECK_DECK_TOP, WRECK_VISOR.x1) - WRECK_VISOR.topM;
     const hull = new Graphics()
-      .poly([
-        WRECK_BOW_X_M, WRECK_KEEL_M,
-        ...flatten(WRECK_DECK_TOP),
-        WRECK_STERN_X_M, WRECK_KEEL_M,
-      ])
+      .poly(hullEdge)
       .fill({ color: 0x33484a })
-      .stroke({ color: 0x76918c, width: 0.35 })
-      .poly([
-        WRECK_HOLD_BOW_X_M, WRECK_HOLD_FLOOR_M,
-        ...flatten(WRECK_DECK_UNDERSIDE),
-        WRECK_HOLD_STERN_X_M, WRECK_HOLD_FLOOR_M,
-      ])
+      .poly(holdEdge)
       .fill({ color: 0x0a1c22 })
-      .stroke({ color: 0x567069, width: 0.25 });
+      .poly(hullEdge, false)
+      .stroke({ color: 0x76918c, width: 0.35 })
+      .poly(holdEdge, false)
+      .stroke({ color: 0x567069, width: 0.25 })
+      // The bow visor, hinged up on the deck's forward edge: legacy's slab,
+      // its plate seam and its hinge spindle (src/renderer.js drawBowVisor).
+      .rect(WRECK_VISOR.x1, WRECK_VISOR.topM, WRECK_VISOR.x2 - WRECK_VISOR.x1, visorHeightM)
+      .fill({ color: 0x55636f })
+      .stroke({ color: 0x76918c, width: 0.12 })
+      .moveTo((WRECK_VISOR.x1 + WRECK_VISOR.x2) / 2, WRECK_VISOR.topM + 0.2)
+      .lineTo((WRECK_VISOR.x1 + WRECK_VISOR.x2) / 2, WRECK_VISOR.topM + visorHeightM - 0.2)
+      .stroke({ color: 0x1b2429, width: 0.06, alpha: 0.6 })
+      .circle((WRECK_VISOR.x1 + WRECK_VISOR.x2) / 2, WRECK_VISOR.topM + visorHeightM - 0.15, 0.14)
+      .fill({ color: 0x1a1a1a });
 
     const rooms = new Graphics()
       .rect(43, 24.2, 1, 9.3)
@@ -321,19 +327,25 @@ export class PixiWreckRenderer implements SceneRenderer {
       .rect(79, 27.2, 14, 0.55)
       .fill({ color: 0x435a57 });
 
+    // Solid, from the same numbers the route reads (#222).
+    const { centreX, centreD, radiusM, bedX1, bedX2, bedTopM } = WRECK_ENGINE;
     const engine = new Graphics()
-      .circle(87, 30.5, 3.1)
+      .circle(centreX, centreD, radiusM)
       .fill({ color: 0x192c2f })
       .stroke({ color: 0xb26d3f, width: 0.45 })
-      .circle(87, 30.5, 1.35)
+      .circle(centreX, centreD, 1.35)
       .stroke({ color: 0xd18d4f, width: 0.35 })
-      .rect(81, 33, 14, 0.65)
+      .rect(bedX1, bedTopM, bedX2 - bedX1, 0.65)
       .fill({ color: 0x6e4d39 });
 
+    // The guideline the diver can follow: over the stem, down through the bow
+    // visor's opening, under the deck and over the engine block (#222).
     const route = new Graphics()
-      .moveTo(9, 27)
-      .bezierCurveTo(28, 25, 34, 29, 50, 28)
-      .bezierCurveTo(66, 27, 70, 31, 86, 30)
+      .moveTo(9, 21)
+      .bezierCurveTo(15, 21, 19, 21.5, 19, 25)
+      .bezierCurveTo(19, 28, 24, 28.5, 34, 28.5)
+      .bezierCurveTo(42, 28.5, 46, 28, 50, 28)
+      .bezierCurveTo(64, 27.5, 72, 26, 87, 26)
       .lineTo(101, 31)
       .stroke({ color: 0xe5d071, width: 0.16, alpha: 0.72 });
 
