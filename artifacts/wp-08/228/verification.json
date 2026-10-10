@@ -1,0 +1,172 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 228,
+  "slice": "legacy's remaining HUD warnings: above the ceiling, low NDL and narcosis, and low gas split from the gas reserve, with legacy's ranking, beep terms and caution tier",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "9a8cb326e6e300d4a8f7c9b5b209e3101808f002",
+  "measuredTree": "46d8b838243c534ba34208f575d63c18138ed987",
+  "workingTree": "clean before and after the run (git status --porcelain empty)",
+  "recordedAt": "2026-10-10T16:12:32Z",
+  "runFinishedAt": "2026-10-10T16:24:21Z",
+  "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
+  "provenanceNote": "On main 8b8c0bb. The full run above is on 9a8cb32, the test commit after the pre-review pass 1 fixes on cb5ac91: 95812c7 (the bounded NDL search described as a saving, not a necessity) and 0edfad4 (legacy's caution tier). Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance). Before: the rebase onto 8b8c0bb measured on 86b19b0, and on main 44012dd cf90123 and c6e4e6f (earlierRuns).",
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass",
+    "unit": "593 passed (569 on main 8b8c0bb; +24 in tests/unit/hud-warning.test.ts: each condition at legacy's boundaries, low gas under 30 and the reserve under 50 on the active cylinder and on no rebreather cylinder, the full ranking on open circuit, on the loop and after a bailout, the tier of the warning shown (caution for the reserve, narcosis up to 0.70 and SCR LOW, critical for the rest), the beep terms, and the presentation's decoStopDepthM, nearNdlMin and narcosisIndex, the near NDL against the full 200-minute search over a 0-16 min exposure sweep and at two GF highs)",
+    "parity": "336 passed (336 on main 8b8c0bb; unchanged)",
+    "e2e": "186 passed in 8.7 min (178 on main 8b8c0bb), no retries, no flake (+8 in tests/hud-warnings.spec.js, each in en-US and de-DE: above the ceiling, the gas reserve, low NDL and narcosis show legacy's English text in the alert and the chip, both lang=en, with the tier as data-tier and its style (caution: dashed border on rgb(38, 26, 0); critical: solid on rgb(169, 40, 40)); the ceiling, the reserve and narcosis sound the alarm, the low NDL stays silent for two alarm periods. tests/wreck-slice.spec.js's low-gas variant moves from 40 to 20 bar, under legacy's 30)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels, nothing re-recorded",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "earlierRuns": [
+    {
+      "measuredCommit": "86b19b021ae86be53ff5fd84baf55c81c2249a5c",
+      "measuredTree": "f0174c39722c85016784b631bafadf0580d70176",
+      "recordedAt": "2026-10-10T15:41:53Z",
+      "runFinishedAt": "2026-10-10T15:53:29Z",
+      "note": "Full run on the rebased branch (main 8b8c0bb), before the pre-review pass 1 fixes; 590 unit, 336 parity, 186 e2e in 8.8 min, all passing. Superseded by the run above."
+    },
+    {
+      "measuredCommit": "cf901237d1d9195056d64d7e8b58c600d135d077",
+      "recordedAt": "2026-10-10T14:48:02Z",
+      "note": "Full run on main 44012dd, before the rebase onto 8b8c0bb; 584 unit, 332 parity, 186 e2e, all passing. Superseded by the run above."
+    },
+    {
+      "commit": "c6e4e6f315ea016ae3a38fec939c51883bfd1b00",
+      "tree": "eefd246e4976956ce11a5aff25575aeb1a36b5bb",
+      "scope": "the first implementation, before low gas and the reserve were split",
+      "startedAt": "2026-10-10T13:35:06Z",
+      "finishedAt": "2026-10-10T13:47:26Z",
+      "result": "every step passed up to e2e (unit 582, parity 332, visual and interior checks ok); e2e 183 passed, 1 failed: tests/wreck-slice.spec.js:383 'the same input trace drives equivalent legacy and Pixi control semantics', its legacy side read 'stationary' for 'deeper', the cross-client trace flake #239 is fixing."
+    },
+    {
+      "commit": "c6e4e6f315ea016ae3a38fec939c51883bfd1b00",
+      "tree": "eefd246e4976956ce11a5aff25575aeb1a36b5bb",
+      "scope": "rerun of the above",
+      "startedAt": "2026-10-10T13:47:52Z",
+      "finishedAt": "2026-10-10T14:03:58Z",
+      "result": "all passed: unit 582, parity 332, e2e 184 in 10.7 min with no retries, visual 3 scenes 0%, interior chrome probe and 9 scenes ok."
+    }
+  ],
+  "legacyOracle": {
+    "chain": "src/renderer.js drawDiveComputer 8238-8258: ceiling (inDeco && depth < decoStopDepth), O2 (po2 > PO2_HIGH), narcosis > 0.70, ascentRate > 9, low gas (tBar < 30), reserve (tBar < 50), low NDL (!inDeco && ndl > 0 && ndl < 5), narcosis > 0.20",
+    "tBar": "src/physics.js 690 tankBar(): getActiveTank().gasRemaining / volume, tanks[activeTank] (src/state.js 1015); on a rebreather that is an open-circuit cylinder the loop does not breathe",
+    "ccrOverlay": "src/renderer.js 8887-8905: LOW/HIGH PO2, CO2!, SCR LOW, drawn at the banner's place after it, blinking, with its own one-shot beep",
+    "beep": "src/renderer.js 8911 hasWarning: tBar < 50 || po2 > PO2_HIGH || ascentRate > 9 || (inDeco && depth < decoStopDepth) || narcosisIndex > 0.20",
+    "strings": "src/constants.js 632-638: STRINGS.en warnLowGas, warnReserve, warnLowNDL, warnCeiling, warnNarc",
+    "tier": "src/renderer.js 8251-8256 warnCritical = false for warnReserve and narcosis > 0.20 (caution tone, amber pill, no blink; 8263-8281); 8893 SCR LOW in hudColor('caution'). Critical banners blink every 380 ms; not ported (WCAG 2.2.2: blinking past 5 s needs a way to stop it), the caution's dashed border carries the tier without colour."
+  },
+  "change": "src/app/hud-warning.ts (new) holds the warning selection moved out of src/app/wreck-app.ts: activeWarnings lists every warning in order, selectWarning takes the first, isWarningBeepActive is legacy's hasWarning (every warning but the low NDL). Ceiling, low NDL and narcosis are added; open-circuit low gas becomes legacy's two tiers, low gas under 30 bar and the gas reserve under 50, both strict. src/presentation/presentation-state.ts adds decoStopDepthM (decoStop() of the model's lastCeilingM), nearNdlMin (the same-tick NDL, searched only up to 5 min, null in deco) and narcosisIndex; src/core/decompression.ts ndlMinutes takes an optional search bound, defaulting to legacy's 200 min. Eight English-only diveComputer.* strings; claims register anchors in DECOMPRESSION-001, NARCOSIS-001 and GAS-001. The model and the narcosis effects are unchanged. selectWarningTier gives legacy's warnCritical for the warning shown; src/app/wreck-app.ts writes it as data-tier on the alert and the chip, and src/app/diagnostic.css draws a caution in the HUD's caution tone #ffcc88 on legacy's dark amber pill with a dashed border.",
+  "counterChecks": {
+    "method": "Each mutation applied with sed to a file copied to a backup beforehand; tests/unit/hud-warning.test.ts run, and for the e2e cases the client rebuilt and the named specs run under the port lock with --retries=0. The first thirteen ran on the code of c6e4e6f (19 unit tests then, 6 e2e), the next four on cf90123 (21 unit tests, 8 e2e in tests/hud-warnings.spec.js plus tests/wreck-slice.spec.js:248), the last five on 9a8cb32 (24 unit tests, 8 e2e). Each file was then restored from its backup and compared with cmp: byte for byte identical in every case.",
+    "results": [
+      {
+        "revert": "ceiling condition removed (src/app/hud-warning.ts)",
+        "result": "unit: 6 of 19 fail; e2e: 2 of 6 fail, the ceiling case in both locales"
+      },
+      {
+        "revert": "ceiling boundary made inclusive, depth <= decoStopDepth",
+        "result": "unit: 1 of 19 fails"
+      },
+      {
+        "revert": "open-circuit oxygen ranked over the ceiling",
+        "result": "unit: 3 of 19 fail"
+      },
+      {
+        "revert": "low NDL without ndl > 0",
+        "result": "unit: 1 of 19 fails"
+      },
+      {
+        "revert": "low NDL inclusive, ndl <= 5",
+        "result": "unit: 1 of 19 fails"
+      },
+      {
+        "revert": "narcosis caution inclusive, >= 0.20",
+        "result": "unit: 2 of 19 fail"
+      },
+      {
+        "revert": "both narcosis warnings removed",
+        "result": "unit: 6 of 19 fail; e2e: 2 of 6 fail, the narcosis case in both locales"
+      },
+      {
+        "revert": "the alarm counts the low NDL (isWarningBeepActive)",
+        "result": "unit: 1 of 19 fails"
+      },
+      {
+        "revert": "the alarm wired back to any selected warning (src/app/wreck-app.ts)",
+        "result": "e2e: 2 of 6 fail, the silent low-NDL case in both locales"
+      },
+      {
+        "revert": "the NDL search ignores its bound (src/core/decompression.ts)",
+        "result": "unit: 1 of 19 fails"
+      },
+      {
+        "revert": "the near NDL also read in deco (src/presentation/presentation-state.ts)",
+        "result": "unit: 1 of 19 fails"
+      },
+      {
+        "revert": "the near NDL at the default GF high instead of the dive's",
+        "result": "unit: 1 of 19 fails"
+      },
+      {
+        "revert": "diveComputer.alert.ceiling translated to 'Über Ceiling — abtauchen' (src/app/i18n/catalog.ts)",
+        "result": "e2e: 2 of 6 fail, the ceiling case in both locales"
+      },
+      {
+        "revert": "low gas inclusive, tBar <= 30 (src/app/hud-warning.ts, on cf90123)",
+        "result": "unit: 1 of 21 fails"
+      },
+      {
+        "revert": "reserve inclusive, tBar <= 50",
+        "result": "unit: 1 of 21 fails"
+      },
+      {
+        "revert": "the reserve merged back into low gas",
+        "result": "unit: 3 of 21 fail; e2e: 2 of 9 fail, the reserve case in both locales"
+      },
+      {
+        "revert": "the open-circuit cylinder read on a rebreather",
+        "result": "unit: 1 of 21 fails"
+      },
+      {
+        "revert": "every warning critical (selectWarningTier, src/app/hud-warning.ts, on 9a8cb32)",
+        "result": "unit: 2 of 24 fail; e2e: 4 of 8 fail, the reserve and narcosis cases in both locales"
+      },
+      {
+        "revert": "narcosis critical from 0.70 inclusive",
+        "result": "unit: 1 of 24 fails"
+      },
+      {
+        "revert": "SCR LOW drawn critical",
+        "result": "unit: 1 of 24 fails"
+      },
+      {
+        "revert": "every data-tier=\"caution\" selector in src/app/diagnostic.css renamed, the warning's among them",
+        "result": "e2e: 4 of 8 fail, the reserve and narcosis cases in both locales"
+      },
+      {
+        "revert": "the tier written to the alert only, not the chip (src/app/wreck-app.ts)",
+        "result": "e2e: 8 of 8 fail"
+      }
+    ]
+  },
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "durableProvenance": {
+    "src": "dd19681f7ac1f328c8ee7e6363b2c4e9566804e1",
+    "tests": "a9f38f934987d8ec654c8dd0b4e024c0b3e6fba6",
+    "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
+    "docs": "701239d0a12657dc2ee7c25e2d1e98d7bd1d9134"
+  }
+}
