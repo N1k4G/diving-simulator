@@ -53,13 +53,19 @@ export function ceilingDepthM(tissues: TissueState, gradientFactor: number): Met
  * Whole minutes the diver can stay at the depth, breathing the gas, before a
  * compartment passes its surfacing limit at the gradient factor: legacy's
  * calculateNDL(), in 0.5 min steps, 999 when none is reached in 200 min.
+ *
+ * `searchMinutes` shortens the search for a caller that only asks whether
+ * the limit is near (#228): up to it the answer is the full search's, past
+ * it 999 as well. The default is legacy's 200 minutes.
  */
 export function ndlMinutes(
   tissues: TissueState,
   depthM: Metres | number,
   gas: GasMix,
   gradientFactor: number,
+  searchMinutes: number = NDL_MAX_STEPS * NDL_STEP_MINUTES,
 ): Minutes {
+  const steps = Math.min(NDL_MAX_STEPS, Math.ceil(searchMinutes / NDL_STEP_MINUTES));
   const nitrogenBar = [...tissues.nitrogenBar];
   const heliumBar = [...tissues.heliumBar];
   const ambientBar = 1 + depthM / 10;
@@ -69,7 +75,7 @@ export function ndlMinutes(
     (ambientBar - WATER_VAPOR_PRESSURE_BAR) * gas.heliumFraction;
   let totalMinutes = 0;
 
-  for (let step = 0; step < NDL_MAX_STEPS; step += 1) {
+  for (let step = 0; step < steps; step += 1) {
     updateTissueArrays(
       nitrogenBar,
       heliumBar,

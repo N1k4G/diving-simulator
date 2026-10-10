@@ -10,11 +10,16 @@ import {
   SAFETY_STOP_BAND_MIN_M,
   THIRDS_RESERVE_FRACTION,
   THIRDS_TURN_FRACTION,
+  decompressionGas,
   resolveInspiredGas,
   safetyStopDurationS,
 } from "../core/dive-model";
 import { bars, type Bars, type Litres } from "../core/units";
-import { decoStopDepth } from "../core/decompression";
+import {
+  DEFAULT_GF_HIGH_PERCENT,
+  decoStopDepth,
+  ndlMinutes,
+} from "../core/decompression";
 import {
   compartmentSaturation,
   leadingGradientFactorPercent,
@@ -148,6 +153,22 @@ export interface PresentationState {
   readonly ascentRateMpm: number;
   /** The stop box while there is a ceiling; the safety stop gives way to it. */
   readonly decoStop: PresentationDecoStopBox | null;
+  /**
+   * Legacy's decoStopDepth (#228): decoStop() of this tick's ceiling, the
+   * model's log.lastCeilingM. Above it the HUD warns. 0 without a ceiling
+   * (legacy's `inDeco` is false) and once the dive is completed.
+   */
+  readonly decoStopDepthM: number;
+  /**
+   * Legacy's frameCalc.ndl of this tick (#228), searched only up to
+   * LOW_NDL_WARNING_MIN, the one question the HUD asks of it: whole minutes
+   * when the limit falls within them, else null. Null too while there is a
+   * ceiling, where legacy's warning does not read it, and once the dive is
+   * completed. The NDL row shows the planner's forecast instead.
+   */
+  readonly nearNdlMin: number | null;
+  /** Legacy's narcosisIndex (#189), 0 to 1, for the HUD's warning (#228). */
+  readonly narcosisIndex: number;
   readonly safetyStop: PresentationSafetyStop | null;
   readonly ruleOfThirds: PresentationRuleOfThirds | null;
 }
@@ -199,10 +220,42 @@ export function isForecastCurrent(
   );
 }
 
+/** Legacy's low-NDL warning: `ndl > 0 && ndl < 5` (src/renderer.js). */
+export const LOW_NDL_WARNING_MIN = 5;
+
+/**
+ * The NDL as near as the HUD's warning needs it (#228). Legacy reads
+ * frameCalc.ndl, computed on the same tick. The planner's forecast arrives
+ * asynchronously and is pending after every gas switch, so it is not used
+ * here. The model's own NDL of the tick is not kept in its state. So it is
+ * computed again, on the model's tissues, depth, gas and GF high. The
+ * warning asks only whether the limit is under five minutes, so the search
+ * stops there: ten steps instead of up to four hundred. That is a saving
+ * (about 0.01 ms against 0.5 ms worst case, warm), not a necessity; the model
+ * itself runs the full search every frame.
+ */
+export function selectNearNdlMin(
+  state: DiveState,
+  gradientFactorHighPercent: number,
+): number | null {
+  if (state.completed || state.log.lastCeilingM > 0) {
+    return null;
+  }
+  const ndl = ndlMinutes(
+    state.tissues,
+    state.depthM,
+    decompressionGas(state),
+    gradientFactorHighPercent / 100,
+    LOW_NDL_WARNING_MIN,
+  );
+  return ndl < LOW_NDL_WARNING_MIN ? ndl : null;
+}
+
 export function createPresentationState(
   state: DiveState,
   planner: PlannerForecast | null,
   plannerFreshness: Readonly<PlannerForecastFreshness> | null = null,
+  gradientFactorHighPercent: number = DEFAULT_GF_HIGH_PERCENT,
 ): PresentationState {
   const tanks = Object.freeze(
     state.tanks.map((tank, index) =>
@@ -239,6 +292,9 @@ export function createPresentationState(
     cnsPercent: state.cnsPercent,
     ascentRateMpm: state.completed ? 0 : state.log.ascentRateMpm,
     decoStop: selectDecoStop(state, planner, plannerFreshness),
+    decoStopDepthM: state.completed ? 0 : decoStopDepth(state.log.lastCeilingM),
+    nearNdlMin: selectNearNdlMin(state, gradientFactorHighPercent),
+    narcosisIndex: state.narcosisIndex,
     safetyStop: selectSafetyStop(state),
     ruleOfThirds: selectRuleOfThirds(state),
   });

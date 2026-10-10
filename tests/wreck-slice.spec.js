@@ -435,7 +435,8 @@ async function mutateSavedState(page, variant) {
     const tank = save.state.tanks[save.state.activeTankIndex];
 
     if (selectedVariant === 'low-gas') {
-      tank.gasRemainingL = tank.volumeL * 40;
+      // Under legacy's 30 bar; 30 to 50 is its reserve (#228).
+      tank.gasRemainingL = tank.volumeL * 20;
     } else if (selectedVariant === 'oxygen') {
       tank.gas.oxygenFraction = 1;
       tank.gas.heliumFraction = 0;

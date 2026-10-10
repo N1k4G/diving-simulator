@@ -813,6 +813,24 @@ summary:focus-visible {
   background: #a92828;
 }
 
+/* Legacy's caution banners (#228, warnCritical = false): the gas reserve,
+   narcosis over 0.20 and SCR LOW, in the HUD's caution tone on legacy's dark
+   amber pill. The dashed border tells them from a critical warning without
+   colour. Legacy blinks its critical banner every 380 ms; that is not ported,
+   as a warning can stand for minutes and WCAG 2.2.2 allows blinking past five
+   seconds only with a way to stop it. */
+.wreck-warning[data-tier="caution"],
+.has-warning .status-chip[data-tier="caution"] {
+  border-style: dashed;
+  border-color: #ffcc88;
+  color: #ffcc88;
+  background: #261a00;
+}
+
+.wreck-warning[data-tier="caution"] {
+  box-shadow: 0 0 0 4px #0d0900;
+}
+
 /* The fast-forward indicator (#163). Its own chip rather than a colour on
    the dive-time metric, so that the sped-up clock is stated in words —
    docs/decisions.md rules out meaning carried by colour alone, and a clock

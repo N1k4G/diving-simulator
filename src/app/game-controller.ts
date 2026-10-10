@@ -563,6 +563,7 @@ export class GameController {
       this.#model.snapshot,
       this.#planner,
       this.#plannerFreshness(),
+      this.#plannerSettings.gfHighPercent,
     );
     const depthM = this.#model.snapshot.depthM;
     const scene: WreckSceneState = Object.freeze({
