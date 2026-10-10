@@ -63,6 +63,14 @@ describe("elements between the camera and the wreck are not painted behind it", 
     },
   );
 
+  it("paints the shark in front of the wreck and behind the diver, as legacy (#219)", () => {
+    for (const element of ["hull", "rooms", "engine"] as const) {
+      expect(drawsAfter(layerOf("shark"), layerOf(element)), element).toBe(true);
+    }
+    expect(drawsAfter(layerOf("diver"), layerOf("shark"))).toBe(true);
+    expect(drawsAfter(BUBBLE_LAYER, layerOf("shark"))).toBe(true);
+  });
+
   it("paints bubbles after the hull", () => {
     expect(drawsAfter(BUBBLE_LAYER, layerOf("hull"))).toBe(true);
   });
