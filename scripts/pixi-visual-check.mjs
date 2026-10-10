@@ -171,7 +171,22 @@ const SCENES = [
     press: 't',
     expectTorch: false,
   },
+  {
+    id: 'wreck-narcosis',
+    // Narcosis's tunnel vision and wobble (#220), which no other scene
+    // reaches: those dives stay far below index 0.15. The dive resumes from
+    // its own first save, moved to 20 m five minutes in, neutral there, at
+    // index 0.9, so the vignette's alpha and the wobble's offset are pinned
+    // with the clock. 200 frames let the next autosave (every 3 s) show the
+    // index, which eases toward 20 m's, still far above both thresholds.
+    frames: 200,
+    resume: { depthM: 20, bcdGasSurfaceLiters: 11.05, narcosisIndex: 0.9 },
+    minNarcosisIndex: 0.6,
+    expectTorch: true,
+  },
 ];
+
+const SAVE_KEY = 'diving-simulator.save-game';
 
 // Take the clock away from the page entirely.
 //
@@ -284,6 +299,25 @@ async function captureScene(browser, baseUrl, scene) {
 
   const step = (frames) => page.evaluate(n => window.__stepFrames(n), frames);
 
+  if (scene.resume) {
+    // The surface writes the first save once the autosave's 3 s have passed.
+    await step(185);
+    const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), SAVE_KEY);
+    Object.assign(saved.state, {
+      elapsedTimeS: 300,
+      depthM: scene.resume.depthM,
+      maxDepthM: scene.resume.depthM,
+      verticalVelocityMpm: 0,
+      bcdGasSurfaceLiters: scene.resume.bcdGasSurfaceLiters,
+      narcosisIndex: scene.resume.narcosisIndex,
+    });
+    await page.goto(`${baseUrl}/dist/?renderer=pixi`);
+    await page.evaluate(([key, value]) => localStorage.setItem(key, value), [SAVE_KEY, JSON.stringify(saved)]);
+    await page.getByRole('button', { name: /I understand/ }).click();
+    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-wreck-viewport] canvas').waitFor();
+  }
+
   // Settle the scene, then drive it, entirely in frames. Nothing here waits on
   // wall time, so the same script always produces the same pixels.
   await step(scene.frames);
@@ -318,6 +352,16 @@ async function captureScene(browser, baseUrl, scene) {
       throw new Error(
         `${scene.id}: expected the diver at ${scene.minDepthM} m or deeper but the HUD reads ` +
         `"${text}" — the scene is not exercising what its name says.`,
+      );
+    }
+  }
+
+  if (scene.minNarcosisIndex !== undefined) {
+    const index = await page.evaluate(key => JSON.parse(localStorage.getItem(key)).state.narcosisIndex, SAVE_KEY);
+    if (!(index >= scene.minNarcosisIndex)) {
+      throw new Error(
+        `${scene.id}: expected a narcosis index of ${scene.minNarcosisIndex} or more but the save holds ` +
+        `${index} — the scene is not exercising what its name says.`,
       );
     }
   }

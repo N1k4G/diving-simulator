@@ -1,4 +1,4 @@
-import { Application, Container, Graphics } from "pixi.js";
+import { Application, CanvasSource, Container, Graphics, Sprite, Texture } from "pixi.js";
 
 import type { PresentationState } from "../presentation/presentation-state";
 import { LAYERS, type LayerId, type QualityTier } from "../sites/asset-manifest";
@@ -19,6 +19,7 @@ import {
   visibleHalfExtentM,
   type RetainedElement,
 } from "./layer-assignment";
+import { narcosisVignetteAlpha, narcosisWobblePx } from "./narcosis-view";
 import type { SceneRenderer, WreckSceneState } from "./renderer";
 
 const MAX_RESOLUTION = 2;
@@ -91,6 +92,14 @@ export class PixiWreckRenderer implements SceneRenderer {
   #markerPool: Graphics[] = [];
   #activeMarkers: Graphics[] = [];
   #lastSyncFocus: { x: number; y: number } | null = null;
+  /**
+   * Narcosis's tunnel vision (#220): legacy's radial gradient, drawn once per
+   * viewport size at full strength and faded by the sprite's alpha, over the
+   * world and not moved by its wobble, as legacy draws it after restoring.
+   */
+  #vignette = new Sprite();
+  /** prefers-reduced-motion: the view does not wobble (docs/decisions.md). */
+  #reducedMotion: MediaQueryList | null = null;
 
   async mount(host: HTMLElement): Promise<void> {
     if (this.#app) {
@@ -113,7 +122,9 @@ export class PixiWreckRenderer implements SceneRenderer {
     app.canvas.setAttribute("aria-hidden", "true");
     host.dataset.renderer = this.kind;
     host.replaceChildren(app.canvas);
-    app.stage.addChild(this.#background, this.#world);
+    this.#vignette.visible = false;
+    app.stage.addChild(this.#background, this.#world, this.#vignette);
+    this.#reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)") ?? null;
     this.#buildRetainedScene();
 
     // Size first, then sync: the cull window is derived from the camera, so
@@ -141,6 +152,7 @@ export class PixiWreckRenderer implements SceneRenderer {
     }
     app.renderer.resize(this.#viewport.width, this.#viewport.height);
     this.#drawBackground();
+    this.#drawVignette();
     // The cull window is a function of the viewport, so a resize or an
     // orientation change invalidates it even when the camera has not moved.
     // Without this, rotating to portrait keeps the landscape window and the
@@ -149,7 +161,7 @@ export class PixiWreckRenderer implements SceneRenderer {
   }
 
   render(
-    _presentation: Readonly<PresentationState>,
+    presentation: Readonly<PresentationState>,
     scene: Readonly<WreckSceneState>,
   ): void {
     const app = this.#requireApp();
@@ -158,9 +170,18 @@ export class PixiWreckRenderer implements SceneRenderer {
       y: scene.diverDepthM,
     });
 
+    // Narcosis (#220): the world wobbles by an offset, free in Pixi, and the
+    // overlay's alpha follows the index. Neither is drawn below its threshold.
+    const index = presentation.narcosisIndex;
+    const wobble = this.#reducedMotion?.matches
+      ? { x: 0, y: 0 }
+      : narcosisWobblePx(index, scene.elapsedRealS);
+    const vignetteAlpha = narcosisVignetteAlpha(index);
+    this.#vignette.visible = vignetteAlpha > 0;
+    this.#vignette.alpha = vignetteAlpha;
     this.#world.position.set(
-      this.#viewport.width / 2,
-      this.#viewport.height / 2,
+      this.#viewport.width / 2 + wobble.x,
+      this.#viewport.height / 2 + wobble.y,
     );
     this.#world.pivot.set(camera.focus.x, camera.focus.y);
     this.#world.scale.set(camera.scale);
@@ -202,6 +223,10 @@ export class PixiWreckRenderer implements SceneRenderer {
     if (!this.#app) {
       return;
     }
+    // The vignette's texture is this renderer's own, drawn on a canvas.
+    if (this.#vignette.texture !== Texture.EMPTY) {
+      this.#vignette.texture.destroy(true);
+    }
     this.#app.destroy({ removeView: true }, { children: true });
     if (this.#host) {
       delete this.#host.dataset.renderer;
@@ -215,6 +240,7 @@ export class PixiWreckRenderer implements SceneRenderer {
     this.#activeMarkers = [];
     this.#lastSyncFocus = null;
     this.#sharkSinceRealS = null;
+    this.#reducedMotion = null;
   }
 
   /**
@@ -475,6 +501,35 @@ export class PixiWreckRenderer implements SceneRenderer {
       .fill({ color: 0x061a24 })
       .rect(0, 0, this.#viewport.width, this.#viewport.height * 0.58)
       .fill({ color: 0x0b3541, alpha: 0.72 });
+  }
+
+  /**
+   * Legacy's vignette gradient (src/renderer.js drawScene, WP-020) for this
+   * viewport: clear at 0.3 of the shorter side from the centre, black at 0.7
+   * of the longer. Drawn here at full strength, once per size and never per
+   * frame; render() sets the alpha legacy puts in the outer colour stop.
+   */
+  #drawVignette(): void {
+    const { width, height } = this.#viewport;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(width);
+    canvas.height = Math.ceil(height);
+    const context = canvas.getContext("2d");
+    if (context) {
+      const gradient = context.createRadialGradient(
+        width / 2, height / 2, Math.min(width, height) * 0.3,
+        width / 2, height / 2, Math.max(width, height) * 0.7,
+      );
+      gradient.addColorStop(0, "rgba(0,0,0,0)");
+      gradient.addColorStop(1, "rgba(0,0,0,1)");
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    const previous = this.#vignette.texture;
+    this.#vignette.texture = new Texture({ source: new CanvasSource({ resource: canvas }) });
+    if (previous !== Texture.EMPTY) {
+      previous.destroy(true);
+    }
   }
 
   #requireApp(): Application {
