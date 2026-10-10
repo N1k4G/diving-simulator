@@ -110,6 +110,20 @@ part of its behaviour; a fixed step would match legacy at one frame rate only.
   gas-fraction formatting with the dual-client toolchain. New TypeScript
   modules must not introduce literal user-facing strings outside the catalogue.
   Translation and review remain part of product hardening.
+- The dive computer reads English in every locale, its warnings included
+  (owner decision on #232, 2026-10-07): a dive computer is a device with one
+  display language, and legacy draws its own in English in both languages.
+  This is a deliberate exception to German as a release-blocking locale. It
+  covers the in-dive HUD readouts (depth, time, NDL, the gas and rebreather
+  rows, the ascent rate), the stop row, the rule-of-thirds gauge, the warning
+  alert and the status chip's warnings, and the gas-information pages, with
+  their numbers formatted in English too. The strings live in the catalogue's
+  `diveComputer.*` namespace, which has no German table, and the elements that
+  show them carry `lang="en"` so assistive technology speaks them as English.
+  Everything else stays localised: the SIMULATION boundary and the safety
+  gate, the setup, post-dive and game-over screens, the controls and their
+  accessible names, the surface prompt, the location row and the status
+  chip's "Simulation running".
 
 ### Performance evidence
 

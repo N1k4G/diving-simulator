@@ -31,7 +31,7 @@
     {
       "id": "SAFETY-STOP-001",
       "classification": "decompression and prevention advice",
-      "source": ["STRINGS.*.safetyExpl", "STRINGS.*.helpSafety", "STRINGS.*.hintSafetyStop", "STRINGS.*.gradeNotes.safety*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.safety*", "src/app/i18n/catalog.ts {en,de}: postDive.safetySkipped.*", "src/app/i18n/catalog.ts {en,de}: postDive.violation.safetyStopSkipped", "src/app/i18n/catalog.ts {en,de}: postDive.violations.none", "src/app/i18n/catalog.ts {en,de}: wreck.hud.safetyStop*"],
+      "source": ["STRINGS.*.safetyExpl", "STRINGS.*.helpSafety", "STRINGS.*.hintSafetyStop", "STRINGS.*.gradeNotes.safety*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.safety*", "src/app/i18n/catalog.ts {en,de}: postDive.safetySkipped.*", "src/app/i18n/catalog.ts {en,de}: postDive.violation.safetyStopSkipped", "src/app/i18n/catalog.ts {en,de}: postDive.violations.none", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.safetyStop*"],
       "ui": ["post-dive", "help", "onboarding hint", "debrief", "post-dive (migration client)", "HUD (migration client)"],
       "owner": "domain-reviewer",
       "reviewStatus": "unreviewed; absolute risk wording requires correction or support",
@@ -40,7 +40,7 @@
     {
       "id": "DECOMPRESSION-001",
       "classification": "model output and real-world risk advice",
-      "source": ["STRINGS.*.helpNDL", "STRINGS.*.helpDeco", "STRINGS.*.helpTTS", "STRINGS.*.hintNdl", "STRINGS.*.hintDeco", "STRINGS.*.gradeNotes.deco*", "STRINGS.*.tissueLoading", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.deco*", "src/app/i18n/catalog.ts {en,de}: postDive.violation.ceiling", "src/app/i18n/catalog.ts {en,de}: postDive.violations.none", "src/app/i18n/catalog.ts {en,de}: postDive.profile.*", "src/app/i18n/catalog.ts {en,de}: postDive.tissues*", "src/app/i18n/catalog.ts {en,de}: wreck.hud.ndl", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.deco.*", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.tissues.caption", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.tissues.compartment", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.severity.*", "src/app/i18n/catalog.ts {en,de}: wreck.hud.decoStop*"],
+      "source": ["STRINGS.*.helpNDL", "STRINGS.*.helpDeco", "STRINGS.*.helpTTS", "STRINGS.*.hintNdl", "STRINGS.*.hintDeco", "STRINGS.*.gradeNotes.deco*", "STRINGS.*.tissueLoading", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.deco*", "src/app/i18n/catalog.ts {en,de}: postDive.violation.ceiling", "src/app/i18n/catalog.ts {en,de}: postDive.violations.none", "src/app/i18n/catalog.ts {en,de}: postDive.profile.*", "src/app/i18n/catalog.ts {en,de}: postDive.tissues*", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.ndl", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.info.deco.*", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.info.tissues.caption", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.info.tissues.compartment", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.info.severity.*", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.decoStop*"],
       "ui": ["help", "HUD", "onboarding hint", "debrief", "HUD (migration client)", "gas information (migration client)", "post-dive (migration client)"],
       "owner": "model",
       "reviewStatus": "algorithm audit exists but source anchors are stale",
@@ -49,7 +49,7 @@
     {
       "id": "GAS-001",
       "classification": "gas planning and consumption advice",
-      "source": ["STRINGS.*.helpGTR", "STRINGS.*.helpAMV", "STRINGS.*.helpBest", "STRINGS.*.helpTank", "STRINGS.*.gradeNotes.gas*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.gas*", "src/app/i18n/catalog.ts {en,de}: postDive.gas.*", "src/app/i18n/catalog.ts {en,de}: wreck.warning.lowGas", "src/app/i18n/catalog.ts {en,de}: wreck.hud.warning.lowGas", "src/app/i18n/catalog.ts {en,de}: wreck.hud.thirds*"],
+      "source": ["STRINGS.*.helpGTR", "STRINGS.*.helpAMV", "STRINGS.*.helpBest", "STRINGS.*.helpTank", "STRINGS.*.gradeNotes.gas*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.gas*", "src/app/i18n/catalog.ts {en,de}: postDive.gas.*", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.alert.lowGas", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.status.lowGas", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.thirds*"],
       "ui": ["help", "HUD", "debrief", "HUD warning (migration client)", "post-dive (migration client)", "HUD (migration client)"],
       "owner": "domain-reviewer",
       "reviewStatus": "unreviewed",
@@ -58,7 +58,7 @@
     {
       "id": "OXYGEN-001",
       "classification": "oxygen exposure thresholds and prevention advice",
-      "source": ["STRINGS.*.helpPO2", "STRINGS.*.warnO2", "STRINGS.*.ccrHypoxia", "STRINGS.*.ccrHyperoxia", "STRINGS.*.gameOverInfo.O2 TOXICITY — CNS SEIZURE", "STRINGS.*.gameOverInfo.HYPOXIA — LOSS OF CONSCIOUSNESS", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.oxygenToxicity", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.hypoxia", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.ccrHypoxia", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.ccrHyperoxia", "src/app/i18n/catalog.ts {en,de}: gameOver.info.oxygenToxicity.*", "src/app/i18n/catalog.ts {en,de}: gameOver.info.hypoxia.*", "src/app/i18n/catalog.ts {en,de}: wreck.warning.oxygen", "src/app/i18n/catalog.ts {en,de}: wreck.hud.warning.oxygen", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.cylinder.mod", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.severity.*"],
+      "source": ["STRINGS.*.helpPO2", "STRINGS.*.warnO2", "STRINGS.*.ccrHypoxia", "STRINGS.*.ccrHyperoxia", "STRINGS.*.gameOverInfo.O2 TOXICITY — CNS SEIZURE", "STRINGS.*.gameOverInfo.HYPOXIA — LOSS OF CONSCIOUSNESS", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.oxygenToxicity", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.hypoxia", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.ccrHypoxia", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.ccrHyperoxia", "src/app/i18n/catalog.ts {en,de}: gameOver.info.oxygenToxicity.*", "src/app/i18n/catalog.ts {en,de}: gameOver.info.hypoxia.*", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.alert.oxygen", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.status.oxygen", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.info.cylinder.mod", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.info.severity.*"],
       "ui": ["help", "HUD warning", "CCR warning", "game over", "game over (migration client)", "HUD warning (migration client)", "gas information (migration client)"],
       "owner": "domain-reviewer",
       "reviewStatus": "unreviewed",
@@ -67,7 +67,7 @@
     {
       "id": "ASCENT-001",
       "classification": "ascent-rate and pulmonary injury advice",
-      "source": ["STRINGS.*.controlsText", "STRINGS.*.helpAscent", "STRINGS.*.warnSlow", "STRINGS.*.gradeNotes.ascent*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.ascent*", "src/app/i18n/catalog.ts {en,de}: postDive.violation.fastAscent", "src/app/i18n/catalog.ts {en,de}: postDive.violations.none", "STRINGS.*.gameOverInfo.PULMONARY BAROTRAUMA — PNEUMOTHORAX", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.pulmonaryBarotrauma", "src/app/i18n/catalog.ts {en,de}: gameOver.info.pulmonaryBarotrauma.*", "src/app/i18n/catalog.ts {en,de}: wreck.warning.fastAscent", "src/app/i18n/catalog.ts {en,de}: wreck.hud.warning.fastAscent", "src/app/i18n/catalog.ts {en,de}: wreck.hud.ascentRate*"],
+      "source": ["STRINGS.*.controlsText", "STRINGS.*.helpAscent", "STRINGS.*.warnSlow", "STRINGS.*.gradeNotes.ascent*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.ascent*", "src/app/i18n/catalog.ts {en,de}: postDive.violation.fastAscent", "src/app/i18n/catalog.ts {en,de}: postDive.violations.none", "STRINGS.*.gameOverInfo.PULMONARY BAROTRAUMA — PNEUMOTHORAX", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.pulmonaryBarotrauma", "src/app/i18n/catalog.ts {en,de}: gameOver.info.pulmonaryBarotrauma.*", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.alert.fastAscent", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.status.fastAscent", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.ascentRate*"],
       "ui": ["help", "HUD warning", "debrief", "game over", "game over (migration client)", "post-dive (migration client)", "HUD warning (migration client)", "HUD (migration client)"],
       "owner": "domain-reviewer",
       "reviewStatus": "unreviewed",
@@ -85,7 +85,7 @@
     {
       "id": "CCR-001",
       "classification": "equipment behavior, failure, and bailout advice",
-      "source": ["STRINGS.*.helpCcr", "STRINGS.*.ccrCO2", "STRINGS.*.drills.co2.*", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.ccrCo2", "src/app/i18n/catalog.ts {en,de}: wreck.warning.co2", "src/app/i18n/catalog.ts {en,de}: wreck.hud.warning.co2", "src/app/i18n/catalog.ts {en,de}: wreck.warning.scrubberLow", "src/app/i18n/catalog.ts {en,de}: wreck.hud.warning.scrubberLow", "src/app/i18n/catalog.ts {en,de}: wreck.controls.bailout"],
+      "source": ["STRINGS.*.helpCcr", "STRINGS.*.ccrCO2", "STRINGS.*.drills.co2.*", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.ccrCo2", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.alert.co2", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.status.co2", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.alert.scrubberLow", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.status.scrubberLow", "src/app/i18n/catalog.ts {en,de}: wreck.controls.bailout"],
       "ui": ["help", "CCR HUD", "training drill", "game over (migration client)", "CCR HUD (migration client)"],
       "owner": "domain-reviewer",
       "reviewStatus": "unreviewed",
@@ -121,7 +121,7 @@
     {
       "id": "GAMEOVER-001",
       "classification": "medical consequence and prevention inventory",
-      "source": ["STRINGS.*.gameOverInfo.OUT OF GAS", "STRINGS.*.gameOverInfo.DECOMPRESSION SICKNESS", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.outOfGas", "src/app/i18n/catalog.ts {en,de}: gameOver.info.outOfGas.*", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.decompressionSickness", "src/app/i18n/catalog.ts {en,de}: gameOver.info.decompressionSickness.*", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.pulmonaryBarotrauma", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.nitrogenNarcosis", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.sharkAttack", "src/app/i18n/catalog.ts {en,de}: wreck.warning.failure", "src/app/i18n/catalog.ts {en,de}: wreck.hud.warning.failure"],
+      "source": ["STRINGS.*.gameOverInfo.OUT OF GAS", "STRINGS.*.gameOverInfo.DECOMPRESSION SICKNESS", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.outOfGas", "src/app/i18n/catalog.ts {en,de}: gameOver.info.outOfGas.*", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.decompressionSickness", "src/app/i18n/catalog.ts {en,de}: gameOver.info.decompressionSickness.*", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.pulmonaryBarotrauma", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.nitrogenNarcosis", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.sharkAttack", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.alert.failure", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.status.failure"],
       "ui": ["game over", "game over (migration client)", "HUD warning (migration client)"],
       "owner": "domain-reviewer",
       "reviewStatus": "unreviewed",

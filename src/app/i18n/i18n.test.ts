@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveSupportedLocale, translate } from "./catalog";
+import {
+  DIVE_COMPUTER_LOCALE,
+  diveComputerText,
+  resolveSupportedLocale,
+  translate,
+} from "./catalog";
 import {
   formatDepth,
   formatDuration,
@@ -18,6 +23,19 @@ describe("string catalogue", () => {
   it("provides shipped copy through typed keys in both locales", () => {
     expect(translate("en", "wreck.brand")).toBe("Diving Simulator");
     expect(translate("de", "wreck.brand")).toBe("Tauchsimulator");
+  });
+
+  it("gives the dive computer one language, English, with no locale to translate it into (#232)", () => {
+    expect(DIVE_COMPUTER_LOCALE).toBe("en");
+    // Legacy's own words: its stop box's "Complete", "DECO STOP" and the
+    // SLOW DOWN of its banner, in both languages.
+    expect(diveComputerText("diveComputer.safetyStop.complete")).toBe("Complete");
+    expect(diveComputerText("diveComputer.decoStop")).toBe("Deco stop");
+    expect(diveComputerText("diveComputer.alert.fastAscent")).toBe("Ascending too fast — slow down");
+    // The per-locale tables have no dive-computer keys, so a German entry
+    // cannot be added for one by accident.
+    // @ts-expect-error -- not a MessageKey
+    expect(translate("de", "diveComputer.safetyStop.complete")).toBeUndefined();
   });
 });
 

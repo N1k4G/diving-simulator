@@ -16,8 +16,11 @@ import {
   type WreckZone,
 } from "../render/renderer";
 import {
+  DIVE_COMPUTER_LOCALE,
   detectPreferredLocale,
+  diveComputerText,
   translate,
+  type DiveComputerKey,
   type MessageKey,
   type SupportedLocale,
 } from "./i18n/catalog";
@@ -120,38 +123,45 @@ type WarningSeverity =
   | "co2"
   | "failure";
 
-// Full sentence for the role=alert region.
-const warningAlertKeys: Record<WarningSeverity, MessageKey> = {
-  lowGas: "wreck.warning.lowGas",
-  scrubberLow: "wreck.warning.scrubberLow",
-  oxygen: "wreck.warning.oxygen",
-  fastAscent: "wreck.warning.fastAscent",
-  co2: "wreck.warning.co2",
-  failure: "wreck.warning.failure",
+// The dive computer reads English in every locale (#232): its labels, its
+// warnings and the numbers it shows, which DC formats. Everything else here
+// takes the player's locale.
+const DC = DIVE_COMPUTER_LOCALE;
+
+// Full sentence for the role=alert region. Both maps are the dive
+// computer's (#232); a new severity (#228) adds a member to the union and an
+// entry to each.
+const warningAlertKeys: Record<WarningSeverity, DiveComputerKey> = {
+  lowGas: "diveComputer.alert.lowGas",
+  scrubberLow: "diveComputer.alert.scrubberLow",
+  oxygen: "diveComputer.alert.oxygen",
+  fastAscent: "diveComputer.alert.fastAscent",
+  co2: "diveComputer.alert.co2",
+  failure: "diveComputer.alert.failure",
 };
 
 // Short form for the status chip, which sits in the topbar away from the
 // alert text and has to stand on its own.
-const warningStatusKeys: Record<WarningSeverity, MessageKey> = {
-  lowGas: "wreck.hud.warning.lowGas",
-  scrubberLow: "wreck.hud.warning.scrubberLow",
-  oxygen: "wreck.hud.warning.oxygen",
-  fastAscent: "wreck.hud.warning.fastAscent",
-  co2: "wreck.hud.warning.co2",
-  failure: "wreck.hud.warning.failure",
+const warningStatusKeys: Record<WarningSeverity, DiveComputerKey> = {
+  lowGas: "diveComputer.status.lowGas",
+  scrubberLow: "diveComputer.status.scrubberLow",
+  oxygen: "diveComputer.status.oxygen",
+  fastAscent: "diveComputer.status.fastAscent",
+  co2: "diveComputer.status.co2",
+  failure: "diveComputer.status.failure",
 };
 
-const thirdsPhaseKeys: Record<RuleOfThirdsPhase, MessageKey> = {
-  outbound: "wreck.hud.thirds.outbound",
-  turn: "wreck.hud.thirds.turn",
-  reserve: "wreck.hud.thirds.reserve",
+const thirdsPhaseKeys: Record<RuleOfThirdsPhase, DiveComputerKey> = {
+  outbound: "diveComputer.thirds.outbound",
+  turn: "diveComputer.thirds.turn",
+  reserve: "diveComputer.thirds.reserve",
 };
 
-const safetyStopPhaseKeys: Record<PresentationSafetyStop["phase"], MessageKey> = {
-  planned: "wreck.hud.safetyStop.planned",
-  running: "wreck.hud.safetyStop.running",
-  paused: "wreck.hud.safetyStop.paused",
-  complete: "wreck.hud.safetyStop.complete",
+const safetyStopPhaseKeys: Record<PresentationSafetyStop["phase"], DiveComputerKey> = {
+  planned: "diveComputer.safetyStop.planned",
+  running: "diveComputer.safetyStop.running",
+  paused: "diveComputer.safetyStop.paused",
+  complete: "diveComputer.safetyStop.complete",
 };
 
 export function renderWreckApplication(
@@ -413,7 +423,6 @@ async function startWreckSimulation(
         gasInfoAvailable(frame.presentation, diveMode),
         frame.presentation,
         plannerSettings,
-        locale,
       );
       audio.update({
         elapsedRealS: frame.scene.elapsedRealS,
@@ -452,7 +461,6 @@ async function startWreckSimulation(
       gasInfoAvailable(lastPresentation, diveMode),
       lastPresentation,
       plannerSettings,
-      locale,
     );
   };
   hud.gasInfo.toggle.addEventListener("click", cycleGasInfo);
@@ -479,7 +487,6 @@ async function startWreckSimulation(
         gasInfoAvailable(lastPresentation, diveMode),
         lastPresentation,
         plannerSettings,
-        locale,
       );
     }
   };
@@ -665,25 +672,30 @@ function createWreckShell(locale: SupportedLocale): HudElements {
 
   const hud = document.createElement("dl");
   hud.className = "wreck-hud";
-  const unavailable = translate(locale, "wreck.value.unavailable");
-  const depth = appendMetric(hud, "depth", translate(locale, "wreck.hud.depth"), unavailable);
+  // The dive computer's language (#232), so a German screen reader reads its
+  // English as English: the visible text is each row's only name, and lang
+  // makes what is heard agree with what is shown. The location row is not
+  // the dive computer's and keeps the page's language.
+  hud.lang = DC;
+  const unavailable = translate(DC, "wreck.value.unavailable");
+  const depth = appendMetric(hud, "depth", diveComputerText("diveComputer.depth"), unavailable);
   // Legacy's ascent chevrons and rate beside the depth (#197), with the
   // direction as an arrow and the number in words' place.
   const ascentRate = appendMetric(
     hud,
     "ascentRate",
-    translate(locale, "wreck.hud.ascentRate"),
+    diveComputerText("diveComputer.ascentRate"),
     unavailable,
   );
-  const time = appendMetric(hud, "time", translate(locale, "wreck.hud.time"), unavailable);
-  const gas = appendMetric(hud, "gas", translate(locale, "wreck.hud.gas"), unavailable);
+  const time = appendMetric(hud, "time", diveComputerText("diveComputer.time"), unavailable);
+  const gas = appendMetric(hud, "gas", diveComputerText("diveComputer.gas"), unavailable);
   // Which cylinder is being breathed (#163). Until this row existed the only
   // trace of a switch was the gas pressure changing, so the tests read the
   // save to learn the active index — the HUD half the issue asks for.
   const cylinder = appendMetric(
     hud,
     "cylinder",
-    translate(locale, "wreck.hud.cylinder"),
+    diveComputerText("diveComputer.cylinder"),
     unavailable,
   );
   // The rebreather's rows (#163): what src/renderer.js draws in the CCR gas
@@ -691,30 +703,35 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   // until updateHud sees a loop, and the open-circuit gas row hides in
   // exchange, because on a CCR dive that row would show tanks[0], the
   // codec's placeholder cylinder, at a pressure nobody is drawing down.
-  const setpoint = appendMetric(hud, "setpoint", translate(locale, "wreck.hud.setpoint"), unavailable);
-  const loopPo2 = appendMetric(hud, "loopPo2", translate(locale, "wreck.hud.loopPo2"), unavailable);
-  const oxygenCylinder = appendMetric(hud, "oxygenCylinder", translate(locale, "wreck.hud.oxygenCylinder"), unavailable);
-  const diluentCylinder = appendMetric(hud, "diluentCylinder", translate(locale, "wreck.hud.diluentCylinder"), unavailable);
-  const scrubber = appendMetric(hud, "scrubber", translate(locale, "wreck.hud.scrubber"), unavailable);
+  const setpoint = appendMetric(hud, "setpoint", diveComputerText("diveComputer.setpoint"), unavailable);
+  const loopPo2 = appendMetric(hud, "loopPo2", diveComputerText("diveComputer.loopPo2"), unavailable);
+  const oxygenCylinder = appendMetric(hud, "oxygenCylinder", diveComputerText("diveComputer.oxygenCylinder"), unavailable);
+  const diluentCylinder = appendMetric(hud, "diluentCylinder", diveComputerText("diveComputer.diluentCylinder"), unavailable);
+  const scrubber = appendMetric(hud, "scrubber", diveComputerText("diveComputer.scrubber"), unavailable);
   for (const value of [setpoint, loopPo2, oxygenCylinder, diluentCylinder, scrubber]) {
     setMetricHidden(value, true);
   }
-  const ndl = appendMetric(hud, "ndl", translate(locale, "wreck.hud.ndl"), unavailable);
+  const ndl = appendMetric(hud, "ndl", diveComputerText("diveComputer.ndl"), unavailable);
   // Legacy's stop box, safety-stop half, and its hud-thirds gauge (#199):
   // shown only while there is a stop to make or a plan to keep.
   const safetyStop = appendMetric(
     hud,
     "safetyStop",
-    translate(locale, "wreck.hud.safetyStop"),
+    diveComputerText("diveComputer.safetyStop"),
     unavailable,
   );
-  const thirds = appendMetric(hud, "thirds", translate(locale, "wreck.hud.thirds"), unavailable);
+  const thirds = appendMetric(hud, "thirds", diveComputerText("diveComputer.thirds"), unavailable);
   setMetricHidden(safetyStop, true);
   setMetricHidden(thirds, true);
   const zone = appendMetric(hud, "zone", translate(locale, "wreck.hud.zone"), unavailable);
+  if (zone.parentElement) {
+    zone.parentElement.lang = locale;
+  }
 
   const warning = document.createElement("p");
   warning.className = "wreck-warning";
+  // Only ever the dive computer's warning text (#232).
+  warning.lang = DC;
   warning.hidden = true;
   warning.setAttribute("role", "alert");
   warning.setAttribute("aria-live", "assertive");
@@ -876,27 +893,27 @@ function updateHud(
 ): void {
   const { presentation, scene, fastForward } = frame;
   const activeTank = presentation.tanks[presentation.activeTankIndex];
-  hud.depth.textContent = formatDepth(presentation.depthM, locale);
-  hud.time.textContent = formatDuration(presentation.elapsedTimeS, locale);
+  hud.depth.textContent = formatDepth(presentation.depthM, DC);
+  hud.time.textContent = formatDuration(presentation.elapsedTimeS, DC);
   hud.gas.textContent = activeTank
-    ? formatPressure(activeTank.pressureBar, locale)
-    : translate(locale, "wreck.value.unavailable");
-  hud.cylinder.textContent = selectCylinderText(presentation, locale);
+    ? formatPressure(activeTank.pressureBar, DC)
+    : translate(DC, "wreck.value.unavailable");
+  hud.cylinder.textContent = selectCylinderText(presentation);
   // The control appears only while it would do something and reads as
   // pressed while the clock is sped up; the chip says the same in words.
   hud.fastForward.hidden = !fastForward.available;
   hud.fastForward.setAttribute("aria-pressed", String(fastForward.active));
   hud.speed.hidden = !fastForward.active;
   hud.surfacePrompt.hidden = !frame.awaitingDescent;
-  syncLoopRows(hud, presentation, locale, frame.awaitingDescent);
+  syncLoopRows(hud, presentation, frame.awaitingDescent);
   // Legacy's "---" for the 999 "no limit" sentinel, and at most 99 (#223
   // pre-review): reachable since the dive starts at the surface.
   hud.ndl.textContent = ndlText(
     presentation.planner?.ndlMin ?? null,
-    locale,
-    translate(locale, "wreck.value.unavailable"),
+    DC,
+    translate(DC, "wreck.value.unavailable"),
   );
-  syncDiveReadouts(hud, presentation, locale);
+  syncDiveReadouts(hud, presentation);
   hud.zone.textContent = translate(locale, zoneMessageKeys[scene.zone]);
   hud.torch.setAttribute("aria-pressed", String(scene.torchOn));
   // Legacy shows its nav pad and torch button, and reads their keys, only in
@@ -913,13 +930,17 @@ function updateHud(
   syncTankControls(hud.tanks, presentation, locale, frame.awaitingDescent);
 
   const severity = selectWarning(presentation);
-  const alertText = severity ? translate(locale, warningAlertKeys[severity]) : "";
+  const alertText = severity ? diveComputerText(warningAlertKeys[severity]) : "";
   // The glyph makes the warning legible without colour at all — in greyscale,
   // or to a reader who cannot tell the red chip from the green one. Same
   // redundant-encoding approach #39 took in the legacy client.
+  // A warning in the chip is the dive computer's, in its English (#232);
+  // "Simulation running" is the page's, in its language, so the chip's lang
+  // follows whichever of the two it shows.
   const statusText = severity
-    ? `${translate(locale, "wreck.symbol.warning")} ${translate(locale, warningStatusKeys[severity])}`
+    ? `${translate(DC, "wreck.symbol.warning")} ${diveComputerText(warningStatusKeys[severity])}`
     : translate(locale, "wreck.hud.normal");
+  const statusLang = severity ? DC : locale;
 
   hud.warning.hidden = severity === null;
   hud.shell.classList.toggle("has-warning", severity !== null);
@@ -934,6 +955,9 @@ function updateHud(
   if (hud.status.textContent !== statusText) {
     hud.status.textContent = statusText;
   }
+  if (hud.status.lang !== statusLang) {
+    hud.status.lang = statusLang;
+  }
 }
 
 /**
@@ -947,25 +971,21 @@ function updateHud(
  * row says so rather than still naming the loop (#163 review round 1). The
  * loop's own rows (setpoint, loop PO₂, scrubber) are the CCR slice of #163.
  */
-function selectCylinderText(
-  presentation: Readonly<PresentationState>,
-  locale: SupportedLocale,
-): string {
+function selectCylinderText(presentation: Readonly<PresentationState>): string {
   if (presentation.ccr) {
-    return translate(
-      locale,
+    return diveComputerText(
       presentation.ccr.onBailout
-        ? "wreck.hud.cylinder.bailout"
-        : "wreck.hud.cylinder.loop",
+        ? "diveComputer.cylinder.bailout"
+        : "diveComputer.cylinder.loop",
     );
   }
   const activeTank = presentation.tanks[presentation.activeTankIndex];
   if (!activeTank) {
-    return translate(locale, "wreck.value.unavailable");
+    return translate(DC, "wreck.value.unavailable");
   }
-  return translate(locale, "wreck.hud.cylinder.value")
+  return diveComputerText("diveComputer.cylinder.value")
     .replace("{n}", String(activeTank.index + 1))
-    .replace("{gas}", formatGasFraction(activeTank.gas.oxygenFraction, locale));
+    .replace("{gas}", formatGasFraction(activeTank.gas.oxygenFraction, DC));
 }
 
 /**
@@ -981,7 +1001,6 @@ function selectCylinderText(
 function syncLoopRows(
   hud: HudElements,
   presentation: Readonly<PresentationState>,
-  locale: SupportedLocale,
   awaitingDescent: boolean,
 ): void {
   const { ccr, status } = presentation;
@@ -1008,7 +1027,7 @@ function syncLoopRows(
   if (!ccr) {
     return;
   }
-  hud.setpoint.textContent = formatPartialPressure(ccr.targetPo2Bar, locale);
+  hud.setpoint.textContent = formatPartialPressure(ccr.targetPo2Bar, DC);
   // The rows legacy draws in its danger tone with the ⚠ prefix
   // (src/renderer.js drawDiveComputer, CCR branch — hudDangerPrefix()), so a
   // reading past its limit says so in the glyph and not only in colour
@@ -1021,27 +1040,23 @@ function syncLoopRows(
   const danger = selectLoopRowDanger(ccr);
   writeLoopRow(
     hud.loopPo2,
-    formatPartialPressure(ccr.actualPo2Bar, locale),
+    formatPartialPressure(ccr.actualPo2Bar, DC),
     danger.loopPo2,
-    locale,
   );
   writeLoopRow(
     hud.oxygenCylinder,
-    formatPressure(Math.round(ccr.oxygenCylinderPressureBar), locale),
+    formatPressure(Math.round(ccr.oxygenCylinderPressureBar), DC),
     danger.oxygenCylinder,
-    locale,
   );
   writeLoopRow(
     hud.diluentCylinder,
-    formatPressure(Math.round(ccr.diluentCylinderPressureBar), locale),
+    formatPressure(Math.round(ccr.diluentCylinderPressureBar), DC),
     danger.diluentCylinder,
-    locale,
   );
   writeLoopRow(
     hud.scrubber,
-    formatWholeMinutes(ccr.scrubberRemainingS, locale),
+    formatWholeMinutes(ccr.scrubberRemainingS, DC),
     danger.scrubber,
-    locale,
   );
 }
 
@@ -1049,10 +1064,9 @@ function writeLoopRow(
   value: HTMLElement,
   text: string,
   danger: boolean,
-  locale: SupportedLocale,
 ): void {
   const next = danger
-    ? `${translate(locale, "wreck.symbol.warning")} ${text}`
+    ? `${translate(DC, "wreck.symbol.warning")} ${text}`
     : text;
   if (value.textContent !== next) {
     value.textContent = next;
@@ -1082,16 +1096,15 @@ function writeLoopRow(
 function syncDiveReadouts(
   hud: HudElements,
   presentation: Readonly<PresentationState>,
-  locale: SupportedLocale,
 ): void {
   const rate = presentation.ascentRateMpm;
   const rateText =
     rate > 0.5
-      ? translate(locale, "wreck.hud.ascentRate.up").replace("{rate}", formatVerticalRate(rate, locale))
+      ? diveComputerText("diveComputer.ascentRate.up").replace("{rate}", formatVerticalRate(rate, DC))
       : rate < -0.5
-        ? translate(locale, "wreck.hud.ascentRate.down").replace("{rate}", formatVerticalRate(rate, locale))
-        : formatVerticalRate(0, locale);
-  writeLoopRow(hud.ascentRate, rateText, rate > FAST_ASCENT_RATE_MPM, locale);
+        ? diveComputerText("diveComputer.ascentRate.down").replace("{rate}", formatVerticalRate(rate, DC))
+        : formatVerticalRate(0, DC);
+  writeLoopRow(hud.ascentRate, rateText, rate > FAST_ASCENT_RATE_MPM);
 
   // One row, legacy's stop box: the decompression stop while there is a
   // ceiling on this tick, else the safety stop (selectDecoStop and
@@ -1100,9 +1113,8 @@ function syncDiveReadouts(
   const stop = presentation.safetyStop;
   const stopRow = hud.safetyStop.parentElement;
   const stopTerm = stopRow?.querySelector("dt");
-  const stopLabel = translate(
-    locale,
-    deco !== null ? "wreck.hud.decoStop" : "wreck.hud.safetyStop",
+  const stopLabel = diveComputerText(
+    deco !== null ? "diveComputer.decoStop" : "diveComputer.safetyStop",
   );
   if (stopTerm && stopTerm.textContent !== stopLabel) {
     stopTerm.textContent = stopLabel;
@@ -1115,11 +1127,10 @@ function syncDiveReadouts(
       hud.safetyStop,
       first === null
         ? ""
-        : translate(locale, "wreck.hud.decoStop.value")
-            .replace("{depth}", formatDepth(first.depthM, locale))
-            .replace("{duration}", formatWholeMinutes(first.durationMin * 60, locale)),
+        : diveComputerText("diveComputer.decoStop.value")
+            .replace("{depth}", formatDepth(first.depthM, DC))
+            .replace("{duration}", formatWholeMinutes(first.durationMin * 60, DC)),
       false,
-      locale,
     );
     stopRow?.setAttribute("data-phase", "deco");
   } else if (stop !== null) {
@@ -1128,15 +1139,14 @@ function syncDiveReadouts(
       stop.phase === "complete"
         ? ""
         : stop.phase === "planned"
-          ? formatWholeMinutes(stop.remainingS, locale)
-          : formatDuration(Math.floor(stop.remainingS), locale);
+          ? formatWholeMinutes(stop.remainingS, DC)
+          : formatDuration(Math.floor(stop.remainingS), DC);
     writeLoopRow(
       hud.safetyStop,
-      translate(locale, safetyStopPhaseKeys[stop.phase])
-        .replace("{depth}", formatDepth(stop.targetDepthM, locale))
+      diveComputerText(safetyStopPhaseKeys[stop.phase])
+        .replace("{depth}", formatDepth(stop.targetDepthM, DC))
         .replace("{duration}", duration),
       false,
-      locale,
     );
     hud.safetyStop.parentElement?.setAttribute("data-phase", stop.phase);
   }
@@ -1146,12 +1156,11 @@ function syncDiveReadouts(
   if (thirds !== null) {
     writeLoopRow(
       hud.thirds,
-      translate(locale, thirdsPhaseKeys[thirds.phase]).replace(
+      diveComputerText(thirdsPhaseKeys[thirds.phase]).replace(
         "{percent}",
-        formatPercent(thirds.percent / 100, locale),
+        formatPercent(thirds.percent / 100, DC),
       ),
       thirds.phase === "reserve",
-      locale,
     );
     hud.thirds.parentElement?.setAttribute("data-phase", thirds.phase);
   }
