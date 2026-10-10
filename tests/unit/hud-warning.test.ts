@@ -7,6 +7,7 @@ import {
   activeWarnings,
   isWarningBeepActive,
   selectWarning,
+  selectWarningTier,
   type WarningSeverity,
 } from "../../src/app/hud-warning";
 import { WATER_VAPOR_PRESSURE_BAR } from "../../src/core/buhlmann-constants";
@@ -198,6 +199,32 @@ describe("the HUD warning's ranking", () => {
   it("ranks the ceiling over the oxygen of a bailout, under the oxygen of the loop", () => {
     expect(selectWarning(ccr({ ...ceiling, breathingPo2Bar: bars(1.7) }, { onBailout: true }))).toBe("ceiling");
     expect(selectWarning(ccr(ceiling, { actualPo2Bar: bars(1.51) }))).toBe("oxygen");
+  });
+});
+
+describe("the warning's tier, legacy's warnCritical", () => {
+  it("marks the reserve, narcosis up to 0.70 and SCR LOW as cautions", () => {
+    expect(selectWarningTier(oc(reserve))).toBe("caution");
+    expect(selectWarningTier(oc(narcosisCaution))).toBe("caution");
+    expect(selectWarningTier(oc({ narcosisIndex: 0.7 }))).toBe("caution");
+    expect(selectWarningTier(ccr({}, { scrubberRemainingS: 599 }))).toBe("caution");
+  });
+
+  it("marks every other warning critical, and none without a warning", () => {
+    expect(selectWarningTier(oc())).toBeNull();
+    expect(selectWarningTier(oc({ narcosisIndex: 0.7000001 }))).toBe("critical");
+    for (const condition of [{ failureReason: "out-of-gas" as const }, ceiling, oxygen, fastAscent, lowGas, lowNdl]) {
+      expect(selectWarningTier(oc(condition))).toBe("critical");
+    }
+    expect(selectWarningTier(ccr({}, { scrubberFailed: true }))).toBe("critical");
+    expect(selectWarningTier(ccr({}, { actualPo2Bar: bars(1.51) }))).toBe("critical");
+    expect(selectWarningTier(ccr({}, { diluentCylinderPressureBar: bars(29) }))).toBe("critical");
+  });
+
+  it("is the tier of the warning shown, not of the others", () => {
+    // A low NDL over a narcosis caution is critical; the reserve over it a caution.
+    expect(selectWarningTier(oc({ ...lowNdl, ...narcosisCaution }))).toBe("critical");
+    expect(selectWarningTier(oc({ ...reserve, ...lowNdl }))).toBe("caution");
   });
 });
 

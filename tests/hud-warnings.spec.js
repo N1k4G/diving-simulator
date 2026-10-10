@@ -3,11 +3,13 @@ const { descendTo } = require('./helpers/start-dive.cjs');
 
 // Legacy's last three dive-computer banners (#228, src/renderer.js
 // drawDiveComputer, the highestWarn chain): above the ceiling, low NDL and
-// narcosis, and the gas reserve split from low gas. Like the rest of the dive computer they read English in every
-// language (#232), so each runs in an English and a German browser. Legacy's
-// hasWarning beeps for the ceiling, the reserve and narcosis, not for a low NDL; the
-// alarm is legacy's only square-wave cue (src/audio/audio-policy.ts), counted
-// as its oscillators start.
+// narcosis, and the gas reserve split from low gas. Like the rest of the dive
+// computer they read English in every language (#232), so each runs in an
+// English and a German browser. Legacy's hasWarning beeps for the ceiling,
+// the reserve and narcosis, not for a low NDL; the reserve and narcosis up to
+// 0.70 are its cautions (warnCritical = false). The alarm is legacy's only
+// square-wave cue (src/audio/audio-policy.ts), counted as its oscillators
+// start.
 
 const SAVE_KEY = 'diving-simulator.save-game';
 
@@ -72,6 +74,7 @@ const cases = [
     alert: 'Above ceiling — descend',
     chip: '⚠ Above ceiling',
     beeps: true,
+    tier: 'critical',
   },
   {
     name: 'the gas reserve',
@@ -83,6 +86,7 @@ const cases = [
     alert: 'Gas reserve',
     chip: '⚠ Gas reserve',
     beeps: true,
+    tier: 'caution',
   },
   {
     name: 'a low NDL',
@@ -96,6 +100,7 @@ const cases = [
     alert: 'Low NDL',
     chip: '⚠ Low NDL',
     beeps: false,
+    tier: 'critical',
   },
   {
     name: 'narcosis',
@@ -110,6 +115,7 @@ const cases = [
     alert: 'Narcosis',
     chip: '⚠ Narcosis',
     beeps: true,
+    tier: 'caution',
   },
 ];
 
@@ -117,8 +123,8 @@ for (const locale of ['en-US', 'de-DE']) {
   test.describe(`in ${locale}`, () => {
     test.use({ locale });
 
-    for (const { name, mutate, alert: alertText, chip: chipText, beeps } of cases) {
-      test(`${name} warns in English${beeps ? ' and sounds the alarm' : ', silently'}`, async ({ page }) => {
+    for (const { name, mutate, alert: alertText, chip: chipText, beeps, tier } of cases) {
+      test(`${name} warns in English as a ${tier}${beeps ? ', with the alarm' : ', silently'}`, async ({ page }) => {
         await resumeWith(page, mutate);
         const alert = page.getByRole('alert');
         await expect(alert).toHaveText(alertText, { timeout: 15_000 });
@@ -126,6 +132,16 @@ for (const locale of ['en-US', 'de-DE']) {
         const chip = page.locator('.status-chip');
         await expect(chip).toHaveText(chipText);
         await expect(chip).toHaveAttribute('lang', 'en');
+        // Legacy's warnCritical: red, or its amber caution, which a dashed
+        // border also tells apart without colour.
+        for (const element of [alert, chip]) {
+          await expect(element).toHaveAttribute('data-tier', tier);
+          await expect(element).toHaveCSS('border-top-style', tier === 'caution' ? 'dashed' : 'solid');
+          await expect(element).toHaveCSS(
+            'background-color',
+            tier === 'caution' ? 'rgb(38, 26, 0)' : 'rgb(169, 40, 40)',
+          );
+        }
         if (beeps) {
           await expect.poll(() => alarms(page), { timeout: 10_000 }).toBeGreaterThan(0);
         } else {
