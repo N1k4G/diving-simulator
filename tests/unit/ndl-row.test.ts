@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GameController, type GameFrame } from "../../src/app/game-controller";
-import { ndlText } from "../../src/app/gas-info";
+import { buildBlocks, ndlText } from "../../src/app/gas-info";
 import { neutralBcdSurfaceLitres } from "../../src/core/buoyancy";
 import { WATER_VAPOR_PRESSURE_BAR } from "../../src/core/buhlmann-constants";
 import {
@@ -20,7 +20,7 @@ import {
   type DiveState,
 } from "../../src/core/dive-state";
 import { bars, metres, minutes, seconds } from "../../src/core/units";
-import type { PlannerForecast } from "../../src/planner/dive-planner";
+import { DEFAULT_PLANNER_SETTINGS, type PlannerForecast } from "../../src/planner/dive-planner";
 import {
   LOW_NDL_WARNING_MIN,
   createPresentationState,
@@ -178,6 +178,11 @@ describe("the HUD's NDL row (#244)", () => {
     expect(onNitrox).toBeLessThan(NDL_UNLIMITED_MINUTES);
     expect(ndlText(switched.ndlMin, "en", UNAVAILABLE)).toBe(`${Math.min(99, onNitrox)} min`);
     expect(ndlText(switched.planner?.ndlMin ?? null, "en", UNAVAILABLE)).toBe(UNAVAILABLE);
+    // The decompression page's NDL row reads the same, as legacy's page 4
+    // draws the same frameCalc.ndl.
+    expect(decoPageRow(switched, "No-decompression time").value).toBe(
+      ndlText(switched.ndlMin, "en", UNAVAILABLE),
+    );
 
     // The worker stays silent: every tick's row is that tick's NDL on the
     // new gas, while no forecast is in hand.
@@ -203,6 +208,43 @@ describe("the HUD's NDL row (#244)", () => {
       expect(ticks.at(-1)!.frame.presentation.nearNdlMin === null).toBe(exposureMin === 0);
       controller.destroy();
     }
+  });
+});
+
+/** A row of the gas information's decompression page, by its label. */
+function decoPageRow(presentation: GameFrame["presentation"], label: string) {
+  const row = buildBlocks("deco", presentation, DEFAULT_PLANNER_SETTINGS, "en")
+    .flatMap((block) => (block.kind === "rows" ? block.rows : []))
+    .find((candidate) => candidate.label === label);
+  if (!row) throw new Error(`no ${label} row`);
+  return row;
+}
+
+describe("the decompression page's NDL row (#244)", () => {
+  it("is the NDL of the tick, as the HUD's row, whatever the forecast holds; the TTS stays the forecast's", () => {
+    // After 8 min at 30 m the NDL on air is about 2 min: danger.
+    const state = stateAt30m(8);
+    const ndl = legacyNdl(state);
+    expect(ndl).toBeLessThan(LOW_NDL_WARNING_MIN);
+    for (const planner of [null, FORECAST]) {
+      const presentation = createPresentationState(state, planner, null, GF_HIGH_PERCENT);
+      const row = decoPageRow(presentation, "No-decompression time");
+      expect(row.value).toBe(ndlText(ndl, "en", UNAVAILABLE));
+      expect(row.severity).toBe("danger");
+      // Counter-check: the forecast's 42 min is not what the page shows,
+      // and the TTS beside it still comes from the forecast alone.
+      expect(row.value).not.toBe(ndlText(STALE_NDL_MIN, "en", UNAVAILABLE));
+      expect(decoPageRow(presentation, "Time to surface").value).toBe(
+        planner === null ? UNAVAILABLE : "6 min",
+      );
+    }
+  });
+
+  it("reads the unavailable mark at the surface, where there is no limit, with no severity", () => {
+    const presentation = createPresentationState(createInitialDiveState(7), FORECAST);
+    const row = decoPageRow(presentation, "No-decompression time");
+    expect(row.value).toBe(UNAVAILABLE);
+    expect(row.severity).toBe("normal");
   });
 });
 

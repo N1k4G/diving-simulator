@@ -84,4 +84,19 @@ test('the NDL row does not wait for the planner Worker', async ({ page }) => {
   // Counter-check: no forecast came back, so the worker really was silent.
   await expect(await decompressionTts(page)).toHaveText('—');
   await expect(ndlRow(page)).toHaveText(/^\d+ min$/);
+  // The decompression page's NDL row reads the same NDL as the HUD's, as
+  // legacy's page 4 draws the same frameCalc.ndl. The vented diver goes on
+  // sinking and the NDL falls, so both are read in one task, between frames.
+  // The page's value may carry a hidden severity word after its minutes.
+  const readBoth = () =>
+    page.evaluate(() => {
+      const hud = document.querySelector('.wreck-hud [data-hud-metric="ndl"] dd');
+      const row = [...document.querySelectorAll('[data-gas-info] dl div')].find((div) =>
+        div.querySelector('dt')?.textContent === 'No-decompression time',
+      );
+      return [hud?.textContent ?? '', row?.querySelector('dd')?.textContent ?? ''];
+    });
+  const [hudNdl, pageNdl] = await readBoth();
+  expect(hudNdl).toMatch(/^\d+ min$/);
+  expect(pageNdl.startsWith(hudNdl)).toBe(true);
 });
