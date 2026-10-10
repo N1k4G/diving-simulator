@@ -910,9 +910,10 @@ function updateHud(
   hud.surfacePrompt.hidden = !frame.awaitingDescent;
   syncLoopRows(hud, presentation, frame.awaitingDescent);
   // Legacy's "---" for the 999 "no limit" sentinel, and at most 99 (#223
-  // pre-review): reachable since the dive starts at the surface.
+  // pre-review): reachable since the dive starts at the surface. The NDL of
+  // this tick, as legacy's frameCalc.ndl, not the planner's forecast (#244).
   hud.ndl.textContent = ndlText(
-    presentation.planner?.ndlMin ?? null,
+    presentation.ndlMin,
     DC,
     translate(DC, "wreck.value.unavailable"),
   );

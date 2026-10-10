@@ -159,7 +159,8 @@ function pageTitle(
   }
 }
 
-function buildBlocks(
+/** The page's blocks, exported for the unit tests (#244). */
+export function buildBlocks(
   page: GasInfoPage,
   presentation: Readonly<PresentationState>,
   settings: Readonly<PlannerSettings>,
@@ -240,12 +241,16 @@ function buildBlocks(
                   ? "warning"
                   : "normal",
             },
+            // The NDL of this tick, as the HUD's row (#244): legacy's page 4
+            // and its hero readout both draw frameCalc.ndl (src/renderer.js
+            // 7885, 8165-8171, 8775-8780), so they always agree.
             {
               label: t("diveComputer.info.deco.ndl"),
-              value: ndlText(planner?.ndlMin ?? null, locale, unavailable),
+              value: ndlText(presentation.ndlMin, locale, unavailable),
               severity:
-                planner && displayedNdlMinutes(planner.ndlMin) !== null
-                  ? ndlSeverity(planner.ndlMin)
+                presentation.ndlMin !== null &&
+                displayedNdlMinutes(presentation.ndlMin) !== null
+                  ? ndlSeverity(presentation.ndlMin)
                   : "normal",
             },
             {
