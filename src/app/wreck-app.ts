@@ -45,6 +45,7 @@ import { isTurnBeepDue } from "./thirds-turn-beep";
 import {
   isWarningBeepActive,
   selectWarning,
+  selectWarningTier,
   type WarningSeverity,
 } from "./hud-warning";
 
@@ -957,6 +958,19 @@ function updateHud(
   }
   if (hud.status.lang !== statusLang) {
     hud.status.lang = statusLang;
+  }
+  // Legacy's warnCritical (#228): a caution in its amber tone, a critical
+  // warning in red. The CSS adds a dashed border to the caution, so the tier
+  // does not rest on colour alone.
+  const tier = selectWarningTier(presentation) ?? "";
+  for (const element of [hud.warning, hud.status]) {
+    if ((element.dataset.tier ?? "") !== tier) {
+      if (tier) {
+        element.dataset.tier = tier;
+      } else {
+        delete element.dataset.tier;
+      }
+    }
   }
 }
 

@@ -157,6 +157,32 @@ export function selectWarning(
   return activeWarnings(presentation)[0] ?? null;
 }
 
+/** Legacy's `warnCritical`: the danger tone, or the caution tone. */
+export type WarningTier = "critical" | "caution";
+
+/**
+ * The tier of the warning selectWarning shows, as legacy marks it: the gas
+ * reserve and narcosis over 0.20 but not over 0.70 are cautions
+ * (`warnCritical = false`, src/renderer.js 8251-8256), and so is the loop's
+ * SCR LOW (ccrWarnColor = hudColor('caution'), 8893). Every other banner,
+ * the loop's other texts and the migration's own warnings are critical.
+ */
+export function selectWarningTier(
+  presentation: Readonly<PresentationState>,
+): WarningTier | null {
+  const severity = selectWarning(presentation);
+  if (severity === null) {
+    return null;
+  }
+  if (severity === "reserve" || severity === "scrubberLow") {
+    return "caution";
+  }
+  if (severity === "narcosis") {
+    return presentation.narcosisIndex > NARCOSIS_CRITICAL_INDEX ? "critical" : "caution";
+  }
+  return "critical";
+}
+
 /**
  * Whether the alarm sounds: legacy's `hasWarning` beeps for every banner
  * term but the low NDL, whichever of them the banner shows, so a low NDL
