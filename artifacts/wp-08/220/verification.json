@@ -1,0 +1,78 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 220,
+  "slice": "part 1 of 2: narcosis below the KO in the model and the controller, swallowed inputs and vertical drift on the dive's seed, saved (v17)",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "62723d17deb1fb6febe97208cf9abe9ea8ca2b0c",
+  "measuredTree": "8ed6e45bf51ccb690ad6639ef52c4a7ec1d25f4b",
+  "workingTree": "clean before and after the run (git status --porcelain empty)",
+  "recordedAt": "2026-10-10T19:32:48Z",
+  "runFinishedAt": "2026-10-10T19:45:16Z",
+  "earlierRuns": [
+    {
+      "measuredCommit": "9623d031c19fa2ca4576d71b0c78b0f7de1c2e5c",
+      "measuredTree": "3dfeffae8a5a2647eaca3b5cde616141e134b224",
+      "recordedAt": "2026-10-10T19:19:59Z",
+      "runFinishedAt": "2026-10-10T19:31:57Z",
+      "note": "Full run on main ba6d95e, before the rebase onto 4b3043e; 635 unit, 343 parity, 191 e2e in 8.8 min, all passing. Superseded by the run above."
+    },
+    {
+      "measuredCommit": "26c449eb8601d7da28167476cf4aa54594433776",
+      "measuredTree": "e76360dfff43c6efcf65928894d3cea6e2dd328e",
+      "recordedAt": "2026-10-10T19:06:22Z",
+      "runFinishedAt": "2026-10-10T19:18:08Z",
+      "note": "Full run on main ba6d95e, before the two test commits the counter-checks called for (C3, C7, C9 and P2 below); 634 unit, 343 parity, 191 e2e in 8.8 min, all passing. Superseded."
+    }
+  ],
+  "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
+  "provenanceNote": "On main 4b3043e (#248). The full run above is on 62723d1, after the rebase from ba6d95e (without conflicts, git range-diff showing all three patches unchanged: 26c449e, fc36426 and 9623d03 became a252808, b2696b5 and 62723d1). The counter-checks C1 to C6, C8 to C10, S1 to S3 and P1 were taken on fc36426, C7 and P2 on 9623d03; src is the same tree in both and after the rebase. Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass",
+    "unit": "646 passed (629 on main 4b3043e, +17: tests/unit/narcosis-effects.test.ts 10, tests/unit/game-controller-narcosis.test.ts 3, tests/unit/save-game.test.ts 4)",
+    "parity": "343 passed (341 on main, +2 in tests/parity/nitrogen-narcosis.test.ts): legacy's drift stays at rest through narcosis-air-65m on the recordings' stubbed 0.5 draws, over more than 100 drift draws above index 0.45; every recording that holds a key (buoyancy-*, barotrauma-*) stays at index 0.3 or below, legacy's threshold written out, where no draw swallows a key. No recorded checkpoint is affected; the index comparisons are unchanged.",
+    "e2e": "192 passed in 9.1 min on the first run, no retries, no flake. No spec reaches index 0.3 with a key held long enough to change a shark roll on the pinned seed.",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels, max delta 0, nothing re-recorded",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "rule": "Owner decision on #220 (2026-10-07): swallowed inputs above index 0.3 and the vertical drift above 0.45 are ported, drawn from the dive's own seed (#219) so replays and resumes stay deterministic, with the drift saved like legacy's narcDrift. Tunnel vision and wobble follow in part 2; blur and grayscale are not ported.",
+  "change": "src/core/narcosis-effects.ts holds legacy's perSecondToPerFrameProbability, swallowInputs (W, S, A, D drawn in that order, each only while held, and none at a drop chance of 0) and narcosisDriftStep ((rand - 0.5) * 0.3 * strength * dtReal, decayed by 0.98, 60 times it added to the velocity in m/min, 0 at index 0.45 or below, unchanged at the surface). DiveModel.swallowInputs() draws them from DiveState.randomState once per frame; advanceWithBuoyancy() takes the frame's real seconds and drifts after the physics, before the shark's rolls, as legacy's frame does. src/app/game-controller.ts asks the model for the kept keys before the frame moves the diver, moves along the route with the kept A and D, hands the kept W and S to the BCD, and turns the sprite on the keys held. DiveState.narcosisDrift is saved: save version 17, v1-v16 saves resume it at 0, a current save must carry a finite one, and the legacy import maps narcDrift.",
+  "counterChecks": {
+    "method": "Each mutation applied by a script to a file backed up beforehand, the named vitest files run, then the file restored from its backup and compared with filecmp (shallow=False): byte for byte identical in every case. On the first pass C7 (the held W and S) and P2 (keys dropped from 0.15) failed no test; 9623d03 added the BCD check and legacy's 0.3 written out, and both then fail. C3 and C9 were seen to be uncovered when the mutations were written, and fc36426 added their tests before the first pass.",
+    "results": [
+      { "revert": "C1: every key draws, held or not (src/core/narcosis-effects.ts)", "result": "3 of 10 in tests/unit/narcosis-effects.test.ts and 1 of 3 in tests/unit/game-controller-narcosis.test.ts fail" },
+      { "revert": "C2: S drawn before W (src/core/narcosis-effects.ts)", "result": "2 of 10 fail: legacy's order, and the model's draws" },
+      { "revert": "C3: legacy's 60 Hz drop chance used raw at any frame length", "result": "1 of 10 fails: the chance at a frame's own length" },
+      { "revert": "C4: the drift kept at index 0.45 or below", "result": "1 of 10 fails" },
+      { "revert": "C5: the drift's draw not taken from the random state the shark rolls on (src/core/dive-model.ts)", "result": "1 of 10 and 1 of 3 fail: before the shark, and the controller's order" },
+      { "revert": "C6: the drift on dive time instead of real time (src/core/dive-model.ts)", "result": "1 of 10 fails" },
+      { "revert": "C7: the controller hands the model the held W and S, not those kept (src/app/game-controller.ts)", "result": "1 of 3 in tests/unit/game-controller-narcosis.test.ts fails: the BCD inflates only on a kept W" },
+      { "revert": "C8: the controller moves on the held A and D", "result": "2 of 3 fail" },
+      { "revert": "C9: the controller turns the diver on the keys kept", "result": "1 of 3 fails: both fins held" },
+      { "revert": "C10: no real time handed to the model, so no drift", "result": "1 of 3 fails: the controller's order" },
+      { "revert": "S1: a v16 save keeps the drift it carries (src/save/save-game.ts)", "result": "1 of 101 in tests/unit/save-game.test.ts fails" },
+      { "revert": "S2: legacy's narcDrift not carried over", "result": "1 of 101 fails" },
+      { "revert": "S3: a current save's drift not checked", "result": "1 of 101 fails" },
+      { "revert": "P1: the drift's draw centred on 0.4, not 0.5 (src/core/narcosis-effects.ts)", "result": "1 of 14 in tests/parity/nitrogen-narcosis.test.ts fails: legacy's drift at rest" },
+      { "revert": "P2: keys dropped from index 0.15", "result": "1 of 14 fails: the recordings that hold a key" }
+    ]
+  },
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "durableProvenance": {
+    "src": "422af6d05a1a85b50c484e86e5bcaa1ed5ca79de",
+    "tests": "2a0dd7c4de9ded183599b2b79a4b3230094d2b22",
+    "scripts": "7c6f0c28cdf70f68e1f1b578759d4dc9647af926",
+    "docs": "b0d780a30f6ece3afb425951986e58d1d3f3490d"
+  }
+}
