@@ -10,7 +10,12 @@ import type {
   PresentationState,
   PresentationTank,
 } from "../presentation/presentation-state";
-import { translate, type MessageKey, type SupportedLocale } from "./i18n/catalog";
+import {
+  DIVE_COMPUTER_LOCALE,
+  diveComputerText,
+  translate,
+  type SupportedLocale,
+} from "./i18n/catalog";
 import {
   formatDepth,
   formatGasFraction,
@@ -52,6 +57,9 @@ export function createGasInfo(locale: SupportedLocale): GasInfoElements {
   panel.dataset.gasInfo = "true";
   panel.hidden = true;
   panel.setAttribute("aria-labelledby", `${PANEL_ID}-heading`);
+  // The pages are the dive computer's, which reads English in every locale
+  // (#232); the button that opens them is a control and keeps the page's.
+  panel.lang = DIVE_COMPUTER_LOCALE;
   const heading = document.createElement("h2");
   heading.id = `${PANEL_ID}-heading`;
   heading.className = "gas-info-heading";
@@ -105,8 +113,9 @@ export function syncGasInfo(
   available: boolean,
   presentation: Readonly<PresentationState>,
   settings: Readonly<PlannerSettings>,
-  locale: SupportedLocale,
 ): void {
+  // The pages' words and numbers both, as the HUD's (#232).
+  const locale = DIVE_COMPUTER_LOCALE;
   elements.toggle.hidden = !available;
   elements.toggle.setAttribute("aria-expanded", String(page !== null));
   elements.panel.hidden = page === null;
@@ -114,7 +123,7 @@ export function syncGasInfo(
     return;
   }
 
-  const heading = `${translate(locale, "wreck.gasInfo.heading")} · ${pageTitle(page, presentation, locale)}`;
+  const heading = `${diveComputerText("diveComputer.info.heading")} · ${pageTitle(page, presentation)}`;
   if (elements.heading.textContent !== heading) {
     elements.heading.textContent = heading;
   }
@@ -132,22 +141,21 @@ export function syncGasInfo(
 function pageTitle(
   page: GasInfoPage,
   presentation: Readonly<PresentationState>,
-  locale: SupportedLocale,
 ): string {
   switch (page) {
     case "cylinders-1":
     case "cylinders-2": {
       const indices = cylinderIndicesForPage(page, presentation.tanks.length);
-      return translate(locale, "wreck.gasInfo.page.cylinders")
+      return diveComputerText("diveComputer.info.page.cylinders")
         .replace("{from}", String((indices[0] ?? 0) + 1))
         .replace("{to}", String((indices.at(-1) ?? 0) + 1));
     }
     case "tissues":
-      return translate(locale, "wreck.gasInfo.page.tissues");
+      return diveComputerText("diveComputer.info.page.tissues");
     case "deco":
-      return translate(locale, "wreck.gasInfo.page.deco");
+      return diveComputerText("diveComputer.info.page.deco");
     case "loop":
-      return translate(locale, "wreck.gasInfo.page.loop");
+      return diveComputerText("diveComputer.info.page.loop");
   }
 }
 
@@ -157,8 +165,8 @@ function buildBlocks(
   settings: Readonly<PlannerSettings>,
   locale: SupportedLocale,
 ): readonly Block[] {
-  const t = (key: MessageKey) => translate(locale, key);
-  const unavailable = t("wreck.value.unavailable");
+  const t = diveComputerText;
+  const unavailable = translate(locale, "wreck.value.unavailable");
   switch (page) {
     case "cylinders-1":
     case "cylinders-2":
@@ -170,12 +178,12 @@ function buildBlocks(
       return [
         {
           kind: "tissues",
-          caption: t("wreck.gasInfo.tissues.caption"),
+          caption: t("diveComputer.info.tissues.caption"),
           bars: presentation.saturation.mValueRatios.map((ratio, index) => ({
             // Legacy clamps the bar to 0..1.2 and colours it danger at 1.0.
             ratio: Math.max(0, Math.min(1.2, ratio)),
             severity: mValueRatioSeverity(ratio),
-            label: t("wreck.gasInfo.tissues.compartment")
+            label: t("diveComputer.info.tissues.compartment")
               .replace("{n}", String(index + 1))
               .replace("{ratio}", formatPercent(Math.max(0, ratio), locale)),
             // Legacy labels compartments 1, 4, 8, 12 and 16 under the bars.
@@ -193,36 +201,36 @@ function buildBlocks(
           kind: "rows",
           rows: [
             {
-              label: t("wreck.gasInfo.deco.gf99"),
+              label: t("diveComputer.info.deco.gf99"),
               value: formatPercent(saturation.gf99Percent / 100, locale),
               severity: gradientFactorSeverity(saturation.gf99Percent),
             },
             {
-              label: t("wreck.gasInfo.deco.surfaceGf"),
+              label: t("diveComputer.info.deco.surfaceGf"),
               value: formatPercent(saturation.surfaceGfPercent / 100, locale),
               severity: gradientFactorSeverity(saturation.surfaceGfPercent),
             },
             {
-              label: t("wreck.gasInfo.deco.cns"),
+              label: t("diveComputer.info.deco.cns"),
               value: formatPercent(cnsRounded / 100, locale),
               severity: cnsSeverity(cnsRounded),
             },
             {
-              label: t("wreck.gasInfo.deco.ceiling"),
+              label: t("diveComputer.info.deco.ceiling"),
               value: planner ? formatDepth(planner.ceilingM, locale) : unavailable,
               // Legacy draws a ceiling above the surface in its warn tone.
               severity: planner && planner.ceilingM > 0 ? "warning" : "normal",
             },
             {
-              label: t("wreck.gasInfo.deco.gfLow"),
+              label: t("diveComputer.info.deco.gfLow"),
               value: formatPercent(settings.gfLowPercent / 100, locale),
             },
             {
-              label: t("wreck.gasInfo.deco.gfHigh"),
+              label: t("diveComputer.info.deco.gfHigh"),
               value: formatPercent(settings.gfHighPercent / 100, locale),
             },
             {
-              label: t("wreck.gasInfo.deco.tts"),
+              label: t("diveComputer.info.deco.tts"),
               value:
                 planner && displayedTtsMinutes(planner.ttsMin) !== null
                   ? formatWholeMinutes(planner.ttsMin * 60, locale)
@@ -233,7 +241,7 @@ function buildBlocks(
                   : "normal",
             },
             {
-              label: t("wreck.gasInfo.deco.ndl"),
+              label: t("diveComputer.info.deco.ndl"),
               value: ndlText(planner?.ndlMin ?? null, locale, unavailable),
               severity:
                 planner && displayedNdlMinutes(planner.ndlMin) !== null
@@ -241,7 +249,7 @@ function buildBlocks(
                   : "normal",
             },
             {
-              label: t("wreck.gasInfo.deco.po2"),
+              label: t("diveComputer.info.deco.po2"),
               value: formatPartialPressure(po2, locale),
               severity: po2Severity(po2),
             },
@@ -259,41 +267,41 @@ function buildBlocks(
         {
           kind: "rows",
           rows: [
-            { label: t("wreck.hud.setpoint"), value: formatPartialPressure(ccr.targetPo2Bar, locale) },
+            { label: t("diveComputer.setpoint"), value: formatPartialPressure(ccr.targetPo2Bar, locale) },
             {
-              label: t("wreck.hud.loopPo2"),
+              label: t("diveComputer.loopPo2"),
               value: formatPartialPressure(ccr.actualPo2Bar, locale),
               // Legacy's page uses po2Color's bands for this row, danger
               // outside 0.16..1.6, not the HUD row's 0.18.
               severity: po2Severity(ccr.actualPo2Bar),
             },
             {
-              label: t("wreck.gasInfo.loop.mode"),
-              value: t(ccr.onBailout ? "wreck.gasInfo.loop.onBailout" : "wreck.gasInfo.loop.onLoop"),
+              label: t("diveComputer.info.loop.mode"),
+              value: t(ccr.onBailout ? "diveComputer.info.loop.onBailout" : "diveComputer.info.loop.onLoop"),
               // Legacy draws BAIL in its danger tone.
               severity: ccr.onBailout ? "danger" : "normal",
             },
             {
-              label: t("wreck.hud.oxygenCylinder"),
+              label: t("diveComputer.oxygenCylinder"),
               value: formatPressure(Math.round(ccr.oxygenCylinderPressureBar), locale),
               severity: danger.oxygenCylinder ? "danger" : "normal",
             },
             {
-              label: t("wreck.gasInfo.loop.oxygenVolume"),
+              label: t("diveComputer.info.loop.oxygenVolume"),
               value: formatVolume(ccr.oxygenCylinderVolumeL, locale),
             },
             {
-              label: t("wreck.hud.diluentCylinder"),
+              label: t("diveComputer.diluentCylinder"),
               value: formatPressure(Math.round(ccr.diluentCylinderPressureBar), locale),
               severity: danger.diluentCylinder ? "danger" : "normal",
             },
             {
-              label: t("wreck.gasInfo.loop.diluentVolume"),
+              label: t("diveComputer.info.loop.diluentVolume"),
               value: formatVolume(ccr.diluentCylinderVolumeL, locale),
             },
-            { label: t("wreck.gasInfo.loop.diluentMix"), value: mixText(ccr.diluent, locale) },
+            { label: t("diveComputer.info.loop.diluentMix"), value: mixText(ccr.diluent, locale) },
             {
-              label: t("wreck.hud.scrubber"),
+              label: t("diveComputer.scrubber"),
               value: formatWholeMinutes(ccr.scrubberRemainingS, locale),
               severity: scrubberSeverity(Math.round(ccr.scrubberRemainingS / 60)),
             },
@@ -305,24 +313,24 @@ function buildBlocks(
 }
 
 function cylinderBlock(tank: PresentationTank, locale: SupportedLocale): Block {
-  const t = (key: MessageKey) => translate(locale, key);
+  const t = diveComputerText;
   const pressureBar = Math.round(tank.pressureBar);
   return {
     kind: "rows",
-    title: t("wreck.gasInfo.cylinder.title").replace("{n}", String(tank.index + 1)),
+    title: t("diveComputer.info.cylinder.title").replace("{n}", String(tank.index + 1)),
     active: tank.active,
     rows: [
-      { label: t("wreck.gasInfo.cylinder.mix"), value: mixText(tank.gas, locale) },
+      { label: t("diveComputer.info.cylinder.mix"), value: mixText(tank.gas, locale) },
       {
-        label: t("wreck.gasInfo.cylinder.pressure"),
+        label: t("diveComputer.info.cylinder.pressure"),
         value: formatPressure(pressureBar, locale),
         severity: cylinderSeverity(pressureBar),
       },
       {
-        label: t("wreck.gasInfo.cylinder.mod"),
+        label: t("diveComputer.info.cylinder.mod"),
         value:
           tank.modM === null
-            ? t("wreck.value.unavailable")
+            ? translate(locale, "wreck.value.unavailable")
             : formatDepth(tank.modM, locale),
       },
     ],
@@ -366,11 +374,10 @@ function appendValue(
   }
   const word = document.createElement("span");
   word.className = "visually-hidden";
-  word.textContent = translate(
-    locale,
+  word.textContent = diveComputerText(
     severity === "warning"
-      ? "wreck.gasInfo.severity.warning"
-      : "wreck.gasInfo.severity.caution",
+      ? "diveComputer.info.severity.warning"
+      : "diveComputer.info.severity.caution",
   );
   target.append(document.createTextNode(text), word);
 }
@@ -379,7 +386,7 @@ function mixText(
   gas: { readonly oxygenFraction: number; readonly heliumFraction: number },
   locale: SupportedLocale,
 ): string {
-  return translate(locale, "wreck.gasInfo.cylinder.mixValue")
+  return diveComputerText("diveComputer.info.cylinder.mixValue")
     .replace("{o2}", formatGasFraction(gas.oxygenFraction, locale))
     .replace("{he}", formatGasFraction(gas.heliumFraction, locale));
 }
@@ -429,7 +436,7 @@ function renderBlock(block: Block, locale: SupportedLocale): HTMLElement {
     const title = document.createElement("h3");
     title.className = "gas-info-block-title";
     title.textContent = block.active
-      ? `${block.title} · ${translate(locale, "wreck.gasInfo.cylinder.active")}`
+      ? `${block.title} · ${diveComputerText("diveComputer.info.cylinder.active")}`
       : block.title;
     wrapper.append(title);
   }

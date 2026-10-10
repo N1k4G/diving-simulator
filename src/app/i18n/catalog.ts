@@ -92,56 +92,14 @@ const englishMessages = {
   "wreck.safety.methodology":
     "The preview runs a deterministic Bühlmann ZHL-16C simulation for software testing. Visual movement and route position are provisional and are not inputs to a certified dive computer.",
   "wreck.safety.accept": "I understand — start simulation",
-  "wreck.hud.depth": "Depth",
-  "wreck.hud.time": "Dive time",
-  "wreck.hud.gas": "Gas",
-  "wreck.hud.cylinder": "Cylinder",
-  "wreck.hud.cylinder.value": "{n} · {gas} O₂",
-  "wreck.hud.cylinder.loop": "Rebreather loop",
-  "wreck.hud.cylinder.bailout": "Bailout · diluent cylinder",
-  "wreck.hud.setpoint": "Setpoint",
-  "wreck.hud.loopPo2": "Loop PO₂",
-  "wreck.hud.oxygenCylinder": "O₂ cylinder",
-  "wreck.hud.diluentCylinder": "Diluent",
-  "wreck.hud.scrubber": "Scrubber",
   "wreck.hud.fastForward": "Fast-forward ×10",
-  "wreck.hud.ndl": "No-decompression time",
   "wreck.hud.zone": "Location",
   "wreck.tanks.heading": "Cylinders",
   "wreck.tanks.select": "Cylinder {n}: {gas} oxygen, {pressure}",
   "wreck.hud.normal": "Simulation running",
-  "wreck.hud.warning.lowGas": "Low gas",
-  "wreck.hud.warning.oxygen": "Oxygen warning",
-  "wreck.hud.warning.failure": "Dive failure",
-  "wreck.hud.warning.scrubberLow": "Scrubber low",
-  "wreck.hud.warning.co2": "CO₂ buildup",
-  "wreck.hud.ascentRate": "Ascent rate",
-  "wreck.hud.ascentRate.up": "↑ {rate}",
-  "wreck.hud.ascentRate.down": "↓ {rate}",
-  "wreck.hud.safetyStop": "Safety stop",
-  "wreck.hud.safetyStop.planned": "{depth} · {duration}",
-  "wreck.hud.safetyStop.running": "{depth} · {duration} left",
-  "wreck.hud.safetyStop.paused": "{depth} · {duration} left · paused",
-  // Legacy's stop box once the stop is done: "SAFETY STOP / Complete".
-  "wreck.hud.safetyStop.complete": "Complete",
-  // Legacy's stop box while there is a ceiling: "DECO STOP", then the first
-  // stop's depth and minutes.
-  "wreck.hud.decoStop": "Deco stop",
-  "wreck.hud.decoStop.value": "{depth} · {duration}",
-  "wreck.hud.thirds": "Rule of thirds",
-  "wreck.hud.thirds.outbound": "Outbound · {percent}",
-  "wreck.hud.thirds.turn": "Turn · {percent}",
-  "wreck.hud.thirds.reserve": "Reserve · {percent}",
-  "wreck.warning.fastAscent": "Ascending too fast — slow down",
-  "wreck.hud.warning.fastAscent": "Fast ascent",
   "wreck.zone.exterior": "Wreck exterior",
   "wreck.zone.cargo-hold": "Cargo hold",
   "wreck.zone.engine-room": "Engine room",
-  "wreck.warning.lowGas": "Low gas pressure — begin a controlled exit",
-  "wreck.warning.oxygen": "Unsafe simulated oxygen pressure",
-  "wreck.warning.failure": "Simulated dive failure — return to the surface",
-  "wreck.warning.scrubberLow": "Scrubber nearly spent — end the dive",
-  "wreck.warning.co2": "Scrubber failed — simulated CO₂ buildup, bail out",
   "wreck.controls.heading": "Dive controls",
   "wreck.controls.ccr.heading": "Rebreather controls",
   "wreck.controls.setpoint.decrease": "Lower the setpoint",
@@ -168,36 +126,6 @@ const englishMessages = {
   "wreck.error.retry": "Reload and try again",
   "wreck.gasInfo.open": "Gas information",
   "wreck.symbol.gasInfo": "i",
-  "wreck.gasInfo.heading": "Gas information",
-  "wreck.gasInfo.page.cylinders": "Cylinders {from}–{to}",
-  "wreck.gasInfo.page.tissues": "Tissue saturation",
-  "wreck.gasInfo.page.deco": "Decompression",
-  "wreck.gasInfo.page.loop": "Rebreather",
-  "wreck.gasInfo.cylinder.title": "Cylinder {n}",
-  "wreck.gasInfo.cylinder.active": "Breathing",
-  "wreck.gasInfo.cylinder.mix": "Mix",
-  "wreck.gasInfo.cylinder.mixValue": "{o2} O₂ · {he} He",
-  "wreck.gasInfo.cylinder.pressure": "Pressure",
-  "wreck.gasInfo.cylinder.mod": "Max. operating depth",
-  "wreck.gasInfo.tissues.compartment": "Compartment {n}: {ratio} of its M-value",
-  "wreck.gasInfo.tissues.caption": "Each bar is a compartment's loading as a share of its M-value at the current depth.",
-  "wreck.gasInfo.deco.gf99": "GF99",
-  "wreck.gasInfo.deco.surfaceGf": "Surface GF",
-  "wreck.gasInfo.deco.cns": "CNS",
-  "wreck.gasInfo.deco.ceiling": "Ceiling",
-  "wreck.gasInfo.deco.gfLow": "GF low",
-  "wreck.gasInfo.deco.gfHigh": "GF high",
-  "wreck.gasInfo.deco.tts": "Time to surface",
-  "wreck.gasInfo.deco.ndl": "No-decompression time",
-  "wreck.gasInfo.deco.po2": "PO₂",
-  "wreck.gasInfo.loop.mode": "Mode",
-  "wreck.gasInfo.loop.onLoop": "Loop",
-  "wreck.gasInfo.loop.onBailout": "Bailout",
-  "wreck.gasInfo.loop.diluentMix": "Diluent mix",
-  "wreck.gasInfo.loop.oxygenVolume": "O₂ cylinder size",
-  "wreck.gasInfo.loop.diluentVolume": "Diluent cylinder size",
-  "wreck.gasInfo.severity.caution": "(caution)",
-  "wreck.gasInfo.severity.warning": "(warning)",
   "gameOver.eyebrow": "— Dive terminated —",
   "gameOver.heading": "Game over",
   "gameOver.reason.outOfGas": "Out of gas",
@@ -419,55 +347,14 @@ const catalog: Record<SupportedLocale, Record<MessageKey, string>> = {
     "wreck.safety.methodology":
       "Die Vorschau nutzt eine deterministische Bühlmann-ZHL-16C-Simulation für Softwaretests. Visuelle Bewegung und Routenposition sind vorläufig und keine Eingaben für einen zertifizierten Tauchcomputer.",
     "wreck.safety.accept": "Verstanden — Simulation starten",
-    "wreck.hud.depth": "Tiefe",
-    "wreck.hud.time": "Tauchzeit",
-    "wreck.hud.gas": "Gas",
-    "wreck.hud.cylinder": "Flasche",
-    "wreck.hud.cylinder.value": "{n} · {gas} O₂",
-    "wreck.hud.cylinder.loop": "Kreislauf",
-    "wreck.hud.cylinder.bailout": "Bailout · Diluentflasche",
-    "wreck.hud.setpoint": "Setpoint",
-    "wreck.hud.loopPo2": "Loop-PO₂",
-    "wreck.hud.oxygenCylinder": "O₂-Flasche",
-    "wreck.hud.diluentCylinder": "Diluent",
-    "wreck.hud.scrubber": "Scrubber",
     "wreck.hud.fastForward": "Vorspulen ×10",
-    "wreck.hud.ndl": "Nullzeit",
     "wreck.hud.zone": "Ort",
     "wreck.tanks.heading": "Flaschen",
     "wreck.tanks.select": "Flasche {n}: {gas} Sauerstoff, {pressure}",
     "wreck.hud.normal": "Simulation läuft",
-    "wreck.hud.warning.lowGas": "Niedriger Gasdruck",
-    "wreck.hud.warning.oxygen": "Sauerstoffwarnung",
-    "wreck.hud.warning.failure": "Tauchausfall",
-    "wreck.hud.warning.scrubberLow": "Scrubber fast erschöpft",
-    "wreck.hud.warning.co2": "CO₂-Anstieg",
-    "wreck.hud.ascentRate": "Aufstiegsrate",
-    "wreck.hud.ascentRate.up": "↑ {rate}",
-    "wreck.hud.ascentRate.down": "↓ {rate}",
-    "wreck.hud.safetyStop": "Sicherheitsstopp",
-    "wreck.hud.safetyStop.planned": "{depth} · {duration}",
-    "wreck.hud.safetyStop.running": "{depth} · noch {duration}",
-    "wreck.hud.safetyStop.paused": "{depth} · noch {duration} · pausiert",
-    // Legacy's stop box draws its English "Complete" in both languages; its
-    // German debrief says "Sicherheitsstopp absolviert" (gradeNotes.safetyDone).
-    "wreck.hud.safetyStop.complete": "Absolviert",
-    "wreck.hud.decoStop": "Dekompressionsstopp",
-    "wreck.hud.decoStop.value": "{depth} · {duration}",
-    "wreck.hud.thirds": "Drittelregel",
-    "wreck.hud.thirds.outbound": "Hinweg · {percent}",
-    "wreck.hud.thirds.turn": "Umkehren · {percent}",
-    "wreck.hud.thirds.reserve": "Reserve · {percent}",
-    "wreck.warning.fastAscent": "Zu schneller Aufstieg — langsamer",
-    "wreck.hud.warning.fastAscent": "Schneller Aufstieg",
     "wreck.zone.exterior": "Wrackaußenseite",
     "wreck.zone.cargo-hold": "Laderaum",
     "wreck.zone.engine-room": "Maschinenraum",
-    "wreck.warning.lowGas": "Niedriger Gasdruck — kontrollierten Rückweg beginnen",
-    "wreck.warning.oxygen": "Unsicherer simulierter Sauerstoffpartialdruck",
-    "wreck.warning.failure": "Simulierter Tauchausfall — zur Oberfläche zurückkehren",
-    "wreck.warning.scrubberLow": "Scrubber fast erschöpft — Tauchgang beenden",
-    "wreck.warning.co2": "Scrubber ausgefallen — simulierter CO₂-Anstieg, Bailout",
     "wreck.controls.heading": "Tauchsteuerung",
     "wreck.controls.ccr.heading": "Kreislaufgerät-Steuerung",
     "wreck.controls.setpoint.decrease": "Setpoint verringern",
@@ -494,36 +381,6 @@ const catalog: Record<SupportedLocale, Record<MessageKey, string>> = {
     "wreck.error.retry": "Neu laden und erneut versuchen",
     "wreck.gasInfo.open": "Gasinformationen",
     "wreck.symbol.gasInfo": "i",
-    "wreck.gasInfo.heading": "Gasinformationen",
-    "wreck.gasInfo.page.cylinders": "Flaschen {from}–{to}",
-    "wreck.gasInfo.page.tissues": "Gewebesättigung",
-    "wreck.gasInfo.page.deco": "Dekompression",
-    "wreck.gasInfo.page.loop": "Kreislaufgerät",
-    "wreck.gasInfo.cylinder.title": "Flasche {n}",
-    "wreck.gasInfo.cylinder.active": "In Atmung",
-    "wreck.gasInfo.cylinder.mix": "Gemisch",
-    "wreck.gasInfo.cylinder.mixValue": "{o2} O₂ · {he} He",
-    "wreck.gasInfo.cylinder.pressure": "Druck",
-    "wreck.gasInfo.cylinder.mod": "Max. Einsatztiefe",
-    "wreck.gasInfo.tissues.compartment": "Kompartiment {n}: {ratio} seines M-Werts",
-    "wreck.gasInfo.tissues.caption": "Jeder Balken zeigt die Sättigung eines Kompartiments als Anteil seines M-Werts in der aktuellen Tiefe.",
-    "wreck.gasInfo.deco.gf99": "GF99",
-    "wreck.gasInfo.deco.surfaceGf": "Oberflächen-GF",
-    "wreck.gasInfo.deco.cns": "ZNS",
-    "wreck.gasInfo.deco.ceiling": "Ceiling",
-    "wreck.gasInfo.deco.gfLow": "GF Low",
-    "wreck.gasInfo.deco.gfHigh": "GF High",
-    "wreck.gasInfo.deco.tts": "Zeit bis zur Oberfläche",
-    "wreck.gasInfo.deco.ndl": "Nullzeit",
-    "wreck.gasInfo.deco.po2": "PO₂",
-    "wreck.gasInfo.loop.mode": "Modus",
-    "wreck.gasInfo.loop.onLoop": "Kreislauf",
-    "wreck.gasInfo.loop.onBailout": "Bailout",
-    "wreck.gasInfo.loop.diluentMix": "Diluent-Gemisch",
-    "wreck.gasInfo.loop.oxygenVolume": "Größe O₂-Flasche",
-    "wreck.gasInfo.loop.diluentVolume": "Größe Diluentflasche",
-    "wreck.gasInfo.severity.caution": "(Vorsicht)",
-    "wreck.gasInfo.severity.warning": "(Warnung)",
     "gameOver.eyebrow": "— Tauchgang beendet —",
     "gameOver.heading": "Spiel vorbei",
     "gameOver.reason.outOfGas": "Kein Gas mehr",
@@ -656,6 +513,119 @@ const catalog: Record<SupportedLocale, Record<MessageKey, string>> = {
 
 export function translate(locale: SupportedLocale, key: MessageKey): string {
   return catalog[locale][key] ?? englishMessages[key];
+}
+
+// The dive computer's own words (#232, owner decision 2026-10-07): a dive
+// computer is a device with one display language, and this one reads English
+// in every locale, its warnings included, as legacy draws its dive computer
+// (src/renderer.js drawDiveComputer) in English in both languages. A
+// deliberate exception to the German release-blocking locale, recorded in
+// docs/decisions.md.
+//
+// One namespace with no locale, rather than German entries that repeat the
+// English: there is one copy of each string, `translate` cannot reach these
+// keys and `diveComputerText` takes no locale, so a translation cannot creep
+// back in by accident. The readings are formatted in DIVE_COMPUTER_LOCALE as
+// well, so "1 min, 40 sec left" never becomes "1 Min., 40 Sek. left", and
+// the elements that show them carry lang="en", so a German screen reader
+// speaks the English it shows.
+//
+// Not the dive computer, and so still localised: the SIMULATION boundary and
+// the safety gate, the setup, post-dive and game-over screens, the controls
+// and their accessible names (the gas-information button among them), the
+// surface prompt, the location row, the fast-forward chip and the status
+// chip's "Simulation running".
+export const DIVE_COMPUTER_LOCALE: SupportedLocale = "en";
+
+const diveComputerMessages = {
+  // The HUD readouts. Legacy: DEPTH, TIME, NDL, the gas box (Gas, the
+  // cylinder; SP, PO2, O2, DIL, SCR on a rebreather) and the ascent chevrons.
+  "diveComputer.depth": "Depth",
+  "diveComputer.time": "Dive time",
+  "diveComputer.gas": "Gas",
+  "diveComputer.cylinder": "Cylinder",
+  "diveComputer.cylinder.value": "{n} · {gas} O₂",
+  "diveComputer.cylinder.loop": "Rebreather loop",
+  "diveComputer.cylinder.bailout": "Bailout · diluent cylinder",
+  "diveComputer.setpoint": "Setpoint",
+  "diveComputer.loopPo2": "Loop PO₂",
+  "diveComputer.oxygenCylinder": "O₂ cylinder",
+  "diveComputer.diluentCylinder": "Diluent",
+  "diveComputer.scrubber": "Scrubber",
+  "diveComputer.ndl": "No-decompression time",
+  "diveComputer.ascentRate": "Ascent rate",
+  "diveComputer.ascentRate.up": "↑ {rate}",
+  "diveComputer.ascentRate.down": "↓ {rate}",
+  // Legacy's stop box: "SAFETY STOP", its depth and countdown, then
+  // "Complete"; while there is a ceiling "DECO STOP", then the first stop's
+  // depth and minutes.
+  "diveComputer.safetyStop": "Safety stop",
+  "diveComputer.safetyStop.planned": "{depth} · {duration}",
+  "diveComputer.safetyStop.running": "{depth} · {duration} left",
+  "diveComputer.safetyStop.paused": "{depth} · {duration} left · paused",
+  "diveComputer.safetyStop.complete": "Complete",
+  "diveComputer.decoStop": "Deco stop",
+  "diveComputer.decoStop.value": "{depth} · {duration}",
+  // Legacy's hud-thirds gauge.
+  "diveComputer.thirds": "Rule of thirds",
+  "diveComputer.thirds.outbound": "Outbound · {percent}",
+  "diveComputer.thirds.turn": "Turn · {percent}",
+  "diveComputer.thirds.reserve": "Reserve · {percent}",
+  // The warnings: the full sentence for the role=alert region, and the
+  // status chip's short form. Legacy's banner draws S('warnSlow') and the
+  // like, translated; the owner wants them English too.
+  "diveComputer.alert.lowGas": "Low gas pressure — begin a controlled exit",
+  "diveComputer.alert.scrubberLow": "Scrubber nearly spent — end the dive",
+  "diveComputer.alert.oxygen": "Unsafe simulated oxygen pressure",
+  "diveComputer.alert.fastAscent": "Ascending too fast — slow down",
+  "diveComputer.alert.co2": "Scrubber failed — simulated CO₂ buildup, bail out",
+  "diveComputer.alert.failure": "Simulated dive failure — return to the surface",
+  "diveComputer.status.lowGas": "Low gas",
+  "diveComputer.status.scrubberLow": "Scrubber low",
+  "diveComputer.status.oxygen": "Oxygen warning",
+  "diveComputer.status.fastAscent": "Fast ascent",
+  "diveComputer.status.co2": "CO₂ buildup",
+  "diveComputer.status.failure": "Dive failure",
+  // The gas-information pages, which legacy draws on the dive computer in
+  // English (infoPageMode 1-5: T1, MOD, ACTIVE, TISSUES, GF99, SrfGF, CNS,
+  // CEIL, GF Lo, GF Hi, TTS, NDL, PO2, MODE, O2 P, DIL V, MIX).
+  "diveComputer.info.heading": "Gas information",
+  "diveComputer.info.page.cylinders": "Cylinders {from}–{to}",
+  "diveComputer.info.page.tissues": "Tissue saturation",
+  "diveComputer.info.page.deco": "Decompression",
+  "diveComputer.info.page.loop": "Rebreather",
+  "diveComputer.info.cylinder.title": "Cylinder {n}",
+  "diveComputer.info.cylinder.active": "Breathing",
+  "diveComputer.info.cylinder.mix": "Mix",
+  "diveComputer.info.cylinder.mixValue": "{o2} O₂ · {he} He",
+  "diveComputer.info.cylinder.pressure": "Pressure",
+  "diveComputer.info.cylinder.mod": "Max. operating depth",
+  "diveComputer.info.tissues.compartment": "Compartment {n}: {ratio} of its M-value",
+  "diveComputer.info.tissues.caption": "Each bar is a compartment's loading as a share of its M-value at the current depth.",
+  "diveComputer.info.deco.gf99": "GF99",
+  "diveComputer.info.deco.surfaceGf": "Surface GF",
+  "diveComputer.info.deco.cns": "CNS",
+  "diveComputer.info.deco.ceiling": "Ceiling",
+  "diveComputer.info.deco.gfLow": "GF low",
+  "diveComputer.info.deco.gfHigh": "GF high",
+  "diveComputer.info.deco.tts": "Time to surface",
+  "diveComputer.info.deco.ndl": "No-decompression time",
+  "diveComputer.info.deco.po2": "PO₂",
+  "diveComputer.info.loop.mode": "Mode",
+  "diveComputer.info.loop.onLoop": "Loop",
+  "diveComputer.info.loop.onBailout": "Bailout",
+  "diveComputer.info.loop.diluentMix": "Diluent mix",
+  "diveComputer.info.loop.oxygenVolume": "O₂ cylinder size",
+  "diveComputer.info.loop.diluentVolume": "Diluent cylinder size",
+  "diveComputer.info.severity.caution": "(caution)",
+  "diveComputer.info.severity.warning": "(warning)",
+} as const;
+
+export type DiveComputerKey = keyof typeof diveComputerMessages;
+
+/** A dive-computer string: the same English in every locale (#232). */
+export function diveComputerText(key: DiveComputerKey): string {
+  return diveComputerMessages[key];
 }
 
 export function resolveSupportedLocale(

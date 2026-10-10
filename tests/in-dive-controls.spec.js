@@ -1395,9 +1395,17 @@ test.describe('gas information', () => {
           await p.locator('.setup-screen').waitFor();
         });
         await expect(page.locator('.controls-hint')).toContainText('BCD');
-        for (let step = 0; step < 4; step += 1) {
+        // The pages are the dive computer's and read English, as the HUD
+        // beside them does (#232); the button that opens them is a control
+        // and keeps its German name.
+        await expect(gasInfoToggle(page)).toHaveAccessibleName('Gasinformationen');
+        await expect(gasInfoPanel(page)).toHaveAttribute('lang', 'en');
+        await expect(hudRow(page, 'ndl').locator('dt')).toHaveText('No-decompression time');
+        const titles = ['Cylinders 1–3', 'Cylinders 4–6', 'Tissue saturation', 'Decompression'];
+        for (const title of titles) {
           await gasInfoToggle(page).click();
           await expect(gasInfoPanel(page)).toBeVisible();
+          await expect(gasInfoHeading(page)).toHaveText(`Gas information · ${title}`);
           await expectHudClearOfControls(page);
         }
       });
