@@ -31,8 +31,8 @@
     {
       "id": "SAFETY-STOP-001",
       "classification": "decompression and prevention advice",
-      "source": ["STRINGS.*.safetyExpl", "STRINGS.*.helpSafety", "STRINGS.*.hintSafetyStop", "STRINGS.*.gradeNotes.safety*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.safety*", "src/app/i18n/catalog.ts {en,de}: postDive.safetySkipped.*", "src/app/i18n/catalog.ts {en,de}: postDive.violation.safetyStopSkipped", "src/app/i18n/catalog.ts {en,de}: postDive.violations.none"],
-      "ui": ["post-dive", "help", "onboarding hint", "debrief", "post-dive (migration client)"],
+      "source": ["STRINGS.*.safetyExpl", "STRINGS.*.helpSafety", "STRINGS.*.hintSafetyStop", "STRINGS.*.gradeNotes.safety*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.safety*", "src/app/i18n/catalog.ts {en,de}: postDive.safetySkipped.*", "src/app/i18n/catalog.ts {en,de}: postDive.violation.safetyStopSkipped", "src/app/i18n/catalog.ts {en,de}: postDive.violations.none", "src/app/i18n/catalog.ts {en,de}: wreck.hud.safetyStop*"],
+      "ui": ["post-dive", "help", "onboarding hint", "debrief", "post-dive (migration client)", "HUD (migration client)"],
       "owner": "domain-reviewer",
       "reviewStatus": "unreviewed; absolute risk wording requires correction or support",
       "evidence": ["docs/research/adaptive-safety-stop.md", "docs/research/algorithm-realism-current-anchors.md"]
@@ -40,7 +40,7 @@
     {
       "id": "DECOMPRESSION-001",
       "classification": "model output and real-world risk advice",
-      "source": ["STRINGS.*.helpNDL", "STRINGS.*.helpDeco", "STRINGS.*.helpTTS", "STRINGS.*.hintNdl", "STRINGS.*.hintDeco", "STRINGS.*.gradeNotes.deco*", "STRINGS.*.tissueLoading", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.deco*", "src/app/i18n/catalog.ts {en,de}: postDive.violation.ceiling", "src/app/i18n/catalog.ts {en,de}: postDive.violations.none", "src/app/i18n/catalog.ts {en,de}: postDive.profile.*", "src/app/i18n/catalog.ts {en,de}: postDive.tissues*", "src/app/i18n/catalog.ts {en,de}: wreck.hud.ndl", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.deco.*", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.tissues.caption", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.tissues.compartment", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.severity.*"],
+      "source": ["STRINGS.*.helpNDL", "STRINGS.*.helpDeco", "STRINGS.*.helpTTS", "STRINGS.*.hintNdl", "STRINGS.*.hintDeco", "STRINGS.*.gradeNotes.deco*", "STRINGS.*.tissueLoading", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.deco*", "src/app/i18n/catalog.ts {en,de}: postDive.violation.ceiling", "src/app/i18n/catalog.ts {en,de}: postDive.violations.none", "src/app/i18n/catalog.ts {en,de}: postDive.profile.*", "src/app/i18n/catalog.ts {en,de}: postDive.tissues*", "src/app/i18n/catalog.ts {en,de}: wreck.hud.ndl", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.deco.*", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.tissues.caption", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.tissues.compartment", "src/app/i18n/catalog.ts {en,de}: wreck.gasInfo.severity.*", "src/app/i18n/catalog.ts {en,de}: wreck.hud.decoStop*"],
       "ui": ["help", "HUD", "onboarding hint", "debrief", "HUD (migration client)", "gas information (migration client)", "post-dive (migration client)"],
       "owner": "model",
       "reviewStatus": "algorithm audit exists but source anchors are stale",
@@ -49,8 +49,8 @@
     {
       "id": "GAS-001",
       "classification": "gas planning and consumption advice",
-      "source": ["STRINGS.*.helpGTR", "STRINGS.*.helpAMV", "STRINGS.*.helpBest", "STRINGS.*.helpTank", "STRINGS.*.gradeNotes.gas*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.gas*", "src/app/i18n/catalog.ts {en,de}: postDive.gas.*", "src/app/i18n/catalog.ts {en,de}: wreck.warning.lowGas", "src/app/i18n/catalog.ts {en,de}: wreck.hud.warning.lowGas"],
-      "ui": ["help", "HUD", "debrief", "HUD warning (migration client)", "post-dive (migration client)"],
+      "source": ["STRINGS.*.helpGTR", "STRINGS.*.helpAMV", "STRINGS.*.helpBest", "STRINGS.*.helpTank", "STRINGS.*.gradeNotes.gas*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.gas*", "src/app/i18n/catalog.ts {en,de}: postDive.gas.*", "src/app/i18n/catalog.ts {en,de}: wreck.warning.lowGas", "src/app/i18n/catalog.ts {en,de}: wreck.hud.warning.lowGas", "src/app/i18n/catalog.ts {en,de}: wreck.hud.thirds*"],
+      "ui": ["help", "HUD", "debrief", "HUD warning (migration client)", "post-dive (migration client)", "HUD (migration client)"],
       "owner": "domain-reviewer",
       "reviewStatus": "unreviewed",
       "evidence": ["docs/research/algorithm-realism-current-anchors.md"]
@@ -67,8 +67,8 @@
     {
       "id": "ASCENT-001",
       "classification": "ascent-rate and pulmonary injury advice",
-      "source": ["STRINGS.*.controlsText", "STRINGS.*.helpAscent", "STRINGS.*.warnSlow", "STRINGS.*.gradeNotes.ascent*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.ascent*", "src/app/i18n/catalog.ts {en,de}: postDive.violation.fastAscent", "src/app/i18n/catalog.ts {en,de}: postDive.violations.none", "STRINGS.*.gameOverInfo.PULMONARY BAROTRAUMA — PNEUMOTHORAX", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.pulmonaryBarotrauma", "src/app/i18n/catalog.ts {en,de}: gameOver.info.pulmonaryBarotrauma.*"],
-      "ui": ["help", "HUD warning", "debrief", "game over", "game over (migration client)", "post-dive (migration client)"],
+      "source": ["STRINGS.*.controlsText", "STRINGS.*.helpAscent", "STRINGS.*.warnSlow", "STRINGS.*.gradeNotes.ascent*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.ascent*", "src/app/i18n/catalog.ts {en,de}: postDive.violation.fastAscent", "src/app/i18n/catalog.ts {en,de}: postDive.violations.none", "STRINGS.*.gameOverInfo.PULMONARY BAROTRAUMA — PNEUMOTHORAX", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.pulmonaryBarotrauma", "src/app/i18n/catalog.ts {en,de}: gameOver.info.pulmonaryBarotrauma.*", "src/app/i18n/catalog.ts {en,de}: wreck.warning.fastAscent", "src/app/i18n/catalog.ts {en,de}: wreck.hud.warning.fastAscent", "src/app/i18n/catalog.ts {en,de}: wreck.hud.ascentRate*"],
+      "ui": ["help", "HUD warning", "debrief", "game over", "game over (migration client)", "post-dive (migration client)", "HUD warning (migration client)", "HUD (migration client)"],
       "owner": "domain-reviewer",
       "reviewStatus": "unreviewed",
       "evidence": ["docs/research/buoyancy-bcd-physics.md"]

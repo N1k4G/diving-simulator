@@ -24,9 +24,13 @@ import {
   type PlannerForecast,
   type PlannerSettings,
 } from "../planner/dive-planner";
-import { ForecastScheduler } from "../planner/forecast-scheduler";
+import {
+  DEFAULT_FORECAST_INTERVAL_SECONDS,
+  ForecastScheduler,
+} from "../planner/forecast-scheduler";
 import {
   createPresentationState,
+  type PlannerForecastFreshness,
   type PresentationState,
 } from "../presentation/presentation-state";
 import type { SceneRenderer, WreckSceneState } from "../render/renderer";
@@ -55,6 +59,37 @@ const TIME_ACCELERATION = 3;
  * legacy's `timeMultiplier = TIME_ACCELERATION * FAST_FORWARD_MULTIPLIER`.
  */
 const FAST_FORWARD_MULTIPLIER = 10;
+/**
+ * Real seconds a forecast may take to be replaced beyond the scheduler's
+ * interval before its stop is no longer shown as current (#226 Codex round
+ * 2, pre-review pass 5).
+ *
+ * A request goes out on the first frame once the scheduler's 2 dive-s
+ * interval has passed and no request is in flight, so the next one waits
+ * for the previous answer:
+ *
+ * - At x3 the interval is 0.67 s of real time, longer than the worker
+ *   takes. The forecast on screen is replaced at a real age of
+ *   interval / rate + one frame + the worker's time, so half a second covers
+ *   a capped frame (MAX_FRAME_SECONDS) and 0.4 s of worker time.
+ * - At x30 the interval is 67 ms, shorter than a round trip, so the next
+ *   request leaves only once the previous answer has landed. The forecast
+ *   on screen is replaced at a real age of about two answers and a frame:
+ *   half a second covers about 0.2 s of worker time per answer with a
+ *   capped frame. The worker takes 12 to 24 ms on a desktop.
+ *
+ * A forecast is current for at most interval / (the slower of the rate it
+ * was asked at and the rate now) + this budget of real time after it was
+ * asked for: 0.57 s while fast-forwarding at x30 throughout, 1.17 s once
+ * either rate is x3. The slower rate, because once fast-forward ends the
+ * next request is due only after the interval at x3, 0.67 s of real time;
+ * a x30 forecast's 0.57 s would expire before it, and blank the stop's
+ * numbers for a moment with the worker answering promptly (pre-review pass
+ * 6). A dropped or slow answer still expires them within 1.17 s, where the
+ * dive-time budget alone kept a x30 forecast for 5.7 s once fast-forward
+ * had ended.
+ */
+export const FORECAST_LATENCY_BUDGET_REAL_S = 0.5;
 
 export type ContinuousControl = "ascend" | "descend" | "left" | "right";
 
@@ -107,6 +142,18 @@ export class GameController {
   readonly #model: DiveModel;
 
   #planner: PlannerForecast | null = null;
+  /**
+   * The state the forecast on screen was computed from, the clock rate it
+   * was requested at, and the controller's real time then (#226 Codex
+   * round 2): the stop box shows the forecast's stop only while it still
+   * describes the dive.
+   */
+  #plannerSource: {
+    readonly elapsedTimeS: number;
+    readonly depthM: number;
+    readonly timeMultiplier: number;
+    readonly elapsedRealS: number;
+  } | null = null;
   #plannerPending = false;
   /**
    * A forced refresh arrived while a request was in flight (#163 review
@@ -362,10 +409,7 @@ export class GameController {
     // controls once per frame and moves the diver in its sub-steps, so the
     // frame boundaries are part of the behaviour (docs/decisions.md,
     // Architecture). The frame's dive time is legacy's dtReal * timeMultiplier.
-    const frameDiveS =
-      elapsedS *
-      TIME_ACCELERATION *
-      (this.#fastForwardActive ? FAST_FORWARD_MULTIPLIER : 1);
+    const frameDiveS = elapsedS * this.#timeMultiplier();
     if (frameDiveS > 0 && !this.#awaitingDescent) {
       // The bounds where the diver is (#199): the surface outside the wreck,
       // the deck inside it. Under the deck is legacy's inOverhead, which
@@ -473,10 +517,52 @@ export class GameController {
     };
   }
 
+  /** Legacy's timeMultiplier: dive seconds per real second. */
+  #timeMultiplier(): number {
+    return (
+      TIME_ACCELERATION *
+      (this.#fastForwardActive ? FAST_FORWARD_MULTIPLIER : 1)
+    );
+  }
+
+  /**
+   * How far the forecast on screen may lag the dive (#226 Codex round 2):
+   *
+   * - in dive time, the scheduler's interval plus the latency budget at the
+   *   faster of the clock rates the forecast was asked at and runs at now,
+   *   so that turning fast-forward on does not by itself expire a forecast
+   *   that is keeping up;
+   * - in real time, the interval at the slower of the rate it was asked at
+   *   and the rate now, plus the latency budget (pre-review passes 5 and
+   *   6), so that a forecast asked at x30 does not keep its 17 dive-s budget
+   *   for 5.7 s of real time once fast-forward has ended, nor expire before
+   *   the next request at x3 is even due.
+   */
+  #plannerFreshness(): PlannerForecastFreshness | null {
+    const source = this.#plannerSource;
+    if (this.#planner === null || source === null) {
+      return null;
+    }
+    return {
+      sourceElapsedTimeS: source.elapsedTimeS,
+      sourceDepthM: source.depthM,
+      maxAgeS:
+        DEFAULT_FORECAST_INTERVAL_SECONDS +
+        FORECAST_LATENCY_BUDGET_REAL_S *
+          Math.max(source.timeMultiplier, this.#timeMultiplier()),
+      realAgeS: this.#elapsedRealS - source.elapsedRealS,
+      maxRealAgeS:
+        DEFAULT_FORECAST_INTERVAL_SECONDS /
+          Math.min(source.timeMultiplier, this.#timeMultiplier()) +
+        FORECAST_LATENCY_BUDGET_REAL_S,
+    };
+  }
+
   #publishFrame(): void {
     const presentation = createPresentationState(
       this.#model.snapshot,
       this.#planner,
+      this.#plannerFreshness(),
     );
     const depthM = this.#model.snapshot.depthM;
     const scene: WreckSceneState = Object.freeze({
@@ -517,6 +603,7 @@ export class GameController {
    */
   #invalidateForecast(): void {
     this.#planner = null;
+    this.#plannerSource = null;
     this.#requestForecast(true);
   }
 
@@ -540,6 +627,12 @@ export class GameController {
     }
 
     this.#plannerPending = true;
+    const source = {
+      elapsedTimeS: snapshot.elapsedTimeS,
+      depthM: snapshot.depthM,
+      timeMultiplier: this.#timeMultiplier(),
+      elapsedRealS: this.#elapsedRealS,
+    };
     void this.#plannerClient
       .forecast(snapshot, {
         ...this.#plannerSettings,
@@ -556,6 +649,7 @@ export class GameController {
         // lands.
         if (!this.#disposed && !this.#forcedForecastQueued) {
           this.#planner = forecast;
+          this.#plannerSource = source;
           this.#publishFrame();
         }
       })

@@ -1,4 +1,9 @@
-import type { PresentationState } from "../presentation/presentation-state";
+import type {
+  PresentationSafetyStop,
+  PresentationState,
+  RuleOfThirdsPhase,
+} from "../presentation/presentation-state";
+import { FAST_ASCENT_RATE_MPM } from "../core/dive-model";
 import { WebAudioService } from "../audio/audio-service";
 import type { DiveState } from "../core/dive-state";
 import { LocalSaveRepository } from "../save/save-repository";
@@ -21,7 +26,9 @@ import {
   formatDuration,
   formatGasFraction,
   formatPartialPressure,
+  formatPercent,
   formatPressure,
+  formatVerticalRate,
   formatWholeMinutes,
 } from "./i18n/formatters";
 import { CCR_SETPOINT_STEP_BAR } from "../core/dive-state";
@@ -37,6 +44,7 @@ import { renderGameOverScreen } from "./game-over";
 import { renderPostDiveScreen } from "./post-dive";
 import { createPostDiveSummary } from "../presentation/post-dive-summary";
 import { siteGameplay } from "../sites/site-resources";
+import { isTurnBeepDue } from "./thirds-turn-beep";
 
 /** src/game-loop.js SAVE_INTERVAL_MS: an autosave at most every 3 real seconds. */
 const SAVE_INTERVAL_MS = 3000;
@@ -74,6 +82,9 @@ interface HudElements {
   readonly diluentCylinder: HTMLElement;
   readonly scrubber: HTMLElement;
   readonly ndl: HTMLElement;
+  readonly ascentRate: HTMLElement;
+  readonly safetyStop: HTMLElement;
+  readonly thirds: HTMLElement;
   readonly zone: HTMLElement;
   readonly status: HTMLElement;
   readonly speed: HTMLElement;
@@ -105,6 +116,7 @@ type WarningSeverity =
   | "lowGas"
   | "scrubberLow"
   | "oxygen"
+  | "fastAscent"
   | "co2"
   | "failure";
 
@@ -113,6 +125,7 @@ const warningAlertKeys: Record<WarningSeverity, MessageKey> = {
   lowGas: "wreck.warning.lowGas",
   scrubberLow: "wreck.warning.scrubberLow",
   oxygen: "wreck.warning.oxygen",
+  fastAscent: "wreck.warning.fastAscent",
   co2: "wreck.warning.co2",
   failure: "wreck.warning.failure",
 };
@@ -123,8 +136,22 @@ const warningStatusKeys: Record<WarningSeverity, MessageKey> = {
   lowGas: "wreck.hud.warning.lowGas",
   scrubberLow: "wreck.hud.warning.scrubberLow",
   oxygen: "wreck.hud.warning.oxygen",
+  fastAscent: "wreck.hud.warning.fastAscent",
   co2: "wreck.hud.warning.co2",
   failure: "wreck.hud.warning.failure",
+};
+
+const thirdsPhaseKeys: Record<RuleOfThirdsPhase, MessageKey> = {
+  outbound: "wreck.hud.thirds.outbound",
+  turn: "wreck.hud.thirds.turn",
+  reserve: "wreck.hud.thirds.reserve",
+};
+
+const safetyStopPhaseKeys: Record<PresentationSafetyStop["phase"], MessageKey> = {
+  planned: "wreck.hud.safetyStop.planned",
+  running: "wreck.hud.safetyStop.running",
+  paused: "wreck.hud.safetyStop.paused",
+  complete: "wreck.hud.safetyStop.complete",
 };
 
 export function renderWreckApplication(
@@ -322,6 +349,7 @@ async function startWreckSimulation(
   // (game-loop.js maybeSaveDiveState() saves only in 'diving', 'surface' and
   // 'drill'; clearSavedDive()), because an ended dive is not one to resume.
   let ended = false;
+  let thirdsTurnWarned: boolean | null = null;
   const controller = new GameController({
     renderer,
     // A restored save still wins over the setup, which is existing resume
@@ -391,6 +419,15 @@ async function startWreckSimulation(
         elapsedRealS: frame.scene.elapsedRealS,
         warningActive: selectWarning(frame.presentation) !== null,
       });
+      // Legacy's playAlertBeep() as the turn of the rule of thirds latches
+      // (src/game-loop.js, Issue #27): once, on the frame it latches. A dive
+      // resumed past its turn has latched already, so the first frame only
+      // takes the value.
+      const turnWarned = frame.presentation.ruleOfThirds?.turnWarned ?? false;
+      if (isTurnBeepDue(thirdsTurnWarned, turnWarned)) {
+        audio.play("alert.warning");
+      }
+      thirdsTurnWarned = turnWarned;
     },
   });
 
@@ -630,6 +667,14 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   hud.className = "wreck-hud";
   const unavailable = translate(locale, "wreck.value.unavailable");
   const depth = appendMetric(hud, "depth", translate(locale, "wreck.hud.depth"), unavailable);
+  // Legacy's ascent chevrons and rate beside the depth (#197), with the
+  // direction as an arrow and the number in words' place.
+  const ascentRate = appendMetric(
+    hud,
+    "ascentRate",
+    translate(locale, "wreck.hud.ascentRate"),
+    unavailable,
+  );
   const time = appendMetric(hud, "time", translate(locale, "wreck.hud.time"), unavailable);
   const gas = appendMetric(hud, "gas", translate(locale, "wreck.hud.gas"), unavailable);
   // Which cylinder is being breathed (#163). Until this row existed the only
@@ -655,6 +700,17 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     setMetricHidden(value, true);
   }
   const ndl = appendMetric(hud, "ndl", translate(locale, "wreck.hud.ndl"), unavailable);
+  // Legacy's stop box, safety-stop half, and its hud-thirds gauge (#199):
+  // shown only while there is a stop to make or a plan to keep.
+  const safetyStop = appendMetric(
+    hud,
+    "safetyStop",
+    translate(locale, "wreck.hud.safetyStop"),
+    unavailable,
+  );
+  const thirds = appendMetric(hud, "thirds", translate(locale, "wreck.hud.thirds"), unavailable);
+  setMetricHidden(safetyStop, true);
+  setMetricHidden(thirds, true);
   const zone = appendMetric(hud, "zone", translate(locale, "wreck.hud.zone"), unavailable);
 
   const warning = document.createElement("p");
@@ -795,6 +851,9 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     diluentCylinder,
     scrubber,
     ndl,
+    ascentRate,
+    safetyStop,
+    thirds,
     zone,
     status,
     speed,
@@ -837,6 +896,7 @@ function updateHud(
     locale,
     translate(locale, "wreck.value.unavailable"),
   );
+  syncDiveReadouts(hud, presentation, locale);
   hud.zone.textContent = translate(locale, zoneMessageKeys[scene.zone]);
   hud.torch.setAttribute("aria-pressed", String(scene.torchOn));
   // Legacy shows its nav pad and torch button, and reads their keys, only in
@@ -1003,6 +1063,100 @@ function writeLoopRow(
   }
 }
 
+/**
+ * The ascent rate, the safety stop and the rule of thirds (#197, #199).
+ *
+ * - The rate: legacy's chevrons point up or down past 0.5 m/min and carry
+ *   `Math.round(|ascentRate|)` beside them (src/renderer.js
+ *   drawDiveComputer); here the arrow is the chevron. Past 9 m/min up, the
+ *   row carries the ⚠ as the fast-ascent warning speaks.
+ * - The safety stop: legacy's stop box while a stop is owed and not done,
+ *   the nominal 5 m with the planned minutes, then the countdown, paused
+ *   outside the band, then Complete. While there is a ceiling the row is
+ *   legacy's DECO STOP instead, with the first stop of the schedule when
+ *   there is one.
+ * - The rule of thirds: legacy's hud-thirds, the phase and the gas left
+ *   against the plan, while under an overhead. The reserve third carries the
+ *   ⚠, as legacy draws it in its danger tone.
+ */
+function syncDiveReadouts(
+  hud: HudElements,
+  presentation: Readonly<PresentationState>,
+  locale: SupportedLocale,
+): void {
+  const rate = presentation.ascentRateMpm;
+  const rateText =
+    rate > 0.5
+      ? translate(locale, "wreck.hud.ascentRate.up").replace("{rate}", formatVerticalRate(rate, locale))
+      : rate < -0.5
+        ? translate(locale, "wreck.hud.ascentRate.down").replace("{rate}", formatVerticalRate(rate, locale))
+        : formatVerticalRate(0, locale);
+  writeLoopRow(hud.ascentRate, rateText, rate > FAST_ASCENT_RATE_MPM, locale);
+
+  // One row, legacy's stop box: the decompression stop while there is a
+  // ceiling on this tick, else the safety stop (selectDecoStop and
+  // selectSafetyStop decide which, from the model's own ceiling).
+  const deco = presentation.decoStop;
+  const stop = presentation.safetyStop;
+  const stopRow = hud.safetyStop.parentElement;
+  const stopTerm = stopRow?.querySelector("dt");
+  const stopLabel = translate(
+    locale,
+    deco !== null ? "wreck.hud.decoStop" : "wreck.hud.safetyStop",
+  );
+  if (stopTerm && stopTerm.textContent !== stopLabel) {
+    stopTerm.textContent = stopLabel;
+  }
+  setMetricHidden(hud.safetyStop, deco === null && stop === null);
+  if (deco !== null) {
+    // The title alone without a schedule, as legacy draws it.
+    const first = deco.firstStop;
+    writeLoopRow(
+      hud.safetyStop,
+      first === null
+        ? ""
+        : translate(locale, "wreck.hud.decoStop.value")
+            .replace("{depth}", formatDepth(first.depthM, locale))
+            .replace("{duration}", formatWholeMinutes(first.durationMin * 60, locale)),
+      false,
+      locale,
+    );
+    stopRow?.setAttribute("data-phase", "deco");
+  } else if (stop !== null) {
+    // Legacy floors the countdown's minutes and seconds.
+    const duration =
+      stop.phase === "complete"
+        ? ""
+        : stop.phase === "planned"
+          ? formatWholeMinutes(stop.remainingS, locale)
+          : formatDuration(Math.floor(stop.remainingS), locale);
+    writeLoopRow(
+      hud.safetyStop,
+      translate(locale, safetyStopPhaseKeys[stop.phase])
+        .replace("{depth}", formatDepth(stop.targetDepthM, locale))
+        .replace("{duration}", duration),
+      false,
+      locale,
+    );
+    hud.safetyStop.parentElement?.setAttribute("data-phase", stop.phase);
+  }
+
+  const thirds = presentation.ruleOfThirds;
+  setMetricHidden(hud.thirds, thirds === null);
+  if (thirds !== null) {
+    writeLoopRow(
+      hud.thirds,
+      translate(locale, thirdsPhaseKeys[thirds.phase]).replace(
+        "{percent}",
+        formatPercent(thirds.percent / 100, locale),
+      ),
+      thirds.phase === "reserve",
+      locale,
+    );
+    hud.thirds.parentElement?.setAttribute("data-phase", thirds.phase);
+  }
+}
+
 function bindLoopControls(
   container: HTMLElement,
   controller: GameController,
@@ -1064,6 +1218,12 @@ function selectWarning(
         presentation.breathingPo2Bar > 1.6
   ) {
     return "oxygen";
+  }
+  // Legacy's banner says SLOW DOWN past 9 m/min up, below the oxygen warning
+  // and above the gas ones (src/renderer.js), and its hasWarning beeps for it
+  // (#197).
+  if (presentation.ascentRateMpm > FAST_ASCENT_RATE_MPM) {
+    return "fastAscent";
   }
   // Low gas on a rebreather: either of its own cylinders under legacy's
   // 30 bar row threshold (#163 review round 2 on PR #182), never tanks[0],
@@ -1215,6 +1375,9 @@ type HudMetric =
   | "diluentCylinder"
   | "scrubber"
   | "ndl"
+  | "ascentRate"
+  | "safetyStop"
+  | "thirds"
   | "zone";
 
 // Hides the whole row — term and value — of a metric, given the value

@@ -55,6 +55,21 @@ export function formatWholeMinutes(
 }
 
 /**
+ * A vertical rate in whole metres a minute, without its sign: legacy's
+ * ascent readout draws `Math.round(Math.abs(ascentRate))` beside its
+ * chevrons, which carry the direction (#197).
+ */
+export function formatVerticalRate(
+  rateMpm: number,
+  locale: SupportedLocale,
+): string {
+  if (!Number.isFinite(rateMpm)) {
+    throw new RangeError("rateMpm must be a finite number");
+  }
+  return formatUnit(Math.round(Math.abs(rateMpm)), locale, "meter-per-minute");
+}
+
+/**
  * A whole-number percentage that may exceed 100 — a gradient factor, or a
  * compartment past its M-value. formatGasFraction refuses anything over 1,
  * which is right for a gas and wrong for these.
