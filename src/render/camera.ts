@@ -33,10 +33,47 @@ export const WRECK_CAMERA_BOUNDS: Readonly<CameraBounds> = Object.freeze({
   bottom: 40,
 });
 
+/** The wreck camera shows this many metres across, whatever the viewport. */
+export const WRECK_VISIBLE_WIDTH_M = 58;
+/**
+ * How far the wreck camera looks ahead of the diver, in the direction they
+ * face. Legacy centres the diver (DIVER_SCREEN_X_FRACTION 0.5).
+ */
+export const WRECK_CAMERA_LEAD_M = 8;
+
+/** Where the wreck camera is asked to look, before the scene's bounds. */
+export function wreckCameraFocusX(positionM: number, facing: -1 | 1): number {
+  return positionM + facing * WRECK_CAMERA_LEAD_M;
+}
+
+/**
+ * How far the wreck camera shows to either side of the diver, in metres
+ * (#219): its lead, and its focus held inside the scene's bounds as
+ * createCameraTransform holds it. The width does not depend on the
+ * viewport, so neither does this.
+ */
+export function wreckViewAround(
+  positionM: number,
+  facing: -1 | 1,
+): { readonly leftM: number; readonly rightM: number } {
+  const bounds = WRECK_CAMERA_BOUNDS;
+  const halfWidthM = WRECK_VISIBLE_WIDTH_M / 2;
+  const focusX = clampFocus(
+    wreckCameraFocusX(positionM, facing),
+    bounds.left + halfWidthM,
+    bounds.right - halfWidthM,
+    (bounds.left + bounds.right) / 2,
+  );
+  return {
+    leftM: positionM - (focusX - halfWidthM),
+    rightM: focusX + halfWidthM - positionM,
+  };
+}
+
 export function createCameraTransform(
   viewport: Readonly<Viewport>,
   requestedFocus: Readonly<Point>,
-  visibleWidthM = 58,
+  visibleWidthM = WRECK_VISIBLE_WIDTH_M,
   bounds: Readonly<CameraBounds> = WRECK_CAMERA_BOUNDS,
 ): CameraTransform {
   if (

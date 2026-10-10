@@ -49,8 +49,9 @@ const eps = baselineFixture.tolerances.absoluteEpsilon.default;
 const FRAME: SharkFrame = {
   timeMultiplier: 3,
   diverVelocityMps: 0,
-  viewHalfWidthM: 1000 * 0.5 * 0.05,
-  floorM: 300,
+  viewLeftM: 1000 * 0.5 * 0.05,
+  viewRightM: 1000 * (1 - 0.5) * 0.05,
+  floorAt: () => 300,
   noShark: false,
 };
 

@@ -1,4 +1,4 @@
-const { expect, test } = require('@playwright/test');
+const { expect, test } = require('./helpers/pinned-seed.cjs');
 const {
   descendTo,
   startDive,

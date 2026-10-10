@@ -1,4 +1,4 @@
-const { expect, test } = require('@playwright/test');
+const { expect, test } = require('./helpers/pinned-seed.cjs');
 const { descendTo, startDive, startDiveAndWaitForCanvas } = require('./helpers/start-dive.cjs');
 
 // Mirrors smoke.spec.js's MOBILE_VIEWPORT: a hand-rolled touch viewport

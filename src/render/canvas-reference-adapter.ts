@@ -1,6 +1,6 @@
 import type { PresentationState } from "../presentation/presentation-state";
 import { WRECK_HOLD_EDGE, WRECK_HULL_EDGE, type RoutePoint } from "../sites/wreck-route";
-import { createCameraTransform, worldToScreen } from "./camera";
+import { createCameraTransform, worldToScreen, wreckCameraFocusX } from "./camera";
 import type { SceneRenderer, WreckSceneState } from "./renderer";
 
 export class CanvasReferenceAdapter implements SceneRenderer {
@@ -56,7 +56,7 @@ export class CanvasReferenceAdapter implements SceneRenderer {
   ): void {
     const context = this.#requireContext();
     const camera = createCameraTransform(this.#viewport, {
-      x: scene.routePositionM + scene.facing * 8,
+      x: wreckCameraFocusX(scene.routePositionM, scene.facing),
       y: scene.diverDepthM,
     });
     const point = (x: number, y: number) =>

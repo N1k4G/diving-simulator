@@ -242,6 +242,22 @@ export function routeSpaceNear(positionM: number, depthM: number): RouteSpace {
 }
 
 /**
+ * The floor under something swimming at a world position and depth (#219),
+ * for the shark's floor guard, legacy's floorAt(shark.x): the floor of the
+ * stretch of water it is in, or nearest to. A shark swims past the view,
+ * beyond the route's ends: off the bow that is open water already, and past
+ * the deck's after end, where the route keeps the deck level, it is open
+ * water too.
+ */
+export function floorUnder(positionM: number, depthM: number): number {
+  const sternEnd = WRECK_DECK_TOP[WRECK_DECK_TOP.length - 1] as RoutePoint;
+  if (positionM > sternEnd.x) {
+    return OPEN_WATER_FLOOR_M;
+  }
+  return routeSpaceNear(positionM, depthM).floorM;
+}
+
+/**
  * Where a horizontal move from `fromM` towards `toM` at `depthM` ends.
  *
  * Into water, or onto a slope gentle enough to slide along, the move is made

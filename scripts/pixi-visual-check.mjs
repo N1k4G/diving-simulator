@@ -192,6 +192,13 @@ const PIN_CLOCK = () => {
     seed = (seed * 1664525 + 1013904223) >>> 0;
     return seed / 0x100000000;
   };
+  // Each dive draws its seed from crypto.getRandomValues at its start (#219),
+  // and the descending scenes run past the shark's first roll at 60 dive
+  // seconds. Pinned to the seed every dive had before, whose first spawn roll
+  // is the 193rd, so no shark can swim into a frame.
+  const drawRandomValues = crypto.getRandomValues.bind(crypto);
+  crypto.getRandomValues = (array) =>
+    array instanceof Uint32Array ? array.fill(0x57524543) : drawRandomValues(array);
 
   let virtualNow = 0;
   let queue = [];
