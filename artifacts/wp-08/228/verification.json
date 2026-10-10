@@ -1,0 +1,72 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 228,
+  "slice": "legacy's remaining HUD warnings: above the ceiling, low NDL and narcosis, with legacy's ranking and beep terms",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "c6e4e6f315ea016ae3a38fec939c51883bfd1b00",
+  "measuredTree": "eefd246e4976956ce11a5aff25575aeb1a36b5bb",
+  "workingTree": "clean before and after both runs (git status --porcelain empty)",
+  "recordedAt": "2026-10-10T13:47:52Z",
+  "runFinishedAt": "2026-10-10T14:03:58Z",
+  "timestampProvenance": "Both are date -u output printed around the second, clean run. The whole chain ran under the shared e2e port lock, taken before START and released after END. The first run, 2026-10-10T13:35:06Z to 13:47:26Z, is under flakyRuns.",
+  "provenanceNote": "On main 44012dd (#232, the dive computer reads English in both languages). Both full runs are on c6e4e6f, the test commit on top of the one implementation commit 536bcd1; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass",
+    "unit": "582 passed (+19 in tests/unit/hud-warning.test.ts: each condition at legacy's boundaries, the full ranking on open circuit, on the loop and after a bailout, the beep terms, and the presentation's decoStopDepthM, nearNdlMin and narcosisIndex, the near NDL against the full 200-minute search over a 0-16 min exposure sweep and at two GF highs)",
+    "parity": "332 passed (unchanged)",
+    "e2e": "184 passed in 10.7 min, no retries (+6 in tests/hud-warnings.spec.js, each in en-US and de-DE: above the ceiling, low NDL and narcosis show legacy's English text in the alert and the chip, both lang=en; the ceiling and narcosis sound the alarm, the low NDL stays silent for two alarm periods)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels, nothing re-recorded",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "flakyRuns": [
+    {
+      "startedAt": "2026-10-10T13:35:06Z",
+      "finishedAt": "2026-10-10T13:47:26Z",
+      "result": "every step passed up to e2e (unit 582, parity 332, visual and interior checks ok); e2e 183 passed, 1 failed: tests/wreck-slice.spec.js:383 'the same input trace drives equivalent legacy and Pixi control semantics', its legacy side read 'stationary' for 'deeper'. That is the cross-client trace flake #239 is fixing; it touches no code of this change. The rerun above passed it."
+    }
+  ],
+  "legacyOracle": {
+    "chain": "src/renderer.js drawDiveComputer 8238-8258: ceiling (inDeco && depth < decoStopDepth), O2 (po2 > PO2_HIGH), narcosis > 0.70, ascentRate > 9, tBar < 30, tBar < 50, low NDL (!inDeco && ndl > 0 && ndl < 5), narcosis > 0.20",
+    "ccrOverlay": "src/renderer.js 8887-8905: LOW/HIGH PO2, CO2!, SCR LOW, drawn at the banner's place after it, blinking, with its own one-shot beep",
+    "beep": "src/renderer.js 8911 hasWarning: tBar < 50 || po2 > PO2_HIGH || ascentRate > 9 || (inDeco && depth < decoStopDepth) || narcosisIndex > 0.20",
+    "strings": "src/constants.js 634, 637, 638: STRINGS.en warnLowNDL, warnCeiling, warnNarc"
+  },
+  "change": "src/app/hud-warning.ts (new) holds the warning selection moved out of src/app/wreck-app.ts: activeWarnings lists every warning in order, selectWarning takes the first, isWarningBeepActive is legacy's hasWarning (every warning but the low NDL). Ceiling, low NDL and narcosis are added. src/presentation/presentation-state.ts adds decoStopDepthM (decoStop() of the model's lastCeilingM), nearNdlMin (the same-tick NDL, searched only up to 5 min, null in deco) and narcosisIndex; src/core/decompression.ts ndlMinutes takes an optional search bound, defaulting to legacy's 200 min. Six English-only diveComputer.* strings; claims register anchors in DECOMPRESSION-001 and NARCOSIS-001. The model and the narcosis effects are unchanged.",
+  "counterChecks": {
+    "method": "Each mutation applied with sed to a file copied to a backup beforehand; tests/unit/hud-warning.test.ts run, and for the e2e cases the client rebuilt and tests/hud-warnings.spec.js run under the port lock with --retries=0, on the code of c6e4e6f. Each file was then restored from its backup and compared with cmp: byte for byte identical in every case.",
+    "results": [
+      { "revert": "ceiling condition removed (src/app/hud-warning.ts)", "result": "unit: 6 of 19 fail; e2e: 2 of 6 fail, the ceiling case in both locales" },
+      { "revert": "ceiling boundary made inclusive, depth <= decoStopDepth", "result": "unit: 1 of 19 fails" },
+      { "revert": "open-circuit oxygen ranked over the ceiling", "result": "unit: 3 of 19 fail" },
+      { "revert": "low NDL without ndl > 0", "result": "unit: 1 of 19 fails" },
+      { "revert": "low NDL inclusive, ndl <= 5", "result": "unit: 1 of 19 fails" },
+      { "revert": "narcosis caution inclusive, >= 0.20", "result": "unit: 2 of 19 fail" },
+      { "revert": "both narcosis warnings removed", "result": "unit: 6 of 19 fail; e2e: 2 of 6 fail, the narcosis case in both locales" },
+      { "revert": "the alarm counts the low NDL (isWarningBeepActive)", "result": "unit: 1 of 19 fails" },
+      { "revert": "the alarm wired back to any selected warning (src/app/wreck-app.ts)", "result": "e2e: 2 of 6 fail, the silent low-NDL case in both locales" },
+      { "revert": "the NDL search ignores its bound (src/core/decompression.ts)", "result": "unit: 1 of 19 fails" },
+      { "revert": "the near NDL also read in deco (src/presentation/presentation-state.ts)", "result": "unit: 1 of 19 fails" },
+      { "revert": "the near NDL at the default GF high instead of the dive's", "result": "unit: 1 of 19 fails" },
+      { "revert": "diveComputer.alert.ceiling translated to 'Über Ceiling — abtauchen' (src/app/i18n/catalog.ts)", "result": "e2e: 2 of 6 fail, the ceiling case in both locales" }
+    ]
+  },
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "durableProvenance": {
+    "src": "c81d2f2b1e1eaaf0dc49644b6ed4928d393b5144",
+    "tests": "00f3f286d91a703ce9d56b86bd75a211c2d9258d",
+    "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
+    "docs": "c520b97953afe6132b464992451a3ebb7630ea16"
+  }
+}
