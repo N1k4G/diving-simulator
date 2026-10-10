@@ -1,15 +1,15 @@
 {
   "schema": "issue-evidence/1",
   "issue": 222,
-  "slice": "The owner's decisions of 2026-10-10 on #222: the bow becomes legacy's solid stem (x 14..16) and bow-visor opening (x 16..22), entered from above, with the main deck, its underside and the overhead from x 22 (replacing #238's 27); and the engine block becomes solid, a departure from legacy recorded in docs/decisions.md",
+  "slice": "The owner's decisions of 2026-10-10 on #222: the bow becomes legacy's solid stem (x 14..16) and bow-visor opening (x 16..22), entered from above, with the main deck, its underside and the overhead from x 22 (replacing #238's 27); and the engine block becomes solid. The solid engine block and the solid raised visor are departures from legacy, recorded in docs/decisions.md and covered by tests/parity/wreck-route.test.ts (Codex round 1 on #241)",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "2876b2bfd21a04d580164bb808abd0ee5154c18f",
-  "measuredTree": "45fba944664ab3e50e07b11c5063d46cff591df5",
+  "measuredCommit": "7fe204d3aaf0204e5cdae1edc739a8bfb18b1dcc",
+  "measuredTree": "f92a39cb5231a5c2af575f8e30ac2c8a87e20404",
   "workingTree": "clean before the run and still clean after it (git status --porcelain empty at both ends)",
-  "recordedAt": "2026-10-10T11:36:07Z",
-  "runFinishedAt": "2026-10-10T11:52:09Z",
+  "recordedAt": "2026-10-10T13:21:48Z",
+  "runFinishedAt": "2026-10-10T13:33:31Z",
   "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
-  "provenanceNote": "Branch feat/222-bow-visor-engine from main e2a59ce (#226). The change is 2876b2b alone; the commit after it adds this file. The full run above is on 2876b2b; later commits only update this file and the linux reference frames (b98a5dd, recorded by the workflow). durableProvenance names the measured trees: src, scripts and docs are identical at HEAD, and tests/ differs only in tests/fixtures/reference-frames/pixi/linux (b98a5dd), which the win32 run does not read.",
+  "provenanceNote": "Branch feat/222-bow-visor-engine from main e2a59ce (#226), PR #241. The change is 2876b2b and 7fe204d: 7fe204d answers Codex round 1 (the visor's departure recorded, the parity test for both departures, a comment on WRECK_VISOR). Between them, e13eb7c, 5d499cf, 717dd82 and 5b4ce2d touch only this file, and b98a5dd only the linux reference frames, recorded by the workflow. The full run above is on 7fe204d, the second on that commit (earlierRuns); later commits only update this file.",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -26,14 +26,23 @@
     "build": "pass",
     "distCheck": "pass: 16 files scanned, no source maps, 4 diagnostic markers absent",
     "unit": "568 passed in 49 files (+6 over main e2a59ce, counted from the changed test files: tests/unit/wreck-route.test.ts 13 -> 18, tests/unit/game-controller-buoyancy.test.ts route block 5 -> 6)",
-    "parity": "332 passed (none added; no parity checkpoint reads the route)",
-    "e2e": "173 passed in 10.1 min, first run, no retries (none added; tests/hud-readouts.spec.js's rule-of-thirds test now enters the hold through the bow visor's opening)",
-    "pixiVisualCheck": "3 scenes ok, 0% changed pixels, against the win32 frames re-recorded in 2876b2b",
+    "parity": "335 passed in 17 files (+3 over main e2a59ce: tests/parity/wreck-route.test.ts)",
+    "e2e": "173 passed in 7.6 min, no retries (none added; tests/hud-readouts.spec.js's rule-of-thirds test now enters the hold through the bow visor's opening)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels, against the win32 frames re-recorded in 2876b2b (unchanged since)",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
   "oracle": {
     "bow": "src/sites.js: the bow stem is solid at x 14..16, dTop 28 (line 322); the main deck is a structure from x 22 to 78 at d 27..28 (line 327), after the bow-visor opening (comment, line 326); the visor is a bowVisor feature at (18, 26) (line 449), drawn by src/renderer.js drawBowVisor (line 5806) as a 72 by 20 px slab (3.6 by 1 m at 0.05 m/px), hinged up. src/renderer.js drawWreckEntryMarkers marks the BOW entry from above at x 16..22 on the main-deck line (line 4962). overheadAt (src/sites.js line 977) is true when a structure with its bottom above the diver spans its x: from x 22 under the deck, never in the opening at the vehicle-deck depth. Legacy's zone map (visualZones, src/sites.js line 560) puts the vehicle deck, an interior zone, at x 14..170, d 28..40, so it disagrees with overheadAt in the opening.",
-    "engine": "src/sites.js lines 503..508: the engines are site features ({kind:'engine'}), not structures; solidAt, solidBoxAt and solidOverlapArea iterate only s.structures, so legacy's diver swims through its engines. The migration client departs from that by the owner's decision, recorded in docs/decisions.md (Deliberate departures)."
+    "engine": "src/sites.js lines 503..508: the engines are site features ({kind:'engine'}), not structures; solidAt, solidBoxAt and solidOverlapArea iterate only s.structures, so legacy's diver swims through its engines. The migration client departs from that by the owner's decision, recorded in docs/decisions.md (Deliberate departures).",
+    "visor": "src/sites.js line 449: the bow visor is a site feature ({kind:'bowVisor'}) at (18, 26), drawn by src/renderer.js drawBowVisor (line 5806) and never collided with. The migration draws it on the deck's forward edge (x 22..23) and makes it solid, by the owner's decision on #222 (\"whatever looks better\"), recorded in docs/decisions.md (Deliberate departures)."
+  },
+  "parityTest": {
+    "file": "tests/parity/wreck-route.test.ts",
+    "legacy": "The real src/sites.js through ?raw and a Function body, as tests/parity/site-geometry.test.ts loads it (no node:vm: the project has no node APIs or @types/node); legacy's own solidAt and overheadAt with the wreck selected.",
+    "grid": "x 8..99 every 0.25 m. Each column is split into three bands, and a migration depth is mapped linearly onto legacy's in its band: above the deck (surface to the deck's top) onto legacy's 0..27 m, the deck (top to underside) onto 27..28 m, the hold (underside to the hold's floor, 33.5 m) onto 28..39 m, legacy's vehicle deck (src/sites.js lines 327 and 358). Ahead of the deck the drawing's band edges are those at its forward edge. Samples sit at cell centres, 40, 6 and 44 cells, so none lands on a band edge, where legacy's edges are inclusive.",
+    "assertions": "Solid equals legacy's solidAt at every compared sample outside the two declared regions; inside them the migration is solid and legacy is not, and each region is actually sampled (visor over 20 samples, engine over 200). The overhead equals legacy's overheadAt wherever both are in open water (over 10000 samples). Legacy's bowVisor (x 18) and its six engines are features, and legacy's diver is free where each is drawn.",
+    "regions": "Written in the test as numbers with their legacy sources, not read from WRECK_VISOR or WRECK_ENGINE. The visor: x 22..23 (legacy's main deck's x1, src/sites.js line 327, and the slab's 1 m from drawBowVisor's 20 px at 0.05 m/px), above the deck from 23 - 3.6 m (drawBowVisor's 72 px). The engine block: legacy's engines (lines 503..508; drawEngine, src/renderer.js line 5644, 88 by 64 px) are neither at the drawing's place nor of its size, so the region is the provisional drawing's engine written out, in the hold: a cylinder of radius 3.1 about (87, 30.5) and a bed from x 81 to 95 below 33 m.",
+    "excluded": "Where the provisional drawing does not model legacy's wreck (#240): above the deck from x 40 (legacy's superstructure, src/sites.js line 334); the deck band over legacy's main hatch, 78 < x < 92, where legacy's deck is open; the overhead past x 78 (the hatch); and past x 99 (the drawing's stern wall at 99..103). Solid in the hold is compared over the whole range, the hatch included, which is where the engine block lies."
   },
   "implemented": "src/sites/wreck-route.ts: the deck's underside starts at x 22 with the deck (was 27); CARGO_HOLD_FROM_M 27 -> 22; WRECK_HOLD_BOW_X_M 21 -> 16, the stem's after face; WRECK_STEM_TOP_M 24.5, level with the deck's underside as legacy's stem top is with its deck's; routeSpacesAt ahead of the deck: open water to 34 m before x 14, water to the stem's top over x 14..16, water to the hold's floor (33.5 m) in the opening x 16..22, all outside the overhead; WRECK_VISOR, the raised visor standing on the deck's forward edge (x 22..23, from 19.4 m to the deck), solid; WRECK_ENGINE and engineTopAt, the cylinder and its bed setting the floor under the deck. The Pixi renderer and the dev canvas adapter draw the hull and the hold from the shared WRECK_HULL_EDGE and WRECK_HOLD_EDGE, stroked as open paths so no line closes the opening; the engine from WRECK_ENGINE; the guideline over the stem, down the opening and over the engine. src/app/game-controller.ts is unchanged.",
   "gameplayEffect": "The dive still starts at route position 10, open water from the surface to 34 m. A diver level below 24.5 m off the bow is stopped by the stem; the hold is entered by crossing the stem above 24.5 m, sinking in the opening and swimming aft under the deck from x 22, where the overhead, the rule of thirds and the Cargo hold readout begin. In the opening the HUD reads Wreck exterior, following legacy's overheadAt rather than its zone map. The engine block stops the diver, who goes over its top at 27.4 m.",
@@ -46,7 +55,7 @@
       "wreck-descended.png": "b6eaa04ea78b9030f8ca24d6937e02280ca2f121",
       "wreck-torch-off.png": "2463f1c543679af0d272d7daba6bf2ffddec9a25"
     },
-    "note": "The first recording captured wreck-exterior-start as a uniform frame (meanLuma 21.683, sdLuma 0); the recorder refuses only uniformly black frames, so it was accepted. It was recorded again before the commit (meanLuma 42.706, sdLuma 31.688), and the committed frames were checked by eye. When the run above was measured, the linux frames were still main's (manifest blob 4f76a248…) and showed the old bow; b98a5dd replaced them with the frames recorded by the linux workflow (see referenceFrames.linux).",
+    "note": "The first recording captured wreck-exterior-start as a uniform frame (meanLuma 21.683, sdLuma 0); the recorder refuses only uniformly black frames, so it was accepted. It was recorded again before the commit (meanLuma 42.706, sdLuma 31.688), and the committed frames were checked by eye. When the 2876b2b run (earlierRuns) was measured, the linux frames were still main's (manifest blob 4f76a248…) and showed the old bow; b98a5dd replaced them with the frames recorded by the linux workflow (see referenceFrames.linux).",
     "linux": {
       "commit": "b98a5ddeb262bd2ebda0f233dab896b75010e0b6",
       "workflowRun": "pixi-baseline.yml run 38050103282, dispatched on main with target_ref feat/222-bow-visor-engine",
@@ -89,17 +98,60 @@
         "revert": "the opening closed, in the browser (built, then tests/hud-readouts.spec.js's rule-of-thirds test alone)",
         "result": "1 of 1 failed: the diver slid into the hold along the stem's top, level with the underside at 24.5 m, but could not leave it, so the zone stayed Cargo hold instead of Wreck exterior"
       }
-    ]
+    ],
+    "parity": {
+      "method": "The same backup, mutate, restore and sha256 procedure, on src/sites/wreck-route.ts in the working tree that became 7fe204d (committed unchanged right after), checked with tests/parity/wreck-route.test.ts (3 tests). All restored byte for byte; git status clean at the end. The seven above were run on 2876b2b, before the parity test existed.",
+      "results": [
+        {
+          "revert": "the engine block passable again, as in legacy (engineTopAt always Infinity)",
+          "result": "1 of 3 failed: solid against legacy (the engine region not solid)"
+        },
+        {
+          "revert": "the raised visor not solid (visorTopAt always Infinity)",
+          "result": "1 of 3 failed: solid against legacy (the visor region not solid)"
+        },
+        {
+          "revert": "the visor 1 m wider than declared (x 22..24)",
+          "result": "1 of 3 failed: solid against legacy (solid outside the declared region)"
+        },
+        {
+          "revert": "the engine's cylinder 0.5 m larger than declared (radius 3.6)",
+          "result": "1 of 3 failed: solid against legacy (solid outside the declared region)"
+        },
+        {
+          "revert": "the stem passable again",
+          "result": "1 of 3 failed: solid against legacy"
+        },
+        {
+          "revert": "the overhead back at #238's 27 (CARGO_HOLD_FROM_M = 27, the underside from 27)",
+          "result": "2 of 3 failed: solid against legacy and the overhead against legacy's overheadAt"
+        }
+      ]
+    }
   },
   "durableProvenance": {
-    "src": "0895c067c0a733652b3ae48ac24686edbd41ac88",
-    "tests": "b9c8b8def406bd9d72a39583db66dc30791ac62c",
+    "src": "3f5fcddd5f98e5cf6a62800e97a4cbe894ea9c08",
+    "tests": "fbfd564b15e50cf4f36a1f05db831666c4785bf4",
     "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
-    "docs": "08fa9d4970aeed342f007b2991bf1d0135c9dfeb"
+    "docs": "6347d1b5e024f76220e8efc9fdabfcb7e863a432"
   },
+  "earlierRuns": [
+    {
+      "measuredCommit": "7fe204d3aaf0204e5cdae1edc739a8bfb18b1dcc",
+      "recordedAt": "2026-10-10T12:51:49Z",
+      "runFinishedAt": "2026-10-10T13:05:48Z",
+      "note": "First full run on the same commit, clean tree at both ends: 568 unit and 335 parity passed, the Pixi check and the interior check ok; e2e 172 passed and 1 failed, the legacy tests/reload-resume.spec.js 'reload: free-flow overlay save survives a real reload and stays resolvable' timing out in page.reload() (30 s), the known legacy reload-resume timeout under load. It does not touch the migration's route. It passed in the run above."
+    },
+    {
+      "measuredCommit": "2876b2bfd21a04d580164bb808abd0ee5154c18f",
+      "measuredTree": "45fba944664ab3e50e07b11c5063d46cff591df5",
+      "recordedAt": "2026-10-10T11:36:07Z",
+      "runFinishedAt": "2026-10-10T11:52:09Z",
+      "note": "Full run on the change before Codex round 1, clean tree at both ends, first run: 568 unit, 332 parity, 173 e2e passed in 10.1 min, the Pixi check (0% changed pixels against the re-recorded win32 frames) and the interior check ok. durableProvenance then: src 0895c067c0a733652b3ae48ac24686edbd41ac88, tests b9c8b8def406bd9d72a39583db66dc30791ac62c, scripts b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30, docs 08fa9d4970aeed342f007b2991bf1d0135c9dfeb. Superseded by the run above."
+    }
+  ],
   "openQuestions": [
-    "The visor is drawn hinged up on the deck's forward edge (x 22..23), not over the opening at x 18 as legacy draws it: over the opening it would be drawn hull the diver descends through. Is that placement right?",
-    "The rooms the scene draws in the hold (full-height bulkheads at x 43 and 73, a partial one at 97, platforms at 48..67 and 79..93) are still passable, as before this change. Making them solid would split the hold into compartments; left for the owner.",
-    "The provisional drawing has no main hatch (legacy x 78..92) and no superstructure, so the overhead agrees with legacy's overheadAt only from 8 to 78 m along the hold's depth."
+    "The rooms the scene draws in the hold (full-height bulkheads at x 43 and 73, a partial one at 97, platforms at 48..67 and 79..93) are still passable, as before this change. Making them solid would split the hold into compartments; left for the owner on #240.",
+    "The provisional drawing has no main hatch (legacy x 78..92) and no superstructure, so the parity test compares the overhead only to x 78 and above the deck only to x 40 (#240)."
   ]
 }
