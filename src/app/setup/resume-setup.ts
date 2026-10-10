@@ -18,8 +18,7 @@ import {
   type DiveSetup,
   type SetupTank,
 } from "./dive-setup";
-import { CCR_PRESSURE_STEP_BAR, OXYGEN_PRESSURE_RANGE_BAR } from "./ccr-controls";
-import type { CcrState, TankState } from "../../core/dive-state";
+import type { CcrState, DiveState, TankState } from "../../core/dive-state";
 
 export function setupFromSave(save: Readonly<SaveGame>): DiveSetup {
   const { state } = save;
@@ -52,10 +51,11 @@ export function setupFromSave(save: Readonly<SaveGame>): DiveSetup {
  * is that totalGas (v10, and migrateLegacyTank for a legacy save), so the
  * fill is startGasL over the volume, with no new field.
  *
- * Held to the screen's 200-300 bar in its 10 bar steps, which changes no
- * fill the screen could have set. A save from before v10 never recorded the
- * fill and starts its gas where the migration found it, so its cylinder,
- * part-breathed, returns at the screen's 200 bar.
+ * Rounded to the nearest of the screen's 200-300 bar in its 10 bar steps,
+ * which changes no fill the screen could have set. A save from before v10
+ * never recorded the fill: the migration starts its gas where the save left
+ * it, so its cylinder comes back at the gas left over the volume, rounded to
+ * that grid (275 bar to 280, anything under 205 bar to 200).
  */
 function setupTankFromSave(tank: Readonly<TankState>): SetupTank {
   return Object.freeze({
@@ -72,9 +72,9 @@ function setupTankFromSave(tank: Readonly<TankState>): SetupTank {
 
 /**
  * The loop as legacy's restored ccrState sets its screen: the diluent, the
- * setpoint the dive was on, the two cylinder sizes. The oxygen cylinder at
- * the pressure the dive started on, as a new dive's retry returns to the
- * fill its setup configured; held to the screen's 50-300 bar.
+ * setpoint the dive was on, the two cylinder sizes, and both cylinders at
+ * what the dive has left in them, which legacy's resetDive() starts the
+ * next dive on (o2CylPressureStart = o2CylPressure, src/state.js).
  */
 function ccrSetupFromSave(ccr: Readonly<CcrState>): CcrSetup {
   return Object.freeze({
@@ -82,11 +82,43 @@ function ccrSetupFromSave(ccr: Readonly<CcrState>): CcrSetup {
     setpointBar: ccr.targetPo2Bar,
     diluentCylinderVolumeL: ccr.diluentCylinderVolumeL,
     oxygenCylinderVolumeL: ccr.oxygenCylinderVolumeL,
-    oxygenCylinderPressureBar: clampToStep(
-      ccr.oxygenCylinderStartPressureBar,
-      OXYGEN_PRESSURE_RANGE_BAR.min,
-      OXYGEN_PRESSURE_RANGE_BAR.max,
-      CCR_PRESSURE_STEP_BAR,
-    ),
+    oxygenCylinderPressureBar: ccr.oxygenCylinderPressureBar,
+    diluentCylinderPressureBar: ccr.diluentCylinderPressureBar,
   });
+}
+
+/**
+ * The setup the next dive starts from once `state` has ended, by a game
+ * over or at the surface. Legacy's resetDive() refills every open-circuit
+ * cylinder (gasRemaining = totalGas) but starts a rebreather's oxygen and
+ * diluent cylinders where the last dive left them
+ * (o2CylPressureStart = o2CylPressure, dilCylPressureStart =
+ * dilCylPressure, src/state.js). The same for a new dive and a resumed one.
+ */
+export function setupForNextDive(
+  setup: DiveSetup,
+  state: Readonly<DiveState>,
+): DiveSetup {
+  if (setup.mode !== "ccr" || state.ccr === null) return setup;
+  return Object.freeze({
+    ...setup,
+    ccr: Object.freeze({
+      ...setup.ccr,
+      oxygenCylinderPressureBar: state.ccr.oxygenCylinderPressureBar,
+      diluentCylinderPressureBar: state.ccr.diluentCylinderPressureBar,
+    }),
+  });
+}
+
+/**
+ * src/game-loop.js loadSavedDive(): a save written more than an hour ago is
+ * cleared, not offered (`Date.now() - state.savedAt > 3600000`).
+ */
+export const SAVED_DIVE_MAX_AGE_MS = 3_600_000;
+
+export function isSavedDiveExpired(
+  save: Readonly<SaveGame>,
+  nowMs: number,
+): boolean {
+  return nowMs - save.savedAtEpochMs > SAVED_DIVE_MAX_AGE_MS;
 }

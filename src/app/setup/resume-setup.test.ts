@@ -15,8 +15,8 @@ import {
   type SaveGame,
   type SavedDiveMode,
 } from "../../save/save-game";
-import { toInitialDiveOptions } from "./dive-setup";
-import { setupFromSave } from "./resume-setup";
+import { createDefaultSetup, selectMode, toInitialDiveOptions } from "./dive-setup";
+import { isSavedDiveExpired, setupForNextDive, setupFromSave } from "./resume-setup";
 
 // The fills below are whole bar on whole litres, so startGasL over the
 // volume is exact and toEqual compares them as the screen would.
@@ -38,6 +38,25 @@ function loaded(state: DiveState, mode: SavedDiveMode, low = 50, high = 80): Sav
   const decoded = decodeSaveGame(raw);
   if (!decoded.ok) throw new Error(`save did not load: ${decoded.reason}`);
   return decoded.saveGame;
+}
+
+/** A rebreather dive with its oxygen at 181.5 of 220 bar and diluent at 150. */
+function rebreatherDive(): DiveState {
+  return breathed(
+    createInitialDiveState(0, {
+      tanks: [createTankState(createGasMix(0.21, 0), 12, 200)],
+      ccr: createCcrState(TX1845, {
+        targetPo2Bar: bars(1.3),
+        diluentCylinderVolumeL: litres(5),
+        oxygenCylinderVolumeL: litres(3),
+        oxygenCylinderPressureBar: bars(181.5),
+        oxygenCylinderStartPressureBar: bars(220),
+        diluentCylinderPressureBar: bars(150),
+        diluentCylinderStartPressureBar: bars(200),
+      }),
+    }),
+    [],
+  );
 }
 
 /** A dive twenty minutes in, at 20 m, each cylinder part-breathed. */
@@ -103,20 +122,10 @@ describe("setupFromSave", () => {
     expect(retried.ccr).toBeNull();
   });
 
-  it("returns a rebreather dive's loop, with the oxygen cylinder at the pressure it started on", () => {
-    const state = breathed(
-      createInitialDiveState(0, {
-        tanks: [createTankState(createGasMix(0.21, 0), 12, 200)],
-        ccr: createCcrState(TX1845, {
-          targetPo2Bar: bars(1.3),
-          diluentCylinderVolumeL: litres(5),
-          oxygenCylinderVolumeL: litres(3),
-          oxygenCylinderPressureBar: bars(181.5),
-          oxygenCylinderStartPressureBar: bars(220),
-        }),
-      }),
-      [],
-    );
+  it("returns a rebreather dive's loop, with both cylinders at what the dive left in them", () => {
+    // Legacy's resetDive(): o2CylPressureStart = o2CylPressure and
+    // dilCylPressureStart = dilCylPressure, never a refill.
+    const state = rebreatherDive();
 
     const setup = setupFromSave(loaded(state, "ccr", 40, 85));
 
@@ -129,8 +138,14 @@ describe("setupFromSave", () => {
       setpointBar: 1.3,
       diluentCylinderVolumeL: 5,
       oxygenCylinderVolumeL: 3,
-      oxygenCylinderPressureBar: 220,
+      oxygenCylinderPressureBar: 181.5,
+      diluentCylinderPressureBar: 150,
     });
+    const retried = toInitialDiveOptions(setup).ccr;
+    expect(retried?.oxygenCylinderPressureBar).toBe(181.5);
+    expect(retried?.oxygenCylinderStartPressureBar).toBe(181.5);
+    expect(retried?.diluentCylinderPressureBar).toBe(150);
+    expect(retried?.diluentCylinderStartPressureBar).toBe(150);
   });
 
   it("returns a legacy save's fill, which legacy keeps as pressure and totalGas", () => {
@@ -195,5 +210,56 @@ describe("setupFromSave", () => {
     const setup = setupFromSave(decoded.saveGame);
 
     expect(setup.tanks[0]?.pressureBar).toBe(200);
+  });
+
+  it("returns a pre-v10 cylinder at the gas it had left, rounded to the screen's grid", () => {
+    // 12 L filled to 300 bar, 300 L breathed: 3,300 L, 275 bar, to 280.
+    const state = breathed(
+      createInitialDiveState(0, {
+        tanks: [createTankState(createGasMix(0.21, 0), 12, 300)],
+      }),
+      [300],
+    );
+    const v9 = JSON.parse(
+      encodeSaveGame(createSaveGame(state, { lowPercent: 35, highPercent: 75 }, 1_735_689_600_000, "rec")),
+    ) as { version: number; state: { tanks: Record<string, unknown>[] } };
+    v9.version = 9;
+    for (const tank of v9.state.tanks) delete tank.startGasL;
+    const decoded = decodeSaveGame(JSON.stringify(v9));
+    if (!decoded.ok) throw new Error(`v9 save did not load: ${decoded.reason}`);
+
+    expect(setupFromSave(decoded.saveGame).tanks[0]?.pressureBar).toBe(280);
+  });
+});
+
+describe("setupForNextDive", () => {
+  it("starts a rebreather's next dive on the cylinders as this one left them", () => {
+    const setup = selectMode(createDefaultSetup(), "ccr");
+
+    const next = setupForNextDive(setup, rebreatherDive());
+
+    expect(next.ccr.oxygenCylinderPressureBar).toBe(181.5);
+    expect(next.ccr.diluentCylinderPressureBar).toBe(150);
+    expect(next.ccr.diluent).toEqual(setup.ccr.diluent);
+    expect(next.ccr.setpointBar).toBe(setup.ccr.setpointBar);
+  });
+
+  it("leaves an open-circuit setup as it is: its cylinders start full", () => {
+    const setup = createDefaultSetup();
+    const state = breathed(
+      createInitialDiveState(0, { tanks: [createTankState(createGasMix(0.21, 0), 12, 200)] }),
+      [900],
+    );
+
+    expect(setupForNextDive(setup, state)).toBe(setup);
+  });
+});
+
+describe("isSavedDiveExpired", () => {
+  it("drops a save older than legacy's hour, and keeps one an hour old", () => {
+    const save = loaded(rebreatherDive(), "ccr");
+
+    expect(isSavedDiveExpired(save, save.savedAtEpochMs + 3_600_000)).toBe(false);
+    expect(isSavedDiveExpired(save, save.savedAtEpochMs + 3_600_001)).toBe(true);
   });
 });

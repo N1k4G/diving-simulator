@@ -38,7 +38,11 @@ import {
 import { CCR_SETPOINT_STEP_BAR } from "../core/dive-state";
 import { selectLoopRowDanger } from "./loop-danger";
 import { renderSetupScreen } from "./setup/setup-screen";
-import { setupFromSave } from "./setup/resume-setup";
+import {
+  isSavedDiveExpired,
+  setupForNextDive,
+  setupFromSave,
+} from "./setup/resume-setup";
 import { renderGameOverScreen } from "./game-over";
 import { renderPostDiveScreen } from "./post-dive";
 import { createPostDiveSummary } from "../presentation/post-dive-summary";
@@ -190,14 +194,21 @@ export function renderWreckApplication(
 
 /**
  * The save on the first setup screen, as legacy's loadSavedDive() reads it
- * once at load into _pendingResumeDive (#191). Storage that cannot be read
- * offers no dive to resume.
+ * once at load into _pendingResumeDive (#191). Storage that cannot be read,
+ * and a save more than an hour old, offer no dive to resume.
  */
 function loadSavedDive(): SaveGame | null {
   try {
     // A dive resumed from a legacy save gets its own seed too (#219).
-    const result = saveRepository({ legacySeed: drawDiveSeed }).load();
-    return result.status === "loaded" ? result.saveGame : null;
+    const repository = saveRepository({ legacySeed: drawDiveSeed });
+    const result = repository.load();
+    if (result.status !== "loaded") return null;
+    // Legacy's loadSavedDive() clears a save older than an hour.
+    if (isSavedDiveExpired(result.saveGame, Date.now())) {
+      clearSave(repository);
+      return null;
+    }
+    return result.saveGame;
   } catch (error) {
     console.error(error);
     return null;
@@ -577,6 +588,7 @@ async function startWreckSimulation(
     audio.destroy();
   };
   const endInGameOver = (failed: Readonly<PresentationState>) => {
+    const next = setupForNextDive(setup, controller.authoritativeState);
     teardown();
     clearSave(repository);
     const disposeGameOver = renderGameOverScreen(root, {
@@ -591,10 +603,11 @@ async function startWreckSimulation(
       },
       // Back to the setup, keeping what was configured, as legacy's Enter
       // returns to its gas setup with the same settings. For a resumed dive
-      // that is the setup rebuilt from its save (#191).
+      // that is the setup rebuilt from its save (#191). A rebreather's
+      // cylinders stay as the dive left them (setupForNextDive).
       onRetry: () => {
         disposeGameOver();
-        showSetupScreen(root, locale, setup);
+        showSetupScreen(root, locale, next);
       },
     });
   };
@@ -670,7 +683,7 @@ function endInPostDive(
     }),
     onDiveAgain: () => {
       dispose();
-      showSetupScreen(root, locale, setup);
+      showSetupScreen(root, locale, setupForNextDive(setup, state));
     },
   });
 }

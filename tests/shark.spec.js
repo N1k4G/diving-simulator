@@ -117,8 +117,9 @@ test.describe('a dive on a seed of its own', () => {
     await page.goto('/dist/');
     await page.evaluate(() => {
       window.localStorage.clear();
+      // Saved now: a save more than an hour old is not offered (#191).
       window.localStorage.setItem('diveSim_savedState', JSON.stringify({
-        saveVersion: 2, savedAt: 1_735_689_600_000, gameState: 'diving', depth: 10, maxDepth: 12, diveTime: 5,
+        saveVersion: 2, savedAt: Date.now(), gameState: 'diving', depth: 10, maxDepth: 12, diveTime: 5,
         amvRate: 15, po2ViolationTime: 0, hypoxiaTime: 0, ccrHypoxiaTime: 0, ccrHyperoxiaTime: 0,
         tissues: Array(16).fill(0.75), tissuesHe: Array(16).fill(0), activeTank: 0, tankCount: 1, diveMode: 'rec',
         tanks: [{ fO2: 0.21, fHe: 0, fN2: 0.79, volume: 12, gasRemaining: 2000 }],

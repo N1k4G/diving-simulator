@@ -101,13 +101,19 @@ test('Discard clears the save, and Start then begins a new dive on the screen\'s
   await expect(page.locator('.wreck-hud [data-hud-metric="time"] dd')).toHaveText('0 sec');
 });
 
-test('Start with the banner up begins a new dive on the screen\'s settings, whose saves replace the old one', async ({ page }) => {
+// docs/decisions.md, deliberate departures: legacy leaves its strip drawn
+// over the new dive and can restore the old save mid-dive; here Start ends
+// the offer.
+test('Start with the banner up ends the offer and begins a new dive on the screen\'s settings, whose saves replace the old one', async ({ page }) => {
   await seed(page, await technicalSave(page));
   await acceptSafetyGate(page);
   await expect(banner(page)).toBeVisible();
 
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
+  // No resume is offered over the dive.
+  await expect(page.locator('[data-resume-banner], [data-resume-continue]')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Resume' })).toHaveCount(0);
   // A new dive at the surface, recreational on one cylinder, where Start
   // used to resume the save behind the screen.
   await expect(page.locator('[data-surface-prompt]')).toBeVisible();
@@ -120,6 +126,116 @@ test('Start with the banner up begins a new dive on the screen\'s settings, whos
     .then((handle) => handle.jsonValue());
   expect(replaced.state.tanks).toHaveLength(1);
   expect(replaced.state.elapsedTimeS).toBe(0);
+  // Still none once the old save is gone.
+  await expect(page.locator('[data-resume-banner], [data-resume-continue]')).toHaveCount(0);
+});
+
+test('a save more than an hour old is cleared and not offered, as legacy\'s loadSavedDive()', async ({ page }) => {
+  const saved = await technicalSave(page);
+  await page.goto('/dist/');
+  // An hour and a second before the page's clock, as legacy compares.
+  await page.evaluate(([key, value]) => {
+    const aged = JSON.parse(value);
+    aged.savedAtEpochMs = Date.now() - 3_600_001;
+    window.localStorage.setItem(key, JSON.stringify(aged));
+  }, [SAVE_KEY, JSON.stringify(saved)]);
+  await page.goto('/dist/');
+  await acceptSafetyGate(page);
+
+  await expect(page.locator('[data-resume-banner]')).toHaveCount(0);
+  expect(await savedRaw(page)).toBeNull();
+});
+
+test('a rebreather dive resumed and failed retries on its cylinders as the dive left them, as legacy\'s resetDive()', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.goto('/dist/');
+  await page.evaluate(() => window.localStorage.clear());
+  await acceptSafetyGate(page);
+  await page.locator('[data-setup-group=mode] [data-setup-option=ccr]').check();
+  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  await descendTo(page, 1);
+  const saved = await page
+    .waitForFunction((key) => {
+      const parsed = JSON.parse(window.localStorage.getItem(key) ?? 'null');
+      return parsed !== null && parsed.state.elapsedTimeS > 0 ? parsed : null;
+    }, SAVE_KEY)
+    .then((handle) => handle.jsonValue());
+  // Saved at 150 bar of oxygen and 160 of diluent, with a spent scrubber
+  // 60 dive seconds short of CO2 poisoning: the resumed dive breathes on
+  // past what the save holds before it fails.
+  Object.assign(saved.state.ccr, {
+    oxygenCylinderPressureBar: 150,
+    diluentCylinderPressureBar: 160,
+    scrubberRemainingS: 0,
+    scrubberTotalS: 0,
+    scrubberFailed: true,
+    co2BuildupS: 120,
+  });
+  await seed(page, saved);
+  await acceptSafetyGate(page);
+  await page.locator('[data-resume-continue]').click();
+  await page.locator('[data-game-over]').waitFor({ timeout: 60_000 });
+
+  await page.keyboard.press('Enter');
+  await page.locator('.setup-screen').waitFor();
+  await expect(page.locator('[data-setup-group=mode] [data-setup-option=ccr]')).toBeChecked();
+  // What the failed dive left, under the save's 150 bar, not the 200 it
+  // started on.
+  const bar = (text) => Number.parseFloat((text ?? '').replace(',', '.'));
+  const left = bar(await page.locator('[data-setup-value=oxygen-pressure]').textContent());
+  expect(left).toBeLessThan(150);
+  expect(left).toBeGreaterThan(140);
+
+  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  await expect(page.locator('.wreck-hud [data-hud-metric="oxygenCylinder"] dd')).toHaveText(`${Math.round(left)} bar`);
+  // The diluent too: below the save's 160 bar, not refilled to 200.
+  const diluent = bar(await page.locator('.wreck-hud [data-hud-metric="diluentCylinder"] dd').textContent());
+  expect(diluent).toBeLessThan(160);
+  expect(diluent).toBeGreaterThan(140);
+});
+
+test.describe('on a small landscape phone', () => {
+  test.use({ viewport: { width: 667, height: 375 } });
+
+  test('keyboard focus is never hidden behind the banner (WCAG 2.2 SC 2.4.11)', async ({ page }) => {
+    await seed(page, await technicalSave(page));
+    await acceptSafetyGate(page);
+    await page.locator('[data-start-dive]').focus();
+
+    // Shift+Tab back from Start to Resume: each focused control lies inside
+    // the panel's visible box and clear of the banner's.
+    for (let step = 0; step < 40; step += 1) {
+      const geometry = await page.evaluate(() => {
+        const focused = document.activeElement;
+        const rect = (el) => {
+          const r = el.getBoundingClientRect();
+          return { top: r.top, bottom: r.bottom, left: r.left, right: r.right };
+        };
+        const bannerEl = document.querySelector('[data-resume-banner]');
+        return {
+          inBanner: bannerEl !== null && bannerEl.contains(focused),
+          continue: focused?.hasAttribute('data-resume-continue') ?? false,
+          focused: rect(focused),
+          banner: bannerEl === null ? null : rect(bannerEl),
+          panel: rect(document.querySelector('.setup-screen')),
+          name: focused?.outerHTML.slice(0, 80),
+        };
+      });
+      const { focused, banner: box, panel } = geometry;
+      expect(focused.top, geometry.name).toBeGreaterThanOrEqual(panel.top);
+      expect(focused.bottom, geometry.name).toBeLessThanOrEqual(panel.bottom);
+      if (!geometry.inBanner && box !== null) {
+        const overlaps = focused.top < box.bottom && focused.bottom > box.top
+          && focused.left < box.right && focused.right > box.left;
+        expect(overlaps, geometry.name).toBe(false);
+      }
+      if (geometry.continue) return;
+      await page.keyboard.press('Shift+Tab');
+    }
+    throw new Error('Shift+Tab never reached Resume');
+  });
 });
 
 test('a resumed dive\'s game over returns to that dive\'s settings, and retries on them', async ({ page }) => {

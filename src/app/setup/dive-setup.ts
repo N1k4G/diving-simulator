@@ -95,6 +95,12 @@ export interface SetupTank {
  * anywhere else, so the diluent starts at the 200 bar of CCR_DEFAULTS and
  * createCcrState's own default supplies it. Adding a control here would be
  * inventing one.
+ *
+ * The one exception is the dive after a dive (#191): legacy's resetDive()
+ * starts it on the cylinders as the last one left them
+ * (o2CylPressureStart = o2CylPressure, dilCylPressureStart =
+ * dilCylPressure), so the diluent's pressure is carried, with no control,
+ * from that dive. Absent, the default applies.
  */
 export interface CcrSetup {
   readonly diluent: GasMix;
@@ -102,6 +108,7 @@ export interface CcrSetup {
   readonly diluentCylinderVolumeL: number;
   readonly oxygenCylinderVolumeL: number;
   readonly oxygenCylinderPressureBar: number;
+  readonly diluentCylinderPressureBar?: number;
 }
 
 /**
@@ -388,6 +395,9 @@ function toCcrState(ccr: CcrSetup) {
     diluentCylinderVolumeL: litres(ccr.diluentCylinderVolumeL),
     oxygenCylinderVolumeL: litres(ccr.oxygenCylinderVolumeL),
     oxygenCylinderPressureBar: bars(ccr.oxygenCylinderPressureBar),
+    ...(ccr.diluentCylinderPressureBar === undefined
+      ? {}
+      : { diluentCylinderPressureBar: bars(ccr.diluentCylinderPressureBar) }),
   });
 }
 

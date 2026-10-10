@@ -1412,12 +1412,9 @@ summary:focus-visible {
 
 /* The resume banner (#191), legacy's #resume-dive-banner (#67): a strip at
    the top of the setup screen with one line and two buttons. Legacy fixes it
-   over the screen; here it is the panel's first row, held at the top while
-   the panel scrolls, so it never covers a control. */
+   over the screen; here it is the panel's first row and scrolls with it, so
+   it never covers a control or the focus on one (WCAG 2.2 SC 2.4.11). */
 .resume-banner {
-  position: sticky;
-  top: 0;
-  z-index: 1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
