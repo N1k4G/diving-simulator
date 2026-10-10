@@ -1,0 +1,76 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 191,
+  "slice": "the resume flow: legacy's resume banner on the setup screen, and a resumed dive's setup rebuilt from its save for the retry",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "f4e406519a3a3ce2d4ff2ea017935837f0501dc9",
+  "measuredTree": "12bb3dbf91f56a3e0e799a4daf9e6aa1ff8c6028",
+  "workingTree": "clean before and after the run (git status --porcelain empty)",
+  "recordedAt": "2026-10-10T20:26:54Z",
+  "runFinishedAt": "2026-10-10T20:39:33Z",
+  "earlierRuns": [],
+  "timestampProvenance": "Both are date -u output printed around the run, with git rev-parse HEAD and HEAD^{tree} before it. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
+  "provenanceNote": "On main 4b3043e (#244). The full run and the counter-checks U1 to U3 and E1 to E4 are on f4e4065, a single commit on that main. Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass",
+    "unit": "634 passed (629 on main 4b3043e, +5 in src/app/setup/resume-setup.test.ts: a technical save's mode, factors, consumption, cylinders at their fill and first cylinder; the retry's options full at startGasL; a rebreather's loop with the O2 cylinder at its start pressure; a legacy v2 import's pressure/totalGas fill and gfLow/gfHigh; a v9 save without startGasL at the screen's 200 bar)",
+    "parity": "341 passed, unchanged from main",
+    "e2e": "197 passed in 9.4 min on the first run, no retries, no flake (192 on main 4b3043e; +5 in tests/resume-flow.spec.js: the banner in legacy's words, first in the panel and first in the tab order, Resume by keyboard continues the save; Discard clears it and moves focus to the mode radio, Start then begins a new dive; Start with the banner up begins a new dive whose save replaces the old one; a resumed technical dive's game over returns to tec, 50/80, two cylinders at 230 and 250 bar, and the retry starts on 230 bar; German on a 390 px phone, 44 px buttons, nothing off the side. Nine existing specs that resumed through Start now resume through the banner.)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels, max delta 0, nothing re-recorded",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "rule": "Legacy is the oracle (docs/decisions.md). Its resume banner (#67: src/game-loop.js _updateResumeBanner, resumeSavedDive, discardSavedDive; src/diving-simulator.html; src/style.css; the strings in src/constants.js) offers a saved dive on the gas setup without blocking it, and restoreDiveState() writes diveMode, gfLow, gfHigh, amvRate, tanks and ccrState into the globals the gas setup is drawn from, so Enter after a game over returns to the resumed dive's settings. No departure is recorded: the save keeps v16, because legacy's fill pressure is totalGas over volume (createTank, gsAdjustPressure, gsAdjustTankVol in src/state.js) and the save's startGasL is that totalGas.",
+  "change": "src/app/setup/resume-banner.ts builds the banner, a named region with Resume and Discard, from the catalogue's setup.resume.* in English and German. src/app/setup/setup-screen.ts places it first in the panel while a save is on offer, and on Discard drops it and focuses the mode radio. src/app/wreck-app.ts reads the save once when the gate is passed (loadSavedDive, with the legacy seed source of #219) and hands it to the setup screen: Resume starts the dive from the save with setupFromSave(save) as its setup, Discard clears both storage keys, and Start begins a new dive on the screen's setup. startWreckSimulation no longer loads the save itself. src/app/setup/resume-setup.ts rebuilds the DiveSetup: mode, factors, consumption, each cylinder at startGasL / volumeL held to the screen's 200-300 bar grid, the first cylinder active, the loop's diluent, setpoint and cylinder sizes, and the O2 cylinder at its start pressure held to 50-300 bar. The game over's retry and the debriefing's dive again return to it. tests/helpers/start-dive.cjs gains resumeSavedDive and resumeSavedDiveAndWaitForCanvas.",
+  "counterChecks": {
+    "method": "Each mutation applied by a script to a file backed up beforehand, the named tests run (for e2e, after rebuilding the client, with --retries=0) under the port lock on the code of f4e4065. Each file was then restored from its backup and compared with filecmp (shallow=False): byte for byte identical in every case, the working tree clean after each batch, and the client rebuilt from the restored code. E3 and E4 were run a second time (21:07Z) to name the failing test, which the first run's summary did not record; the result was the same.",
+    "results": [
+      {
+        "revert": "U1: each cylinder at what is left, gasRemainingL / volumeL, not its fill (src/app/setup/resume-setup.ts)",
+        "result": "3 of 5 in src/app/setup/resume-setup.test.ts fail: the technical save, the retry's options, the legacy import"
+      },
+      {
+        "revert": "U2: the O2 cylinder at its current pressure, not its start pressure (src/app/setup/resume-setup.ts)",
+        "result": "1 of 5 fails: the rebreather's loop"
+      },
+      {
+        "revert": "U3: the retry on the cylinder the resumed dive was breathing, not the first (src/app/setup/resume-setup.ts)",
+        "result": "1 of 5 fails: the technical save"
+      },
+      {
+        "revert": "E1: Start resumes the pending save, the silent resume of before (src/app/wreck-app.ts)",
+        "result": "e2e: 1 of 5 in tests/resume-flow.spec.js fails: Start with the banner up"
+      },
+      {
+        "revert": "E2: a resumed dive's game over returns to the screen's default setup, not the one rebuilt from its save (src/app/wreck-app.ts)",
+        "result": "e2e: 1 of 5 fails: the resumed dive's game over and retry"
+      },
+      {
+        "revert": "E3: Discard leaves the save in storage (src/app/wreck-app.ts)",
+        "result": "e2e: 1 of 5 fails: Discard clears the save"
+      },
+      {
+        "revert": "E4: the banner after the controls, last in the tab order (src/app/setup/setup-screen.ts)",
+        "result": "e2e: 1 of 5 fails: the banner first in the panel and in the tab order"
+      }
+    ]
+  },
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "durableProvenance": {
+    "src": "6789682d91596014900f8f179029ccae1ca115d1",
+    "tests": "6222923e643ff036bf861a017f511ba75cce0be2",
+    "scripts": "7c6f0c28cdf70f68e1f1b578759d4dc9647af926",
+    "docs": "b0d780a30f6ece3afb425951986e58d1d3f3490d"
+  }
+}
