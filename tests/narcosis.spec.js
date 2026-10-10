@@ -126,11 +126,12 @@ test('a frame with every narcosis effect on takes no longer than one without', a
     await each.keyboard.down('ArrowDown');
     await each.evaluate(() => window.__timeFrames(30));
   }
-  // Interleaved, so that a load on the machine falls on both alike.
+  // Interleaved in short runs, so that a load on the machine falls on both
+  // alike.
   const times = { narcosed: [], sober: [] };
-  for (let round = 0; round < 6; round += 1) {
-    times.narcosed.push(...(await narcosed.evaluate(() => window.__timeFrames(50))));
-    times.sober.push(...(await sober.evaluate(() => window.__timeFrames(50))));
+  for (let round = 0; round < 30; round += 1) {
+    times.narcosed.push(...(await narcosed.evaluate(() => window.__timeFrames(10))));
+    times.sober.push(...(await sober.evaluate(() => window.__timeFrames(10))));
   }
   const stats = (samples) => {
     const sorted = [...samples].sort((a, b) => a - b);
@@ -141,8 +142,11 @@ test('a frame with every narcosis effect on takes no longer than one without', a
   testInfo.annotations.push({ type: 'narcosis-frame-time', description: JSON.stringify(result) });
   console.log(`narcosis frame time ${JSON.stringify(result)}`);
   expect(result.narcosed.samples).toBe(300);
-  // A per-frame filter or gradient, legacy's way, costs a multiple of a
-  // frame; one sprite and an offset cost nothing measurable. The margin
-  // absorbs a loaded machine.
-  expect(result.narcosed.medianMs).toBeLessThanOrEqual(result.sober.medianMs * 1.25 + 0.5);
+  // The effects cost no measurable frame time: one sprite and an offset,
+  // about 1.7 against 1.5 ms alone. The margin absorbs a loaded machine,
+  // where the full suite's workers share the GPU: 3.2 against 2.1 ms was
+  // seen there. This bounds the cost; it does not tell a blur apart, since
+  // a Pixi BlurFilter on the world measured 1.8 against 1.6 ms. The
+  // wreck-narcosis reference frame (scripts/pixi-visual-check.mjs) does.
+  expect(result.narcosed.medianMs).toBeLessThanOrEqual(result.sober.medianMs * 1.5 + 1);
 });
