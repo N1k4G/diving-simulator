@@ -9,7 +9,7 @@
   "recordedAt": "2026-10-10T11:36:07Z",
   "runFinishedAt": "2026-10-10T11:52:09Z",
   "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
-  "provenanceNote": "Branch feat/222-bow-visor-engine from main e2a59ce (#226). The change is 2876b2b alone; the commit after it adds this file. The full run above is on 2876b2b; later commits only update this file.",
+  "provenanceNote": "Branch feat/222-bow-visor-engine from main e2a59ce (#226). The change is 2876b2b alone; the commit after it adds this file. The full run above is on 2876b2b; later commits only update this file and the linux reference frames (b98a5dd, recorded by the workflow).",
   "environment": {
     "os": "Windows 11",
     "node": "v26.10.0",
@@ -46,7 +46,17 @@
       "wreck-descended.png": "b6eaa04ea78b9030f8ca24d6937e02280ca2f121",
       "wreck-torch-off.png": "2463f1c543679af0d272d7daba6bf2ffddec9a25"
     },
-    "note": "The first recording captured wreck-exterior-start as a uniform frame (meanLuma 21.683, sdLuma 0); the recorder refuses only uniformly black frames, so it was accepted. It was recorded again before the commit (meanLuma 42.706, sdLuma 31.688), and the committed frames were checked by eye. The linux frames (manifest blob 4f76a248d96757f427506dd4125d4889576b24cc) are main's and still show the old bow; they are left to the linux workflow."
+    "note": "The first recording captured wreck-exterior-start as a uniform frame (meanLuma 21.683, sdLuma 0); the recorder refuses only uniformly black frames, so it was accepted. It was recorded again before the commit (meanLuma 42.706, sdLuma 31.688), and the committed frames were checked by eye. The linux frames (manifest blob 4f76a248d96757f427506dd4125d4889576b24cc) are main's and still show the old bow; they are left to the linux workflow.",
+    "linux": {
+      "commit": "b98a5ddeb262bd2ebda0f233dab896b75010e0b6",
+      "workflowRun": "pixi-baseline.yml run 38050103282, dispatched on main with target_ref feat/222-bow-visor-engine",
+      "blobs": {
+        "manifest.json": "c88dc962e8222b986689821c099f02b947ecdc14",
+        "wreck-exterior-start.png": "1e28c947691aa305e8a26747309758cd61b8b056",
+        "wreck-descended.png": "b6eaa04ea78b9030f8ca24d6937e02280ca2f121",
+        "wreck-torch-off.png": "2463f1c543679af0d272d7daba6bf2ffddec9a25"
+      }
+    }
   },
   "counterChecks": {
     "method": "Each mutation was applied on 2876b2b to a file copied from a backup taken just before it, and checked; the file was then restored from the backup and its sha256 compared with the one taken before the mutation (all equal), and git status was clean at the end. The unit mutations are checked with tests/unit/wreck-route.test.ts, src/render/renderer.test.ts and tests/unit/game-controller-buoyancy.test.ts (40 tests); the browser ones under the shared e2e lock.",
