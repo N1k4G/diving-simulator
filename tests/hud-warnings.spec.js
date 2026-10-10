@@ -1,4 +1,4 @@
-const { expect, test } = require('@playwright/test');
+const { expect, test } = require('./helpers/pinned-seed.cjs');
 const { descendTo } = require('./helpers/start-dive.cjs');
 
 // Legacy's last three dive-computer banners (#228, src/renderer.js
