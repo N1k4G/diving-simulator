@@ -1468,6 +1468,62 @@ describe("SaveGame gradient factors", () => {
     });
   });
 
+  // v17 adds narcosis's vertical drift (#220).
+  describe("the narcosis drift", () => {
+    type Encoded = { version: number; state: Record<string, unknown> };
+    const drifting = () =>
+      freezeDiveState({
+        ...createInitialDiveState(139),
+        elapsedTimeS: seconds(600),
+        depthM: metres(30),
+        maxDepthM: metres(30),
+        narcosisIndex: 0.6,
+        narcosisDrift: -0.0125,
+      });
+    const encode = (state: DiveState) =>
+      JSON.parse(encodeSaveGame(createSaveGame(state, CONSERVATIVE_FACTORS, 1_735_689_600_000))) as Encoded;
+
+    it("round-trips in a current save", () => {
+      const decoded = decodeSaveGame(JSON.stringify(encode(drifting())));
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      expect(decoded.saveGame.state.narcosisDrift).toBe(-0.0125);
+    });
+
+    it("resumes a v16 save at rest, which never drifted, whatever the payload carries", () => {
+      for (const carried of [false, true]) {
+        const v16 = encode(drifting());
+        v16.version = 16;
+        if (!carried) delete v16.state.narcosisDrift;
+        const result = decodeSaveGame(JSON.stringify(v16));
+        expect(result.ok, String(carried)).toBe(true);
+        if (!result.ok) return;
+        expect(result.migratedFrom).toBe("save-game-v16");
+        expect(result.saveGame.state.narcosisDrift, String(carried)).toBe(0);
+        expect(result.saveGame.state.narcosisIndex).toBe(0.6);
+      }
+    });
+
+    it("rejects a current save without a finite drift", () => {
+      for (const value of [undefined, Number.NaN, "0.01"]) {
+        const save = encode(drifting());
+        save.state.narcosisDrift = value;
+        expect(decodeSaveGame(JSON.stringify(save)).ok, String(value)).toBe(false);
+      }
+    });
+
+    it("carries legacy's narcDrift over, and resumes a save without it at rest", () => {
+      const carried = decodeSaveGame(JSON.stringify({ ...legacyV2Save(), narcosisIndex: 0.6, narcDrift: 0.02 }));
+      expect(carried.ok).toBe(true);
+      if (!carried.ok) return;
+      expect(carried.saveGame.state.narcosisDrift).toBe(0.02);
+      const missing = decodeSaveGame(JSON.stringify(legacyV2Save()));
+      expect(missing.ok).toBe(true);
+      if (!missing.ok) return;
+      expect(missing.saveGame.state.narcosisDrift).toBe(0);
+    });
+  });
+
   describe("the dive mode", () => {
     const singleCylinder = () =>
       createInitialDiveState(81, {

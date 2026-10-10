@@ -300,6 +300,11 @@ export interface DiveState {
    */
   narcosisIndex: number;
   /**
+   * Legacy's narcDrift (#220): the random walk narcosis above index 0.45
+   * adds to the vertical velocity, 60 times it per frame. 0 below it.
+   */
+  narcosisDrift: number;
+  /**
    * Vertical motion (#192), as legacy integrates it: velocity in m/min,
    * positive downwards, and the BCD gas in surface-equivalent litres.
    */
@@ -461,6 +466,7 @@ export function createInitialDiveState(
     ),
     cnsPercent: 0,
     narcosisIndex: 0,
+    narcosisDrift: 0,
     verticalVelocityMpm: 0,
     // Legacy sets 2 L when a dive leaves the surface (updateSurface).
     bcdGasSurfaceLiters: options.bcdGasSurfaceLiters ?? 2,

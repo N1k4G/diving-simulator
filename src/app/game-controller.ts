@@ -13,10 +13,8 @@ import {
   isDiveOver,
   type SharkFrame,
 } from "../core/dive-model";
-import {
-  neutralBcdSurfaceLitres,
-  type BuoyancyControls,
-} from "../core/buoyancy";
+import { neutralBcdSurfaceLitres } from "../core/buoyancy";
+import type { MovementControls } from "../core/narcosis-effects";
 import { metres, seconds } from "../core/units";
 import {
   DEFAULT_PLANNER_SETTINGS,
@@ -406,7 +404,8 @@ export class GameController {
         : Math.min(MAX_FRAME_SECONDS, (nowMs - this.#lastFrameMs) / 1000);
     this.#lastFrameMs = nowMs;
     const fromPositionM = this.#routePositionM;
-    this.#advanceView(elapsedS);
+    const controls = this.#frameControls(elapsedS);
+    this.#advanceView(elapsedS, controls);
     // Re-checked every frame, not only on the press, because the conditions
     // are the diver's to break: leave the band, or hold a vertical key, and
     // legacy drops out of fast-forward on that same tick.
@@ -430,12 +429,15 @@ export class GameController {
       this.#model.advanceWithBuoyancy(
         space,
         seconds(frameDiveS),
-        this.#buoyancyControls(),
+        // W or up inflates the BCD, S or down vents it: src/game-loop.js
+        // `wActive` / `sActive` before inflateBCD() and ventBCD().
+        { inflate: controls.inflate, vent: controls.vent },
         space.inOverhead,
         this.#sharkFrame(
           timeMultiplier,
           (this.#routePositionM - fromPositionM) / frameDiveS,
         ),
+        elapsedS,
       );
       this.#onAuthoritativeState?.(this.#model.snapshot);
       this.#requestForecast();
@@ -450,10 +452,34 @@ export class GameController {
     this.#animationFrame = requestAnimationFrame(this.#tick);
   };
 
-  #advanceView(elapsedS: number): void {
-    const horizontal =
-      (this.#pressed.has("right") ? 1 : 0) -
-      (this.#pressed.has("left") ? 1 : 0);
+  /**
+   * The movement keys this frame acts on (#220): those held, less the ones
+   * narcosis swallows. The model draws for all four, in legacy's order, as
+   * it holds the random state; the controller moves the diver along the
+   * route with A and D and hands W and S to the model's BCD. Only on a frame
+   * that moves the dive: none at the surface, after it, or on a first frame
+   * with no time.
+   */
+  #frameControls(elapsedS: number): MovementControls {
+    const held: MovementControls = {
+      inflate: this.#pressed.has("ascend"),
+      vent: this.#pressed.has("descend"),
+      left: this.#pressed.has("left"),
+      right: this.#pressed.has("right"),
+    };
+    if (elapsedS <= 0 || this.#awaitingDescent) {
+      return held;
+    }
+    return this.#model.swallowInputs(held, elapsedS);
+  }
+
+  #advanceView(elapsedS: number, controls: MovementControls): void {
+    // The sprite turns to the one fin key held, and only on a frame that
+    // kept it: legacy turns it on the velocity, which a swallowed stroke
+    // leaves alone (#220 Codex round 1).
+    const facing =
+      (this.#pressed.has("right") ? 1 : 0) - (this.#pressed.has("left") ? 1 : 0);
+    const horizontal = (controls.right ? 1 : 0) - (controls.left ? 1 : 0);
 
     // A dive that has ended moves no more, its waves included: legacy's
     // post-dive state draws no scene (#223 Codex round 1).
@@ -466,8 +492,8 @@ export class GameController {
     if (this.#awaitingDescent) {
       return;
     }
-    if (horizontal !== 0) {
-      this.#facing = horizontal < 0 ? -1 : 1;
+    if (facing !== 0 && horizontal === facing) {
+      this.#facing = facing < 0 ? -1 : 1;
     }
     // The hull stops the diver as legacy's structures do (#199).
     this.#routePositionM = moveAlongRoute(
@@ -517,17 +543,6 @@ export class GameController {
         calculateCeiling(state.tissues, this.#plannerSettings),
       ) || isAtSafetyStop(state)
     );
-  }
-
-  /**
-   * W or up inflates the BCD, S or down vents it: src/game-loop.js
-   * `wActive` / `sActive` before inflateBCD() and ventBCD().
-   */
-  #buoyancyControls(): Readonly<BuoyancyControls> {
-    return {
-      inflate: this.#pressed.has("ascend"),
-      vent: this.#pressed.has("descend"),
-    };
   }
 
   /**

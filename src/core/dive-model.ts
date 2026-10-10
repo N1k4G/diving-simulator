@@ -26,6 +26,11 @@ import {
 import { NO_INPUT, type InputIntent } from "./inputs";
 import { nextRandom } from "./rng";
 import {
+  narcosisDriftStep,
+  swallowInputs,
+  type MovementControls,
+} from "./narcosis-effects";
+import {
   BCD_START_SURFACE_LITRES,
   applyBcdControls,
   integrateBuoyancy,
@@ -284,6 +289,10 @@ export class DiveModel {
    *
    * With `shark`, the world around the diver, the frame also runs the shark
    * encounter (#219); without it the roll timer stands.
+   *
+   * With `realS`, the frame's real seconds (legacy's dtReal), narcosis drifts
+   * the velocity after the physics (#220), drawing before the shark as
+   * legacy's frame does; without it nothing drifts or is drawn.
    */
   advanceWithBuoyancy(
     bounds: Readonly<VerticalBounds>,
@@ -291,15 +300,34 @@ export class DiveModel {
     controls: Readonly<BuoyancyControls>,
     inOverhead = false,
     shark?: SharkFrame,
+    realS?: number,
   ): DiveState {
     if (frameS <= 0 || isDiveOver(this.#state)) {
       return this.#state;
     }
     const inflated = applyBcdControls(this.#state, controls, frameS);
     const moved = integrateBuoyancy(inflated, bounds, frameS);
+    let randomState = inflated.randomState;
+    const drifted =
+      realS === undefined
+        ? { drift: inflated.narcosisDrift, verticalVelocityMpm: moved.verticalVelocityMpm }
+        : narcosisDriftStep(
+            inflated.narcosisDrift,
+            moved.verticalVelocityMpm,
+            inflated.narcosisIndex,
+            moved.depthM,
+            realS,
+            () => {
+              const sample = nextRandom(randomState);
+              randomState = sample.state;
+              return sample.value;
+            },
+          );
     const withMotion = freezeDiveState({
       ...inflated,
-      verticalVelocityMpm: moved.verticalVelocityMpm,
+      randomState,
+      narcosisDrift: drifted.drift,
+      verticalVelocityMpm: drifted.verticalVelocityMpm,
       bcdGasSurfaceLiters: moved.bcdGasSurfaceLiters,
     });
     this.#state = advanceDiveStep(
@@ -313,6 +341,30 @@ export class DiveModel {
       frameS,
     );
     return this.#state;
+  }
+
+  /**
+   * Legacy's swallowed inputs (#220): the movement keys held for this frame,
+   * less those narcosis swallows, drawn from the dive's random state in
+   * legacy's order, W, S, A, D. Called once per frame, before the frame
+   * moves the diver, with its real seconds (legacy's dtReal). At index 0.3
+   * or below every held key is kept and nothing is drawn.
+   */
+  swallowInputs(held: Readonly<MovementControls>, realS: number): MovementControls {
+    const state = this.#state;
+    if (isDiveOver(state)) {
+      return held;
+    }
+    let randomState = state.randomState;
+    const kept = swallowInputs(held, state.narcosisIndex, realS, () => {
+      const sample = nextRandom(randomState);
+      randomState = sample.state;
+      return sample.value;
+    });
+    if (randomState !== state.randomState) {
+      this.#state = freezeDiveState({ ...state, randomState });
+    }
+    return kept;
   }
 
   /**
