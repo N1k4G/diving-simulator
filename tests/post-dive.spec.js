@@ -101,7 +101,7 @@ async function resumeCompletedDive(page, { configure, editState } = {}) {
     [SAVE_KEY, JSON.stringify(saved)],
   );
   await acceptSafetyGate(page);
-  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-resume-continue]').click();
   await page.locator('[data-post-dive]').waitFor();
   return saved;
 }
@@ -376,7 +376,7 @@ async function surfaceLiveDive(page, safetyStop) {
     [SAVE_KEY, JSON.stringify(saved)],
   );
   await acceptSafetyGate(page);
-  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-resume-continue]').click();
   // The dive itself first: it is resumed under way, not debriefed.
   await page.locator('[data-renderer=pixi] canvas').waitFor();
   await page.locator('[data-post-dive]').waitFor({ timeout: 30_000 });

@@ -1409,3 +1409,52 @@ summary:focus-visible {
   display: flex;
   margin-top: 1.5rem;
 }
+
+/* The resume banner (#191), legacy's #resume-dive-banner (#67): a strip at
+   the top of the setup screen with one line and two buttons. Legacy fixes it
+   over the screen; here it is the panel's first row, held at the top while
+   the panel scrolls, so it never covers a control. */
+.resume-banner {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  margin: 0 0 1.25rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgb(129 226 241 / 40%);
+  border-radius: 0.75rem;
+  background: rgb(10 48 64 / 97%);
+  box-shadow: 0 0.25rem 1.1rem rgb(0 0 0 / 40%);
+}
+
+.resume-banner-text {
+  flex: 1 1 14rem;
+  margin: 0;
+  color: #e9fbff;
+  line-height: 1.4;
+}
+
+.resume-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.resume-banner-discard {
+  min-height: 2.9rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgb(131 217 231 / 45%);
+  border-radius: 0.7rem;
+  color: #e9fbff;
+  background: rgb(2 17 23 / 70%);
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.resume-banner-discard:hover {
+  border-color: #83d9e7;
+  background: rgb(131 217 231 / 18%);
+}

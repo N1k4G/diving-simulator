@@ -37,6 +37,11 @@ const englishMessages = {
   "setup.unavailableSite.heading": "This dive site is not built yet",
   "setup.unavailableSite.body": "Only the wreck has been rebuilt in the new renderer so far. Choose the wreck to dive, or go back and pick a different site.",
   "setup.unavailableSite.back": "Back to setup",
+  // The resume banner (#191), legacy's resumeBannerText, resumeBannerYes and
+  // resumeBannerDiscard (src/constants.js, #67), word for word.
+  "setup.resume.text": "A saved dive was found. Resume?",
+  "setup.resume.continue": "Resume",
+  "setup.resume.discard": "Discard",
   "setup.gas.helium": "Helium",
   "setup.gas.helium.decrease": "Decrease helium fraction",
   "setup.gas.helium.increase": "Increase helium fraction",
@@ -292,6 +297,9 @@ const catalog: Record<SupportedLocale, Record<MessageKey, string>> = {
     "setup.unavailableSite.heading": "Dieser Tauchplatz ist noch nicht gebaut",
     "setup.unavailableSite.body": "Bisher wurde nur das Wrack im neuen Renderer neu aufgebaut. Wähle das Wrack, um zu tauchen, oder geh zurück und nimm einen anderen Platz.",
     "setup.unavailableSite.back": "Zurück zur Auswahl",
+    "setup.resume.text": "Ein gespeicherter Tauchgang wurde gefunden. Fortsetzen?",
+    "setup.resume.continue": "Fortsetzen",
+    "setup.resume.discard": "Verwerfen",
     "setup.gas.helium": "Helium",
     "setup.gas.helium.decrease": "Heliumanteil verringern",
     "setup.gas.helium.increase": "Heliumanteil erhöhen",

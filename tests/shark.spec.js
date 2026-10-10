@@ -62,7 +62,7 @@ async function resumeWithSharkClosing(page, randomState) {
   await page.goto('/dist/');
   await page.evaluate(([key, value]) => window.localStorage.setItem(key, value), [SAVE_KEY, JSON.stringify(saved)]);
   await acceptSafetyGate(page);
-  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-resume-continue]').click();
 }
 
 // The page's frames, stepped by hand as scripts/pixi-visual-check.mjs steps
@@ -92,7 +92,7 @@ test('the scene draws the shark while one swims, and only then', async ({ page }
     await page.goto('/dist/');
     await page.evaluate(([key, value]) => window.localStorage.setItem(key, value), [SAVE_KEY, JSON.stringify(saved)]);
     await acceptSafetyGate(page);
-    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-resume-continue]').click();
     await page.locator('[data-renderer=pixi] canvas').waitFor();
     await page.evaluate(() => window.__stepFrames(30));
     return page.locator('[data-wreck-viewport]').screenshot();
@@ -125,7 +125,7 @@ test.describe('a dive on a seed of its own', () => {
       }));
     });
     await acceptSafetyGate(page);
-    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-resume-continue]').click();
     await page.locator('[data-renderer=pixi] canvas').waitFor();
     // Migrated on load and written back under the new key with its seed.
     const saved = await persistedSave(page);

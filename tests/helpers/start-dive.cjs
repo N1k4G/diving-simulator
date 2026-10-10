@@ -39,6 +39,24 @@ async function startDiveAndWaitForCanvas(page, configure) {
   await page.locator('[data-renderer=pixi] canvas').waitFor();
 }
 
+/**
+ * Accepts the gate and resumes the saved dive from the setup screen's
+ * banner (#191). Start begins a new dive since then, so a spec that wants
+ * the save says so. The gate by its data attribute: some callers run in
+ * German.
+ */
+async function resumeSavedDive(page) {
+  await page.locator('[data-accept-safety]').click();
+  await page.locator('.setup-screen').waitFor();
+  await page.locator('[data-resume-continue]').click();
+}
+
+/** Resumes the saved dive and waits for the Pixi canvas. */
+async function resumeSavedDiveAndWaitForCanvas(page) {
+  await resumeSavedDive(page);
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+}
+
 // The dive starts at the surface and waits for S (#199), as legacy's
 // 'surface' state does: no clock, no gas, no autosave of a dive under way.
 // A spec that needs the dive running begins it the way a player does.
@@ -118,6 +136,8 @@ module.exports = {
   acceptSafetyGateByTouch,
   beginDescent,
   descendTo,
+  resumeSavedDive,
+  resumeSavedDiveAndWaitForCanvas,
   startDive,
   startDiveAndWaitForCanvas,
   startDiveByKeyboard,

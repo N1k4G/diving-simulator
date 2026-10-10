@@ -7,6 +7,7 @@ import { FAST_ASCENT_RATE_MPM } from "../core/dive-model";
 import { WebAudioService } from "../audio/audio-service";
 import type { DiveState } from "../core/dive-state";
 import { LocalSaveRepository } from "../save/save-repository";
+import type { SaveGame } from "../save/save-game";
 import {
   plannerSettingsWithGradientFactors,
   type PlannerSettings,
@@ -37,6 +38,7 @@ import {
 import { CCR_SETPOINT_STEP_BAR } from "../core/dive-state";
 import { selectLoopRowDanger } from "./loop-danger";
 import { renderSetupScreen } from "./setup/setup-screen";
+import { setupFromSave } from "./setup/resume-setup";
 import { renderGameOverScreen } from "./game-over";
 import { renderPostDiveScreen } from "./post-dive";
 import { createPostDiveSummary } from "../presentation/post-dive-summary";
@@ -182,33 +184,86 @@ export function renderWreckApplication(
 
   accept.addEventListener("click", () => {
     accept.disabled = true;
-    showSetupScreen(root, locale);
+    showSetupScreen(root, locale, undefined, loadSavedDive());
   });
+}
+
+/**
+ * The save on the first setup screen, as legacy's loadSavedDive() reads it
+ * once at load into _pendingResumeDive (#191). Storage that cannot be read
+ * offers no dive to resume.
+ */
+function loadSavedDive(): SaveGame | null {
+  try {
+    // A dive resumed from a legacy save gets its own seed too (#219).
+    const result = saveRepository({ legacySeed: drawDiveSeed }).load();
+    return result.status === "loaded" ? result.saveGame : null;
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
+}
+
+function saveRepository(
+  options: ConstructorParameters<typeof LocalSaveRepository>[1] = {},
+): LocalSaveRepository {
+  return new LocalSaveRepository(window.localStorage, options);
 }
 
 // Gate -> setup -> dive. The setup screen owns a keyboard listener, so its
 // disposer runs before anything else is mounted; leaving it attached would
 // let `1`-`8` keep reconfiguring a dive that had already started.
+//
+// A saved dive is offered on the screen until the diver chooses (#191), as
+// legacy's resume banner offers it: Resume continues it on the save's own
+// settings, Discard clears it, and Start begins a new dive on the screen's,
+// whose saves replace it. It used to be resumed by Start, silently, with
+// the screen's settings discarded.
 function showSetupScreen(
   root: HTMLElement,
   locale: SupportedLocale,
   initialSetup?: DiveSetup,
+  savedDive: SaveGame | null = null,
 ): void {
+  let pending = savedDive;
+  const start = (setup: DiveSetup, resumed: SaveGame | null) => {
+    void startWreckSimulation(root, locale, setup, resumed).catch(
+      (error: unknown) => {
+        console.error(error);
+        renderStartError(root, locale);
+      },
+    );
+  };
   const dispose = renderSetupScreen(root, {
     locale,
     ...(initialSetup ? { initialSetup } : {}),
+    ...(pending
+      ? {
+          resume: {
+            onContinue: () => {
+              const resumed = pending;
+              if (!resumed) return;
+              dispose();
+              // The setup the dive was configured with, so the game over
+              // and the debriefing return to it, as legacy's
+              // restoreDiveState() leaves it in its gas setup.
+              start(setupFromSave(resumed), resumed);
+            },
+            onDiscard: () => {
+              pending = null;
+              // Legacy's discardSavedDive(): clearSavedDive().
+              clearSave(saveRepository());
+            },
+          },
+        }
+      : {}),
     onStart: (setup) => {
       dispose();
       if (!isRenderableSite(setup.siteId)) {
-        renderUnavailableSite(root, locale);
+        renderUnavailableSite(root, locale, pending);
         return;
       }
-      void startWreckSimulation(root, locale, setup).catch(
-        (error: unknown) => {
-          console.error(error);
-          renderStartError(root, locale);
-        },
-      );
+      start(setup, null);
     },
   });
 }
@@ -226,6 +281,7 @@ function isRenderableSite(siteId: SiteId): boolean {
 function renderUnavailableSite(
   root: HTMLElement,
   locale: SupportedLocale,
+  savedDive: SaveGame | null,
 ): void {
   const panel = document.createElement("section");
   panel.className = "start-error";
@@ -245,7 +301,10 @@ function renderUnavailableSite(
   back.className = "primary-action";
   back.dataset.backToSetup = "true";
   back.textContent = translate(locale, "setup.unavailableSite.back");
-  back.addEventListener("click", () => showSetupScreen(root, locale));
+  // No dive was started, so a saved one is still on offer.
+  back.addEventListener("click", () =>
+    showSetupScreen(root, locale, undefined, savedDive),
+  );
 
   panel.append(heading, body, back);
   root.replaceChildren(panel);
@@ -314,15 +373,17 @@ function createSafetyGate(locale: SupportedLocale): HTMLElement {
   return gate;
 }
 
+/**
+ * `resumed` is the save the diver chose to continue, and `setup` then the
+ * setup rebuilt from it (#191); a new dive has no save and its own setup.
+ */
 async function startWreckSimulation(
   root: HTMLElement,
   locale: SupportedLocale,
   setup: DiveSetup,
+  resumed: SaveGame | null,
 ): Promise<void> {
-  // A dive resumed from a legacy save gets its own seed too (#219).
-  const repository = new LocalSaveRepository(window.localStorage, { legacySeed: drawDiveSeed });
-  const loadResult = repository.load();
-  const resumed = loadResult.status === "loaded" ? loadResult.saveGame : null;
+  const repository = saveRepository();
   // A save of a dive that has already ended at the surface is not resumed
   // into a dive the model would move no further: it shows its debriefing, as
   // the dive would have on that tick. No client writes one now, since a
@@ -365,10 +426,8 @@ async function startWreckSimulation(
   let thirdsTurnWarned: boolean | null = null;
   const controller = new GameController({
     renderer,
-    // A restored save still wins over the setup, which is existing resume
-    // behaviour and not this slice's to change: the configuration applies to a
-    // fresh dive. The two meeting — configure a gas, get a resumed dive — is a
-    // real gap, and it belongs with the resume UX (#67 class), not here.
+    // The save when the diver chose to resume it, a new dive on the setup
+    // otherwise (#191).
     initialState:
       resumed?.state ?? createWreckInitialState(toInitialDiveOptions(setup)),
     // The configured gradient factors, or the planner keeps using its
@@ -532,8 +591,7 @@ async function startWreckSimulation(
       },
       // Back to the setup, keeping what was configured, as legacy's Enter
       // returns to its gas setup with the same settings. For a resumed dive
-      // this is the setup screen that preceded the resume, not the save's
-      // settings; that gap belongs to the resume flow (#191).
+      // that is the setup rebuilt from its save (#191).
       onRetry: () => {
         disposeGameOver();
         showSetupScreen(root, locale, setup);

@@ -1,7 +1,7 @@
 const { expect, test } = require('./helpers/pinned-seed.cjs');
 const {
   descendTo,
-  startDive,
+  resumeSavedDive,
   startDiveAndWaitForCanvas,
 } = require('./helpers/start-dive.cjs');
 
@@ -38,7 +38,7 @@ async function resumeWith(page, mutate) {
     ([key, value]) => window.localStorage.setItem(key, value),
     [SAVE_KEY, JSON.stringify(saved)],
   );
-  await startDive(page);
+  await resumeSavedDive(page);
   await page.locator('[data-renderer=pixi] canvas').waitFor();
 }
 

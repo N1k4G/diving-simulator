@@ -60,6 +60,7 @@ import {
   applyDiluentPreset,
   matchingDiluentPreset,
 } from "./ccr-controls";
+import { createResumeBanner, type ResumeOffer } from "./resume-banner";
 
 // Decorative glyphs. The accessible name for each control comes from its
 // aria-label, so these carry no meaning a translator would need; naming
@@ -112,6 +113,11 @@ export interface SetupScreenOptions {
   readonly locale: SupportedLocale;
   readonly onStart: (setup: DiveSetup) => void;
   readonly initialSetup?: DiveSetup;
+  /**
+   * A saved dive waiting for a choice (#191): the screen shows the resume
+   * banner until it is continued or discarded.
+   */
+  readonly resume?: ResumeOffer;
 }
 
 /**
@@ -125,6 +131,24 @@ export function renderSetupScreen(
 ): () => void {
   const { locale, onStart } = options;
   let setup = options.initialSetup ?? createDefaultSetup();
+  const offer = options.resume;
+  // Built once and placed again by every draw, as the controls are.
+  // Discarding drops it and moves focus to the first control after it, the
+  // mode the screen is on, where Tab would have gone next; legacy hides its
+  // strip the same way.
+  let banner: HTMLElement | null = offer
+    ? createResumeBanner(locale, {
+        onContinue: offer.onContinue,
+        onDiscard: () => {
+          banner = null;
+          offer.onDiscard();
+          draw();
+          shell
+            .querySelector<HTMLElement>("[data-setup-group=mode] input:checked")
+            ?.focus();
+        },
+      })
+    : null;
 
   const shell = document.createElement("section");
   shell.className = "setup-screen";
@@ -306,6 +330,7 @@ export function renderSetupScreen(
     const focused = focusKeyOf(document.activeElement);
 
     shell.replaceChildren(
+      ...(banner ? [banner] : []),
       heading(locale, setup.mode),
       choiceGroup({
         legendKey: "setup.mode.legend",
@@ -656,6 +681,8 @@ function focusKeyOf(node: Element | null): string | null {
   const { setupOption, setupPreset, setupStep, startDive, backToSetup } =
     node.dataset;
   if (startDive !== undefined) return "[data-start-dive]";
+  if (node.dataset.resumeContinue !== undefined) return "[data-resume-continue]";
+  if (node.dataset.resumeDiscard !== undefined) return "[data-resume-discard]";
   if (backToSetup !== undefined) return "[data-back-to-setup]";
   if (setupOption !== undefined) {
     return `[data-setup-option="${CSS.escape(setupOption)}"]`;

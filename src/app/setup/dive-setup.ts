@@ -405,7 +405,7 @@ function replaceTank(
 // starting value converge onto the grid instead of carrying the offset
 // forever. Floating point is dealt with by rounding in integer step units
 // rather than by comparing with an epsilon.
-function clampToStep(
+export function clampToStep(
   value: number,
   min: number,
   max: number,
