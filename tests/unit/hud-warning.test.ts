@@ -221,6 +221,30 @@ describe("the warning's tier, legacy's warnCritical", () => {
     expect(selectWarningTier(ccr({}, { diluentCylinderPressureBar: bars(29) }))).toBe("critical");
   });
 
+  it("draws SCR LOW over the banner's own tier, as legacy's overlay text over its pill", () => {
+    const scrLow = { scrubberRemainingS: 599 };
+    // Alone, or over the banner's narcosis caution: a caution.
+    expect(selectWarningTier(ccr({}, scrLow))).toBe("caution");
+    expect(selectWarning(ccr(narcosisCaution, scrLow))).toBe("scrubberLow");
+    expect(selectWarningTier(ccr(narcosisCaution, scrLow))).toBe("caution");
+    // Over each critical banner term: critical.
+    for (const [term, loop] of [
+      [ceiling, {}],
+      [{}, { actualPo2Bar: bars(1.61) }],
+      [narcosisCritical, {}],
+      [fastAscent, {}],
+      [lowNdl, {}],
+    ] as [Partial<PresentationState>, Partial<PresentationCcr>][]) {
+      const presentation = ccr(term, { ...scrLow, ...loop });
+      expect(selectWarning(presentation)).toBe("scrubberLow");
+      expect(selectWarningTier(presentation)).toBe("critical");
+    }
+    // Legacy's banner warns of PO₂ over 1.6, not over the overlay's 1.5.
+    expect(selectWarningTier(ccr({}, { ...scrLow, actualPo2Bar: bars(1.6) }))).toBe("caution");
+    // Its low gas reads a cylinder the loop does not breathe; the rebreather's own does not count.
+    expect(selectWarningTier(ccr({}, { ...scrLow, diluentCylinderPressureBar: bars(29) }))).toBe("caution");
+  });
+
   it("is the tier of the warning shown, not of the others", () => {
     // A low NDL over a narcosis caution is critical; the reserve over it a caution.
     expect(selectWarningTier(oc({ ...lowNdl, ...narcosisCaution }))).toBe("critical");
