@@ -87,6 +87,9 @@ async function frameAt(page, saved, narcosisIndex) {
 }
 
 test('the view darkens above index 0.15 and wobbles above 0.25, and only then', async ({ page }) => {
+  // Eight dives started, each a page load: the suite's load took one past
+  // 60 s.
+  test.setTimeout(150000);
   const saved = await firstSave(page);
   const sober = await frameAt(page, saved, 0);
   expect((await frameAt(page, saved, 0)).equals(sober), 'the same dive renders the same frame').toBe(true);
