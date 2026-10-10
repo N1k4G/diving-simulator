@@ -13,6 +13,11 @@ import {
   openCircuit,
 } from "../../src/core/dive-model";
 import { createGasMix, type BreathingSource, type DiveState } from "../../src/core/dive-state";
+import {
+  NARCOSIS_INPUT_DROP_INDEX,
+  narcosisDriftStep,
+  swallowInputs,
+} from "../../src/core/narcosis-effects";
 import { metres, seconds } from "../../src/core/units";
 
 // Nitrogen narcosis (#189) against the legacy client. narcosis-air-65m holds
@@ -148,5 +153,59 @@ describe("nitrogen narcosis against the recorded legacy dives", () => {
     ["ccr-30m-30min", () => closedCircuit(1.3, createGasMix(0.15, 0.45))],
   ] as [string, (id: string) => BreathingSource][])("matches legacy's index at every checkpoint of %s", (scenarioId, breathingFor) => {
     replay(scenarioId, null, breathingFor);
+  });
+});
+
+// Narcosis below the KO (#220). Legacy draws its swallowed inputs and its
+// drift from Math.random, which the recordings stub at 0.5 for every draw
+// outside the shark's scripted ticks (scripts/baseline-scenarios.cjs). A
+// 0.5 drift draw adds (0.5 - 0.5) * ..., nothing, so legacy's drift stayed at
+// rest through every recording, and its swallowed inputs drop a key only
+// above index 0.3 on a tick that holds one. So no recorded checkpoint is
+// affected by either, which this asserts with the model's own steps on
+// legacy's draws. Legacy's blur and grayscale, which the owner decided not
+// to port (2026-10-07), are canvas filters drawScene() sets from the index:
+// render-only, so no model value departs, and the index they read matches
+// legacy at every checkpoint above.
+describe("narcosis below the KO against the recorded legacy dives", () => {
+  const LEGACY_DRAW = () => 0.5;
+  const scenarios = baselineFixture.scenarios as unknown as { scenarioId: string; checkpoints: Checkpoint[] }[];
+
+  it("leaves legacy's drift at rest through narcosis-air-65m, deep past 0.45", () => {
+    const recorded = checkpoints("narcosis-air-65m");
+    expect(Math.max(...recorded.map((entry) => entry.state.narcosisIndex))).toBeGreaterThan(0.9);
+    let drift = 0;
+    let state = diveStateFromLegacyCheckpoint(recorded[0]!, 37);
+    let drawn = 0;
+    for (const checkpoint of recorded.slice(1)) {
+      for (const tick of checkpoint.trajectory) {
+        if (tick.dtDive_min === 0) continue;
+        const step = narcosisDriftStep(drift, 7, state.narcosisIndex, tick.depth_m, tick.dtDive_min * 20, () => {
+          drawn += 1;
+          return LEGACY_DRAW();
+        });
+        drift = step.drift;
+        expect(step.verticalVelocityMpm).toBe(7);
+        state = advanceDiveStep(state, { depthM: metres(tick.depth_m), breathing: AIR }, seconds(tick.dtDive_min * 60));
+      }
+    }
+    expect(drawn).toBeGreaterThan(100);
+    expect(drift).toBe(0);
+  });
+
+  it("swallows no key in any recording that holds one: those stay at index 0.3 or below", () => {
+    // physicsTick() is the only recorded tick with keys held; the scenarios
+    // that use it are the ones that let the physics move the diver.
+    const withKeys = scenarios.filter((scenario) =>
+      scenario.scenarioId.startsWith("buoyancy-") || scenario.scenarioId.startsWith("barotrauma-"));
+    expect(withKeys.length).toBeGreaterThan(0);
+    for (const scenario of withKeys) {
+      for (const checkpoint of scenario.checkpoints) {
+        expect(checkpoint.state.narcosisIndex, `${scenario.scenarioId}/${checkpoint.checkpointId}`)
+          .toBeLessThanOrEqual(NARCOSIS_INPUT_DROP_INDEX);
+      }
+    }
+    const held = { inflate: true, vent: true, left: true, right: true };
+    expect(swallowInputs(held, NARCOSIS_INPUT_DROP_INDEX, 1 / 60, LEGACY_DRAW)).toBe(held);
   });
 });

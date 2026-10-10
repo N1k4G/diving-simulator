@@ -132,7 +132,12 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // does, a full minute to the first roll and no shark. Legacy saves carry
 // sharkTimer and keep it; legacy does not save the shark itself and
 // resumes without one, as this does.
-export const CURRENT_SAVE_GAME_VERSION = 16;
+//
+// v17 adds state.narcosisDrift, narcosis's vertical drift (#220). Older saves
+// never drifted and resume at zero: above index 0.45 the walk starts again
+// from rest. Legacy saves carry narcDrift and keep it.
+export const CURRENT_SAVE_GAME_VERSION = 17;
+export const SIXTEENTH_SAVE_GAME_VERSION = 16;
 export const FIFTEENTH_SAVE_GAME_VERSION = 15;
 export const FOURTEENTH_SAVE_GAME_VERSION = 14;
 export const THIRTEENTH_SAVE_GAME_VERSION = 13;
@@ -209,6 +214,7 @@ export type SaveGameMigration =
   | "save-game-v13"
   | "save-game-v14"
   | "save-game-v15"
+  | "save-game-v16"
   | null;
 
 /**
@@ -443,11 +449,15 @@ export function decodeSaveGame(
     }
     // Before v16 there was no shark: a minute to the first roll, none
     // swimming. Nor could a dive have ended in an attack.
-    if (v < CURRENT_SAVE_GAME_VERSION && isRecord(candidate.state)) {
+    if (v < SIXTEENTH_SAVE_GAME_VERSION && isRecord(candidate.state)) {
       if (isRecord(candidate.state.failure) && candidate.state.failure.reason === "shark-attack") {
         return { ok: false, reason: "invalid-data" };
       }
       candidate.state = { ...candidate.state, shark: createSharkState() };
+    }
+    // Before v17 nothing drifted: the walk resumes at rest.
+    if (v < CURRENT_SAVE_GAME_VERSION && isRecord(candidate.state)) {
+      candidate.state = { ...candidate.state, narcosisDrift: 0 };
     }
     // A v1 payload has no gradientFactors and is filled with the defaults; a
     // v2 payload must carry a valid pair rather than fall back to them, or a
@@ -571,6 +581,10 @@ function migrateLegacyV2(
     // that lacks them anyway resumes at zero rather than being lost.
     narcosisIndex: isFraction(candidate.narcosisIndex)
       ? candidate.narcosisIndex
+      : 0,
+    // Legacy saves it and refuses a restore without it (#220); likewise.
+    narcosisDrift: Number.isFinite(candidate.narcDrift)
+      ? (candidate.narcDrift as number)
       : 0,
     // Legacy saves both since its save-state v2.
     verticalVelocityMpm: Number.isFinite(candidate.verticalVelocity)
@@ -811,6 +825,7 @@ function isDiveState(
     isNonNegativeFinite(candidate.surfaceAirConsumptionLpm) &&
     isNonNegativeFinite(candidate.cnsPercent) &&
     isFraction(candidate.narcosisIndex) &&
+    Number.isFinite(candidate.narcosisDrift) &&
     Number.isFinite(candidate.verticalVelocityMpm) &&
     isNonNegativeFinite(candidate.bcdGasSurfaceLiters) &&
     (candidate.ccr === null || isCcrState(candidate.ccr, candidate.elapsedTimeS as number)) &&
