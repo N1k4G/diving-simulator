@@ -93,7 +93,9 @@ function ccrSetupFromSave(ccr: Readonly<CcrState>): CcrSetup {
  * cylinder (gasRemaining = totalGas) but starts a rebreather's oxygen and
  * diluent cylinders where the last dive left them
  * (o2CylPressureStart = o2CylPressure, dilCylPressureStart =
- * dilCylPressure, src/state.js). The same for a new dive and a resumed one.
+ * dilCylPressure, src/state.js), on the setpoint the diver left it on: the
+ * in-dive [ and ] write ccrState.targetSP (src/game-loop.js), which nothing
+ * resets. The same for a new dive and a resumed one.
  */
 export function setupForNextDive(
   setup: DiveSetup,
@@ -104,6 +106,7 @@ export function setupForNextDive(
     ...setup,
     ccr: Object.freeze({
       ...setup.ccr,
+      setpointBar: state.ccr.targetPo2Bar,
       oxygenCylinderPressureBar: state.ccr.oxygenCylinderPressureBar,
       diluentCylinderPressureBar: state.ccr.diluentCylinderPressureBar,
     }),

@@ -34,6 +34,7 @@ import {
   type SupportedLocale,
 } from "../i18n/catalog";
 import { formatGasFraction, formatPressure } from "../i18n/formatters";
+import { DEFAULT_DILUENT_CYLINDER_PRESSURE_BAR } from "../../core/dive-state";
 import {
   AMV_STEP_LPM,
   GRADIENT_FACTOR_STEP,
@@ -611,6 +612,25 @@ function stepper(spec: {
   return row;
 }
 
+/** A stepper's row without the buttons, for a value no control sets. */
+function readout(spec: {
+  labelKey: MessageKey;
+  value: string;
+  locale: SupportedLocale;
+  testId: string;
+}): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "setup-stepper";
+  row.dataset.setupReadout = spec.testId;
+  const value = element("output", "setup-stepper-value", spec.value);
+  value.dataset.setupValue = spec.testId;
+  row.append(
+    element("span", "setup-stepper-label", translate(spec.locale, spec.labelKey)),
+    value,
+  );
+  return row;
+}
+
 function stepButton(
   labelKey: MessageKey,
   locale: SupportedLocale,
@@ -803,6 +823,18 @@ function ccrSection(
       onIncrease: () => update(adjustDiluentVolume(setup, CCR_VOLUME_STEP_L)),
       locale,
       testId: "diluent-volume",
+    }),
+    // Read-only, as legacy's 'Diluent Cylinder: Xbar × YL' (src/ui.js): no
+    // screen sets it, but the dive after a dive starts on what the last one
+    // left (#191), so the diver sees it before Start.
+    readout({
+      labelKey: "setup.ccr.diluentPressure",
+      value: formatPressure(
+        ccr.diluentCylinderPressureBar ?? DEFAULT_DILUENT_CYLINDER_PRESSURE_BAR,
+        locale,
+      ),
+      locale,
+      testId: "diluent-pressure",
     }),
     stepper({
       labelKey: "setup.ccr.oxygenVolume",

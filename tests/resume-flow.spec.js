@@ -146,33 +146,48 @@ test('a save more than an hour old is cleared and not offered, as legacy\'s load
   expect(await savedRaw(page)).toBeNull();
 });
 
-test('a rebreather dive resumed and failed retries on its cylinders as the dive left them, as legacy\'s resetDive()', async ({ page }) => {
-  test.setTimeout(90_000);
+/** A rebreather dive a metre down, its save changed by `mutate`. */
+async function rebreatherSave(page, mutate) {
   await page.goto('/dist/');
   await page.evaluate(() => window.localStorage.clear());
   await acceptSafetyGate(page);
   await page.locator('[data-setup-group=mode] [data-setup-option=ccr]').check();
+  // No screen sets the diluent's pressure; a new dive's is legacy's 200 bar.
+  await expect(page.locator('[data-setup-value=diluent-pressure]')).toHaveText(/^200\sbar$/);
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
   await descendTo(page, 1);
-  const saved = await page
-    .waitForFunction((key) => {
+  const saved = await savedDive(page, true);
+  mutate(saved.state);
+  return saved;
+}
+
+/** The page's save once the dive is under way (`underWay`), or still at the surface. */
+function savedDive(page, underWay) {
+  return page
+    .waitForFunction(([key, wanted]) => {
       const parsed = JSON.parse(window.localStorage.getItem(key) ?? 'null');
-      return parsed !== null && parsed.state.elapsedTimeS > 0 ? parsed : null;
-    }, SAVE_KEY)
+      return parsed !== null && (parsed.state.elapsedTimeS > 0) === wanted ? parsed : null;
+    }, [SAVE_KEY, underWay], { timeout: 30_000 })
     .then((handle) => handle.jsonValue());
-  // Saved at 150 bar of oxygen and 160 of diluent, with a spent scrubber
-  // 60 dive seconds short of CO2 poisoning: the resumed dive breathes on
-  // past what the save holds before it fails.
-  Object.assign(saved.state.ccr, {
+}
+
+const bar = (text) => Number.parseFloat((text ?? '').replace(',', '.'));
+
+test('a rebreather dive resumed and failed retries on its cylinders and setpoint as the dive left them, as legacy\'s resetDive()', async ({ page }) => {
+  test.setTimeout(90_000);
+  // Saved at 150 bar of oxygen and 160 of diluent on a 1.3 bar setpoint,
+  // with a spent scrubber 60 dive seconds short of CO2 poisoning: the
+  // resumed dive breathes on past what the save holds before it fails.
+  await seed(page, await rebreatherSave(page, (state) => Object.assign(state.ccr, {
+    targetPo2Bar: 1.3,
     oxygenCylinderPressureBar: 150,
     diluentCylinderPressureBar: 160,
     scrubberRemainingS: 0,
     scrubberTotalS: 0,
     scrubberFailed: true,
     co2BuildupS: 120,
-  });
-  await seed(page, saved);
+  })));
   await acceptSafetyGate(page);
   await page.locator('[data-resume-continue]').click();
   await page.locator('[data-game-over]').waitFor({ timeout: 60_000 });
@@ -180,20 +195,46 @@ test('a rebreather dive resumed and failed retries on its cylinders as the dive 
   await page.keyboard.press('Enter');
   await page.locator('.setup-screen').waitFor();
   await expect(page.locator('[data-setup-group=mode] [data-setup-option=ccr]')).toBeChecked();
-  // What the failed dive left, under the save's 150 bar, not the 200 it
-  // started on.
-  const bar = (text) => Number.parseFloat((text ?? '').replace(',', '.'));
-  const left = bar(await page.locator('[data-setup-value=oxygen-pressure]').textContent());
-  expect(left).toBeLessThan(150);
-  expect(left).toBeGreaterThan(140);
+  await expect(page.locator('[data-setup-value=setpoint]')).toHaveText('1.3 bar');
+  const shownOxygen = bar(await page.locator('[data-setup-value=oxygen-pressure]').textContent());
+  const shownDiluent = bar(await page.locator('[data-setup-value=diluent-pressure]').textContent());
 
   await page.locator('[data-start-dive]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
-  await expect(page.locator('.wreck-hud [data-hud-metric="oxygenCylinder"] dd')).toHaveText(`${Math.round(left)} bar`);
-  // The diluent too: below the save's 160 bar, not refilled to 200.
-  const diluent = bar(await page.locator('.wreck-hud [data-hud-metric="diluentCylinder"] dd').textContent());
-  expect(diluent).toBeLessThan(160);
+  // The retry's own save holds the exact pressures it started on, at the
+  // surface where nothing is breathed (#199): what the failed dive left,
+  // not refilled to 200. The loop always draws oxygen, so that is under the
+  // save's 150 bar; it draws diluent only when the diver goes deeper or the
+  // BCD inflates, which a run may or may not do, so that is at most the
+  // save's 160.
+  const retried = await savedDive(page, false);
+  const { oxygenCylinderPressureBar: oxygen, diluentCylinderPressureBar: diluent } = retried.state.ccr;
+  expect(oxygen).toBeLessThan(150);
+  expect(oxygen).toBeGreaterThan(140);
+  expect(diluent).toBeLessThanOrEqual(160);
   expect(diluent).toBeGreaterThan(140);
+  expect(retried.state.ccr.targetPo2Bar).toBeCloseTo(1.3, 10);
+  // The setup showed those values to one decimal, and the HUD shows them
+  // rounded to the bar, each from the same number.
+  expect(Math.abs(shownOxygen - oxygen)).toBeLessThanOrEqual(0.05);
+  expect(Math.abs(shownDiluent - diluent)).toBeLessThanOrEqual(0.05);
+  await expect(page.locator('.wreck-hud [data-hud-metric="oxygenCylinder"] dd')).toHaveText(new RegExp(`^${Math.round(oxygen)}\\sbar$`));
+  await expect(page.locator('.wreck-hud [data-hud-metric="diluentCylinder"] dd')).toHaveText(new RegExp(`^${Math.round(diluent)}\\sbar$`));
+});
+
+test('an emptied diluent cylinder is shown on the retry\'s setup, as legacy\'s gas setup prints it', async ({ page }) => {
+  await seed(page, await rebreatherSave(page, (state) => {
+    state.ccr.diluentCylinderPressureBar = 0;
+    state.failure.reason = 'ccr-co2';
+    state.events.push({ type: 'failure', elapsedTimeS: state.elapsedTimeS, failureReason: 'ccr-co2' });
+  }));
+  await acceptSafetyGate(page);
+  await page.locator('[data-resume-continue]').click();
+  await page.locator('[data-game-over]').waitFor();
+
+  await page.keyboard.press('Enter');
+  await page.locator('.setup-screen').waitFor();
+  await expect(page.locator('[data-setup-value=diluent-pressure]')).toHaveText(/^0\sbar$/);
 });
 
 test.describe('on a small landscape phone', () => {

@@ -233,15 +233,18 @@ describe("setupFromSave", () => {
 });
 
 describe("setupForNextDive", () => {
-  it("starts a rebreather's next dive on the cylinders as this one left them", () => {
+  it("starts a rebreather's next dive on the cylinders and the setpoint as this one left them", () => {
+    // Configured at 0.7 bar; the dive ended on 1.3, which legacy's
+    // ccrState.targetSP keeps into the next dive.
     const setup = selectMode(createDefaultSetup(), "ccr");
+    expect(setup.ccr.setpointBar).toBe(0.7);
 
     const next = setupForNextDive(setup, rebreatherDive());
 
     expect(next.ccr.oxygenCylinderPressureBar).toBe(181.5);
     expect(next.ccr.diluentCylinderPressureBar).toBe(150);
+    expect(next.ccr.setpointBar).toBe(1.3);
     expect(next.ccr.diluent).toEqual(setup.ccr.diluent);
-    expect(next.ccr.setpointBar).toBe(setup.ccr.setpointBar);
   });
 
   it("leaves an open-circuit setup as it is: its cylinders start full", () => {
