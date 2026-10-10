@@ -149,12 +149,24 @@ export interface SharkFrame {
   /** The diver's horizontal velocity, metres per dive second, positive right. */
   readonly diverVelocityMps: number;
   /**
-   * Half the view's width in metres, legacy's cssWidth *
-   * DIVER_SCREEN_X_FRACTION * 0.05, the diver at its centre.
+   * How far the view reaches left of the diver, in metres: legacy's cssWidth
+   * * DIVER_SCREEN_X_FRACTION * 0.05. A shark heading right spawns beyond
+   * it, and one heading left leaves beyond it.
    */
-  readonly viewHalfWidthM: number;
-  /** The floor's depth under the shark, legacy's floorAt(shark.x). */
-  readonly floorM: number;
+  readonly viewLeftM: number;
+  /**
+   * How far the view reaches right of the diver: legacy's cssWidth * (1 -
+   * DIVER_SCREEN_X_FRACTION) * 0.05. Legacy centres the diver, so the two
+   * are equal there; a camera that leads the diver makes them differ.
+   */
+  readonly viewRightM: number;
+  /**
+   * The floor's depth under the shark, legacy's floorAt(shark.x): at its
+   * offset from the diver once it has swum this step, and at the depth it
+   * holds there, which picks the stretch of water where there is more than
+   * one.
+   */
+  readonly floorAt: (offsetM: number, depthM: number) => number;
   /** The site's noShark: the timer still rolls, nothing spawns. */
   readonly noShark: boolean;
 }
@@ -269,12 +281,16 @@ export class DiveModel {
    * the result (#193 review). The caller passes each display frame's dive
    * time and caps it as legacy's gameLoop() does: 0.1 s real, times the
    * time acceleration.
+   *
+   * With `shark`, the world around the diver, the frame also runs the shark
+   * encounter (#219); without it the roll timer stands.
    */
   advanceWithBuoyancy(
     bounds: Readonly<VerticalBounds>,
     frameS: Seconds,
     controls: Readonly<BuoyancyControls>,
     inOverhead = false,
+    shark?: SharkFrame,
   ): DiveState {
     if (frameS <= 0 || isDiveOver(this.#state)) {
       return this.#state;
@@ -292,6 +308,7 @@ export class DiveModel {
         depthM: metres(moved.depthM),
         gradientFactorHighPercent: this.#gradientFactorHighPercent,
         inOverhead,
+        ...(shark ? { shark } : {}),
       },
       frameS,
     );
@@ -592,7 +609,10 @@ export function advanceShark(
     const direction = draw() < 0.5 ? 1 : -1;
     const spread = draw() * 2 * SHARK_SPAWN_DEPTH_SPREAD_M - SHARK_SPAWN_DEPTH_SPREAD_M;
     encounter = {
-      offsetM: -direction * (frame.viewHalfWidthM + SHARK_SPAWN_MARGIN_M),
+      offsetM:
+        direction > 0
+          ? -(frame.viewLeftM + SHARK_SPAWN_MARGIN_M)
+          : frame.viewRightM + SHARK_SPAWN_MARGIN_M,
       depthM: metres(Math.max(0, Math.min(SHARK_MAX_DEPTH_M, diverDepthM + spread))),
       direction,
       speedMps: SHARK_SPEED_MPS,
@@ -610,7 +630,7 @@ export function advanceShark(
   if (Math.abs(gapM) > SHARK_DEPTH_DEADBAND_M) {
     depthM += Math.sign(gapM) * Math.min(SHARK_DEPTH_TRACK_MPS * elapsedS, Math.abs(gapM));
   }
-  depthM = Math.min(depthM, frame.floorM - SHARK_FLOOR_MARGIN_M);
+  depthM = Math.min(depthM, frame.floorAt(offsetM, depthM) - SHARK_FLOOR_MARGIN_M);
   let { speedMps, passed } = encounter;
   if (
     !passed &&
@@ -624,8 +644,10 @@ export function advanceShark(
     }
     speedMps = SHARK_PASSED_SPEED_MPS;
   }
-  const exitM = frame.viewHalfWidthM + SHARK_DESPAWN_MARGIN_M;
-  const gone = encounter.direction > 0 ? offsetM > exitM : offsetM < -exitM;
+  const gone =
+    encounter.direction > 0
+      ? offsetM > frame.viewRightM + SHARK_DESPAWN_MARGIN_M
+      : offsetM < -(frame.viewLeftM + SHARK_DESPAWN_MARGIN_M);
   return {
     shark: {
       timerS,

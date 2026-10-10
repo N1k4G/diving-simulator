@@ -11,6 +11,7 @@ import {
   SAFETY_STOP_NEEDED_BELOW_M,
   isAtSafetyStop,
   isDiveOver,
+  type SharkFrame,
 } from "../core/dive-model";
 import {
   neutralBcdSurfaceLitres,
@@ -35,13 +36,17 @@ import {
 } from "../presentation/presentation-state";
 import type { SceneRenderer, WreckSceneState } from "../render/renderer";
 import { selectWreckZone } from "../render/renderer";
+import { wreckViewAround } from "../render/camera";
 import { PlannerWorkerClient } from "./planner-worker-client";
+import { drawDiveSeed } from "./dive-seed";
 import {
   OPEN_WATER_FLOOR_M,
   ROUTE_START_POSITION_M,
+  floorUnder,
   moveAlongRoute,
   routeSpaceNear,
 } from "../sites/wreck-route";
+import { siteGameplay } from "../sites/site-resources";
 
 const FIN_SPEED_MPS = 5;
 /** src/game-loop.js gameLoop(): `dtReal = Math.min(dtReal, 0.1)`. */
@@ -59,6 +64,8 @@ const TIME_ACCELERATION = 3;
  * legacy's `timeMultiplier = TIME_ACCELERATION * FAST_FORWARD_MULTIPLIER`.
  */
 const FAST_FORWARD_MULTIPLIER = 10;
+/** The site's noShark; the only site that renders is the wreck. */
+const NO_SHARK = siteGameplay("wreck")?.noShark ?? false;
 /**
  * Real seconds a forecast may take to be replaced beyond the scheduler's
  * interval before its stop is no longer shown as current (#226 Codex round
@@ -398,6 +405,7 @@ export class GameController {
         ? 0
         : Math.min(MAX_FRAME_SECONDS, (nowMs - this.#lastFrameMs) / 1000);
     this.#lastFrameMs = nowMs;
+    const fromPositionM = this.#routePositionM;
     this.#advanceView(elapsedS);
     // Re-checked every frame, not only on the press, because the conditions
     // are the diver's to break: leave the band, or hold a vertical key, and
@@ -409,7 +417,8 @@ export class GameController {
     // controls once per frame and moves the diver in its sub-steps, so the
     // frame boundaries are part of the behaviour (docs/decisions.md,
     // Architecture). The frame's dive time is legacy's dtReal * timeMultiplier.
-    const frameDiveS = elapsedS * this.#timeMultiplier();
+    const timeMultiplier = this.#timeMultiplier();
+    const frameDiveS = elapsedS * timeMultiplier;
     if (frameDiveS > 0 && !this.#awaitingDescent) {
       // The bounds where the diver is (#199): the surface outside the wreck,
       // the deck inside it. Under the deck is legacy's inOverhead, which
@@ -423,6 +432,10 @@ export class GameController {
         seconds(frameDiveS),
         this.#buoyancyControls(),
         space.inOverhead,
+        this.#sharkFrame(
+          timeMultiplier,
+          (this.#routePositionM - fromPositionM) / frameDiveS,
+        ),
       );
       this.#onAuthoritativeState?.(this.#model.snapshot);
       this.#requestForecast();
@@ -517,6 +530,28 @@ export class GameController {
     };
   }
 
+  /**
+   * The world around the diver for the shark (#219), on this frame: the
+   * clock's rate, fast-forward included, as the shark swims in real time;
+   * how far the diver moved along the route, per dive second; the view to
+   * either side of the diver, with the camera's lead (owner decision of
+   * 2026-10-07: the shark appears just beyond the edge the player sees, not
+   * the edge of legacy's centred view); the route's floor under the shark;
+   * and the site's noShark.
+   */
+  #sharkFrame(timeMultiplier: number, diverVelocityMps: number): SharkFrame {
+    const positionM = this.#routePositionM;
+    const view = wreckViewAround(positionM, this.#facing);
+    return {
+      timeMultiplier,
+      diverVelocityMps,
+      viewLeftM: view.leftM,
+      viewRightM: view.rightM,
+      floorAt: (offsetM, depthM) => floorUnder(positionM + offsetM, depthM),
+      noShark: NO_SHARK,
+    };
+  }
+
   /** Legacy's timeMultiplier: dive seconds per real second. */
   #timeMultiplier(): number {
     return (
@@ -565,6 +600,7 @@ export class GameController {
       this.#plannerFreshness(),
     );
     const depthM = this.#model.snapshot.depthM;
+    const encounter = this.#model.snapshot.shark.encounter;
     const scene: WreckSceneState = Object.freeze({
       routePositionM: this.#routePositionM,
       diverDepthM: depthM,
@@ -575,6 +611,14 @@ export class GameController {
       zone: routeSpaceNear(this.#routePositionM, depthM).inOverhead
         ? selectWreckZone(this.#routePositionM)
         : "exterior",
+      // The model holds the shark relative to the diver (#219).
+      shark: encounter
+        ? Object.freeze({
+            positionM: this.#routePositionM + encounter.offsetM,
+            depthM: encounter.depthM,
+            direction: encounter.direction,
+          })
+        : null,
     });
     const fastForward: FastForwardState = Object.freeze({
       available: this.#fastForwardAvailable(),
@@ -887,8 +931,10 @@ function withinRoute(state: DiveState): DiveState {
  */
 export function createWreckInitialState(
   options: InitialDiveOptions = {},
+  seed: number = drawDiveSeed(),
 ): DiveState {
   // At the surface, as legacy's dives start (owner decision on #199,
-  // 2026-09-30): 2 L in the BCD, at rest, until S begins the descent.
-  return createInitialDiveState(0x57524543, options);
+  // 2026-09-30): 2 L in the BCD, at rest, until S begins the descent. Each
+  // dive on its own seed (#219, owner decision of 2026-10-07).
+  return createInitialDiveState(seed, options);
 }

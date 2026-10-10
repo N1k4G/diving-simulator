@@ -31,8 +31,9 @@ const AIR = createGasMix(0.21, 0);
 const FRAME: SharkFrame = {
   timeMultiplier: 3,
   diverVelocityMps: 0,
-  viewHalfWidthM: 25,
-  floorM: 300,
+  viewLeftM: 25,
+  viewRightM: 25,
+  floorAt: () => 300,
   noShark: false,
 };
 
@@ -119,7 +120,7 @@ describe("the shark encounter", () => {
     expect(left.depthM).toBeCloseTo(0.3, 12);
     expect(stepWith(shark(null, 1), [0.005], 10, 1).shark.encounter).toBeNull();
     // Clamped to MAX_DEPTH over a deeper floor, then tracked up for 1 ms.
-    const deep = stepWith(shark(null, 0.0005), [0.001, 0.5, 1], 299, 0.001, { ...FRAME, floorM: 400 });
+    const deep = stepWith(shark(null, 0.0005), [0.001, 0.5, 1], 299, 0.001, { ...FRAME, floorAt: () => 400 });
     expect(deep.shark.encounter!.depthM).toBeCloseTo(300 - 0.0003, 9);
   });
 
@@ -134,7 +135,7 @@ describe("the shark encounter", () => {
     expect(moved.offsetM).toBeCloseTo(-20 - 1.5 + 7.5 * 0.1, 12);
     expect(moved.depthM).toBeCloseTo(20 - 0.9, 12);
     expect(stepWith(shark({ offsetM: -20, depthM: metres(10.05) }), []).shark.encounter!.depthM).toBe(10.05);
-    const floored = stepWith(shark({ offsetM: -20, depthM: metres(12) }), [], 14, 1, { ...FRAME, floorM: 12 });
+    const floored = stepWith(shark({ offsetM: -20, depthM: metres(12) }), [], 14, 1, { ...FRAME, floorAt: () => 12 });
     expect(floored.shark.encounter!.depthM).toBe(11.5);
   });
 
@@ -157,6 +158,34 @@ describe("the shark encounter", () => {
     expect(stepWith(shark({ offsetM: 29.9, passed: true }), []).shark.encounter!.offsetM).toBeCloseTo(32.4, 12);
     expect(stepWith(shark({ offsetM: 29.9, passed: true, direction: -1 }), []).shark.encounter).not.toBeNull();
     expect(stepWith(shark({ offsetM: -30.1, passed: true, direction: -1 }), []).shark.encounter).toBeNull();
+  });
+
+  it("spawns and leaves beyond each edge of a view that is not centred on the diver (#219 part 2)", () => {
+    // A camera leading the diver to the right: 21 m of view behind, 37 ahead.
+    const led = { ...FRAME, viewLeftM: 21, viewRightM: 37 };
+    const right = stepWith(shark(null, 1), [0.004, 0.2, 0.5], 10, 1, led).shark.encounter!;
+    expect(right.offsetM).toBeCloseTo(-26 + 2.5, 12);
+    const left = stepWith(shark(null, 1), [0.004, 0.5, 0.5], 10, 1, led).shark.encounter!;
+    expect(left.offsetM).toBeCloseTo(42 - 2.5, 12);
+    expect(stepWith(shark({ offsetM: 42.1, passed: true }), [], 10, 1, led).shark.encounter).toBeNull();
+    expect(stepWith(shark({ offsetM: 41.9, passed: true }), [], 10, 1, led).shark.encounter).not.toBeNull();
+    expect(stepWith(shark({ offsetM: -26.1, passed: true, direction: -1 }), [], 10, 1, led).shark.encounter).toBeNull();
+    expect(stepWith(shark({ offsetM: -25.9, passed: true, direction: -1 }), [], 10, 1, led).shark.encounter).not.toBeNull();
+  });
+
+  it("reads the floor where the shark has swum to, at the depth it tracked to", () => {
+    const asked: [number, number][] = [];
+    const floorAt = (offsetM: number, depthM: number) => {
+      asked.push([offsetM, depthM]);
+      return offsetM > -18 ? 15 : 300;
+    };
+    // From 20 m back to 17.5 m back, and from 20 m up to 19.7 m: over the
+    // shallower floor only once it has swum.
+    const floored = stepWith(shark({ offsetM: -20, depthM: metres(20) }), [], 10, 1, { ...FRAME, floorAt });
+    expect(asked).toHaveLength(1);
+    expect(asked[0]![0]).toBeCloseTo(-17.5, 12);
+    expect(asked[0]![1]).toBeCloseTo(19.7, 12);
+    expect(floored.shark.encounter!.depthM).toBe(14.5);
   });
 
   it("ends the dive in a shark attack on a seed whose contact roll is under 0.33", () => {

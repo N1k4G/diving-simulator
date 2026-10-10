@@ -6,7 +6,7 @@ import {
   type GameFrame,
 } from "../../src/app/game-controller";
 import { neutralBcdSurfaceLitres } from "../../src/core/buoyancy";
-import { DiveModel } from "../../src/core/dive-model";
+import { DiveModel, type SharkFrame } from "../../src/core/dive-model";
 import { createSaveGame } from "../../src/save/save-game";
 import {
   createGasMix,
@@ -37,6 +37,23 @@ import {
 /** Open water at the route's start: the surface to the floor (#199). */
 const ROUTE = { ceilingM: 0, floorM: 34 };
 const FRAME_MS = 20;
+/** A dive's seed, fixed here as the client's was before each dive drew one (#219). */
+const DIVE_SEED = 0x57524543;
+
+/**
+ * The shark's world for a diver holding still at the route's start (#219):
+ * the controller hands one to every frame, so the shark's roll timer runs.
+ */
+function still(timeMultiplier: number): SharkFrame {
+  return {
+    timeMultiplier,
+    diverVelocityMps: 0,
+    viewLeftM: 10,
+    viewRightM: 48,
+    floorAt: () => 34,
+    noShark: false,
+  };
+}
 
 let queue: FrameRequestCallback[] = [];
 let nowMs = 0;
@@ -133,7 +150,7 @@ describe("the controller drives the buoyancy model frame by frame", () => {
 
     const expected = new DiveModel(initial);
     for (let i = 0; i < 30; i += 1) {
-      expected.advanceWithBuoyancy(ROUTE, seconds((FRAME_MS / 1000) * 3 * 1), { inflate: false, vent: true });
+      expected.advanceWithBuoyancy(ROUTE, seconds((FRAME_MS / 1000) * 3 * 1), { inflate: false, vent: true }, false, still(3));
     }
     expect(controller.authoritativeState).toEqual(expected.snapshot);
     expect(controller.authoritativeState.verticalVelocityMpm).toBeGreaterThan(0);
@@ -147,14 +164,14 @@ describe("the controller drives the buoyancy model frame by frame", () => {
     step(1, 250);
 
     const expected = new DiveModel(initial);
-    expected.advanceWithBuoyancy(ROUTE, seconds(0.1 * 3 * 1), { inflate: false, vent: true });
+    expected.advanceWithBuoyancy(ROUTE, seconds(0.1 * 3 * 1), { inflate: false, vent: true }, false, still(3));
     expect(controller.authoritativeState).toEqual(expected.snapshot);
     expect(controller.authoritativeState.elapsedTimeS).toBeCloseTo(0.3, 12);
     controller.destroy();
   });
 
   it("starts a fresh wreck dive at the surface, waiting for S, as legacy's updateSurface (#199)", async () => {
-    const initial = createWreckInitialState();
+    const initial = createWreckInitialState({}, DIVE_SEED);
     // legacy updateSurface: 2 L in the BCD, at rest, on leaving the surface.
     expect(initial.depthM).toBe(0);
     expect(initial.bcdGasSurfaceLiters).toBe(2);
@@ -177,7 +194,7 @@ describe("the controller drives the buoyancy model frame by frame", () => {
     step(30);
     const expected = new DiveModel(initial);
     for (let i = 0; i < 30; i += 1) {
-      expected.advanceWithBuoyancy(ROUTE, seconds((FRAME_MS / 1000) * 3), { inflate: false, vent: true });
+      expected.advanceWithBuoyancy(ROUTE, seconds((FRAME_MS / 1000) * 3), { inflate: false, vent: true }, false, still(3));
     }
     expect(controller.authoritativeState).toEqual(expected.snapshot);
     expect(controller.authoritativeState.depthM).toBeGreaterThan(0);
@@ -199,7 +216,7 @@ describe("the controller drives the buoyancy model frame by frame", () => {
       onAuthoritativeState: (state) => {
         reported.push(state);
       },
-      initialState: createWreckInitialState(),
+      initialState: createWreckInitialState({}, DIVE_SEED),
       plannerClient: {
         forecast: () => new Promise(() => undefined),
         dispose: () => undefined,
@@ -213,7 +230,7 @@ describe("the controller drives the buoyancy model frame by frame", () => {
   });
 
   it("resumes a dive saved before its descent at the surface, still waiting", async () => {
-    const { controller, frames } = await startController(createWreckInitialState());
+    const { controller, frames } = await startController(createWreckInitialState({}, DIVE_SEED));
     step(10);
     expect(frames.at(-1)?.awaitingDescent).toBe(true);
     expect(controller.authoritativeState.elapsedTimeS).toBe(0);
@@ -265,7 +282,7 @@ describe("the controller drives the buoyancy model frame by frame", () => {
     expect(frames[0]?.awaitingDescent).toBe(false);
     step(1);
     const expected = new DiveModel(saved);
-    expected.advanceWithBuoyancy(ROUTE, seconds((FRAME_MS / 1000) * 3), { inflate: false, vent: false });
+    expected.advanceWithBuoyancy(ROUTE, seconds((FRAME_MS / 1000) * 3), { inflate: false, vent: false }, false, still(3));
     expect(controller.authoritativeState).toEqual(expected.snapshot);
     expect(controller.authoritativeState.depthM).toBeLessThan(12);
     controller.destroy();
@@ -289,7 +306,7 @@ describe("the controller drives the buoyancy model frame by frame", () => {
     expect(frames.at(-1)?.fastForward).toEqual({ available: true, active: true });
     step(1);
     const expected = new DiveModel(saved);
-    expected.advanceWithBuoyancy(ROUTE, seconds((FRAME_MS / 1000) * 3 * 10), { inflate: false, vent: false });
+    expected.advanceWithBuoyancy(ROUTE, seconds((FRAME_MS / 1000) * 3 * 10), { inflate: false, vent: false }, false, still(30));
     expect(controller.authoritativeState).toEqual(expected.snapshot);
     expect(controller.authoritativeState.safetyStop.remainingS).toBeCloseTo(100 - 0.6, 9);
     controller.destroy();
@@ -317,11 +334,11 @@ describe("the controller drives the buoyancy model frame by frame", () => {
     step(5);
     const expected = new DiveModel(loaded, { gradientFactorHighPercent: 100 });
     for (let i = 0; i < 5; i += 1) {
-      expected.advanceWithBuoyancy(ROUTE, seconds((FRAME_MS / 1000) * 3 * 1), { inflate: false, vent: false });
+      expected.advanceWithBuoyancy(ROUTE, seconds((FRAME_MS / 1000) * 3 * 1), { inflate: false, vent: false }, false, still(3));
     }
     expect(controller.authoritativeState.log).toEqual(expected.snapshot.log);
     const atDefault = new DiveModel(loaded);
-    atDefault.advanceWithBuoyancy(ROUTE, seconds((FRAME_MS / 1000) * 3 * 1), { inflate: false, vent: false });
+    atDefault.advanceWithBuoyancy(ROUTE, seconds((FRAME_MS / 1000) * 3 * 1), { inflate: false, vent: false }, false, still(3));
     expect(controller.authoritativeState.log.minNdlMin ?? 0).toBeGreaterThan(atDefault.snapshot.log.minNdlMin ?? 0);
     controller.destroy();
   });
@@ -385,7 +402,7 @@ describe("the controller drives the buoyancy model frame by frame", () => {
     step(1);
 
     const expected = new DiveModel(atStop);
-    expected.advanceWithBuoyancy(ROUTE, seconds((FRAME_MS / 1000) * 3 * 10), { inflate: false, vent: false });
+    expected.advanceWithBuoyancy(ROUTE, seconds((FRAME_MS / 1000) * 3 * 10), { inflate: false, vent: false }, false, still(30));
     expect(controller.authoritativeState).toEqual(expected.snapshot);
     expect(controller.authoritativeState.elapsedTimeS).toBeCloseTo(0.6, 12);
     controller.destroy();
