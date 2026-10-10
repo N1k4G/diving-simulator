@@ -10,16 +10,12 @@ import {
   SAFETY_STOP_BAND_MIN_M,
   THIRDS_RESERVE_FRACTION,
   THIRDS_TURN_FRACTION,
-  decompressionGas,
+  frameNdlMinutes,
   resolveInspiredGas,
   safetyStopDurationS,
 } from "../core/dive-model";
 import { bars, type Bars, type Litres } from "../core/units";
-import {
-  DEFAULT_GF_HIGH_PERCENT,
-  decoStopDepth,
-  ndlMinutes,
-} from "../core/decompression";
+import { DEFAULT_GF_HIGH_PERCENT, decoStopDepth } from "../core/decompression";
 import {
   compartmentSaturation,
   leadingGradientFactorPercent,
@@ -160,11 +156,18 @@ export interface PresentationState {
    */
   readonly decoStopDepthM: number;
   /**
-   * Legacy's frameCalc.ndl of this tick (#228), searched only up to
-   * LOW_NDL_WARNING_MIN, the one question the HUD asks of it: whole minutes
-   * when the limit falls within them, else null. Null too while there is a
-   * ceiling, where legacy's warning does not read it, and once the dive is
-   * completed. The NDL row shows the planner's forecast instead.
+   * Legacy's frameCalc.ndl of this tick (#244), which its dive computer's
+   * NDL row draws: whole minutes, 999 when no limit falls within 200. It is
+   * the model's own NDL of the step, not the planner's forecast, which is
+   * pending after every gas switch, setpoint change and bailout, and on a
+   * resumed dive. Shown in deco too, as legacy shows it there. Null once the
+   * dive is completed, where legacy draws no dive computer.
+   */
+  readonly ndlMin: number | null;
+  /**
+   * The same NDL for the low-NDL warning (#228): ndlMin while it is under
+   * LOW_NDL_WARNING_MIN, else null. Null too while there is a ceiling, where
+   * legacy's warning does not read it, and once the dive is completed.
    */
   readonly nearNdlMin: number | null;
   /** Legacy's narcosisIndex (#189), 0 to 1, for the HUD's warning (#228). */
@@ -224,31 +227,33 @@ export function isForecastCurrent(
 export const LOW_NDL_WARNING_MIN = 5;
 
 /**
- * The NDL as near as the HUD's warning needs it (#228). Legacy reads
- * frameCalc.ndl, computed on the same tick. The planner's forecast arrives
- * asynchronously and is pending after every gas switch, so it is not used
- * here. The model's own NDL of the tick is not kept in its state. So it is
- * computed again, on the model's tissues, depth, gas and GF high. The
- * warning asks only whether the limit is under five minutes, so the search
- * stops there: ten steps instead of up to four hundred. That is a saving
- * (about 0.01 ms against 0.5 ms worst case, warm), not a necessity; the model
- * itself runs the full search every frame.
+ * The NDL the HUD's row draws (#244): legacy's frameCalc.ndl, computed on the
+ * same tick. The planner's forecast arrives asynchronously and is pending
+ * after every gas switch, setpoint change and bailout, so it is not used
+ * here. The model computed this NDL on the step that produced the state, at
+ * the dive's GF high, and frameNdlMinutes reads it back; for a state no step
+ * produced it is searched once on the model's tissues, depth and gas.
+ */
+export function selectNdlMin(
+  state: DiveState,
+  gradientFactorHighPercent: number,
+): number | null {
+  return state.completed ? null : frameNdlMinutes(state, gradientFactorHighPercent);
+}
+
+/**
+ * The NDL as near as the HUD's warning needs it (#228): the row's NDL while
+ * it is under five minutes, so the warning and the row never disagree.
  */
 export function selectNearNdlMin(
   state: DiveState,
   gradientFactorHighPercent: number,
 ): number | null {
-  if (state.completed || state.log.lastCeilingM > 0) {
+  if (state.log.lastCeilingM > 0) {
     return null;
   }
-  const ndl = ndlMinutes(
-    state.tissues,
-    state.depthM,
-    decompressionGas(state),
-    gradientFactorHighPercent / 100,
-    LOW_NDL_WARNING_MIN,
-  );
-  return ndl < LOW_NDL_WARNING_MIN ? ndl : null;
+  const ndl = selectNdlMin(state, gradientFactorHighPercent);
+  return ndl !== null && ndl < LOW_NDL_WARNING_MIN ? ndl : null;
 }
 
 export function createPresentationState(
@@ -293,6 +298,7 @@ export function createPresentationState(
     ascentRateMpm: state.completed ? 0 : state.log.ascentRateMpm,
     decoStop: selectDecoStop(state, planner, plannerFreshness),
     decoStopDepthM: state.completed ? 0 : decoStopDepth(state.log.lastCeilingM),
+    ndlMin: selectNdlMin(state, gradientFactorHighPercent),
     nearNdlMin: selectNearNdlMin(state, gradientFactorHighPercent),
     narcosisIndex: state.narcosisIndex,
     safetyStop: selectSafetyStop(state),

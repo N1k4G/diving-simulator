@@ -535,14 +535,67 @@ export function advanceDiveStep(
   // reads nothing the failure update changes, so applying it afterwards is
   // the same step.
   const withMotion = recordMotion(settled, previousDepthM, elapsedS, limits);
+  const gradientFactorHighPercent =
+    environment.gradientFactorHighPercent ?? DEFAULT_GF_HIGH_PERCENT;
   if (
     settled.failure.reason !== null &&
     FAILURES_BEFORE_THE_LOG.has(settled.failure.reason)
   ) {
-    return withMotion;
+    return keepFrameNdl(withMotion, gradientFactorHighPercent, limits.ndlMin);
   }
   const logged = updateSafetyStop(updateDiveLog(withMotion, elapsedS, limits), elapsedS);
-  return settled.failure.reason === null ? updateCompletion(logged, limits) : logged;
+  return keepFrameNdl(
+    settled.failure.reason === null ? updateCompletion(logged, limits) : logged,
+    gradientFactorHighPercent,
+    limits.ndlMin,
+  );
+}
+
+/**
+ * Legacy's frameCalc.ndl of each state (#244): the NDL the step that produced
+ * it computed, at that step's GF high. Kept beside the state rather than in
+ * it, so the save format does not change; a state no step produced (a new or
+ * resumed dive, a gas switch, a setpoint change or a bailout between steps)
+ * has its NDL computed once, on first read, from the same inputs.
+ */
+const frameNdls = new WeakMap<
+  DiveState,
+  { readonly gradientFactorHighPercent: number; readonly ndlMin: number }
+>();
+
+function keepFrameNdl(
+  state: DiveState,
+  gradientFactorHighPercent: number,
+  ndlMin: number,
+): DiveState {
+  frameNdls.set(state, { gradientFactorHighPercent, ndlMin });
+  return state;
+}
+
+/**
+ * Legacy's frameCalc.ndl for the state (#244), which its dive computer draws
+ * on the same frame: the full search of decompressionLimits, in whole
+ * minutes, 999 when no limit falls within 200 minutes. The step that produced
+ * the state already ran it, so this reads that result at no cost. Otherwise,
+ * or at another GF high, it searches on the state's tissues, depth and
+ * decompression gas, and keeps the answer.
+ */
+export function frameNdlMinutes(
+  state: DiveState,
+  gradientFactorHighPercent: number,
+): number {
+  const kept = frameNdls.get(state);
+  if (kept?.gradientFactorHighPercent === gradientFactorHighPercent) {
+    return kept.ndlMin;
+  }
+  const ndlMin = ndlMinutes(
+    state.tissues,
+    state.depthM,
+    decompressionGas(state),
+    gradientFactorHighPercent / 100,
+  );
+  keepFrameNdl(state, gradientFactorHighPercent, ndlMin);
+  return ndlMin;
 }
 
 /**
