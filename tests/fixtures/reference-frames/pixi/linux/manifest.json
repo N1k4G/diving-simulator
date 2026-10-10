@@ -40,6 +40,18 @@
         ],
         "channelSpread": 37.413
       }
+    },
+    "wreck-narcosis": {
+      "statistics": {
+        "meanLuma": 37.648,
+        "sdLuma": 19.938,
+        "meanRGB": [
+          15.87,
+          42.749,
+          51.246
+        ],
+        "channelSpread": 35.376
+      }
     }
   }
 }
