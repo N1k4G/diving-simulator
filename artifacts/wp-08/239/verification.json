@@ -1,0 +1,180 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 239,
+  "slice": "flaky e2e under load: the cross-client trace holds by frame time, the reload tests accept the beforeunload prompt",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "cd0e53d99c7160475164f7d3e9dd3f4602fa21cd",
+  "measuredTree": "4783888f27c7f065f2e34a6d0829de60e853f80e",
+  "workingTree": "clean before and after the run (git status --porcelain empty)",
+  "recordedAt": "2026-10-10T14:35:51Z",
+  "runFinishedAt": "2026-10-10T14:47:22Z",
+  "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
+  "provenanceNote": "On main 44012dd (#242), rebased from e2a59ce without conflicts; the code commits are e38bebd (was c6d88a4) and cd0e53d (Codex round 1: tests/result-screen.spec.js accepts the reload prompt too). The full run above is on cd0e53d; the repeat runs below were measured before it, on the same test code. durableProvenance holds the measured src, tests, scripts and docs trees; later commits only update this file.",
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass",
+    "unit": "563 passed (563 on main 44012dd; unchanged)",
+    "parity": "332 passed (332 on main 44012dd; unchanged)",
+    "e2e": "178 passed in 7.6 min with 4 workers (178 on main 44012dd; unchanged)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels, nothing re-recorded",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "change": {
+    "tests/wreck-slice.spec.js": "The cross-client trace held ArrowDown for 1250 ms of wall time (page.waitForTimeout). Both clients advance per frame by the frame's real time capped at 0.1 s (src/game-loop.js gameLoop() Math.min(dtReal, 0.1), src/app/game-controller.ts MAX_FRAME_SECONDS), so under load the hold gave the dive too little time and the diver read as stationary. The hold step is now { kind: 'hold', key: 'ArrowDown', frameTimeS: 1.25 }: waitForFrameTime waits for requestAnimationFrame in the page and sums the rAF intervals, capped at 0.1 s as both clients cap them, until they reach 1.25 s, what the old hold gave at 60 Hz. No assertion or threshold changed.",
+    "tests/reload-resume.spec.js": "bootGame dismissed every dialog, including the beforeunload prompt the legacy client arms from maybeSaveDiveState (every SAVE_INTERVAL_MS = 3 s of page time) while diving or in a drill; Chromium shows it after a user gesture, which keyboard.down('s') is. Dismissing it cancels the reload and page.reload() waited out the 30 s test timeout. The handler now accepts beforeunload and still dismisses other dialogs. The two rejection tests pass their corrupted payload to reload(page, save), which writes it again from an init script before the new page's scripts, because the old page's periodic save could overwrite it during the reload. No assertion changed.",
+    "notAFixedFrameCount": "The issue proposed holding for N frames (75 = 1.25 s at 60 Hz). Measured with that version under load (8 workers next to a looping npm run test:unit): the Pixi client ran at 3 to 7 frames per second, so 75 frames held for 10 to 23 s (instrumented run: Pixi holds 10.4 to 22.7 s, frame time 7.1 to 7.4 s; test elapsed up to 56.5 s), and 1 of 10 runs hit the 60 s test timeout in waitForAnimationFrames. Counting capped frame time keeps the same lower bound on the dive's time and took 2.1 to 4.1 s for the Pixi hold under the same load."
+  },
+  "repeatRuns": {
+    "method": "npx playwright test <spec> -g <title> --repeat-each=10 --workers=<n>, each under the port lock, with npm run test:unit looping in parallel for the whole run. 'Old' is the spec as on main e2a59ce, restored from git show HEAD:<spec> before the commit and put back afterwards.",
+    "crossClientTrace": {
+      "test": "tests/wreck-slice.spec.js 'the same input trace drives equivalent legacy and Pixi control semantics'",
+      "new": [
+        {
+          "workers": 8,
+          "result": "10 passed",
+          "at": "2026-10-10T10:55:57Z",
+          "note": "instrumented: legacy hold 16 to 29 frames, 1.25 to 1.33 s frame time, 1.4 to 1.8 s wall; Pixi hold 13 frames, 1.28 to 1.30 s frame time, 2.1 to 4.1 s wall"
+        },
+        {
+          "workers": 8,
+          "result": "10 passed",
+          "at": "2026-10-10T11:10:07Z"
+        },
+        {
+          "workers": 14,
+          "result": "10 passed",
+          "at": "2026-10-10T11:11:21Z"
+        }
+      ],
+      "old": [
+        {
+          "workers": 8,
+          "result": "1 failed, 9 passed",
+          "at": "2026-10-10T10:44:41Z",
+          "failure": "Pixi side (line 422) read verticalDirection 'stationary', expected 'deeper'"
+        },
+        {
+          "workers": 14,
+          "result": "10 passed",
+          "at": "2026-10-10T10:48:02Z"
+        },
+        {
+          "workers": 8,
+          "result": "1 failed, 9 passed",
+          "at": "2026-10-10T10:48:58Z",
+          "failure": "legacy side (line 418) read verticalDirection 'stationary', expected 'deeper'"
+        }
+      ],
+      "fixedFrameCountVersion": [
+        {
+          "workers": 8,
+          "result": "10 passed",
+          "at": "2026-10-10T10:46:19Z"
+        },
+        {
+          "workers": 8,
+          "result": "1 failed, 9 passed",
+          "at": "2026-10-10T10:50:08Z",
+          "failure": "Test timeout of 60000ms exceeded in waitForAnimationFrames during the Pixi hold (diver at 12.9 m)"
+        },
+        {
+          "workers": 8,
+          "result": "10 passed",
+          "at": "2026-10-10T10:52:38Z",
+          "note": "instrumented, timings in change.notAFixedFrameCount"
+        }
+      ],
+      "totals": "new 30 of 30 passed; old 28 of 30 (both clients failed once each)"
+    },
+    "reloadResume": {
+      "test": "all 5 tests in tests/reload-resume.spec.js (-g 'reload:'), 50 runs per row",
+      "new": [
+        {
+          "workers": 8,
+          "result": "50 passed",
+          "at": "2026-10-10T10:58:39Z",
+          "note": "beforeunload accepted, before the init-script pin was added"
+        },
+        {
+          "workers": 14,
+          "result": "50 passed",
+          "at": "2026-10-10T11:03:40Z",
+          "note": "beforeunload accepted, before the init-script pin was added"
+        },
+        {
+          "workers": 14,
+          "result": "50 passed",
+          "at": "2026-10-10T11:12:38Z",
+          "note": "final committed version"
+        }
+      ],
+      "old": [
+        {
+          "workers": 8,
+          "result": "50 passed",
+          "at": "2026-10-10T10:59:49Z"
+        },
+        {
+          "workers": 14,
+          "result": "7 failed, 43 passed",
+          "at": "2026-10-10T11:00:51Z",
+          "failure": "6 page.reload: Test timeout of 30000ms exceeded (free-flow overlay x2, ongoing free-flow x2, unknown drill ID x1, v1 payload x1); 1 'a payload with an unrecognized drill id must be rejected' that read a fresh valid save (drillState.id null, phase inactive) written over the corrupted one"
+        }
+      ],
+      "totals": "new 150 of 150 passed; old 93 of 100"
+    }
+  },
+  "counterChecks": {
+    "method": "Scratch specs (tests/zz-scratch-239.spec.js, deleted afterwards, never committed) run under the port lock against the legacy page, each with one variable changed.",
+    "results": [
+      {
+        "probe": "beforeunload prompt: boot, startDiveAction, hold S into 'diving', wait 3.5 s so maybeSaveDiveState arms the guard, page.reload({ timeout: 10000 })",
+        "result": "dismissed: one beforeunload dialog, the reload timed out after 10 s. accepted: one beforeunload dialog, the reload finished in 186 ms."
+      },
+      {
+        "probe": "save overwrite: write a v1 payload, then call saveDiveState() as the periodic tick would, then reload",
+        "result": "without the init-script pin pendingResumeDive was set (the valid save was read); with it pendingResumeDive was null (the v1 payload was read and rejected)."
+      },
+      {
+        "probe": "the repeat runs above with the old specs",
+        "result": "the trace failed 2 of 30 (reading 'stationary', once per client) and reload-resume 7 of 100, where the new specs passed 30 of 30 and 150 of 150"
+      }
+    ]
+  },
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4,
+    "cpus": 14
+  },
+  "durableProvenance": {
+    "src": "fa872579fcbd63c449338148a233cbc80eb80043",
+    "tests": "d6772bac69ccbb4b40b0fd59487305f6d18adbcf",
+    "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
+    "docs": "b1c3df15d315485158ce685a9f46b8486831f9e5"
+  },
+  "earlierRuns": [
+    {
+      "measuredCommit": "c2632c3db9da8dc6fe469d12c81b3a88d9d56169",
+      "recordedAt": "2026-10-10T13:06:02Z",
+      "note": "Full run on c2632c3, after the rebase onto 44012dd and before the fix for Codex round 1 (tests/result-screen.spec.js accepting the reload prompt); 563 unit, 332 parity, 178 e2e, all passing. Superseded by the run above."
+    },
+    {
+      "measuredCommit": "c6d88a487efdb8ab73dcab8a0cfd88df32acc273",
+      "recordedAt": "2026-10-10T12:22:23Z",
+      "note": "Full run on main e2a59ce, before the rebase onto 44012dd (#242); 562 unit, 332 parity, 173 e2e, all passing. Superseded by the run above."
+    },
+    {
+      "measuredCommit": "75b6a9c4668eebce847c90e4e43791b008276190",
+      "recordedAt": "2026-10-10T11:52:37Z",
+      "note": "Full run on the first version of the commit, finished 2026-10-10T12:07:38Z: same counts, all passing (562 unit, 332 parity, 173 e2e in 9.4 min). The commit was amended before it was pushed, to correct the measured Pixi frame rate in the replayInputTrace comment from '4 to 7' to '3 to 7' frames per second and '10 to 22 s' to '10 to 23 s'. Comment only. Superseded by the run above."
+    }
+  ]
+}

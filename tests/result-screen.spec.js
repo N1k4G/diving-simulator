@@ -79,7 +79,13 @@ async function bootGame(page) {
   const consoleErrors = [];
   page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
   page.on('pageerror', err => consoleErrors.push(err.message));
-  page.on('dialog', d => d.dismiss().catch(() => {}));
+  // #239, as in tests/reload-resume.spec.js: accept the reload's
+  // beforeunload prompt and dismiss every other dialog. A save tick during
+  // reachDiving() arms the game's guard, and the reload at the end of the
+  // #120 test would otherwise be cancelled ("Stay on page") and time out.
+  page.on('dialog', d =>
+    (d.type() === 'beforeunload' ? d.accept() : d.dismiss()).catch(() => {}),
+  );
   await page.addInitScript(INK_RECORDER);
   await page.goto('/src/diving-simulator.html');
   await page.waitForFunction(() => !!window.gameAPI, { timeout: 15000 });
