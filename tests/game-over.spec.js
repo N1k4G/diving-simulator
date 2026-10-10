@@ -157,6 +157,9 @@ test('nitrogen narcosis shows legacy\'s label and all three explanation sections
   await expect(screen).toContainText('Narcotic partial pressure exceeded safe limits for too long, causing loss of consciousness at depth.');
   await expect(screen).toContainText('Nitrogen narcosis occurs when breathing nitrogen at elevated partial pressures during deep dives.');
   await expect(screen.locator('.game-over-prevention li')).toHaveCount(6);
+  // #220: the cues the migration draws, not legacy's colour loss, which it
+  // does not port, nor the wobble alone, which reduced motion turns off.
+  await expect(screen.locator('.game-over-prevention li').nth(2)).toHaveText('Watch for narcosis symptoms: tunnel vision, keys that do not respond, drifting up or down');
   await expect(screen.locator('.game-over-prevention li').last()).toHaveText('Most training agencies recommend a maximum depth of 40m on air');
 });
 

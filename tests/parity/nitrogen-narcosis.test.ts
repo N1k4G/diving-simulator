@@ -19,6 +19,9 @@ import {
   swallowInputs,
 } from "../../src/core/narcosis-effects";
 import { metres, seconds } from "../../src/core/units";
+import * as narcosisView from "../../src/render/narcosis-view";
+import pixiRendererSource from "../../src/render/pixi-renderer.ts?raw";
+import legacyRendererSource from "../../src/renderer.js?raw";
 
 // Nitrogen narcosis (#189) against the legacy client. narcosis-air-65m holds
 // air at 65 m until the narcosis index passes 0.95 and the KO timer counts,
@@ -268,5 +271,86 @@ describe("narcosis below the KO against the recorded legacy dives", () => {
         expect(model.drawn()).toBe(legacy.drawn());
       }
     }
+  });
+});
+
+// Narcosis on the view (#220) against legacy's drawScene (src/renderer.js,
+// WP-020). Legacy grays the scene above index 0.4 and blurs it above 0.5
+// with ctx.filter; the migration draws neither, a deliberate departure
+// (docs/decisions.md, "Deliberate departures from the legacy client"). The
+// recorded checkpoints that reach it are named here, with the filter legacy
+// sets there written out from its formulas; what else the view does with the
+// index, the vignette and the wobble, is compared with legacy there.
+describe("narcosis on the view against the recorded legacy dives", () => {
+  /** Legacy's ctx.filter at each named checkpoint's recorded index. */
+  const DEPARTING: Record<string, string> = {
+    "bottom-4min": "grayscale(71%) blur(2.6px)",
+    "ko-counting": "grayscale(74%) blur(2.7px)",
+    "ascended-45m": "grayscale(65%) blur(2.3px)",
+    "back-60s": "grayscale(72%) blur(2.6px)",
+    narcosis: "grayscale(74%) blur(2.8px)",
+  };
+  /** src/renderer.js 773-783, written out. */
+  const legacyFilter = (index: number): string => {
+    let filter = "";
+    if (index > 0.4) filter += `grayscale(${Math.min(80, (index - 0.4) * 133).toFixed(0)}%) `;
+    if (index > 0.5) filter += `blur(${Math.min(3, (index - 0.5) * 6).toFixed(1)}px) `;
+    return filter.trim();
+  };
+  const scenarios = baselineFixture.scenarios as unknown as { scenarioId: string; checkpoints: Checkpoint[] }[];
+  const indexAt = (id: string) =>
+    checkpoints("narcosis-air-65m").find((entry) => entry.checkpointId === id)!.state.narcosisIndex;
+
+  it("writes out legacy's filter as drawScene sets it", () => {
+    for (const line of [
+      "if (narcosisIndex > 0.40) {",
+      "var grayAmt = Math.min(80, (narcosisIndex - 0.40) * 133);",
+      "narcFilter += 'grayscale(' + grayAmt.toFixed(0) + '%) ';",
+      "if (narcosisIndex > 0.50) {",
+      "var blurAmt = Math.min(3, (narcosisIndex - 0.50) * 6);",
+      "narcFilter += 'blur(' + blurAmt.toFixed(1) + 'px) ';",
+    ]) {
+      expect(legacyRendererSource).toContain(line);
+    }
+  });
+
+  it("departs at the named checkpoints of narcosis-air-65m: legacy grays and blurs, the migration does neither", () => {
+    for (const [id, filter] of Object.entries(DEPARTING)) {
+      expect(legacyFilter(indexAt(id)), id).toBe(filter);
+    }
+    // The migration's view of narcosis is the vignette and the wobble only,
+    // and its renderer sets no filter anywhere.
+    const functions = Object.entries(narcosisView)
+      .filter(([, value]) => typeof value === "function")
+      .map(([name]) => name)
+      .sort();
+    expect(functions).toEqual(["narcosisVignetteAlpha", "narcosisWobblePx"]);
+    expect(pixiRendererSource).not.toMatch(/\.filters\b|filters:|Filter\b/);
+  });
+
+  it("matches legacy's vignette and wobble at those checkpoints", () => {
+    for (const id of Object.keys(DEPARTING)) {
+      const index = indexAt(id);
+      // Legacy's outer colour stop, before its toFixed(2).
+      expect(Math.abs(narcosisView.narcosisVignetteAlpha(index) - Math.min(0.7, (index - 0.15) * 0.82)), id)
+        .toBeLessThanOrEqual(eps.default);
+      // Legacy's str = (index - 0.25) * 8 px: sin(t * 0.002) peaks at
+      // t = 250 pi ms, and cos(t * 0.0015) is 1 at 0.
+      const strength = (index - 0.25) * 8;
+      expect(narcosisView.narcosisWobblePx(index, (250 * Math.PI) / 1000).x, id).toBeCloseTo(strength, 9);
+      expect(narcosisView.narcosisWobblePx(index, 0).y, id).toBeCloseTo(strength * 0.5, 9);
+    }
+  });
+
+  it("names every recorded checkpoint that reaches legacy's filters: all others stay at index 0.4 or below", () => {
+    let others = 0;
+    for (const scenario of scenarios) {
+      for (const checkpoint of scenario.checkpoints) {
+        if (scenario.scenarioId === "narcosis-air-65m" && checkpoint.checkpointId in DEPARTING) continue;
+        others += 1;
+        expect(legacyFilter(checkpoint.state.narcosisIndex), `${scenario.scenarioId}/${checkpoint.checkpointId}`).toBe("");
+      }
+    }
+    expect(others).toBeGreaterThan(40);
   });
 });
