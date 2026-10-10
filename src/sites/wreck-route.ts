@@ -24,9 +24,12 @@ export const WRECK_DECK_TOP: readonly RoutePoint[] = Object.freeze([
   Object.freeze({ x: 108, d: 29 }),
 ]);
 
-/** The underside of the deck: the ceiling inside the wreck. */
+/**
+ * The underside of the deck: the ceiling inside the wreck. It starts with the
+ * deck, at x 22, as legacy's main deck does (#222).
+ */
 export const WRECK_DECK_UNDERSIDE: readonly RoutePoint[] = Object.freeze([
-  Object.freeze({ x: 27, d: 24.5 }),
+  Object.freeze({ x: 22, d: 24.5 }),
   Object.freeze({ x: 82, d: 23 }),
   Object.freeze({ x: 103, d: 29.5 }),
 ]);
@@ -37,8 +40,69 @@ export const WRECK_HOLD_FLOOR_M = 33.5;
 export const WRECK_KEEL_M = 35;
 export const WRECK_BOW_X_M = 14;
 export const WRECK_STERN_X_M = 103;
-export const WRECK_HOLD_BOW_X_M = 21;
 export const WRECK_HOLD_STERN_X_M = 99;
+
+/**
+ * The bow (#222, owner decision of 2026-10-10): legacy's solid stem at x 14
+ * to 16 and the bow-visor opening behind it, x 16 to 22, open from above
+ * down to the hold's floor (src/sites.js, the bow stem and the main deck
+ * from x 22; src/renderer.js drawWreckEntryMarkers, the BOW entry). The
+ * hold reaches forward to the stem, so WRECK_HOLD_BOW_X_M is the stem's
+ * after face. The stem's top is level with the deck's underside, as
+ * legacy's stem (dTop 28) is level with its deck's underside (dBottom 28).
+ */
+export const WRECK_HOLD_BOW_X_M = 16;
+export const WRECK_STEM_TOP_M = 24.5;
+
+/**
+ * The bow visor, hinged up: a door slab legacy draws over the opening
+ * (src/sites.js, the bowVisor feature; src/renderer.js drawBowVisor, 3.6 m
+ * by 1 m). Here it stands upright on the deck's forward edge, clear of the
+ * opening, and is solid like the rest of the drawn hull: a departure from
+ * legacy, whose visor its collision never reads (#222, owner decision of
+ * 2026-10-10; docs/decisions.md, tests/parity/wreck-route.test.ts).
+ */
+export const WRECK_VISOR = Object.freeze({ x1: 22, x2: 23, topM: 19.4 });
+
+/**
+ * The engine block the scene draws in the engine room: a cylinder on a bed.
+ * It is solid (#222, owner decision of 2026-10-10), a deliberate departure
+ * from legacy, whose engines are site features its collision never reads
+ * (docs/decisions.md).
+ */
+export const WRECK_ENGINE = Object.freeze({
+  centreX: 87,
+  centreD: 30.5,
+  radiusM: 3.1,
+  bedX1: 81,
+  bedX2: 95,
+  bedTopM: 33,
+});
+
+/**
+ * The hull's outline and the hold's, as the scene draws them, each from the
+ * stem's top to the deck's forward edge. Both close across the bow visor's
+ * opening when filled; the scene strokes them as open paths, so nothing is
+ * drawn across the opening.
+ */
+export const WRECK_HULL_EDGE: readonly RoutePoint[] = freezePoints([
+  { x: WRECK_HOLD_BOW_X_M, d: WRECK_STEM_TOP_M },
+  { x: WRECK_BOW_X_M, d: WRECK_STEM_TOP_M },
+  { x: WRECK_BOW_X_M, d: WRECK_KEEL_M },
+  { x: WRECK_STERN_X_M, d: WRECK_KEEL_M },
+  ...[...WRECK_DECK_TOP].reverse(),
+  WRECK_DECK_UNDERSIDE[0] as RoutePoint,
+]);
+export const WRECK_HOLD_EDGE: readonly RoutePoint[] = freezePoints([
+  { x: WRECK_HOLD_BOW_X_M, d: WRECK_STEM_TOP_M },
+  { x: WRECK_HOLD_BOW_X_M, d: WRECK_HOLD_FLOOR_M },
+  { x: WRECK_HOLD_STERN_X_M, d: WRECK_HOLD_FLOOR_M },
+  ...[...WRECK_DECK_UNDERSIDE].reverse(),
+]);
+
+function freezePoints(points: readonly RoutePoint[]): readonly RoutePoint[] {
+  return Object.freeze(points.map((point) => Object.freeze({ x: point.x, d: point.d })));
+}
 
 /**
  * The floor in open water beside the wreck: the route's floor since #192,
@@ -58,15 +122,14 @@ export const ROUTE_START_POSITION_M = 10;
 
 /**
  * Where the overhead starts, and with it the zone map's cargo hold
- * (src/render/renderer.ts selectWreckZone()): the start of the deck's
- * underside, where the drawn hold is under the deck at its full height
- * (#222). Legacy counts any diver with solid structure above as in the
- * overhead (src/sites.js overheadAt), and its main deck covers the hull from
- * x 22 (src/sites.js, the deck after the bow-visor opening), so a diver
- * under the drawn deck is in the overhead. Until #222 it started at 45, and
- * the hold under the deck before that counted as open water.
+ * (src/render/renderer.ts selectWreckZone()): the deck's forward edge.
+ * Legacy counts any diver with solid structure above as in the overhead
+ * (src/sites.js overheadAt), and its main deck covers the hull from x 22,
+ * after the bow-visor opening; under the opening nothing is above the diver
+ * (#222). #238 had it at 27, where the old drawing's hold reached its full
+ * height, and before that it was 45.
  */
-export const CARGO_HOLD_FROM_M = 27;
+export const CARGO_HOLD_FROM_M = 22;
 export const ENGINE_ROOM_FROM_M = 76;
 
 /**
@@ -93,26 +156,56 @@ export interface RouteSpace {
 /**
  * The stretches of water at a route position, shallowest first.
  *
- * Outside the hold there is one, from the surface to the floor. Over the hold
- * there are two: above the deck, open to the surface, and below it, under
- * the deck, which is legacy's inOverhead (src/sites.js overheadAt: a solid
- * above the diver).
+ * Ahead of the deck there is one, from the surface down: to the floor off the
+ * bow, to the stem's top over the stem, and to the hold's floor in the bow
+ * visor's opening. Over the deck there are two: above the deck, open to the
+ * surface, and below it, under the deck, which is legacy's inOverhead
+ * (src/sites.js overheadAt: a solid above the diver).
  */
 export function routeSpacesAt(positionM: number): readonly RouteSpace[] {
   if (positionM < CARGO_HOLD_FROM_M) {
-    return [{ ceilingM: 0, floorM: OPEN_WATER_FLOOR_M, inOverhead: false }];
+    return [{ ceilingM: 0, floorM: bowFloorAt(positionM), inOverhead: false }];
   }
   const aboveDeck: RouteSpace = {
     ceilingM: 0,
-    floorM: profileAt(WRECK_DECK_TOP, positionM),
+    floorM: Math.min(profileAt(WRECK_DECK_TOP, positionM), visorTopAt(positionM)),
     inOverhead: false,
   };
   const ceilingM = profileAt(WRECK_DECK_UNDERSIDE, positionM);
-  const floorM = holdFloorAt(positionM);
+  const floorM = Math.min(holdFloorAt(positionM), engineTopAt(positionM));
   // Past the stern wall there is no hold: only water above the deck.
   return floorM > ceilingM
     ? [aboveDeck, { ceilingM, floorM, inOverhead: true }]
     : [aboveDeck];
+}
+
+/** The floor ahead of the deck: open water, then the stem, then the opening. */
+function bowFloorAt(positionM: number): number {
+  if (positionM < WRECK_BOW_X_M) {
+    return OPEN_WATER_FLOOR_M;
+  }
+  return positionM <= WRECK_HOLD_BOW_X_M ? WRECK_STEM_TOP_M : holdFloorAt(positionM);
+}
+
+function visorTopAt(positionM: number): number {
+  return positionM >= WRECK_VISOR.x1 && positionM <= WRECK_VISOR.x2
+    ? WRECK_VISOR.topM
+    : Number.POSITIVE_INFINITY;
+}
+
+/**
+ * The top of the engine block, or Infinity where there is none. The diver
+ * goes over it: the wedge the drawing leaves between the cylinder's lower
+ * flank and the bed, 2.5 m high at its mouth and 1.3 m deep, shorter than
+ * the diver, counts as engine.
+ */
+export function engineTopAt(positionM: number): number {
+  const { centreX, centreD, radiusM, bedX1, bedX2, bedTopM } = WRECK_ENGINE;
+  const offsetM = Math.abs(positionM - centreX);
+  const cylinderTopM =
+    offsetM <= radiusM ? centreD - Math.sqrt(radiusM * radiusM - offsetM * offsetM) : Number.POSITIVE_INFINITY;
+  const bedM = positionM >= bedX1 && positionM <= bedX2 ? bedTopM : Number.POSITIVE_INFINITY;
+  return Math.min(cylinderTopM, bedM);
 }
 
 /**
@@ -157,10 +250,9 @@ export function routeSpaceNear(positionM: number, depthM: number): RouteSpace {
  * past it. The overhead is entered only between the deck and the hold's
  * floor, and the deck is crossed above it.
  *
- * The engine block the scene draws in the hold does not stop the diver
- * (#222): legacy's engines are site features, drawn but never collided with,
- * since its collision reads only the site's structures (src/sites.js
- * solidOverlapArea, src/physics.js updateHorizontalPhysics).
+ * The bow's stem and the engine block stop the diver like the rest of the
+ * drawn hull (#222): the hold is entered from above, through the bow visor's
+ * opening, and the diver goes over the engine.
  */
 export function moveAlongRoute(fromM: number, toM: number, depthM: number): number {
   const targetM = Math.min(ROUTE_MAX_POSITION_M, Math.max(ROUTE_MIN_POSITION_M, toM));
