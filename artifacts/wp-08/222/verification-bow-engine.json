@@ -46,7 +46,7 @@
       "wreck-descended.png": "b6eaa04ea78b9030f8ca24d6937e02280ca2f121",
       "wreck-torch-off.png": "2463f1c543679af0d272d7daba6bf2ffddec9a25"
     },
-    "note": "The first recording captured wreck-exterior-start as a uniform frame (meanLuma 21.683, sdLuma 0); the recorder refuses only uniformly black frames, so it was accepted. It was recorded again before the commit (meanLuma 42.706, sdLuma 31.688), and the committed frames were checked by eye. The linux frames (manifest blob 4f76a248d96757f427506dd4125d4889576b24cc) are main's and still show the old bow; they are left to the linux workflow.",
+    "note": "The first recording captured wreck-exterior-start as a uniform frame (meanLuma 21.683, sdLuma 0); the recorder refuses only uniformly black frames, so it was accepted. It was recorded again before the commit (meanLuma 42.706, sdLuma 31.688), and the committed frames were checked by eye. When the run above was measured, the linux frames were still main's (manifest blob 4f76a248…) and showed the old bow; b98a5dd replaced them with the frames recorded by the linux workflow (see referenceFrames.linux).",
     "linux": {
       "commit": "b98a5ddeb262bd2ebda0f233dab896b75010e0b6",
       "workflowRun": "pixi-baseline.yml run 38050103282, dispatched on main with target_ref feat/222-bow-visor-engine",
