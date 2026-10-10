@@ -199,13 +199,18 @@ describe("narcosis below the KO against the recorded legacy dives", () => {
     const withKeys = scenarios.filter((scenario) =>
       scenario.scenarioId.startsWith("buoyancy-") || scenario.scenarioId.startsWith("barotrauma-"));
     expect(withKeys.length).toBeGreaterThan(0);
+    // Legacy's `narcosisIndex > 0.3 ? ... : 0`, written out.
+    const legacyDropIndex = 0.3;
     for (const scenario of withKeys) {
       for (const checkpoint of scenario.checkpoints) {
         expect(checkpoint.state.narcosisIndex, `${scenario.scenarioId}/${checkpoint.checkpointId}`)
-          .toBeLessThanOrEqual(NARCOSIS_INPUT_DROP_INDEX);
+          .toBeLessThanOrEqual(legacyDropIndex);
       }
     }
+    // Up to legacy's 0.3 no draw, not even the lowest, swallows a key.
     const held = { inflate: true, vent: true, left: true, right: true };
-    expect(swallowInputs(held, NARCOSIS_INPUT_DROP_INDEX, 1 / 60, LEGACY_DRAW)).toBe(held);
+    expect(NARCOSIS_INPUT_DROP_INDEX).toBe(legacyDropIndex);
+    expect(swallowInputs(held, legacyDropIndex, 1 / 60, () => 0)).toEqual(held);
+    expect(swallowInputs(held, legacyDropIndex, 1 / 60, LEGACY_DRAW)).toEqual(held);
   });
 });

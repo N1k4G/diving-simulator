@@ -107,6 +107,7 @@ describe("the controller and narcosis's swallowed inputs", () => {
     const { controller, frames } = await startController(initial);
     controller.setControl("ascend", true);
     controller.setControl("right", true);
+    const bcdBefore = controller.authoritativeState.bcdGasSurfaceLiters;
     step(1);
     // W draws first, D second, then the drift after the physics.
     const w = nextRandom(initial.randomState);
@@ -115,6 +116,8 @@ describe("the controller and narcosis's swallowed inputs", () => {
     expect(controller.authoritativeState.randomState).toBe(drift.state);
     const p = 1 - Math.pow(1 - ((0.9 - 0.3) / 0.7) * 0.6, FRAME_MS / 1000 * 60);
     expect(strokes(frames, 1)).toEqual([d.value > p ? STROKE_M : 0]);
+    // The BCD inflates only on a W the model kept.
+    expect(controller.authoritativeState.bcdGasSurfaceLiters > bcdBefore).toBe(w.value > p);
     controller.destroy();
   });
 
