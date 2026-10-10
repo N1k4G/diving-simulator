@@ -32,7 +32,7 @@
     }
   ],
   "timestampProvenance": "The creation and last-write times of the run's log, which the chain wrote from START to END. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
-  "provenanceNote": "On main 4b3043e (#248). The full run above is on 1365ccc, the Codex round 1 fixes on 62723d1. The counter-checks C1 to C6, C8 to C10, S1 to S3 and P1 were taken on fc36426, C7 and P2 on 9623d03, R1 and R2 on the round 1 fixes before 1365ccc was committed; the files were restored and compared byte for byte. Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "On main 4b3043e (#248). The full run above is on 1365ccc, the Codex round 1 fixes on top of 39e5a9d, whose run on 62723d1 is the first of earlierRuns. The counter-checks C1 to C6, C8 to C10, S1 to S3 and P1 were taken on fc36426, C7 and P2 on 9623d03, R1 and R2 on the round 1 fixes before 1365ccc was committed; the files were restored and compared byte for byte. Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "results": {
     "typecheck": "pass",
     "lint": "pass",
