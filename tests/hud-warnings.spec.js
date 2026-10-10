@@ -3,9 +3,9 @@ const { descendTo } = require('./helpers/start-dive.cjs');
 
 // Legacy's last three dive-computer banners (#228, src/renderer.js
 // drawDiveComputer, the highestWarn chain): above the ceiling, low NDL and
-// narcosis. Like the rest of the dive computer they read English in every
+// narcosis, and the gas reserve split from low gas. Like the rest of the dive computer they read English in every
 // language (#232), so each runs in an English and a German browser. Legacy's
-// hasWarning beeps for the ceiling and for narcosis, not for a low NDL; the
+// hasWarning beeps for the ceiling, the reserve and narcosis, not for a low NDL; the
 // alarm is legacy's only square-wave cue (src/audio/audio-policy.ts), counted
 // as its oscillators start.
 
@@ -71,6 +71,17 @@ const cases = [
     },
     alert: 'Above ceiling — descend',
     chip: '⚠ Above ceiling',
+    beeps: true,
+  },
+  {
+    name: 'the gas reserve',
+    // 40 bar: under legacy's 50 bar reserve, over its 30 bar low gas.
+    mutate: (state) => {
+      const tank = state.tanks[state.activeTankIndex];
+      tank.gasRemainingL = tank.volumeL * 40;
+    },
+    alert: 'Gas reserve',
+    chip: '⚠ Gas reserve',
     beeps: true,
   },
   {

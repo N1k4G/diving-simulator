@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  LOW_GAS_BAR,
   NARCOSIS_CAUTION_INDEX,
   NARCOSIS_CRITICAL_INDEX,
+  RESERVE_BAR,
   activeWarnings,
   isWarningBeepActive,
   selectWarning,
@@ -65,7 +67,8 @@ const ceiling = { decoStopDepthM: 6, depthM: 5.9 };
 const oxygen = { breathingPo2Bar: bars(1.61) };
 const narcosisCritical = { narcosisIndex: 0.71 };
 const fastAscent = { ascentRateMpm: 9.1 };
-const lowGas = ocTank(49);
+const lowGas = ocTank(29);
+const reserve = ocTank(49);
 const lowNdl = { nearNdlMin: 3 };
 const narcosisCaution = { narcosisIndex: 0.5 };
 
@@ -108,6 +111,27 @@ describe("the HUD warning's conditions, at legacy's boundaries", () => {
     expect(selectWarning(oc({ narcosisIndex: 0.9, completed: true }))).toBeNull();
   });
 
+  it("warns of low gas under 30 bar and of the reserve under 50, both strictly, on the active cylinder", () => {
+    expect(LOW_GAS_BAR).toBe(30);
+    expect(RESERVE_BAR).toBe(50);
+    expect(selectWarning(oc(ocTank(29.99)))).toBe("lowGas");
+    expect(activeWarnings(oc(ocTank(29.99)))).toEqual(["lowGas"]);
+    expect(selectWarning(oc(ocTank(30)))).toBe("reserve");
+    expect(selectWarning(oc(ocTank(49.99)))).toBe("reserve");
+    expect(selectWarning(oc(ocTank(50)))).toBeNull();
+    // Legacy's tankBar() reads tanks[activeTank]: another cylinder's level does not warn.
+    const base = oc();
+    const second = { ...base.tanks[0]!, index: 1, pressureBar: bars(10), active: false };
+    expect(selectWarning({ ...base, tanks: [base.tanks[0]!, second] })).toBeNull();
+    expect(selectWarning({ ...base, tanks: [base.tanks[0]!, second], activeTankIndex: 1 })).toBe("lowGas");
+  });
+
+  it("reads no open-circuit cylinder on a rebreather, loop or bailout", () => {
+    const empty = { tanks: [{ ...ccr().tanks[0]!, pressureBar: bars(10) }] };
+    expect(selectWarning(ccr(empty))).toBeNull();
+    expect(selectWarning(ccr(empty, { onBailout: true }))).toBeNull();
+  });
+
   it("keeps the fast-ascent threshold strict", () => {
     expect(selectWarning(oc({ ascentRateMpm: 9 }))).toBeNull();
     expect(selectWarning(oc({ ascentRateMpm: 9.01 }))).toBe("fastAscent");
@@ -123,14 +147,15 @@ describe("the HUD warning's ranking", () => {
     ["narcosis", narcosisCritical],
     ["fastAscent", fastAscent],
     ["lowGas", lowGas],
+    ["reserve", reserve],
     ["lowNdl", lowNdl],
     ["narcosis", narcosisCaution],
   ];
 
   it("follows legacy's chain on open circuit, each warning over every one after it", () => {
     for (let first = 0; first < chain.length; first += 1) {
-      // The two narcosis tiers share one index: the caution is shown only
-      // without the critical one.
+      // The two narcosis tiers share one index, and low gas and reserve one
+      // cylinder: the lower tier shows only without the higher.
       const patch = Object.assign(
         {},
         ...chain.slice(first).reverse().map(([, condition]) => condition),
@@ -140,9 +165,9 @@ describe("the HUD warning's ranking", () => {
   });
 
   it("lists every warning that holds in that order", () => {
-    const all = { ...narcosisCaution, ...ceiling, ...oxygen, ...fastAscent, ...lowGas, ...lowNdl };
-    expect(activeWarnings(oc(all))).toEqual(["ceiling", "oxygen", "fastAscent", "lowGas", "lowNdl", "narcosis"]);
-    expect(activeWarnings(oc({ ...all, ...narcosisCritical }))).toEqual([
+    const all = { ...narcosisCaution, ...ceiling, ...oxygen, ...fastAscent, ...reserve, ...lowNdl };
+    expect(activeWarnings(oc(all))).toEqual(["ceiling", "oxygen", "fastAscent", "reserve", "lowNdl", "narcosis"]);
+    expect(activeWarnings(oc({ ...all, ...lowGas, ...narcosisCritical }))).toEqual([
       "ceiling",
       "oxygen",
       "narcosis",
@@ -178,7 +203,7 @@ describe("the HUD warning's ranking", () => {
 
 describe("the alarm, legacy's hasWarning", () => {
   it("sounds for each of legacy's beep terms: the ceiling, PO₂, the ascent, the reserve and narcosis", () => {
-    for (const term of [ceiling, oxygen, fastAscent, lowGas, narcosisCaution, narcosisCritical]) {
+    for (const term of [ceiling, oxygen, fastAscent, lowGas, reserve, narcosisCaution, narcosisCritical]) {
       expect(isWarningBeepActive(oc(term))).toBe(true);
     }
     expect(isWarningBeepActive(oc({ narcosisIndex: 0.2 }))).toBe(false);
