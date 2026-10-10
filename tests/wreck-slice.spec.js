@@ -21,7 +21,9 @@ function parseMetres(text) {
 }
 
 const CROSS_CLIENT_TRACE = Object.freeze([
-  Object.freeze({ kind: 'hold', key: 'ArrowDown', durationMs: 1250 }),
+  // Held for frames worth 1.25 s of frame time, what the old 1250 ms hold
+  // gave at 60 Hz (#239); replayInputTrace says why it counts frames.
+  Object.freeze({ kind: 'hold', key: 'ArrowDown', frameTimeS: 1.25 }),
   Object.freeze({ kind: 'press', key: 't' }),
 ]);
 
@@ -453,8 +455,35 @@ async function mutateSavedState(page, variant) {
 async function replayInputTrace(page, trace) {
   for (const step of trace) {
     if (step.kind === 'hold') {
+      // #239. This used to hold for 1250 ms of wall time, and failed about
+      // every other full run under load, reading the diver as 'stationary'.
+      // Both clients advance per frame, by that frame's real time capped at
+      // 0.1 s:
+      //
+      //   legacy  game-loop.js gameLoop()   dtReal = Math.min(dtReal, 0.1)
+      //   pixi    game-controller.ts #tick  Math.min(MAX_FRAME_SECONDS, ...)
+      //
+      // A loaded machine delivers few frames in 1250 ms, and a frame that
+      // comes later than 0.1 s advances the dive by only 0.1 s, so the hold
+      // gave the dive less time than on an idle machine. Leaving the surface
+      // starts by venting the BCD, and the depth change stayed under
+      // normalizeControlResponse's 0.02 m.
+      //
+      // So the hold waits for frames in the page and adds up what each one
+      // gives the dive: the interval between rAF timestamps, capped as both
+      // clients cap it. Their own frame loops get the same timestamps, so
+      // the dive gets at least frameTimeS of frame time, whatever the load.
+      // Waiting for rAF rather than a millisecond count is the press's
+      // reasoning below, and rAF is the browser's, so the trace stays
+      // client-agnostic.
+      //
+      // Not a fixed number of frames: 75 frames are 1.25 s at 60 Hz, but
+      // the Pixi client measured 3 to 7 frames per second with eight
+      // workers next to a unit test run, so 75 frames held for 10 to 23 s
+      // and one of ten runs hit the 60 s test timeout. Past the cap, frame
+      // time is what the dive gets, so it is what the hold should count.
       await page.keyboard.down(step.key);
-      await page.waitForTimeout(step.durationMs);
+      await waitForFrameTime(page, step.frameTimeS);
       await page.keyboard.up(step.key);
     } else {
       // #175. This used to be page.keyboard.press(), whose default delay
@@ -498,6 +527,34 @@ async function replayInputTrace(page, trace) {
     }
   }
   await page.waitForTimeout(150);
+}
+
+/**
+ * Both clients advance the dive per frame by the time since the last frame,
+ * capped: src/game-loop.js gameLoop() `Math.min(dtReal, 0.1)`,
+ * src/app/game-controller.ts MAX_FRAME_SECONDS.
+ */
+const MAX_FRAME_SECONDS = 0.1;
+
+/** Resolves once the frames since the call add up to `seconds` of capped frame time. */
+function waitForFrameTime(page, seconds) {
+  return page.evaluate(
+    ({ target, cap }) =>
+      new Promise((resolve) => {
+        let previousMs = null;
+        let frameTimeS = 0;
+        const tick = (nowMs) => {
+          if (previousMs !== null) {
+            frameTimeS += Math.min(cap, (nowMs - previousMs) / 1000);
+          }
+          previousMs = nowMs;
+          if (frameTimeS >= target) resolve();
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+    { target: seconds, cap: MAX_FRAME_SECONDS },
+  );
 }
 
 function waitForAnimationFrames(page, count) {

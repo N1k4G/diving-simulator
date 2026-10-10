@@ -21,7 +21,19 @@ async function bootGame(page) {
     if (msg.type() === 'error') consoleErrors.push(msg.text());
   });
   page.on('pageerror', err => consoleErrors.push(err.message));
-  page.on('dialog', d => d.dismiss().catch(() => {}));
+  // #239. Accept the reload's beforeunload prompt, as a player reloading
+  // mid-dive does; dismissing it is "Stay on page", which cancels the
+  // reload, and page.reload() then waited out the test's 30 s. The game
+  // asks only once its periodic save has run while diving or in a drill
+  // (src/game-loop.js maybeSaveDiveState, every SAVE_INTERVAL_MS = 3 s of
+  // page time, calls updateBeforeUnloadGuard), and Chromium asks only after
+  // a user gesture, which keyboard.down('s') is. So a test that reached its
+  // reload within 3 s passed, and one slowed past it by load hung. Measured:
+  // 3.5 s into a dive, a dismissed prompt timed the reload out and an
+  // accepted one reloaded in 186 ms. Other dialogs are still dismissed.
+  page.on('dialog', d =>
+    (d.type() === 'beforeunload' ? d.accept() : d.dismiss()).catch(() => {}),
+  );
 
   await page.goto('/src/diving-simulator.html');
   await page.waitForFunction(() => !!window.gameAPI, { timeout: 15000 });
@@ -42,7 +54,18 @@ async function reachDivingUnderwater(page, targetDepth = 20) {
 // localStorage (loadSavedDive() runs synchronously at script-load time, so
 // by the time window.gameAPI exists the pending-resume state is already
 // settled — no extra wait needed beyond the standard gameAPI-ready check).
-async function reload(page) {
+//
+// `save`, when given, is a payload a test wrote to make the reload read it.
+// #239: the old page's frame loop keeps running until the new page replaces
+// it, and its periodic save (maybeSaveDiveState, every 3 s) can write the
+// live state over that payload in between, so the new page read a valid save.
+// Seen once in fifty runs under load. An init script writes the payload
+// again in the new page before any of its scripts, so loadSavedDive() reads
+// what the test wrote, however the reload is timed.
+async function reload(page, save) {
+  if (save) {
+    await page.addInitScript(({ key, raw }) => localStorage.setItem(key, raw), save);
+  }
   await page.reload();
   await page.waitForFunction(() => !!window.gameAPI, { timeout: 15000 });
 }
@@ -200,7 +223,7 @@ test('reload: a payload with an unknown active drill ID is rejected, not resumed
   const consoleErrors = await bootGame(page);
   await reachDivingUnderwater(page, 20);
 
-  await page.evaluate(() => {
+  const save = await page.evaluate(() => {
     // Produce a genuine, fully-valid payload first (so every OTHER field
     // is correct), then corrupt just the one field under test.
     window.saveDiveState();
@@ -210,9 +233,10 @@ test('reload: a payload with an unknown active drill ID is rejected, not resumed
     payload.drillState.phase = 'overlay';
     payload.drillState.id = 'not-a-real-drill';
     localStorage.setItem(window.SAVE_KEY, JSON.stringify(payload));
+    return { key: window.SAVE_KEY, raw: JSON.stringify(payload) };
   });
 
-  await reload(page);
+  await reload(page, save);
 
   const pending = await page.evaluate(() => window.gameAPI.pendingResumeDive);
   expect(pending, 'a payload with an unrecognized drill id must be rejected, not offered for resume').toBeNull();
@@ -235,7 +259,7 @@ test('reload: an old save-version (v1) payload is rejected under the current sch
   const consoleErrors = await bootGame(page);
   await reachDivingUnderwater(page, 20);
 
-  await page.evaluate(() => {
+  const save = await page.evaluate(() => {
     window.saveDiveState();
     const raw = localStorage.getItem(window.SAVE_KEY);
     const payload = JSON.parse(raw);
@@ -245,9 +269,10 @@ test('reload: an old save-version (v1) payload is rejected under the current sch
     delete payload.drillState;
     delete payload.drillHasRunThisDive;
     localStorage.setItem(window.SAVE_KEY, JSON.stringify(payload));
+    return { key: window.SAVE_KEY, raw: JSON.stringify(payload) };
   });
 
-  await reload(page);
+  await reload(page, save);
 
   const pending = await page.evaluate(() => window.gameAPI.pendingResumeDive);
   expect(pending, 'a v1 payload must be rejected under the v2 schema (explicit-rejection policy)').toBeNull();
