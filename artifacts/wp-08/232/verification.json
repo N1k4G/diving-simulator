@@ -1,0 +1,71 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 232,
+  "slice": "the dive computer reads English in both languages, its warnings included",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "1001308b4a9974521f9e8e88fcbc884942acc276",
+  "measuredTree": "f45565b7435c72543cb20d0fd3e6eaef786117a3",
+  "workingTree": "clean before and after the run (git status --porcelain empty)",
+  "recordedAt": "2026-10-10T12:09:36Z",
+  "runFinishedAt": "2026-10-10T12:22:22Z",
+  "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
+  "provenanceNote": "On main e2a59ce (#226, the safety stop, the rule of thirds and the ascent rate in the HUD). The full run above is on 1001308, the one implementation commit; later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass",
+    "unit": "563 passed (+1 in src/app/i18n/i18n.test.ts: the dive-computer namespace returns legacy's words and translate() cannot take one of its keys)",
+    "parity": "332 passed (unchanged)",
+    "e2e": "178 passed in 8.5 min, no retries, no flake (+5 in tests/dive-computer-english.spec.js, de-DE: the readouts and their numbers in English with the location row, surface prompt, control names and 'Simulation läuft' still German; the fast-ascent alert and chip in English with lang=en; the safety-stop countdown in English units; Complete; Deco stop. tests/in-dive-controls.spec.js's two German layout cases also assert the English page headings, the panel's lang=en, 'No-decompression time' and the button's German name 'Gasinformationen')",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels, nothing re-recorded",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "rule": "Owner decision on #232 (2026-10-07), recorded in docs/decisions.md under Accessibility and localization as a deliberate exception to German as a release-blocking locale: the dive computer reads English in every locale, its warnings included, as legacy draws its dive computer (src/renderer.js drawDiveComputer) in English in both languages.",
+  "change": "src/app/i18n/catalog.ts moves the 69 dive-computer strings (HUD readouts, stop row, thirds gauge, alert and status-chip warnings, gas-information pages) out of the per-locale tables into a diveComputer.* namespace with no German table, read through diveComputerText(key); DIVE_COMPUTER_LOCALE = 'en' formats their numbers. src/app/wreck-app.ts and src/app/gas-info.ts use them, and set lang=en on the HUD list, the alert, the chip while it warns and the gas-information panel; the location row keeps the page's lang. docs/baseline/claims-register.json points at the new keys. No game logic changed.",
+  "counterChecks": {
+    "method": "Each mutation applied with sed to a file backed up beforehand, the client rebuilt, and the named specs (and for catalogue mutations src/app/i18n) run under the port lock with --retries=0, on the code of 1001308. Each file was then restored from its backup and compared with cmp: byte for byte identical in every case.",
+    "results": [
+      {
+        "revert": "DIVE_COMPUTER_LOCALE set to 'de' (src/app/i18n/catalog.ts)",
+        "result": "unit: 1 of 6 in src/app/i18n fail; e2e: 6 of 7 selected German cases fail"
+      },
+      {
+        "revert": "the HUD list's lang=en removed (src/app/wreck-app.ts)",
+        "result": "1 of 1 fails: the readouts test"
+      },
+      {
+        "revert": "the alert's lang=en removed (src/app/wreck-app.ts)",
+        "result": "1 of 1 fails: the fast-ascent test"
+      },
+      {
+        "revert": "the status chip's lang not switched to en while it warns (src/app/wreck-app.ts)",
+        "result": "1 of 1 fails: the fast-ascent test"
+      },
+      {
+        "revert": "the gas-information panel's lang=en removed (src/app/gas-info.ts)",
+        "result": "2 of 2 fail: both German layout cases in tests/in-dive-controls.spec.js"
+      },
+      {
+        "revert": "diveComputer.safetyStop.complete translated back to 'Absolviert' (src/app/i18n/catalog.ts)",
+        "result": "unit: 1 of 6 in src/app/i18n fails; e2e: 1 of 1 fails, the Complete case"
+      }
+    ]
+  },
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "durableProvenance": {
+    "src": "fa872579fcbd63c449338148a233cbc80eb80043",
+    "tests": "1eefb394ac6616f35e6d1df99897ece5f7e44db1",
+    "scripts": "b7d9d086eba53b4c52d6b3f182aaea0f1b36ee30",
+    "docs": "b1c3df15d315485158ce685a9f46b8486831f9e5"
+  }
+}
