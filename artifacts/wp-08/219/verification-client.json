@@ -3,13 +3,22 @@
   "issue": 219,
   "slice": "part 2: the shark in the migration client, the controller's wiring, a seed for each dive, and legacy's sprite",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "d9228b40cffe78f64bc775d16d294426e649dded",
-  "measuredTree": "1d4e8ea76a1f59b117c3f212eae73b399f20f53e",
+  "measuredCommit": "e488852b20103610dcb3edc08725c390e084c5b7",
+  "measuredTree": "86fcd62b82fe6cf3dcb25515e1732819dffb98b0",
   "workingTree": "clean before and after the run (git status --porcelain empty)",
-  "recordedAt": "2026-10-10T17:29:59Z",
-  "runFinishedAt": "2026-10-10T17:41:02Z",
+  "recordedAt": "2026-10-10T17:44:58Z",
+  "runFinishedAt": "2026-10-10T17:57:05Z",
+  "earlierRuns": [
+    {
+      "measuredCommit": "d9228b40cffe78f64bc775d16d294426e649dded",
+      "measuredTree": "1d4e8ea76a1f59b117c3f212eae73b399f20f53e",
+      "recordedAt": "2026-10-10T17:29:59Z",
+      "runFinishedAt": "2026-10-10T17:41:02Z",
+      "note": "Full run on main 8b8c0bb, before the rebase onto 8f0b3da; 591 unit, 341 parity, 183 e2e in 8.2 min, all passing. Superseded by the run above."
+    }
+  ],
   "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
-  "provenanceNote": "Branched from main 8b8c0bb (#222, legacy's bow opening and a solid engine block). The full run above is on d9228b4, the fix for pre-review pass 1 on PR #247: a dive resumed from a legacy save draws its own seed, once. Earlier full runs on d4a9780 (unit 589, parity 336, e2e 182) and 07592fa (unit 589, parity 341, e2e 182) also passed. The counter-checks M1 to M16 were taken on d4a9780, P1 to P3 on 07592fa and S1 to S3 on d9228b4. Between them only src/save, src/app/wreck-app.ts and the tests changed, and nothing those mutations touch. Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "On main 8f0b3da (#245, legacy's remaining HUD warnings). The full run above is on e488852, the branch rebased onto it without conflicts; git range-diff shows every patch unchanged, only context differs. Before the rebase, on main 8b8c0bb: d9228b4, the fix for pre-review pass 1 on PR #247 (earlierRuns), and the full runs on d4a9780 and 07592fa. The counter-checks M1 to M16 were taken on d4a9780, P1 to P3 on 07592fa and S1 to S3 on d9228b4, with the same patch. Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "results": {
     "typecheck": "pass",
     "lint": "pass",
@@ -18,9 +27,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass",
-    "unit": "591 passed (+22: tests/unit/game-controller-shark.test.ts 5, src/render/camera.test.ts 7, tests/unit/dive-seed.test.ts 3, tests/unit/shark-encounter.test.ts 2, tests/unit/wreck-route.test.ts 2, tests/unit/save-repository.test.ts 2, tests/unit/site-layers.test.ts 1)",
-    "parity": "341 passed (+5 in tests/parity/shark-encounter.test.ts). The new tests: every recorded checkpoint a shark swims at, named, all four in shark-encounter-5m on the reef; the camera's 8 m lead against numbers written in the test; the named checkpoints on the camera's mid-route view, with legacy's values except the departing ones at spawned, second-spawn, contact-survived, gone and shark-attack; the route's floors against written numbers and legacy's 66 m floorAt, and where the depth departs; no recorded checkpoint reached by the route's floors. The replay of shark-encounter-5m on legacy's centred 1000 px view is unchanged.",
-    "e2e": "183 passed in 8.2 min, no retries, no flake (+5 in tests/shark.spec.js: the seed drawn at a dive's start is in its save; a dive resumed from a legacy save is seeded from the page's draw and its migrated save keeps it; a resumed shark 3 m behind attacks on a roll under 0.33 and passes, faster, on one above; two resumed dives on frames stepped by hand render the same frame, and with a shark in view a different one)",
+    "unit": "616 passed (594 on main 8f0b3da, +22: tests/unit/game-controller-shark.test.ts 5, src/render/camera.test.ts 7, tests/unit/dive-seed.test.ts 3, tests/unit/shark-encounter.test.ts 2, tests/unit/wreck-route.test.ts 2, tests/unit/save-repository.test.ts 2, tests/unit/site-layers.test.ts 1)",
+    "parity": "341 passed (336 on main 8f0b3da, +5 in tests/parity/shark-encounter.test.ts). The new tests: every recorded checkpoint a shark swims at, named, all four in shark-encounter-5m on the reef; the camera's 8 m lead against numbers written in the test; the named checkpoints on the camera's mid-route view, with legacy's values except the departing ones at spawned, second-spawn, contact-survived, gone and shark-attack; the route's floors against written numbers and legacy's 66 m floorAt, and where the depth departs; no recorded checkpoint reached by the route's floors. The replay of shark-encounter-5m on legacy's centred 1000 px view is unchanged.",
+    "e2e": "191 passed in 8.8 min on the first run, no retries, no flake (186 on main 8f0b3da, +5 in tests/shark.spec.js: the seed drawn at a dive's start is in its save; a dive resumed from a legacy save is seeded from the page's draw and its migrated save keeps it; a resumed shark 3 m behind attacks on a roll under 0.33 and passes, faster, on one above; two resumed dives on frames stepped by hand render the same frame, and with a shark in view a different one)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, max delta 0, nothing re-recorded",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -127,9 +136,9 @@
     "playwrightWorkers": 4
   },
   "durableProvenance": {
-    "src": "5f676a546df7cea1c84f08d9ab949f303b92459b",
-    "tests": "8f0d37f4c1952ab292f7c04f6cd04d2733ab61ab",
+    "src": "91666b290de0e033928b7ebaff24dffa536e86c4",
+    "tests": "30729f4ea88df32358efe82327046746c9455201",
     "scripts": "7c6f0c28cdf70f68e1f1b578759d4dc9647af926",
-    "docs": "de08ad244de81097112442531d5d7de21022c941"
+    "docs": "b0d780a30f6ece3afb425951986e58d1d3f3490d"
   }
 }
