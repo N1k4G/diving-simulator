@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 // node:vm, no @types/node).
 import legacySource from "../../src/sites.js?raw";
 import constantsSource from "../../src/constants.js?raw";
+import baselineFixture from "../fixtures/traces/baseline-v1.json";
 
 import {
   WRECK_DECK_TOP,
@@ -175,7 +176,74 @@ function* samples(): Generator<Sample> {
   }
 }
 
+/** A legacy depth's band and the migration depth it maps to at x, or null past 39 m. */
+function toMigration(x: number, legacyD: number): { band: Band; migrationD: number } | null {
+  for (const { band, legacyTop, legacyBottom } of BANDS) {
+    if (legacyD >= legacyTop && legacyD < legacyBottom) {
+      const [top, bottom] = migrationBand(x, band);
+      return { band, migrationD: top + ((bottom - top) * (legacyD - legacyTop)) / (legacyBottom - legacyTop) };
+    }
+  }
+  return null;
+}
+
+interface WreckCheckpoint {
+  readonly checkpointId: string;
+  readonly state: { readonly diveSite: string; readonly diverX_m: number; readonly depth_m: number };
+}
+
+/** The recorded checkpoints on the wreck (tests/fixtures/traces/baseline-v1.json). */
+const WRECK_CHECKPOINTS = (
+  baselineFixture.scenarios as unknown as { scenarioId: string; checkpoints: WreckCheckpoint[] }[]
+).flatMap((scenario) =>
+  scenario.checkpoints
+    .filter((checkpoint) => checkpoint.state.diveSite === "wreck")
+    .map((checkpoint) => ({ id: `${scenario.scenarioId}/${checkpoint.checkpointId}`, ...checkpoint.state })),
+);
+
 describe("the wreck route against legacy's wreck (#222)", () => {
+  it("names the recorded wreck checkpoints: none reaches a departure, and those in range match legacy", () => {
+    // The scenarios that dive the wreck. Four stay at legacy's entry, x 0, off
+    // the bow; wreck-thirds swims to x 50, inside the hold, and out to x -20.
+    expect([...new Set(WRECK_CHECKPOINTS.map((checkpoint) => checkpoint.id.split("/")[0]))]).toEqual([
+      "trimix-45m-20min",
+      "tec-switch-21m",
+      "trimix-dcs-above-stop",
+      "trimix-dcs-surfaced",
+      "wreck-thirds",
+    ]);
+    const compared: string[] = [];
+    const outside: string[] = [];
+    for (const { id, diverX_m: x, depth_m: legacyD } of WRECK_CHECKPOINTS) {
+      // No checkpoint is anywhere along x where a departure lies, at any depth.
+      expect(x >= VISOR.x1 && x <= VISOR.x2, `${id} at the visor`).toBe(false);
+      expect(x >= ENGINE.bedX1 && x <= ENGINE.bedX2, `${id} at the engine block`).toBe(false);
+      const mapped = x >= 8 && x <= 99 ? toMigration(x, legacyD) : null;
+      if (!mapped || !comparesSolid(x, mapped.band) || !comparesOverhead(x, mapped.band)) {
+        outside.push(id);
+        continue;
+      }
+      compared.push(id);
+      expect(migrationSolid(x, mapped.migrationD), `${id} solid`).toBe(legacy.solidAt(x, legacyD));
+      expect(routeSpaceNear(x, mapped.migrationD).inOverhead, `${id} overhead`).toBe(legacy.overheadAt(x, legacyD));
+    }
+    // In range: wreck-thirds in the hold at x 50, 32 m, which maps to about
+    // 27.33 m under the drawn deck: open water and the overhead, as in legacy.
+    expect(compared).toEqual([
+      "wreck-thirds/outbound-10min",
+      "wreck-thirds/turn-20min",
+      "wreck-thirds/reserve-28min",
+    ]);
+    expect(toMigration(50, 32)!.migrationD).toBeCloseTo(23.8 + (9.7 * 4) / 11, 9);
+    expect(legacy.overheadAt(50, 32)).toBe(true);
+    // Outside: x 0 and -20, before the route's start at 8; and wreck-thirds'
+    // surface at x 50, above the deck where legacy's superstructure begins.
+    expect(outside).toHaveLength(WRECK_CHECKPOINTS.length - 3);
+    expect(outside).toContain("wreck-thirds/surface");
+    expect(outside).toContain("wreck-thirds/outside-29min");
+  });
+
+
   it("is solid where legacy is, except in the visor and the engine block, where only the migration is", () => {
     const mismatches: string[] = [];
     const departures = { visor: 0, engine: 0 };
