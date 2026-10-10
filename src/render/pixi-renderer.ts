@@ -12,7 +12,7 @@ import {
   profileAt,
   type RoutePoint,
 } from "../sites/wreck-route";
-import { createCameraTransform, type CameraTransform } from "./camera";
+import { createCameraTransform, wreckCameraFocusX, type CameraTransform } from "./camera";
 import {
   BUBBLE_LAYER,
   RETAINED_LAYER_ASSIGNMENT,
@@ -61,6 +61,14 @@ const SURFACE_WAVES = [
 /** Legacy fills 20 px under the wave line: one metre. */
 const SURFACE_BAND_M = 1;
 
+// Legacy's shark (src/renderer.js drawScene, TASK-044), at its 0.05 m a
+// pixel: shark.size 45 px from the snout's centre to the tail's root, a 4 px
+// bob, and a phase that advances 3 a real second (src/game-loop.js).
+const LEGACY_M_PER_PX = 0.05;
+const SHARK_SIZE_M = 45 * LEGACY_M_PER_PX;
+const SHARK_BOB_M = 4 * LEGACY_M_PER_PX;
+const SHARK_PHASE_PER_S = 3;
+
 export class PixiWreckRenderer implements SceneRenderer {
   readonly kind = "pixi" as const;
 
@@ -70,6 +78,9 @@ export class PixiWreckRenderer implements SceneRenderer {
   #world = new Container();
   #torch = new Graphics();
   #diver = new Container();
+  #shark = new Graphics();
+  /** The real time the shark on screen was first drawn at, for its phase. */
+  #sharkSinceRealS: number | null = null;
   #bubbles: Graphics[] = [];
   #waves: Graphics[] = [];
   #viewport = { width: 1, height: 1 };
@@ -143,7 +154,7 @@ export class PixiWreckRenderer implements SceneRenderer {
   ): void {
     const app = this.#requireApp();
     const camera = createCameraTransform(this.#viewport, {
-      x: scene.routePositionM + scene.facing * 8,
+      x: wreckCameraFocusX(scene.routePositionM, scene.facing),
       y: scene.diverDepthM,
     });
 
@@ -157,6 +168,7 @@ export class PixiWreckRenderer implements SceneRenderer {
     this.#diver.position.set(scene.routePositionM, scene.diverDepthM);
     this.#diver.scale.x = scene.facing;
     this.#torch.visible = scene.torchOn;
+    this.#placeShark(scene);
 
     for (let index = 0; index < this.#bubbles.length; index += 1) {
       const bubble = this.#bubbles[index];
@@ -202,6 +214,27 @@ export class PixiWreckRenderer implements SceneRenderer {
     this.#markerPool = [];
     this.#activeMarkers = [];
     this.#lastSyncFocus = null;
+    this.#sharkSinceRealS = null;
+  }
+
+  /**
+   * Legacy's shark (src/renderer.js drawScene, TASK-044) where the model
+   * holds it, while one swims (#219): turned to its heading, and bobbing 4 px
+   * on its swimming phase, which runs at 3 a real second from when it is
+   * first drawn, as legacy's from its spawn. Built once; a frame only moves
+   * it.
+   */
+  #placeShark(scene: Readonly<WreckSceneState>): void {
+    const shark = scene.shark;
+    this.#shark.visible = shark !== null;
+    if (!shark) {
+      this.#sharkSinceRealS = null;
+      return;
+    }
+    this.#sharkSinceRealS ??= scene.elapsedRealS;
+    const phase = (scene.elapsedRealS - this.#sharkSinceRealS) * SHARK_PHASE_PER_S;
+    this.#shark.position.set(shark.positionM, shark.depthM + Math.sin(phase) * SHARK_BOB_M);
+    this.#shark.scale.x = shark.direction;
   }
 
   #syncSceneLayers(camera: CameraTransform, force: boolean): void {
@@ -379,6 +412,9 @@ export class PixiWreckRenderer implements SceneRenderer {
 
     this.#diver.addChild(this.#torch, diverBody);
 
+    this.#shark = buildShark();
+    this.#shark.visible = false;
+
     // Explicit, named layers replace a flat addChild list. Draw order is now a
     // declared property of the scene rather than an accident of call order, and
     // data-driven placements have somewhere to go.
@@ -410,6 +446,7 @@ export class PixiWreckRenderer implements SceneRenderer {
       route,
       silt,
       diver: this.#diver,
+      shark: this.#shark,
     };
     for (const [element, layerId] of Object.entries(RETAINED_LAYER_ASSIGNMENT)) {
       this.#layers.get(layerId)?.addChild(retained[element as RetainedElement]);
@@ -446,6 +483,34 @@ export class PixiWreckRenderer implements SceneRenderer {
     }
     return this.#app;
   }
+}
+
+/**
+ * Legacy's shark, heading right (src/renderer.js drawScene, TASK-044): the
+ * body, the dorsal, tail and pectoral fins in rgba(40,50,60,0.85), each
+ * filled on its own as legacy fills them, the mouth stroked 1.5 px in
+ * rgba(20,25,30,0.9), and the eye, #111 with a rgba(200,0,0,0.5) pupil.
+ */
+function buildShark(): Graphics {
+  const s = SHARK_SIZE_M;
+  const skin = { color: 0x28323c, alpha: 0.85 };
+  return new Graphics()
+    .ellipse(0, 0, s, s * 0.35)
+    .fill(skin)
+    .poly([-s * 0.1, -s * 0.35, s * 0.05, -s * 0.85, s * 0.3, -s * 0.3])
+    .fill(skin)
+    .poly([-s, 0, -s * 1.5, -s * 0.5, -s * 1.2, 0, -s * 1.5, s * 0.4])
+    .fill(skin)
+    .poly([s * 0.1, s * 0.2, -s * 0.2, s * 0.55, -s * 0.3, s * 0.15])
+    .fill(skin)
+    .moveTo(s * 0.7, s * 0.08)
+    .lineTo(s * 0.95, s * 0.02)
+    .lineTo(s * 0.7, -s * 0.05)
+    .stroke({ color: 0x14191e, alpha: 0.9, width: 1.5 * LEGACY_M_PER_PX })
+    .circle(s * 0.6, -s * 0.1, s * 0.06)
+    .fill({ color: 0x111111 })
+    .circle(s * 0.6, -s * 0.1, s * 0.03)
+    .fill({ color: 0xc80000, alpha: 0.5 });
 }
 
 function flatten(points: readonly RoutePoint[]): number[] {
