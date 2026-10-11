@@ -157,11 +157,12 @@ test('a frame with every narcosis effect on takes no longer than one without', a
   console.log(`narcosis frame time ${JSON.stringify(result)}`);
   expect(result.narcosed.sampleCount).toBe(300);
   // A coarse bound on the effects' cost, not a claim that they cost nothing.
-  // Alone, the medians agree within about 0.3 ms. Under the full suite's load
-  // the narcosed page has run up to 1.1 ms slower (the evidence lists every
-  // run, artifacts/wp-08/220/verification-visuals.json): the
-  // full-screen vignette is a real blend in SwiftShader's CPU rasteriser. The
-  // bound allows that, and it is far under a 16.67 ms frame. It does not tell a blur
+  // Alone, the medians agree within about half a millisecond. Under the full
+  // suite's load the narcosed page has mostly run slower, by around a
+  // millisecond (the evidence lists every run with its numbers,
+  // artifacts/wp-08/220/verification-visuals.json): the full-screen vignette
+  // is a real blend in SwiftShader's CPU rasteriser. The bound allows that,
+  // and it is far under a 16.67 ms frame. It does not tell a blur
   // apart, since a Pixi BlurFilter on the world measured 1.8 against 1.6 ms;
   // the wreck-narcosis reference frame (scripts/pixi-visual-check.mjs) does.
   expect(result.narcosed.medianMs).toBeLessThanOrEqual(result.sober.medianMs * 1.5 + 1);
