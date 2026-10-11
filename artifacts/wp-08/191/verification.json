@@ -3,12 +3,19 @@
   "issue": 191,
   "slice": "the resume flow: legacy's resume banner on the setup screen with its one-hour expiry, a resumed dive's setup rebuilt from its save, and the next dive on a rebreather's cylinders and setpoint as the last one left them, with the diluent's pressure shown",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "7cb401bd328f07ccc47c09b313e3af324c65a8d2",
-  "measuredTree": "cde5ae030caabbc45877991115888cf42dd8283c",
+  "measuredCommit": "17453984a4389831bb73f6fbaafe331bab8586ee",
+  "measuredTree": "93c5e93482ef42dbe73b9214ad9b4797f2c1d766",
   "workingTree": "clean before and after the run (git status --porcelain empty)",
-  "recordedAt": "2026-10-10T23:40:14Z",
-  "runFinishedAt": "2026-10-10T23:57:33Z",
+  "recordedAt": "2026-10-11T00:34:40Z",
+  "runFinishedAt": "2026-10-11T00:52:20Z",
   "earlierRuns": [
+    {
+      "measuredCommit": "7cb401bd328f07ccc47c09b313e3af324c65a8d2",
+      "measuredTree": "cde5ae030caabbc45877991115888cf42dd8283c",
+      "recordedAt": "2026-10-10T23:40:14Z",
+      "runFinishedAt": "2026-10-10T23:57:33Z",
+      "note": "Full run on 7cb401b, on main 4b3043e: 638 unit, 341 parity, 201 e2e, Pixi 0%, interior ok, all passing; the counter-checks below were taken on it. Superseded by the run above, after the rebase onto main 43edf40."
+    },
     {
       "measuredCommit": "2e22a8b089d32ed267207ab8dbd23ee1352c343a",
       "measuredTree": "bb1baf2ccdd4f4cb2cf98d7c67a49dd3bbfab7fa",
@@ -38,8 +45,8 @@
       "note": "Full run before pre-review pass 1, on main 4b3043e: 634 unit, 341 parity, 197 e2e, all passing on the first run; pixi:visual-check 3 scenes at 0%, interior:check ok. Its counter-checks U1 to U3 and E1 to E4 (20:52Z to 20:55Z, E3 and E4 again at 21:07Z) all failed the named tests and restored byte for byte. Superseded by the run above."
     }
   ],
-  "timestampProvenance": "Both are date -u output printed around the run, with git rev-parse HEAD and HEAD^{tree} before it. The whole chain ran under the shared e2e port lock, taken before START and released after END. The counter-checks ran under the lock from 2026-10-10T23:57:33Z to 2026-10-11T00:13:10Z.",
-  "provenanceNote": "On main 4b3043e (#244). f4e4065 is the feature, e71e897 its evidence, 02e37ed the fixes for pre-review pass 1 of #250 and 42bd75c their evidence, and 7cb401b the fixes for pre-review pass 2. The full run above and every counter-check below are on 7cb401b. Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END. The counter-checks, on 7cb401b, ran under the lock from 2026-10-10T23:57:33Z to 2026-10-11T00:13:10Z.",
+  "provenanceNote": "On main 43edf40 (#249), rebased from 4b3043e without conflicts: f4e4065, e71e897, 02e37ed, 42bd75c, 7cb401b and e9cc5a0 became 30358bc, e67dd8c, d2e4718, 64aac99, 1745398 and acac776. The full run above is on 1745398. The counter-checks below were taken on 7cb401b, before the rebase; src, tests and scripts of 7cb401b and 1745398 differ only by main's changes from 4b3043e to 43edf40 (#249). Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "results": {
     "typecheck": "pass",
     "lint": "pass",
@@ -48,9 +55,9 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass",
-    "unit": "638 passed (629 on main 4b3043e, +9 in src/app/setup/resume-setup.test.ts: a technical save's mode, factors, consumption, cylinders at their fill and first cylinder; the retry's options full at startGasL; a rebreather's loop with oxygen and diluent as the dive left them, carried into the retry's options; a legacy v2 import's pressure/totalGas fill and gfLow/gfHigh; v9 saves without startGasL at 200 and at 280 bar; setupForNextDive keeps a rebreather's cylinders and setpoint as left and leaves open circuit alone; the one-hour expiry at legacy's boundary)",
-    "parity": "341 passed, unchanged from main",
-    "e2e": "201 passed in 12.2 min on the first run, no retries, no flake (192 on main 4b3043e; +9 in tests/resume-flow.spec.js: the banner in legacy's words, first in the panel and the tab order, Resume by keyboard continues the save; Discard clears it and moves focus to the mode radio; Start with the banner up ends the offer, with no banner or Resume over the new dive before and after its save replaces the old one, the departure's evidence; a save an hour and a millisecond old is cleared and not offered; a resumed CCR dive breathes past its save and fails, and the retry keeps its 1.3 bar setpoint and starts on the exact oxygen and diluent it left, read from the retry's own save, with the setup showing each to the tenth and the HUD to the bar from that same number, and a new dive's setup showing the diluent at 200 bar; a resumed CCR dive with an empty diluent shows 0 bar on the retry's setup; at 667x375 every control focused by Shift+Tab from Start to Resume lies inside the panel and clear of the banner; a resumed technical dive's game over returns to tec, 50/80, 230 and 250 bar, and the retry starts on 230; German on a 390 px phone. Nine existing specs that resumed through Start now resume through the banner; the legacy save in tests/shark.spec.js is stamped now.)",
+    "unit": "656 passed (647 on main 43edf40, +9 in src/app/setup/resume-setup.test.ts: a technical save's mode, factors, consumption, cylinders at their fill and first cylinder; the retry's options full at startGasL; a rebreather's loop with oxygen and diluent as the dive left them, carried into the retry's options; a legacy v2 import's pressure/totalGas fill and gfLow/gfHigh; v9 saves without startGasL at 200 and at 280 bar; setupForNextDive keeps a rebreather's cylinders and setpoint as left and leaves open circuit alone; the one-hour expiry at legacy's boundary)",
+    "parity": "344 passed, unchanged from main 43edf40",
+    "e2e": "201 passed in 11.9 min on the first run, no retries, no flake (192 on main 43edf40; +9 in tests/resume-flow.spec.js: the banner in legacy's words, first in the panel and the tab order, Resume by keyboard continues the save; Discard clears it and moves focus to the mode radio; Start with the banner up ends the offer, with no banner or Resume over the new dive before and after its save replaces the old one, the departure's evidence; a save an hour and a millisecond old is cleared and not offered; a resumed CCR dive breathes past its save and fails, and the retry keeps its 1.3 bar setpoint and starts on the exact oxygen and diluent it left, read from the retry's own save, with the setup showing each to the tenth and the HUD to the bar from that same number, and a new dive's setup showing the diluent at 200 bar; a resumed CCR dive with an empty diluent shows 0 bar on the retry's setup; at 667x375 every control focused by Shift+Tab from Start to Resume lies inside the panel and clear of the banner; a resumed technical dive's game over returns to tec, 50/80, 230 and 250 bar, and the retry starts on 230; German on a 390 px phone. Nine existing specs that resumed through Start now resume through the banner; the legacy save in tests/shark.spec.js is stamped now.)",
     "pixiVisualCheck": "3 scenes ok, 0% changed pixels, max delta 0, nothing re-recorded",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
@@ -125,9 +132,9 @@
     "playwrightWorkers": 4
   },
   "durableProvenance": {
-    "src": "64d40a694ab4db70f2318b65811b44ce556e203a",
-    "tests": "bb34d9d55c66d88a430bb14e325cf66093740abd",
+    "src": "62ea506b752f18d8c61f64a1a450416079354be3",
+    "tests": "da64478acb2064d45b0542f0dc44662714adb441",
     "scripts": "7c6f0c28cdf70f68e1f1b578759d4dc9647af926",
-    "docs": "115f3d7ddb3b490792c032ce0085adfa5984e659"
+    "docs": "85772b9c94bf833faea5675c1aa41000707871d2"
   }
 }
