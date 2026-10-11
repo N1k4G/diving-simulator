@@ -111,11 +111,12 @@ test('the view darkens above index 0.15 and wobbles above 0.25, and only then', 
 });
 
 // The vignette is a whole-screen blend, so its cost is measured at named
-// backing resolutions (docs/decisions.md): a desktop view at DPR 1, and a
-// phone at DPR 2, the renderer's cap, where it blends twice the pixels across
-// and down.
+// backing resolutions (docs/decisions.md): a desktop view at DPR 1 and at
+// DPR 2, the renderer's cap, where it blends the most pixels, and a phone at
+// DPR 2.
 const FRAME_TIME_VIEWS = [
   { name: '1280x720 at DPR 1', viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 },
+  { name: '1280x720 at DPR 2', viewport: { width: 1280, height: 720 }, deviceScaleFactor: 2 },
   { name: '390x844 at DPR 2', viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 },
 ];
 
