@@ -125,9 +125,11 @@ for (const view of FRAME_TIME_VIEWS) {
     test.use({ viewport: view.viewport, deviceScaleFactor: view.deviceScaleFactor });
 
     test('a frame with every narcosis effect on takes no longer than one without', async ({ page, context }, testInfo) => {
-      // Two pages and 330 frames each; at DPR 2 under the full suite's load
-      // this ran past 120 s.
-      test.setTimeout(240000);
+      // Two pages and 330 frames each, every one finished on SwiftShader's CPU
+      // rasteriser. Under the full suite's load its long frames dominate:
+      // 390x844 at DPR 2 ran past 120 s, and 1280x720 at DPR 2 (a 2428x1308
+      // backing) past 240 s.
+      test.setTimeout(600000);
       const saved = await firstSave(page);
       // Index 0.94 and 0 on two pages, the same dive otherwise, both holding a
       // fin key and the vent, so the swallowed inputs and the drift draw too.
