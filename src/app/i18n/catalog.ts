@@ -441,7 +441,7 @@ const catalog: Record<SupportedLocale, Record<MessageKey, string>> = {
     "gameOver.info.nitrogenNarcosis.medical": "Stickstoffnarkose tritt auf, wenn Stickstoff unter erhöhtem Partialdruck bei tiefen Tauchgängen geatmet wird. Stickstoff stört die neuronale Übertragung — ähnlich wie Alkoholvergiftung. Die Wirkung reicht von leichter Euphorie und Urteilsschwäche bis zu Halluzinationen, Verwirrung und Bewusstlosigkeit. Anders als DCS ist Narkose beim Aufstieg sofort reversibel, aber ein bewusstloser Taucher in der Tiefe ertrinkt.",
     "gameOver.info.nitrogenNarcosis.prevention1": "Verwende Trimix (heliumangereichertes Gas) für tiefe Tauchgänge — Helium hat keine narkotische Wirkung",
     "gameOver.info.nitrogenNarcosis.prevention2": "Überwache die NARC-Warnung und END auf deinem Tauchcomputer",
-    "gameOver.info.nitrogenNarcosis.prevention3": "Achte auf Narkose-Symptome: Tunnelblick, Tasten, die nicht reagieren, Auf- oder Abtreiben",
+    "gameOver.info.nitrogenNarcosis.prevention3": "Achte auf Narkose-Symptome: Tunnelblick, Tasten ohne Reaktion, ungewolltes Auftreiben oder Absinken",
     "gameOver.info.nitrogenNarcosis.prevention4": "Steige sofort auf, wenn du verzögerte Steuerung bemerkst",
     "gameOver.info.nitrogenNarcosis.prevention5": "Mit Luft wird Narkose unter 30m spürbar und unter 60m gefährlich",
     "gameOver.info.nitrogenNarcosis.prevention6": "Die meisten Verbände empfehlen eine maximale Lufttiefe von 40m",
