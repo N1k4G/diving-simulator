@@ -3,12 +3,33 @@
   "issue": 220,
   "slice": "part 2 of 2: narcosis on the view, the tunnel vision and the wobble, and legacy's blur and grayscale recorded as a deliberate departure",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "c9f8c446ece2dfe25eb6766f917cc736a9f2db41",
-  "measuredTree": "dcf8202c246d9ef7e475f02ee485779369c922ea",
+  "measuredCommit": "a72b0f24330d8688b43b91957a3e9460748f5714",
+  "measuredTree": "da6595cdcb1a6f5427a9941bf67e8f9ec12f62a9",
   "workingTree": "clean before and after the run (git status --porcelain empty)",
-  "recordedAt": "2026-10-10T22:28:21Z",
-  "runFinishedAt": "2026-10-10T22:42:34Z",
+  "recordedAt": "2026-10-11T01:14:36Z",
+  "runFinishedAt": "2026-10-11T01:33:38Z",
   "earlierRuns": [
+    {
+      "measuredCommit": "0c8ff45d4b075eac94385d7e9bb0843f4997fdb4",
+      "measuredTree": "d6a98e9a15f7035ec9c400fe13d7b43f589a5d89",
+      "recordedAt": "2026-10-11T00:52:36Z",
+      "runFinishedAt": "2026-10-11T01:09:30Z",
+      "note": "Full run on 0c8ff45, the pre-review fixes with the spec comment's first rewording ('slower in every run recorded'), which this very run made untrue: its full-suite medians were level. a72b0f2 rewords it again; tests/narcosis.spec.js differs by that comment only. 649 unit, 348 parity, 194 e2e in 10.9 min, Pixi 4 scenes at 0%, interior ok, all passing. Three probe runs followed on its build (frameTime.runs, 'on 0c8ff45'). Superseded by the run above."
+    },
+    {
+      "measuredCommit": "19b575cd5ad828bc815a2641d42e84f8e3864e56",
+      "measuredTree": "18771b179099c610a0cb1dee21471df28131d174",
+      "recordedAt": "2026-10-11T00:13:34Z",
+      "runFinishedAt": "2026-10-11T00:30:40Z",
+      "note": "Full run on 19b575c, the pre-review fixes before one spec comment was reworded (0c8ff45 amends it; tests/narcosis.spec.js differs by that comment line only): 649 unit, 348 parity, 194 e2e in 11.6 min, Pixi 4 scenes at 0%, interior ok, all passing. Three probe runs followed on its build (frameTime.runs, 'on 19b575c'). Superseded by the run above."
+    },
+    {
+      "measuredCommit": "c9f8c446ece2dfe25eb6766f917cc736a9f2db41",
+      "measuredTree": "dcf8202c246d9ef7e475f02ee485779369c922ea",
+      "recordedAt": "2026-10-10T22:28:21Z",
+      "runFinishedAt": "2026-10-10T22:42:34Z",
+      "note": "Full run on c9f8c44, on main 43edf40: 649 unit, 344 parity, 194 e2e in 10.7 min, Pixi 4 scenes at 0%, interior ok, all passing. Superseded by the run above, which addresses pre-review pass 1."
+    },
     {
       "measuredCommit": "bcf5d2d6b1603240c3905facbec8343f2d199583",
       "note": "Rebased onto main 43edf40 (#249, part 1 squash-merged) without conflicts as c0682d7, 2e056ba and 612a8ea; bcf5d2d adds the linux reference for wreck-narcosis, recorded by .github/workflows/pixi-baseline.yml (run 38088231915). Full run on bcf5d2d, 2026-10-10T21:45:57Z to 21:58:58Z: unit, parity, Pixi 4 scenes at 0% and interior ok; e2e 193 passed, 1 failed: the frame-time check, narcosed median 3.2 against sober 2.1 ms under the suite's load, over the bound 1.25x + 0.5 ms. c9f8c44 interleaves in runs of 10 and bounds at 1.5x + 1 ms."
@@ -29,7 +50,7 @@
     }
   ],
   "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
-  "provenanceNote": "On main 43edf40 (#249, part 1). The full run above is on c9f8c44. The counter-checks V1 to V5 were taken on 8ce0d76, whose src, scripts and docs are those of c9f8c44; V6 and V7 on c9f8c44. Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "provenanceNote": "On main 43edf40 (#249, part 1). The measured run is the full run above, on a72b0f2; every other run is listed as an earlier run or as a probe run. The counter-checks V1 to V6 were re-taken on 19b575c, whose src, scripts and docs are identical to a72b0f2's; the two differ only in a comment of tests/narcosis.spec.js (2 lines added, 1 removed). The first V1 to V5 were taken on 8ce0d76, whose src differed from the later trees in the facing rule from #249's Codex round 1 (src/app/game-controller.ts), a comment in src/core/narcosis-effects.ts and one line of docs/decisions.md; those results are superseded by the re-take and agree with it. The three independent probe runs of frameTime on the measured build were taken on a72b0f2's build, right after the measured run. Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "results": {
     "typecheck": "pass",
     "lint": "pass",
@@ -39,14 +60,290 @@
     "build": "pass",
     "distCheck": "pass",
     "unit": "649 passed (647 on main 43edf40, +2 in tests/unit/narcosis-view.test.ts: legacy's vignette alpha and wobble, written out)",
-    "parity": "344 passed, as on main 43edf40: no model value changes in this slice. tests/parity/nitrogen-narcosis.test.ts compares the index legacy's filters read at every checkpoint of narcosis-air-65m, which passes 0.9, and of eight other recordings.",
-    "e2e": "194 passed in 10.7 min on the first run, no retries (192 on main, +2 in tests/narcosis.spec.js)",
-    "pixiVisualCheck": "4 scenes ok: wreck-exterior-start, wreck-descended and wreck-torch-off at 0% changed pixels, max delta 0, byte-identical PNGs, their manifest statistics unchanged; wreck-narcosis, new, at 0% against its win32 recording. Its linux reference is recorded in bcf5d2d by the pixi-baseline workflow.",
+    "parity": "348 passed (344 on main 43edf40, +4 in tests/parity/nitrogen-narcosis.test.ts, 'narcosis on the view against the recorded legacy dives'): legacy's filter written out and checked against src/renderer.js; the five narcosis-air-65m checkpoints that reach it named with legacy's filter there (bottom-4min grayscale(71%) blur(2.6px), ko-counting grayscale(74%) blur(2.7px), ascended-45m grayscale(65%) blur(2.3px), back-60s grayscale(72%) blur(2.6px), narcosis grayscale(74%) blur(2.8px)) and the migration's none; the vignette alpha and wobble amplitude at those checkpoints against legacy's; every other recorded checkpoint at index 0.4 or below. No model value changes in this slice.",
+    "e2e": "194 passed in 12.1 min on the first run, no retries (192 on main, +2 in tests/narcosis.spec.js; tests/game-over.spec.js now also pins the narcosis prevention text)",
+    "pixiVisualCheck": "4 scenes ok: wreck-exterior-start, wreck-descended and wreck-torch-off at 0% changed pixels, max delta 0, byte-identical PNGs, their manifest statistics unchanged; wreck-narcosis at 0% against its win32 recording. Its linux reference is recorded in bcf5d2d6b1603240c3905facbec8343f2d199583 by the pixi-baseline workflow. Nothing re-recorded in this run.",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
   "frameTime": {
-    "probe": "tests/narcosis.spec.js, 'a frame with every narcosis effect on takes no longer than one without': two pages resume the same dive at 20 m, one at index 0.94 (all four effects on throughout: still above 0.45 at its last frame), one at 0, both holding a fin key and the vent. Frames are stepped by hand; each sample is one frame's real time with gl.finish(), so the GPU's work (SwiftShader, 960x540 at DPR 1 in headless Chromium) is included. 30 warm-up frames each, then 30 interleaved rounds of 10 (6 of 50 before c9f8c44), 300 samples each. The assertion: narcosed median <= sober median * 1.5 + 1 ms (1.25x + 0.5 ms before c9f8c44, which a loaded machine broke once).",
+    "probe": "tests/narcosis.spec.js, 'a frame with every narcosis effect on takes no longer than one without': two pages resume the same dive at 20 m, one at index 0.94 (all four effects on throughout: still above 0.45 at its last frame), one at 0, both holding a fin key and the vent. Frames are stepped by hand; each sample is one frame's real time with gl.finish(), so the GPU's work (SwiftShader, 960x540 at DPR 1 in headless Chromium) is included. 30 warm-up frames each, then 30 interleaved rounds of 10 (6 of 50 before c9f8c44), 300 samples each. Since 19b575c each page reports the Performance-evidence metrics of docs/decisions.md as src/diagnostics.js summarize() computes them: sampleCount, minMs, medianMs, p95Ms, p99Ms, maxMs (a percentile is the ceil(q * n)th sample), longFrameCount (frames over 16.67 ms) and totalTimeAboveBudgetMsPer1000 (their excess over 16.67 ms, per 1,000 frames). The assertion stays median-based: narcosed median <= sober median * 1.5 + 1 ms (1.25x + 0.5 ms before c9f8c44).",
     "runs": [
+      {
+        "where": "independent run 1 of 3 on a72b0f2's build (the measured build), alone under the port lock, right after the measured run",
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 1.3,
+          "medianMs": 2.6,
+          "p95Ms": 17.3,
+          "p99Ms": 42.1,
+          "maxMs": 65.2,
+          "longFrameCount": 17,
+          "totalTimeAboveBudgetMsPer1000": 882.7
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 0.9,
+          "medianMs": 2.5,
+          "p95Ms": 33.5,
+          "p99Ms": 62.2,
+          "maxMs": 69.1,
+          "longFrameCount": 53,
+          "totalTimeAboveBudgetMsPer1000": 2682.3
+        }
+      },
+      {
+        "where": "independent run 2 of 3 on a72b0f2's build, alone, back to back",
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 1.2,
+          "medianMs": 2.7,
+          "p95Ms": 25.6,
+          "p99Ms": 39.7,
+          "maxMs": 70.6,
+          "longFrameCount": 26,
+          "totalTimeAboveBudgetMsPer1000": 1228.267
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 1.1,
+          "medianMs": 2.3,
+          "p95Ms": 17.2,
+          "p99Ms": 28.9,
+          "maxMs": 80.6,
+          "longFrameCount": 17,
+          "totalTimeAboveBudgetMsPer1000": 585.7
+        }
+      },
+      {
+        "where": "independent run 3 of 3 on a72b0f2's build, alone, back to back",
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 1.1,
+          "medianMs": 2.6,
+          "p95Ms": 30,
+          "p99Ms": 65.4,
+          "maxMs": 69.6,
+          "longFrameCount": 28,
+          "totalTimeAboveBudgetMsPer1000": 1745.467
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 1.3,
+          "medianMs": 2.7,
+          "p95Ms": 18.6,
+          "p99Ms": 37.6,
+          "maxMs": 58.7,
+          "longFrameCount": 18,
+          "totalTimeAboveBudgetMsPer1000": 725.8
+        }
+      },
+      {
+        "where": "in the full suite on a72b0f2, 4 workers (the measured run)",
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 1,
+          "medianMs": 2.3,
+          "p95Ms": 110.2,
+          "p99Ms": 209.1,
+          "maxMs": 327.5,
+          "longFrameCount": 72,
+          "totalTimeAboveBudgetMsPer1000": 15159.533
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 0.7,
+          "medianMs": 2,
+          "p95Ms": 80.2,
+          "p99Ms": 155,
+          "maxMs": 289.3,
+          "longFrameCount": 62,
+          "totalTimeAboveBudgetMsPer1000": 9137.2
+        }
+      },
+      {
+        "where": "alone on 0c8ff45's build, run 1 of 3 (spec comment differs from a72b0f2)",
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 1.3,
+          "medianMs": 2.4,
+          "p95Ms": 26,
+          "p99Ms": 60.6,
+          "maxMs": 66.8,
+          "longFrameCount": 24,
+          "totalTimeAboveBudgetMsPer1000": 1829.4
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 1.1,
+          "medianMs": 2.1,
+          "p95Ms": 19.8,
+          "p99Ms": 37.7,
+          "maxMs": 49.5,
+          "longFrameCount": 24,
+          "totalTimeAboveBudgetMsPer1000": 716.733
+        }
+      },
+      {
+        "where": "alone on 0c8ff45's build, run 2 of 3",
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 1.2,
+          "medianMs": 2.3,
+          "p95Ms": 33.1,
+          "p99Ms": 49.3,
+          "maxMs": 52.7,
+          "longFrameCount": 45,
+          "totalTimeAboveBudgetMsPer1000": 1888.167
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 1,
+          "medianMs": 2,
+          "p95Ms": 26.4,
+          "p99Ms": 43.2,
+          "maxMs": 60,
+          "longFrameCount": 44,
+          "totalTimeAboveBudgetMsPer1000": 1341.733
+        }
+      },
+      {
+        "where": "alone on 0c8ff45's build, run 3 of 3",
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 1,
+          "medianMs": 2.3,
+          "p95Ms": 27,
+          "p99Ms": 49.8,
+          "maxMs": 56.3,
+          "longFrameCount": 45,
+          "totalTimeAboveBudgetMsPer1000": 1768.5
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 0.9,
+          "medianMs": 2.3,
+          "p95Ms": 25.8,
+          "p99Ms": 38.5,
+          "maxMs": 51.5,
+          "longFrameCount": 45,
+          "totalTimeAboveBudgetMsPer1000": 1356.5
+        }
+      },
+      {
+        "where": "in the full suite on 0c8ff45, 4 workers (an earlier run, superseded)",
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 1.3,
+          "medianMs": 2.3,
+          "p95Ms": 55.4,
+          "p99Ms": 82.4,
+          "maxMs": 150.3,
+          "longFrameCount": 38,
+          "totalTimeAboveBudgetMsPer1000": 4505.8
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 1.1,
+          "medianMs": 2.3,
+          "p95Ms": 54.7,
+          "p99Ms": 84.9,
+          "maxMs": 230.3,
+          "longFrameCount": 49,
+          "totalTimeAboveBudgetMsPer1000": 5014.9
+        }
+      },
+      {
+        "where": "alone on 19b575c's build, run 1 of 3 (spec comment differs from a72b0f2)",
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 1.1,
+          "medianMs": 2.6,
+          "p95Ms": 34.8,
+          "p99Ms": 62.8,
+          "maxMs": 108.2,
+          "longFrameCount": 34,
+          "totalTimeAboveBudgetMsPer1000": 2500.067
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 1.1,
+          "medianMs": 2.5,
+          "p95Ms": 22.9,
+          "p99Ms": 36.2,
+          "maxMs": 45.3,
+          "longFrameCount": 22,
+          "totalTimeAboveBudgetMsPer1000": 868.867
+        }
+      },
+      {
+        "where": "alone on 19b575c's build, run 2 of 3",
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 1,
+          "medianMs": 2.5,
+          "p95Ms": 35.8,
+          "p99Ms": 56.7,
+          "maxMs": 64.7,
+          "longFrameCount": 54,
+          "totalTimeAboveBudgetMsPer1000": 3021.4
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 0.9,
+          "medianMs": 2.2,
+          "p95Ms": 29.6,
+          "p99Ms": 44.8,
+          "maxMs": 59.7,
+          "longFrameCount": 51,
+          "totalTimeAboveBudgetMsPer1000": 1907.767
+        }
+      },
+      {
+        "where": "alone on 19b575c's build, run 3 of 3",
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 0.9,
+          "medianMs": 2.3,
+          "p95Ms": 32.8,
+          "p99Ms": 56.3,
+          "maxMs": 65.3,
+          "longFrameCount": 53,
+          "totalTimeAboveBudgetMsPer1000": 2672.3
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 0.9,
+          "medianMs": 2.1,
+          "p95Ms": 30.7,
+          "p99Ms": 56.9,
+          "maxMs": 70,
+          "longFrameCount": 53,
+          "totalTimeAboveBudgetMsPer1000": 2269.633
+        }
+      },
+      {
+        "where": "in the full suite on 19b575c, 4 workers (an earlier run, superseded)",
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 1,
+          "medianMs": 2.3,
+          "p95Ms": 101.9,
+          "p99Ms": 261.4,
+          "maxMs": 362.3,
+          "longFrameCount": 86,
+          "totalTimeAboveBudgetMsPer1000": 16659.267
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 0.9,
+          "medianMs": 2.1,
+          "p95Ms": 37.7,
+          "p99Ms": 110.5,
+          "maxMs": 126.6,
+          "longFrameCount": 39,
+          "totalTimeAboveBudgetMsPer1000": 3565.233
+        }
+      },
       {
         "where": "alone, on the working tree committed as cb75f0b",
         "narcosed": {
@@ -113,7 +410,7 @@
         }
       },
       {
-        "where": "in the full suite on f1b7b8b, 4 workers (the measured run)",
+        "where": "in the full suite on f1b7b8b, 4 workers (an earlier measured run, superseded)",
         "narcosed": {
           "medianMs": 2.5,
           "p95Ms": 78.4,
@@ -148,7 +445,7 @@
         }
       },
       {
-        "where": "in the full suite on c9f8c44, 4 workers (the measured run)",
+        "where": "in the full suite on c9f8c44, 4 workers (an earlier measured run, superseded)",
         "narcosed": {
           "medianMs": 2.8,
           "p95Ms": 85.2,
@@ -161,12 +458,12 @@
         }
       }
     ],
-    "reading": "Alone, the medians agree within 0.3 ms, three of four within 0.1 ms. The p95 and maximum swing both ways between runs (5.6 against 14.9, 37.9 against 25.3) and are the machine's, not the effects'. Under the suite's load the medians differ by 0.3 and 0.9 ms. Legacy's ctx.filter blur and grayscale, which this slice does not port, are what made performance collapse (owner, #220). The check bounds the effects' cost; it does not tell a GPU filter apart: a Pixi BlurFilter on the world costs no more than the margin here (V6), unlike legacy's Canvas 2D ctx.filter. The wreck-narcosis reference frame is what fails on a blur (V7)."
+    "reading": "Medians, narcosed against sober. Alone: 1.7/1.4, 1.8/1.8, 1.8/1.7, 1.7/1.7 ms (cb75f0b and repeats, runs of 50), 2.6/2.5, 2.5/2.2, 2.3/2.1 ms (19b575c), 2.4/2.1, 2.3/2.0, 2.3/2.3 ms (0c8ff45) and 2.6/2.5, 2.7/2.3, 2.6/2.7 ms (a72b0f2, the three independent runs on the measured build): they agree within 0.4 ms, mostly within 0.3, the narcosed page slower in 9 of 13 and faster in one. In the full suite with 4 workers: 2.8/1.9 (8ce0d76), 2.5/2.2 (f1b7b8b), 3.2/2.1 (bcf5d2d), 2.8/1.8 (c9f8c44), 2.3/2.1 (19b575c), 2.3/2.3 (0c8ff45) and 2.3/2.0 ms (a72b0f2, the measured run): the narcosed page was slower in six of seven runs, by 0.2 to 1.1 ms, and level in the seventh. The full-screen vignette is a real alpha blend in SwiftShader's CPU rasteriser, and under load it shows. The bound, 1.5x + 1 ms, allows that, and it is well under a 16.67 ms frame; it is a coarse cost bound, not a claim that the effects cost nothing. The tails: on the measured build the narcosed page's time above 16.67 ms is lower in run 1 (883/2682 ms per 1,000 frames, 17/53 long frames) and higher in runs 2 and 3 (1228/586 with 26/17, 1745/726 with 28/18); on 0c8ff45's build the long-frame counts are equal (24/24, 45/44, 45/45) and the narcosed time above budget higher in all three (1829/717, 1888/1342, 1769/1357), as on 19b575c's (2500/869, 3021/1908, 2672/2270). Every run has many long frames on both pages (17 to 86 per 300), so the machine was busy beyond this probe: the port lock keeps other e2e runs out, not other work. The check does not tell a GPU filter apart: a Pixi BlurFilter on the world passes it (V6), unlike legacy's Canvas 2D ctx.filter, which made performance collapse (owner, #220). The wreck-narcosis reference frame and the parity test are what fail on a blur (V6)."
   },
   "rule": "Owner decision on #220 (2026-10-07): the tunnel vision above index 0.15 is one pre-rendered overlay sprite whose alpha follows the index, with no per-frame gradient; the wobble above 0.25 is an offset of the world container, on the scene's real-time clock; blur and grayscale are not ported, recorded in docs/decisions.md as a deliberate departure. The wobble is off under prefers-reduced-motion (docs/decisions.md, Accessibility: reduced-motion support).",
-  "change": "src/render/narcosis-view.ts holds legacy's vignette alpha, min(0.7, (index - 0.15) * 0.82), and wobble, sin(t * 0.002) * str across and cos(t * 0.0015) * str * 0.5 down with str = (index - 0.25) * 8 px, t in ms of the scene's elapsedRealS. src/render/pixi-renderer.ts draws legacy's radial gradient (clear at 0.3 of the shorter side, black at 0.7 of the longer) on a canvas once per viewport size, as one sprite over the world and not moved by the wobble; each frame sets its alpha and visibility from PresentationState.narcosisIndex and offsets the world container by the wobble, unless prefers-reduced-motion is set. scripts/pixi-visual-check.mjs adds wreck-narcosis, a dive resumed from its own first save at 20 m, index 0.9, frames pinned. docs/decisions.md records blur and grayscale as a deliberate departure.",
+  "change": "src/render/narcosis-view.ts holds legacy's vignette alpha, min(0.7, (index - 0.15) * 0.82), and wobble, sin(t * 0.002) * str across and cos(t * 0.0015) * str * 0.5 down with str = (index - 0.25) * 8 px, t in ms of the scene's elapsedRealS. src/render/pixi-renderer.ts draws legacy's radial gradient (clear at 0.3 of the shorter side, black at 0.7 of the longer) on a canvas once per viewport size, as one sprite over the world and not moved by the wobble; each frame sets its alpha and visibility from PresentationState.narcosisIndex and offsets the world container by the wobble, unless prefers-reduced-motion is set. scripts/pixi-visual-check.mjs adds wreck-narcosis, a dive resumed from its own first save at 20 m, index 0.9, frames pinned. docs/decisions.md records blur and grayscale as a deliberate departure. Pre-review pass 1: the migration catalogue's gameOver.info.nitrogenNarcosis.prevention3 (en, de) names only the cues the migration shows, tunnel vision, keys that do not respond and drifting up or down, not legacy's colour loss nor the wobble alone, which reduced motion turns off; claims register NARCOSIS-001 records the departure. The departure row in docs/decisions.md names the five checkpoints that reach it and cites tests/unit/narcosis-view.test.ts.",
   "counterChecks": {
-    "method": "Each mutation applied by a script to a file backed up beforehand, the client rebuilt, the named checks run under the port lock with --retries=0, then the file restored from its backup and compared with filecmp (shallow=False): byte for byte identical in every case, and the client rebuilt. The first forms of V3 and V5 did not typecheck, so their builds failed before any check ran; the results below are from the typechecking forms, (this.#reducedMotion?.matches && false) and wobble.x * 0.",
+    "method": "Each mutation applied by a script to a file backed up beforehand, the client rebuilt, the named checks run under the port lock with --retries=0, then the file restored from its backup and compared with filecmp (shallow=False): byte for byte identical in every case, and the client rebuilt. Re-taken on 19b575c, whose src, scripts and docs are those of the measured 0c8ff45. V3 and V5 use the typechecking forms (this.#reducedMotion?.matches && false) and wobble.x * 0. V6 adds BlurFilter to the pixi.js import, a module constant new BlurFilter({ strength: 3 }) and this.#world.filters = index > 0.15 ? [it] : [] in render().",
     "results": [
       {
         "revert": "V1: the vignette from index 0.1 (src/render/narcosis-view.ts)",
@@ -189,12 +486,8 @@
         "result": "e2e: 'a wobble at 0.4'; Pixi visual check: wreck-narcosis fails all three budgets (max delta 180, mean 0.63, 3.29% of pixels)"
       },
       {
-        "revert": "V6: a Pixi BlurFilter (strength 3) on the world above index 0.15 (src/render/pixi-renderer.ts), the frame-time check run alone",
-        "result": "passes: narcosed median 1.8 against sober 1.6 ms. The frame-time check bounds cost and is not the blur guard; see V7. Restored byte for byte (cmp)."
-      },
-      {
-        "revert": "V7: the same BlurFilter, npm run pixi:visual-check",
-        "result": "wreck-narcosis fails: 28.8% of pixels changed (over 1.5%), max channel delta 132, sdLuma moved 4.8; the three other scenes stay at 0%. Restored byte for byte (cmp)."
+        "revert": "V6: a Pixi BlurFilter (strength 3) on the world above index 0.15 (src/render/pixi-renderer.ts)",
+        "result": "tests/parity/nitrogen-narcosis.test.ts: 1 of 19 fails, 'departs at the named checkpoints ... the migration does neither' (the renderer sets a filter); Pixi visual check: wreck-narcosis fails (max delta 132, mean 2.36, 28.8% of pixels, sdLuma moved 4.8), the other three scenes ok; the frame-time check alone passes (narcosed median 2.9 ms; the sober page's figures were cut from the script's log), so it is not the blur guard."
       }
     ]
   },
@@ -206,9 +499,9 @@
     "playwrightWorkers": 4
   },
   "durableProvenance": {
-    "src": "597be6fb32a56bb6e48c0d0c54c019b99a6f6998",
-    "tests": "fcf043a0e126739a5756d0575fe8a21bd48fa2c3",
+    "src": "381fe2494c114391f1b611930562e7fcea362dfe",
+    "tests": "9b7f75d01d38fccc1abb1a67ecdeb7d07f1e0f99",
     "scripts": "b12f4decc249968c48da2a4015866ec3648d6d6d",
-    "docs": "27bed3f5f0ceb0976ce432150c7124cfe6c7fb78"
+    "docs": "6a7cd486dacb01c3193084c0220d1934558dcf1b"
   }
 }
