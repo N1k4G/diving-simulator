@@ -62,7 +62,7 @@ async function resumeWithSharkClosing(page, randomState) {
   await page.goto('/dist/');
   await page.evaluate(([key, value]) => window.localStorage.setItem(key, value), [SAVE_KEY, JSON.stringify(saved)]);
   await acceptSafetyGate(page);
-  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-resume-continue]').click();
 }
 
 // The page's frames, stepped by hand as scripts/pixi-visual-check.mjs steps
@@ -92,7 +92,7 @@ test('the scene draws the shark while one swims, and only then', async ({ page }
     await page.goto('/dist/');
     await page.evaluate(([key, value]) => window.localStorage.setItem(key, value), [SAVE_KEY, JSON.stringify(saved)]);
     await acceptSafetyGate(page);
-    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-resume-continue]').click();
     await page.locator('[data-renderer=pixi] canvas').waitFor();
     await page.evaluate(() => window.__stepFrames(30));
     return page.locator('[data-wreck-viewport]').screenshot();
@@ -117,15 +117,16 @@ test.describe('a dive on a seed of its own', () => {
     await page.goto('/dist/');
     await page.evaluate(() => {
       window.localStorage.clear();
+      // Saved now: a save more than an hour old is not offered (#191).
       window.localStorage.setItem('diveSim_savedState', JSON.stringify({
-        saveVersion: 2, savedAt: 1_735_689_600_000, gameState: 'diving', depth: 10, maxDepth: 12, diveTime: 5,
+        saveVersion: 2, savedAt: Date.now(), gameState: 'diving', depth: 10, maxDepth: 12, diveTime: 5,
         amvRate: 15, po2ViolationTime: 0, hypoxiaTime: 0, ccrHypoxiaTime: 0, ccrHyperoxiaTime: 0,
         tissues: Array(16).fill(0.75), tissuesHe: Array(16).fill(0), activeTank: 0, tankCount: 1, diveMode: 'rec',
         tanks: [{ fO2: 0.21, fHe: 0, fN2: 0.79, volume: 12, gasRemaining: 2000 }],
       }));
     });
     await acceptSafetyGate(page);
-    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-resume-continue]').click();
     await page.locator('[data-renderer=pixi] canvas').waitFor();
     // Migrated on load and written back under the new key with its seed.
     const saved = await persistedSave(page);

@@ -182,7 +182,7 @@ test('an empty cylinder is offered but cannot be breathed', async ({ page }) => 
     [SAVE_KEY, JSON.stringify(saved)],
   );
   await acceptSafetyGate(page);
-  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-resume-continue]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
 
   await expect(page.locator('[data-tank="1"]')).toBeDisabled();
@@ -213,7 +213,7 @@ test('a failed two-cylinder dive ends on the game-over screen', async ({ page })
     [SAVE_KEY, JSON.stringify(saved)],
   );
   await acceptSafetyGate(page);
-  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-resume-continue]').click();
   // A failed dive now ends on the game-over screen (#159), which replaces the
   // dive view on its first frame, so there is no canvas left to wait for.
   await page.locator('[data-game-over]').waitFor();
@@ -486,7 +486,7 @@ test.describe('cylinder readout', () => {
       [SAVE_KEY, JSON.stringify(saved)],
     );
     await acceptSafetyGate(page);
-    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-resume-continue]').click();
     await page.locator('[data-renderer=pixi] canvas').waitFor();
 
     await expect(page.locator('.wreck-hud [data-hud-metric="cylinder"] dd')).toHaveText(
@@ -561,7 +561,7 @@ async function startDiveAtDecoStop(page, configure, stop = DECO_STOPS.midWater) 
     [SAVE_KEY, JSON.stringify(saved)],
   );
   await acceptSafetyGate(page);
-  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-resume-continue]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
   // Offered from the first frame: the ceiling is computed from the model's
   // own tissues, not awaited from the forecast worker.
@@ -784,7 +784,7 @@ async function resumeCcrDiveWith(page, mutate) {
     [SAVE_KEY, JSON.stringify(saved)],
   );
   await acceptSafetyGate(page);
-  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-resume-continue]').click();
   // A failed state ends on the game-over screen (#159) instead of the canvas.
   await page.locator('[data-renderer=pixi] canvas, [data-game-over]').first().waitFor();
 }
@@ -1246,7 +1246,7 @@ test.describe('gas information', () => {
     // says technical, and the save wins, as it does for the gradient factors.
     await page.reload();
     await acceptSafetyGate(page);
-    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-resume-continue]').click();
     await page.locator('[data-renderer=pixi] canvas').waitFor();
     await expect(gasInfoToggle(page)).toBeVisible();
   });
@@ -1266,7 +1266,7 @@ test.describe('gas information', () => {
       [SAVE_KEY, JSON.stringify(saved)],
     );
     await acceptSafetyGate(page);
-    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-resume-continue]').click();
     await page.locator('[data-renderer=pixi] canvas').waitFor();
     // I reads the dive's first frame, which the canvas can come before: the
     // toggle shows once that frame has offered the pages. Without the wait

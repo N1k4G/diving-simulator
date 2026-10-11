@@ -34,6 +34,7 @@ import {
   type SupportedLocale,
 } from "../i18n/catalog";
 import { formatGasFraction, formatPressure } from "../i18n/formatters";
+import { DEFAULT_DILUENT_CYLINDER_PRESSURE_BAR } from "../../core/dive-state";
 import {
   AMV_STEP_LPM,
   GRADIENT_FACTOR_STEP,
@@ -60,6 +61,7 @@ import {
   applyDiluentPreset,
   matchingDiluentPreset,
 } from "./ccr-controls";
+import { createResumeBanner } from "./resume-banner";
 
 // Decorative glyphs. The accessible name for each control comes from its
 // aria-label, so these carry no meaning a translator would need; naming
@@ -112,6 +114,20 @@ export interface SetupScreenOptions {
   readonly locale: SupportedLocale;
   readonly onStart: (setup: DiveSetup) => void;
   readonly initialSetup?: DiveSetup;
+  /**
+   * A saved dive waiting for a choice (#191): the screen shows the resume
+   * banner until it is continued or discarded.
+   */
+  readonly resume?: SetupResumeOffer;
+}
+
+/**
+ * Resume gets the screen's setup as it stands, so the resumed dive keeps
+ * its per-mode memory (`savedModes`), as legacy keeps `modeSettings`.
+ */
+export interface SetupResumeOffer {
+  readonly onContinue: (screen: DiveSetup) => void;
+  readonly onDiscard: () => void;
 }
 
 /**
@@ -125,6 +141,24 @@ export function renderSetupScreen(
 ): () => void {
   const { locale, onStart } = options;
   let setup = options.initialSetup ?? createDefaultSetup();
+  const offer = options.resume;
+  // Built once and placed again by every draw, as the controls are.
+  // Discarding drops it and moves focus to the first control after it, the
+  // mode the screen is on, where Tab would have gone next; legacy hides its
+  // strip the same way.
+  let banner: HTMLElement | null = offer
+    ? createResumeBanner(locale, {
+        onContinue: () => offer.onContinue(setup),
+        onDiscard: () => {
+          banner = null;
+          offer.onDiscard();
+          draw();
+          shell
+            .querySelector<HTMLElement>("[data-setup-group=mode] input:checked")
+            ?.focus();
+        },
+      })
+    : null;
 
   const shell = document.createElement("section");
   shell.className = "setup-screen";
@@ -306,6 +340,7 @@ export function renderSetupScreen(
     const focused = focusKeyOf(document.activeElement);
 
     shell.replaceChildren(
+      ...(banner ? [banner] : []),
       heading(locale, setup.mode),
       choiceGroup({
         legendKey: "setup.mode.legend",
@@ -586,6 +621,25 @@ function stepper(spec: {
   return row;
 }
 
+/** A stepper's row without the buttons, for a value no control sets. */
+function readout(spec: {
+  labelKey: MessageKey;
+  value: string;
+  locale: SupportedLocale;
+  testId: string;
+}): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "setup-stepper";
+  row.dataset.setupReadout = spec.testId;
+  const value = element("output", "setup-stepper-value", spec.value);
+  value.dataset.setupValue = spec.testId;
+  row.append(
+    element("span", "setup-stepper-label", translate(spec.locale, spec.labelKey)),
+    value,
+  );
+  return row;
+}
+
 function stepButton(
   labelKey: MessageKey,
   locale: SupportedLocale,
@@ -656,6 +710,8 @@ function focusKeyOf(node: Element | null): string | null {
   const { setupOption, setupPreset, setupStep, startDive, backToSetup } =
     node.dataset;
   if (startDive !== undefined) return "[data-start-dive]";
+  if (node.dataset.resumeContinue !== undefined) return "[data-resume-continue]";
+  if (node.dataset.resumeDiscard !== undefined) return "[data-resume-discard]";
   if (backToSetup !== undefined) return "[data-back-to-setup]";
   if (setupOption !== undefined) {
     return `[data-setup-option="${CSS.escape(setupOption)}"]`;
@@ -776,6 +832,18 @@ function ccrSection(
       onIncrease: () => update(adjustDiluentVolume(setup, CCR_VOLUME_STEP_L)),
       locale,
       testId: "diluent-volume",
+    }),
+    // Read-only, as legacy's 'Diluent Cylinder: Xbar × YL' (src/ui.js): no
+    // screen sets it, but the dive after a dive starts on what the last one
+    // left (#191), so the diver sees it before Start.
+    readout({
+      labelKey: "setup.ccr.diluentPressure",
+      value: formatPressure(
+        ccr.diluentCylinderPressureBar ?? DEFAULT_DILUENT_CYLINDER_PRESSURE_BAR,
+        locale,
+      ),
+      locale,
+      testId: "diluent-pressure",
     }),
     stepper({
       labelKey: "setup.ccr.oxygenVolume",

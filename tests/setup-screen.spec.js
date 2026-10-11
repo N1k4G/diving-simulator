@@ -2,6 +2,7 @@ const { expect, test } = require('./helpers/pinned-seed.cjs');
 const {
   acceptSafetyGate,
   descendTo,
+  resumeSavedDiveAndWaitForCanvas,
   startDiveAndWaitForCanvas,
   startDiveByKeyboard,
   startDiveByTouch,
@@ -568,11 +569,11 @@ test.describe('technical mode', () => {
           }),
         ],
       );
-      // The save is read when the dive starts, not when the page loads, so
-      // this is the point the injected factors take effect. Started without
-      // touching a control, so the setup screen is offering the defaults: if
-      // they win, both calls return the same number.
-      await startDiveAndWaitForCanvas(page);
+      // The save is read when the gate is passed, not when the page loads,
+      // so this is the point the injected factors take effect. Resumed
+      // without touching a control, so the setup screen is offering the
+      // defaults: if they win, both calls return the same number.
+      await resumeSavedDiveAndWaitForCanvas(page);
       const ndl = page.locator('.wreck-hud [data-hud-metric=ndl] dd');
       await expect(ndl).toHaveText(/\d/);
       return ndl.textContent();

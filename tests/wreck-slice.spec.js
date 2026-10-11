@@ -1,5 +1,11 @@
 const { expect, test } = require('./helpers/pinned-seed.cjs');
-const { descendTo, startDive, startDiveAndWaitForCanvas } = require('./helpers/start-dive.cjs');
+const {
+  descendTo,
+  resumeSavedDive,
+  resumeSavedDiveAndWaitForCanvas,
+  startDive,
+  startDiveAndWaitForCanvas,
+} = require('./helpers/start-dive.cjs');
 
 // Mirrors smoke.spec.js's MOBILE_VIEWPORT: a hand-rolled touch viewport
 // rather than Playwright's `devices['iPhone 12']`, which forbids overriding
@@ -107,7 +113,7 @@ test('production starts the Pixi wreck shell with semantic HUD and controls', as
   // The descent really happened, so restoration has something to prove.
   expect(savedDepthM).toBeGreaterThan(parseMetres(initialDepth));
 
-  await startDive(page);
+  await resumeSavedDive(page);
   const restored = page.locator('.wreck-hud dd').first();
   await expect(restored).toBeVisible();
   await expect
@@ -202,7 +208,7 @@ test('a dive completed at the surface leaves no save, and the next start is a ne
     (value) => window.localStorage.setItem('diving-simulator.save-game', value),
     JSON.stringify(saved),
   );
-  await startDiveAndWaitForCanvas(page);
+  await resumeSavedDiveAndWaitForCanvas(page);
 
   await page.waitForFunction(
     () => window.localStorage.getItem('diving-simulator.save-game') === null,
@@ -263,7 +269,7 @@ test('persisted safety states produce visible semantic warnings', async ({ page 
   const chip = page.locator('.status-chip');
 
   await mutateSavedState(page, 'low-gas');
-  await startDive(page);
+  await resumeSavedDive(page);
   await expect(page.getByRole('alert')).toHaveText(
     'Low gas pressure — begin a controlled exit',
   );
@@ -271,7 +277,7 @@ test('persisted safety states produce visible semantic warnings', async ({ page 
   await page.reload();
 
   await mutateSavedState(page, 'oxygen');
-  await startDive(page);
+  await resumeSavedDive(page);
   await expect(page.getByRole('alert')).toHaveText(
     'Unsafe simulated oxygen pressure',
   );
@@ -329,7 +335,7 @@ test('persisted safety states produce visible semantic warnings', async ({ page 
   // is what tells a screen reader the screen changed.
   await page.reload();
   await mutateSavedState(page, 'failure');
-  await startDive(page);
+  await resumeSavedDive(page);
   await expect(page.locator('[data-game-over]')).toBeVisible();
   await expect(page.locator('[data-game-over-reason]')).toHaveText('Out of gas');
   await expect(page.locator('[data-game-over]').locator(LIVE)).toHaveCount(0);

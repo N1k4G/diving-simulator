@@ -47,7 +47,7 @@ async function resumeWith(page, mutate) {
   );
   await page.locator('[data-accept-safety]').click();
   await page.locator('.setup-screen').waitFor();
-  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-resume-continue]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
 }
 

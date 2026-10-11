@@ -1,0 +1,159 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 191,
+  "slice": "the resume flow: legacy's resume banner on the setup screen with its one-hour expiry, a resumed dive's setup rebuilt from its save with the screen's per-mode memory, and the next dive on a rebreather's cylinders and setpoint as the last one left them, with the diluent's pressure shown and the oxygen pressure stepped as legacy steps it",
+  "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
+  "measuredCommit": "8fc7b71a578da4942d0baf49282db3333882ddf0",
+  "measuredTree": "651cf64cf4c0ed850d53436a5622e3f0c3ba49fa",
+  "workingTree": "clean before and after the run (git status --porcelain empty)",
+  "recordedAt": "2026-10-11T21:40:40Z",
+  "runFinishedAt": "2026-10-11T21:55:41Z",
+  "earlierRuns": [
+    {
+      "measuredCommit": "17453984a4389831bb73f6fbaafe331bab8586ee",
+      "measuredTree": "93c5e93482ef42dbe73b9214ad9b4797f2c1d766",
+      "recordedAt": "2026-10-11T00:34:40Z",
+      "runFinishedAt": "2026-10-11T00:52:20Z",
+      "note": "Full run on 1745398, pre-review pass 2 rebased onto main 43edf40: 656 unit, 344 parity, 201 e2e, Pixi 0%, interior ok, all passing. Superseded by the run above, after the fixes for Codex round 1."
+    },
+    {
+      "measuredCommit": "7cb401bd328f07ccc47c09b313e3af324c65a8d2",
+      "measuredTree": "cde5ae030caabbc45877991115888cf42dd8283c",
+      "recordedAt": "2026-10-10T23:40:14Z",
+      "runFinishedAt": "2026-10-10T23:57:33Z",
+      "note": "Full run on 7cb401b, on main 4b3043e: 638 unit, 341 parity, 201 e2e, Pixi 0%, interior ok, all passing; the counter-checks below were taken on it. Superseded by the run above, after the rebase onto main 43edf40."
+    },
+    {
+      "measuredCommit": "2e22a8b089d32ed267207ab8dbd23ee1352c343a",
+      "measuredTree": "bb1baf2ccdd4f4cb2cf98d7c67a49dd3bbfab7fa",
+      "recordedAt": "2026-10-10T22:47:19Z",
+      "runFinishedAt": "2026-10-10T23:03:21Z",
+      "note": "Full run on the first form of the pre-review pass 2 fixes: 638 unit and 341 parity passed; e2e 200 passed, 1 failed. The rebreather retry test asserted that the resumed dive drew diluent below the save's 160 bar, but the loop draws diluent only on a descent or a BCD inflation, which that run did not make, so its retry started on exactly 160. The assertion is now at most 160, and the exact comparison of setup, HUD and the retry's save is unchanged. That test change is the only difference from 2e22a8b to 7cb401b (amended before any push). Superseded by the run above."
+    },
+    {
+      "measuredCommit": "02e37ed0f255735b71ac3cee7cdf78b49c275b85",
+      "measuredTree": "17eb4d2c55a6c7105e3524254e55e9371b7ac2a2",
+      "recordedAt": "2026-10-10T21:59:06Z",
+      "runFinishedAt": "2026-10-10T22:12:37Z",
+      "note": "Full run after pre-review pass 1 (02e37ed): 638 unit, 341 parity, 200 e2e, all passing on the first run; pixi:visual-check 3 scenes at 0%, interior:check ok. Its counter-checks U1 to U5 and E1 to E7 (22:12Z to 22:20Z) all failed the named tests and restored byte for byte. Superseded by the run above."
+    },
+    {
+      "measuredCommit": "c435da4660aac740d89fe529a894c69e836a5bd3",
+      "measuredTree": "44d3b207477a8cf6d6b6510001da6db12c8d87a4",
+      "recordedAt": "2026-10-10T21:33:18Z",
+      "runFinishedAt": "2026-10-10T21:45:42Z",
+      "note": "Full run on the first form of the pre-review pass 1 fixes: 638 unit and 341 parity passed; e2e 199 passed, 1 failed. tests/shark.spec.js 'draws one for a dive resumed from a legacy save' wrote a legacy save stamped 1,735,689,600,000 ms (2025), which the new one-hour expiry rightly clears, so no banner was offered. The spec now stamps it Date.now(); that is the only change from c435da4 to 02e37ed (amended before any push). Superseded by the run above."
+    },
+    {
+      "measuredCommit": "f4e406519a3a3ce2d4ff2ea017935837f0501dc9",
+      "measuredTree": "12bb3dbf91f56a3e0e799a4daf9e6aa1ff8c6028",
+      "recordedAt": "2026-10-10T20:26:54Z",
+      "runFinishedAt": "2026-10-10T20:39:33Z",
+      "note": "Full run before pre-review pass 1, on main 4b3043e: 634 unit, 341 parity, 197 e2e, all passing on the first run; pixi:visual-check 3 scenes at 0%, interior:check ok. Its counter-checks U1 to U3 and E1 to E4 (20:52Z to 20:55Z, E3 and E4 again at 21:07Z) all failed the named tests and restored byte for byte. Superseded by the run above."
+    }
+  ],
+  "timestampProvenance": "Both are date -u output printed around the run, with git rev-parse HEAD and HEAD^{tree} before it. The whole chain ran under the shared e2e port lock, taken before START and released after END. The counter-checks, on 8fc7b71, ran under the lock from 2026-10-11T21:55:41Z to 22:08:54Z.",
+  "provenanceNote": "On main 43edf40 (#249). 1745398 is pre-review pass 2 after the rebase, acac776, d648d3c and fee1bc4 its evidence, and 8fc7b71 the fixes for Codex round 1 of #250. The full run above and every counter-check below are on 8fc7b71. Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "results": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "licenseCheck": "pass",
+    "sitesCheck": "pass",
+    "devcontainerCheck": "pass",
+    "build": "pass",
+    "distCheck": "pass",
+    "unit": "658 passed (647 on main 43edf40, +11: 10 in src/app/setup/resume-setup.test.ts, a technical save's mode, factors, consumption, cylinders at their fill and first cylinder; the retry's options full at startGasL; a rebreather's loop with oxygen and diluent as the dive left them, carried into the retry's options; a legacy v2 import's pressure/totalGas fill and gfLow/gfHigh; v9 saves without startGasL at 200 and at 280 bar; a mode configured on the screen before Resume restored after the resumed dive; setupForNextDive keeps a rebreather's cylinders and setpoint as left and leaves open circuit alone; the one-hour expiry at legacy's boundary; and 1 in src/app/setup/ccr-controls.test.ts, the oxygen pressure stepped from off the grid by the whole step and clamped to 50-300 as ccrAdjustO2Pres, and on the grid as before)",
+    "parity": "344 passed, unchanged from main 43edf40",
+    "e2e": "202 passed in 11.6 min on the first run, no retries, no flake (192 on main 43edf40; +10 in tests/resume-flow.spec.js: the banner in legacy's words, first in the panel and the tab order, Resume by keyboard continues the save; Discard clears it and moves focus to the mode radio; Start with the banner up ends the offer, with no banner or Resume over the new dive before and after its save replaces the old one, the departure's evidence; a save an hour and a millisecond old is cleared and not offered; a resumed CCR dive breathes past its save and fails, and the retry keeps its 1.3 bar setpoint and starts on the exact oxygen and diluent it left, read from the retry's own save, with the setup showing each to the tenth and the HUD to the bar from that same number, and a new dive's setup showing the diluent at 200 bar; a resumed CCR dive with an empty diluent shows 0 bar on the retry's setup; at 667x375 every control focused by Shift+Tab from Start to Resume lies inside the panel and clear of the banner; a resumed technical dive's game over returns to tec, 50/80, 230 and 250 bar, and the retry starts on 230; recreational configured on EAN32, then technical, then Resume: after the resumed dive's game over, recreational comes back on EAN32 at 200 bar; German on a 390 px phone. Nine existing specs that resumed through Start now resume through the banner; the legacy save in tests/shark.spec.js is stamped now.)",
+    "pixiVisualCheck": "3 scenes ok, 0% changed pixels, max delta 0, nothing re-recorded",
+    "interiorCheck": "chrome probe and 9 scenes ok"
+  },
+  "rule": "Legacy is the oracle (docs/decisions.md). Its resume banner (#67: src/game-loop.js loadSavedDive, _updateResumeBanner, resumeSavedDive, discardSavedDive; src/diving-simulator.html; src/style.css; the strings in src/constants.js) offers a save no more than an hour old on the gas setup without blocking it. restoreDiveState() writes diveMode, gfLow, gfHigh, amvRate, tanks and ccrState into the globals the gas setup is drawn from, and resetDive() starts the next dive with every open-circuit cylinder full and a rebreather's oxygen and diluent where the last dive left them, on the setpoint the diver left (ccrState.targetSP, which the in-dive [ and ] write and nothing resets); its gas setup prints the diluent cylinder's pressure (src/ui.js 542). One departure is recorded in docs/decisions.md (#191, pre-review pass 1 of #250): Start ends the offer, where legacy leaves its strip over the new dive. The PR adds no save field and no version bump (saves are main's v17, from #249), because legacy's fill pressure is totalGas over volume (createTank, gsAdjustPressure, gsAdjustTankVol in src/state.js) and the save's startGasL is that totalGas. Its ccrAdjustO2Pres adds the step and clamps to 50-300 bar without snapping, and restoreDiveState() leaves modeSettings, the per-mode memory of the gas setup, alone.",
+  "change": "src/app/setup/resume-banner.ts builds the banner, a named region with Resume and Discard, from the catalogue's setup.resume.* in English and German. src/app/setup/setup-screen.ts places it first in the panel, where it scrolls with the controls, while a save is on offer, and on Discard drops it and focuses the mode radio. src/app/wreck-app.ts reads the save once when the gate is passed (loadSavedDive, with the legacy seed source of #219), clears one more than an hour old (isSavedDiveExpired), and hands the rest to the setup screen: Resume starts the dive from the save with setupFromSave(save) as its setup, Discard clears both storage keys, and Start begins a new dive on the screen's setup. src/app/setup/resume-setup.ts rebuilds the DiveSetup: mode, factors, consumption, each cylinder at startGasL / volumeL rounded to the screen's 200-300 bar grid, the first cylinder active, the loop's diluent, setpoint and cylinder sizes, and both rebreather cylinders at what the dive left. setupForNextDive gives the game over's retry and the debriefing's dive again a rebreather's oxygen, diluent and setpoint as the dive left them, for a new and a resumed dive; CcrSetup gains an optional diluentCylinderPressureBar for it, with no control, and the CCR card shows it read-only as 'Diluent pressure' (setup.ccr.diluentPressure, English and German), 200 bar when absent. tests/helpers/start-dive.cjs gains resumeSavedDive and resumeSavedDiveAndWaitForCanvas. Round 1 of #250: adjustOxygenPressure (src/app/setup/ccr-controls.ts) adds the step and clamps to 50-300 bar without snapping, as ccrAdjustO2Pres, so a pressure a dive left off the grid moves by the whole step; it is the only stepper a dive leaves off its grid. setupFromSave takes the setup screen's savedModes, which the banner's Resume passes from the screen as it stands (SetupResumeOffer in setup-screen.ts, wreck-app.ts), so a mode configured and left on that screen is restored when the diver switches back after the resumed dive.",
+  "counterChecks": {
+    "method": "Each mutation applied by a script to a file backed up beforehand, the named tests run (for e2e, after rebuilding the client, with --retries=0) under the port lock on the code of 8fc7b71. U7 and U8 run every unit file in src/app/setup. Each file was then restored from its backup and compared with filecmp (shallow=False): byte for byte identical in every case, the working tree clean after the batch, and the client rebuilt from the restored code.",
+    "results": [
+      {
+        "revert": "U1: each cylinder at what is left, gasRemainingL / volumeL, not its fill (src/app/setup/resume-setup.ts)",
+        "result": "4 of 10 in src/app/setup/resume-setup.test.ts fail: the technical save, the retry's options, the legacy import, the per-mode memory"
+      },
+      {
+        "revert": "U2: a resumed rebreather's oxygen refilled to its start pressure, not as the dive left it (src/app/setup/resume-setup.ts)",
+        "result": "1 of 10 fails: the rebreather's loop"
+      },
+      {
+        "revert": "U3: the retry on the cylinder the resumed dive was breathing, not the first (src/app/setup/resume-setup.ts)",
+        "result": "1 of 10 fails: the technical save"
+      },
+      {
+        "revert": "U4: setupForNextDive returns a rebreather setup as configured, its cylinders refilled (src/app/setup/resume-setup.ts)",
+        "result": "1 of 10 fails: the rebreather's next dive"
+      },
+      {
+        "revert": "U5: a save exactly an hour old dropped too, >= for legacy's > (src/app/setup/resume-setup.ts)",
+        "result": "1 of 10 fails: the expiry's boundary"
+      },
+      {
+        "revert": "U6: setupForNextDive keeps the configured setpoint, not the one the dive ended on (src/app/setup/resume-setup.ts)",
+        "result": "1 of 10 fails: the rebreather's next dive"
+      },
+      {
+        "revert": "U7: setupFromSave drops the screen's per-mode memory, savedModes empty (src/app/setup/resume-setup.ts)",
+        "result": "1 of 72 in src/app/setup fails: the mode configured under the banner, in resume-setup.test.ts"
+      },
+      {
+        "revert": "U8: the oxygen pressure snapped to the 10 bar grid again after the step (src/app/setup/ccr-controls.ts)",
+        "result": "1 of 72 in src/app/setup fails: the off-grid oxygen pressure stepped by the whole step, in ccr-controls.test.ts"
+      },
+      {
+        "revert": "E1: Start resumes the pending save, the silent resume of before (src/app/wreck-app.ts)",
+        "result": "e2e: 1 of 10 in tests/resume-flow.spec.js fails: Start with the banner up"
+      },
+      {
+        "revert": "E2: a resumed dive's game over returns to the screen's default setup (src/app/wreck-app.ts)",
+        "result": "e2e: 4 of 10 fail: the technical and the rebreather game over's retry, the empty diluent's retry, and the per-mode memory"
+      },
+      {
+        "revert": "E3: Discard leaves the save in storage (src/app/wreck-app.ts)",
+        "result": "e2e: 1 of 10 fails: Discard clears the save"
+      },
+      {
+        "revert": "E4: the banner after the controls, last in the tab order (src/app/setup/setup-screen.ts)",
+        "result": "e2e: 2 of 10 fail: the keyboard order, and the focus walk at 667x375, which never reaches Resume"
+      },
+      {
+        "revert": "E5: the game over's retry on the setup as configured, without setupForNextDive (src/app/wreck-app.ts)",
+        "result": "e2e: 1 of 10 fails: the rebreather's retry, which shows the save's 150 bar, not what the dive left"
+      },
+      {
+        "revert": "E6: no age check, a save more than an hour old is offered (src/app/wreck-app.ts)",
+        "result": "e2e: 1 of 10 fails: the expired save"
+      },
+      {
+        "revert": "E7: the banner sticky at the top of the scrolling panel again (src/app/diagnostic.css)",
+        "result": "e2e: 1 of 10 fails: the focus walk at 667x375"
+      },
+      {
+        "revert": "E8: the diluent readout always shows the default 200 bar, not the cylinder's pressure (src/app/setup/setup-screen.ts)",
+        "result": "e2e: 2 of 10 fail: the rebreather's retry and the empty diluent's retry"
+      },
+      {
+        "revert": "E9: Resume passes no per-mode memory to the rebuilt setup (src/app/wreck-app.ts)",
+        "result": "e2e: 1 of 10 fails: the mode configured under the banner"
+      }
+    ]
+  },
+  "environment": {
+    "os": "Windows 11",
+    "node": "v26.10.0",
+    "npm": "11.19.1",
+    "nvmrcPin": "22.23.2",
+    "playwrightWorkers": 4
+  },
+  "durableProvenance": {
+    "src": "73064d298cee030964bec6a2367af34730829b6b",
+    "tests": "7430ffd91f414b68e571cd2a633fe436f39e71df",
+    "scripts": "7c6f0c28cdf70f68e1f1b578759d4dc9647af926",
+    "docs": "85772b9c94bf833faea5675c1aa41000707871d2"
+  }
+}

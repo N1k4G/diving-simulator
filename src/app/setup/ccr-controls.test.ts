@@ -166,6 +166,28 @@ describe("the cylinders, from ccrAdjustDilVol, ccrAdjustO2Vol and ccrAdjustO2Pre
     expect(adjustOxygenPressure(ccr(), 999).ccr.oxygenCylinderPressureBar).toBe(300);
     expect(adjustOxygenPressure(ccr(), -999).ccr.oxygenCylinderPressureBar).toBe(50);
   });
+
+  it("moves an oxygen pressure a dive left off the grid by the whole step, as ccrAdjustO2Pres adds and clamps (#191)", () => {
+    // The next dive starts on what the last one left (setupForNextDive).
+    const left = (pressure: number): DiveSetup => {
+      const setup = ccr();
+      return { ...setup, ccr: { ...setup.ccr, oxygenCylinderPressureBar: pressure } };
+    };
+    const after = (pressure: number, delta: number) =>
+      adjustOxygenPressure(left(pressure), delta).ccr.oxygenCylinderPressureBar;
+
+    expect(after(181.5, CCR_PRESSURE_STEP_BAR)).toBe(191.5);
+    expect(after(181.5, -CCR_PRESSURE_STEP_BAR)).toBe(171.5);
+    // Legacy's Math.max(50, Math.min(300, p + delta)) at either end.
+    expect(after(295.5, CCR_PRESSURE_STEP_BAR)).toBe(300);
+    expect(after(55.5, -CCR_PRESSURE_STEP_BAR)).toBe(50);
+    expect(after(23.4, CCR_PRESSURE_STEP_BAR)).toBe(50);
+    // On the grid, exactly as before.
+    expect(after(200, CCR_PRESSURE_STEP_BAR)).toBe(210);
+    expect(after(200, -CCR_PRESSURE_STEP_BAR)).toBe(190);
+    expect(after(300, CCR_PRESSURE_STEP_BAR)).toBe(300);
+    expect(after(50, -CCR_PRESSURE_STEP_BAR)).toBe(50);
+  });
 });
 
 describe("conversion into a dive", () => {

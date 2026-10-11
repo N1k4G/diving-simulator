@@ -111,16 +111,25 @@ export function adjustOxygenVolume(setup: DiveSetup, deltaL: number): DiveSetup 
     : withCcr(setup, { ...setup.ccr, oxygenCylinderVolumeL: next });
 }
 
-/** src/state.js ccrAdjustO2Pres: clamped to 50-300 bar in steps of 10. */
+/**
+ * src/state.js ccrAdjustO2Pres:
+ * `Math.max(CCR_O2_PRES_MIN, Math.min(CCR_O2_PRES_MAX, o2CylPressure + delta))`,
+ * the delta added and clamped to 50-300 bar, never snapped. The pressure is
+ * the one setup value a dive leaves off the grid (#191: the next dive starts
+ * on what the last one left, 181.5 bar say), and a step of 10 must move it by
+ * 10, to 191.5, not to the nearest grid point. From a value on the grid the
+ * result is the same as snapping.
+ */
 export function adjustOxygenPressure(
   setup: DiveSetup,
   deltaBar: number,
 ): DiveSetup {
-  const next = clampToStep(
-    setup.ccr.oxygenCylinderPressureBar + deltaBar,
+  const next = Math.max(
     OXYGEN_PRESSURE_RANGE_BAR.min,
-    OXYGEN_PRESSURE_RANGE_BAR.max,
-    CCR_PRESSURE_STEP_BAR,
+    Math.min(
+      OXYGEN_PRESSURE_RANGE_BAR.max,
+      setup.ccr.oxygenCylinderPressureBar + deltaBar,
+    ),
   );
   return next === setup.ccr.oxygenCylinderPressureBar
     ? setup

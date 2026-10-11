@@ -52,7 +52,7 @@ async function resumeFailedDive(page, reason, configure, editState) {
     [SAVE_KEY, JSON.stringify(saved)],
   );
   await acceptGateInAnyLocale(page);
-  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-resume-continue]').click();
   await page.locator('[data-game-over]').waitFor();
   return saved;
 }
