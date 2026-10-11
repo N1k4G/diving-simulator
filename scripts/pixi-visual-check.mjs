@@ -314,7 +314,8 @@ async function captureScene(browser, baseUrl, scene) {
     await page.goto(`${baseUrl}/dist/?renderer=pixi`);
     await page.evaluate(([key, value]) => localStorage.setItem(key, value), [SAVE_KEY, JSON.stringify(saved)]);
     await page.getByRole('button', { name: /I understand/ }).click();
-    await page.locator('[data-start-dive]').click();
+    // Start begins a new dive since #191; the save is resumed from the banner.
+    await page.locator('[data-resume-continue]').click();
     await page.locator('[data-wreck-viewport] canvas').waitFor();
   }
 

@@ -1,5 +1,5 @@
 const { expect, test } = require('./helpers/pinned-seed.cjs');
-const { acceptSafetyGate } = require('./helpers/start-dive.cjs');
+const { acceptSafetyGate, resumeSavedDiveAndWaitForCanvas } = require('./helpers/start-dive.cjs');
 
 // Narcosis on the view (#220): the tunnel vision above index 0.15 and the
 // wobble above 0.25, neither below, the wobble not under
@@ -75,9 +75,8 @@ async function resumeAt(page, saved, narcosisIndex) {
   };
   await page.goto('/dist/');
   await page.evaluate(([key, value]) => window.localStorage.setItem(key, value), [SAVE_KEY, JSON.stringify({ ...saved, state })]);
-  await acceptSafetyGate(page);
-  await page.locator('[data-start-dive]').click();
-  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  // Start begins a new dive since #191; the save is resumed from the banner.
+  await resumeSavedDiveAndWaitForCanvas(page);
 }
 
 async function frameAt(page, saved, narcosisIndex) {
