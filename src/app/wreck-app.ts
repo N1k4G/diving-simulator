@@ -251,14 +251,15 @@ function showSetupScreen(
     ...(pending
       ? {
           resume: {
-            onContinue: () => {
+            onContinue: (screen: DiveSetup) => {
               const resumed = pending;
               if (!resumed) return;
               dispose();
               // The setup the dive was configured with, so the game over
               // and the debriefing return to it, as legacy's
-              // restoreDiveState() leaves it in its gas setup.
-              start(setupFromSave(resumed), resumed);
+              // restoreDiveState() leaves it in its gas setup, with the
+              // screen's per-mode memory, which it leaves alone.
+              start(setupFromSave(resumed, screen.savedModes), resumed);
             },
             onDiscard: () => {
               pending = null;

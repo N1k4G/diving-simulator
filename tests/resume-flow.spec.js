@@ -314,6 +314,26 @@ test('a resumed dive\'s game over returns to that dive\'s settings, and retries 
   await expect(page.locator('.wreck-hud [data-hud-metric=gas] dd')).toContainText('230');
 });
 
+test('a mode configured under the banner is still there once the resumed dive has ended, as legacy\'s modeSettings', async ({ page }) => {
+  const saved = await technicalSave(page);
+  saved.state.failure.reason = 'out-of-gas';
+  saved.state.events.push({ type: 'failure', elapsedTimeS: saved.state.elapsedTimeS, failureReason: 'out-of-gas' });
+  await seed(page, saved);
+  await acceptSafetyGate(page);
+  // Recreational on EAN32, then technical, then Resume.
+  await page.locator('[data-setup-preset=ean32]').click();
+  await expect(page.locator('[data-setup-value=oxygen]')).toContainText('32');
+  await page.locator('[data-setup-group=mode] [data-setup-option=tec]').check();
+  await page.locator('[data-resume-continue]').click();
+  await page.locator('[data-game-over]').waitFor();
+
+  await page.keyboard.press('Enter');
+  await page.locator('.setup-screen').waitFor();
+  await page.locator('[data-setup-group=mode] [data-setup-option=rec]').check();
+  await expect(page.locator('[data-setup-value=oxygen]')).toContainText('32');
+  await expect(page.locator('[data-setup-value=pressure]')).toHaveText(/^200\sbar$/);
+});
+
 test.describe('in German, on a phone', () => {
   test.use({ locale: 'de-DE', viewport: { width: 390, height: 844 }, hasTouch: true });
 

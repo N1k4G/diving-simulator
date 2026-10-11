@@ -15,7 +15,13 @@ import {
   type SaveGame,
   type SavedDiveMode,
 } from "../../save/save-game";
-import { createDefaultSetup, selectMode, toInitialDiveOptions } from "./dive-setup";
+import {
+  adjustTankPressure,
+  applyPreset,
+  createDefaultSetup,
+  selectMode,
+  toInitialDiveOptions,
+} from "./dive-setup";
 import { isSavedDiveExpired, setupForNextDive, setupFromSave } from "./resume-setup";
 
 // The fills below are whole bar on whole litres, so startGasL over the
@@ -229,6 +235,35 @@ describe("setupFromSave", () => {
     if (!decoded.ok) throw new Error(`v9 save did not load: ${decoded.reason}`);
 
     expect(setupFromSave(decoded.saveGame).tanks[0]?.pressureBar).toBe(280);
+  });
+});
+
+describe("the setup screen's per-mode memory across a resume", () => {
+  it("keeps a mode configured under the banner to switch back to once the resumed dive has ended, as legacy's modeSettings", () => {
+    // Recreational on EAN32 at 250 bar, then technical, then Resume: legacy's
+    // restoreDiveState() leaves modeSettings.rec where switchMode put it.
+    let screen = applyPreset(createDefaultSetup(), 2);
+    screen = adjustTankPressure(screen, 50);
+    screen = selectMode(screen, "tec");
+    const state = breathed(
+      createInitialDiveState(0, {
+        tanks: [createTankState(TX1845, 15, 230), createTankState(EAN32, 7, 250)],
+      }),
+      [1_250, 400],
+    );
+
+    const resumed = setupFromSave(loaded(state, "tec"), screen.savedModes);
+    // The resumed mode's live values are the save's.
+    expect(resumed.mode).toBe("tec");
+    expect(resumed.tanks.map((tank) => tank.pressureBar)).toEqual([230, 250]);
+
+    // The dive ends; the diver switches back to recreational.
+    const recreational = selectMode(setupForNextDive(resumed, state), "rec");
+    expect(recreational.tanks).toHaveLength(1);
+    expect(recreational.tanks[0]?.gas.oxygenFraction).toBeCloseTo(0.32, 10);
+    expect(recreational.tanks[0]?.pressureBar).toBe(250);
+    // And technical again is the resumed dive's two cylinders.
+    expect(selectMode(recreational, "tec").tanks.map((tank) => tank.pressureBar)).toEqual([230, 250]);
   });
 });
 

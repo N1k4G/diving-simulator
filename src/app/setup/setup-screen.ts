@@ -61,7 +61,7 @@ import {
   applyDiluentPreset,
   matchingDiluentPreset,
 } from "./ccr-controls";
-import { createResumeBanner, type ResumeOffer } from "./resume-banner";
+import { createResumeBanner } from "./resume-banner";
 
 // Decorative glyphs. The accessible name for each control comes from its
 // aria-label, so these carry no meaning a translator would need; naming
@@ -118,7 +118,16 @@ export interface SetupScreenOptions {
    * A saved dive waiting for a choice (#191): the screen shows the resume
    * banner until it is continued or discarded.
    */
-  readonly resume?: ResumeOffer;
+  readonly resume?: SetupResumeOffer;
+}
+
+/**
+ * Resume gets the screen's setup as it stands, so the resumed dive keeps
+ * its per-mode memory (`savedModes`), as legacy keeps `modeSettings`.
+ */
+export interface SetupResumeOffer {
+  readonly onContinue: (screen: DiveSetup) => void;
+  readonly onDiscard: () => void;
 }
 
 /**
@@ -139,7 +148,7 @@ export function renderSetupScreen(
   // strip the same way.
   let banner: HTMLElement | null = offer
     ? createResumeBanner(locale, {
-        onContinue: offer.onContinue,
+        onContinue: () => offer.onContinue(setup),
         onDiscard: () => {
           banner = null;
           offer.onDiscard();

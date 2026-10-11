@@ -20,7 +20,18 @@ import {
 } from "./dive-setup";
 import type { CcrState, DiveState, TankState } from "../../core/dive-state";
 
-export function setupFromSave(save: Readonly<SaveGame>): DiveSetup {
+/**
+ * `savedModes` is the per-mode memory of the setup screen the save was
+ * resumed from (selectMode). Legacy's restoreDiveState() writes the dive's
+ * globals and leaves `modeSettings` alone, so a mode configured and left on
+ * that screen is still there to switch back to once the dive has ended. Its
+ * snapshot of the resumed mode itself, if any, is overwritten by the dive's
+ * values the moment the diver switches away, as selectMode does here.
+ */
+export function setupFromSave(
+  save: Readonly<SaveGame>,
+  savedModes: DiveSetup["savedModes"] = Object.freeze({}),
+): DiveSetup {
   const { state } = save;
   const mode = save.diveMode;
   const tanks = state.tanks.map(setupTankFromSave);
@@ -40,7 +51,7 @@ export function setupFromSave(save: Readonly<SaveGame>): DiveSetup {
     gradientFactorLow: save.gradientFactors.lowPercent,
     gradientFactorHigh: save.gradientFactors.highPercent,
     ccr: state.ccr ? ccrSetupFromSave(state.ccr) : createDefaultCcrSetup(),
-    savedModes: Object.freeze({}),
+    savedModes,
   });
 }
 
