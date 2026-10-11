@@ -3,12 +3,26 @@
   "issue": 220,
   "slice": "part 2 of 2: narcosis on the view, the tunnel vision and the wobble, and legacy's blur and grayscale recorded as a deliberate departure",
   "command": "npm run typecheck && npm run lint && npm run license-check && npm run sites:check && npm run devcontainer:check && npm run build && npm run dist:check && npm run test:unit && npm run test:parity && npm run pixi:visual-check && npm run interior:check && npx playwright test",
-  "measuredCommit": "4ef2c0e0ac5295e3f7684d04b7b0888902280a31",
-  "measuredTree": "53c9f6aee66b78264c11b23893f28cd130270b66",
+  "measuredCommit": "773ecc3db2bc2c975e3ddc1c27e01e8adb48bd95",
+  "measuredTree": "2b82043a79df0e45e5d774d0af4bb544379343df",
   "workingTree": "clean before and after the run (git status --porcelain empty)",
-  "recordedAt": "2026-10-11T21:20:13Z",
-  "runFinishedAt": "2026-10-11T21:38:48Z",
+  "recordedAt": "2026-10-11T22:46:32Z",
+  "runFinishedAt": "2026-10-11T23:03:56Z",
   "earlierRuns": [
+    {
+      "measuredCommit": "19ce7daf30e7edeeef18f9e835873eb3c7f60243",
+      "measuredTree": "0247d098255cd8e96dbb5cdbcfe7f8f971ce9001",
+      "recordedAt": "2026-10-11T22:27:08Z",
+      "runFinishedAt": "2026-10-11T22:43:49Z",
+      "note": "Rerun on 19ce7da, on main 43edf40: 649 unit, 348 parity, 196 e2e in 13.0 min, Pixi 4 scenes at 0%, interior ok, all passing. The first run on 19ce7da (2026-10-11T22:09:10Z to 22:26:49Z) had 195 passed and 1 failed: tests/setup-screen.spec.js 'the setup screen stands between the safety gate and the dive' waited past 5 s for the canvas under the suite's load, a spec this PR does not touch. Superseded by the run above, after the rebase onto 6be4054 (#250)."
+    },
+    {
+      "measuredCommit": "4ef2c0e0ac5295e3f7684d04b7b0888902280a31",
+      "measuredTree": "53c9f6aee66b78264c11b23893f28cd130270b66",
+      "recordedAt": "2026-10-11T21:20:13Z",
+      "runFinishedAt": "2026-10-11T21:38:48Z",
+      "note": "Full run on 4ef2c0e, the probe at three configurations: 649 unit, 348 parity, 196 e2e in 13.9 min, Pixi 4 scenes at 0%, interior ok, all passing. Superseded by the run above."
+    },
     {
       "measuredCommit": "9ef9dabae9a1ab19f76c779c005a9b32b23b1e11",
       "measuredTree": "185985913b15d58b063e74e538f31b565f08b9b4",
@@ -91,8 +105,8 @@
       "note": "648 unit, 343 parity, Pixi 4 scenes at 0%, interior ok; e2e 193 passed, 1 failed: tests/narcosis.spec.js's thresholds test hit its 60 s timeout on the safety gate's click of its seventh dive under the suite's load. Not a flake of the product: the test starts eight dives, each a page load. f1b7b8b gives it 150 s. Superseded by the run above."
     }
   ],
-  "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after END.",
-  "provenanceNote": "On main 43edf40 (#249, part 1). The measured run is the full run above, on 4ef2c0e; every other run is listed as an earlier run or as a probe run. The three independent probe runs per configuration (1280x720 at DPR 1, 1280x720 at DPR 2, 390x844 at DPR 2) were taken on the build of 9ef9dab, whose src equals 4ef2c0e's, with 9ef9dab's spec, which differs from 4ef2c0e's only by the probe's timeout. Against 4ef2c0e, 19b575c's tests differ by the narcosis spec's comments and its frame-time probe's configurations and timeout. The counter-checks V1 to V6 were re-taken on 19b575c, a local commit amended before the push and not on the remote: its trees are src 381fe2494c114391f1b611930562e7fcea362dfe, scripts b12f4decc249968c48da2a4015866ec3648d6d6d and docs 6a7cd486dacb01c3193084c0220d1934558dcf1b, the same as a72b0f2's. Against 4ef2c0e, its scripts and docs are identical; its src differs only by the German line gameOver.info.nitrogenNarcosis.prevention3 in src/app/i18n/catalog.ts (e9ec4c8), and its tests by tests/narcosis.spec.js only. The first V1 to V5 were taken on 8ce0d76, whose src differed in the facing rule from #249's Codex round 1 (src/app/game-controller.ts), a comment in src/core/narcosis-effects.ts and one line of docs/decisions.md; those results are superseded by the re-take and agree with it. Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
+  "timestampProvenance": "Both are date -u output printed around the run. The whole chain ran under the shared e2e port lock, taken before START and released after the three independent probe runs that followed it, which finished at 2026-10-11T23:18:51Z.",
+  "provenanceNote": "On main 6be4054 (#250, #191's resume flow), rebased from 43edf40: the only conflict was docs/decisions.md, where #191's departure row and this PR's #220 row both start the table, and both are kept; every other change the rebase brought equals main's from 43edf40 to 6be4054. 773ecc3 then resumes the narcosis spec's and the visual check's saved dives from #191's banner, since Start begins a new dive. The measured run is the full run above, on 773ecc3; the three independent probe runs per configuration (1280x720 at DPR 1, 1280x720 at DPR 2, 390x844 at DPR 2) followed it on the same build, under the same lock. The counter-checks V1 to V6 were re-taken on 19b575c, a local commit amended before the push and not on the remote: its trees are src 381fe2494c114391f1b611930562e7fcea362dfe, scripts b12f4decc249968c48da2a4015866ec3648d6d6d and docs 6a7cd486dacb01c3193084c0220d1934558dcf1b, the same as a72b0f2's. Against 773ecc3, 19b575c's src/render is identical, and its src differs by the German line gameOver.info.nitrogenNarcosis.prevention3 (e9ec4c8) and by main's #191 changes; its scripts differ by the visual check's banner resume; its tests by tests/narcosis.spec.js (the probe's three configurations, its DPR assertion, its 600 s timeout, the banner resume and comments) and by main's #191 tests; its docs by main's #191 departure row. The first V1 to V5 were taken on 8ce0d76; those results are superseded by the re-take and agree with it. Later commits only update this file, so src, tests, scripts and docs are identical to the measured tree (see durableProvenance).",
   "results": {
     "typecheck": "pass",
     "lint": "pass",
@@ -101,14 +115,14 @@
     "devcontainerCheck": "pass",
     "build": "pass",
     "distCheck": "pass",
-    "unit": "649 passed (647 on main 43edf40, +2 in tests/unit/narcosis-view.test.ts: legacy's vignette alpha and wobble, written out)",
-    "parity": "348 passed (344 on main 43edf40, +4 in tests/parity/nitrogen-narcosis.test.ts, 'narcosis on the view against the recorded legacy dives'): legacy's filter written out and checked against src/renderer.js; the five narcosis-air-65m checkpoints that reach it named with legacy's filter there (bottom-4min grayscale(71%) blur(2.6px), ko-counting grayscale(74%) blur(2.7px), ascended-45m grayscale(65%) blur(2.3px), back-60s grayscale(72%) blur(2.6px), narcosis grayscale(74%) blur(2.8px)) and the migration's none; the vignette alpha and wobble amplitude at those checkpoints against legacy's; every other recorded checkpoint at index 0.4 or below. No model value changes in this slice.",
-    "e2e": "196 passed in 13.9 min on the first run, no retries (192 on main, +4 in tests/narcosis.spec.js: the thresholds, and the frame-time probe at 1280x720 on DPR 1, 1280x720 on DPR 2 and 390x844 on DPR 2; tests/game-over.spec.js now also pins the English narcosis prevention text)",
-    "pixiVisualCheck": "4 scenes ok: wreck-exterior-start, wreck-descended and wreck-torch-off at 0% changed pixels, max delta 0, byte-identical PNGs, their manifest statistics unchanged; wreck-narcosis at 0% against its win32 recording. Its linux reference is recorded in bcf5d2d6b1603240c3905facbec8343f2d199583 by the pixi-baseline workflow. Nothing re-recorded in this run.",
+    "unit": "660 passed (658 on main 6be4054, +2 in tests/unit/narcosis-view.test.ts: legacy's vignette alpha and wobble, written out)",
+    "parity": "348 passed (344 on main 6be4054, +4 in tests/parity/nitrogen-narcosis.test.ts, 'narcosis on the view against the recorded legacy dives'): legacy's filter written out and checked against src/renderer.js; the five narcosis-air-65m checkpoints that reach it named with legacy's filter there (bottom-4min grayscale(71%) blur(2.6px), ko-counting grayscale(74%) blur(2.7px), ascended-45m grayscale(65%) blur(2.3px), back-60s grayscale(72%) blur(2.6px), narcosis grayscale(74%) blur(2.8px)) and the migration's none; the vignette alpha and wobble amplitude at those checkpoints against legacy's; every other recorded checkpoint at index 0.4 or below. No model value changes in this slice.",
+    "e2e": "206 passed in 13.7 min on the first run, no retries (202 on main 6be4054, +4 in tests/narcosis.spec.js: the thresholds, and the frame-time probe at 1280x720 on DPR 1, 1280x720 on DPR 2 and 390x844 on DPR 2; tests/game-over.spec.js now also pins the English narcosis prevention text)",
+    "pixiVisualCheck": "4 scenes ok: wreck-exterior-start, wreck-descended and wreck-torch-off at 0% changed pixels, max delta 0, byte-identical PNGs, their manifest statistics unchanged; wreck-narcosis at 0% against its win32 recording, now resumed from #191's banner. Its linux reference is recorded in bcf5d2d6b1603240c3905facbec8343f2d199583 by the pixi-baseline workflow. Nothing re-recorded in this run.",
     "interiorCheck": "chrome probe and 9 scenes ok"
   },
   "frameTime": {
-    "probe": "tests/narcosis.spec.js, 'a frame with every narcosis effect on takes no longer than one without': two pages resume the same dive at 20 m, one at index 0.94 (all four effects on throughout: still above 0.45 at its last frame), one at 0, both holding a fin key and the vent. Frames are stepped by hand; each sample is one frame's real time with gl.finish(), so the GPU's work (SwiftShader in headless Chromium) is included. 30 warm-up frames each, then 30 interleaved rounds of 10 (6 of 50 before c9f8c44), 300 samples each. Since 19b575c each page reports the Performance-evidence metrics of docs/decisions.md as src/diagnostics.js summarize() computes them: sampleCount, minMs, medianMs, p95Ms, p99Ms, maxMs (a percentile is the ceil(q * n)th sample), longFrameCount (frames over 16.67 ms) and totalTimeAboveBudgetMsPer1000 (their excess over 16.67 ms, per 1,000 frames). The assertion stays median-based: narcosed median <= sober median * 1.5 + 1 ms (1.25x + 0.5 ms before c9f8c44). Since 745fd32 (Codex round 1) the probe runs at pinned configurations, test.use({ viewport, deviceScaleFactor }): 1280x720 at DPR 1, drawing a 1214x654 backing; 1280x720 at DPR 2, the renderer's resolution cap, drawing 2428x1308, the largest (since 9ef9dab); and 390x844 at DPR 2, drawing 780x1688; it asserts window.devicePixelRatio and records the measured backing in each result. Runs before 745fd32 used the spec's default viewport at DPR 1, not 960x540, which is the visual check's size.",
+    "probe": "tests/narcosis.spec.js, 'a frame with every narcosis effect on takes no longer than one without': two pages resume the same dive at 20 m, one at index 0.94 (all four effects on throughout: still above 0.45 at its last frame), one at 0, both holding a fin key and the vent. Frames are stepped by hand; each sample is one frame's real time with gl.finish(), so the GPU's work (SwiftShader in headless Chromium) is included. 30 warm-up frames each, then 30 interleaved rounds of 10 (6 of 50 before c9f8c44), 300 samples each. Since 19b575c each page reports the Performance-evidence metrics of docs/decisions.md as src/diagnostics.js summarize() computes them: sampleCount, minMs, medianMs, p95Ms, p99Ms, maxMs (a percentile is the ceil(q * n)th sample), longFrameCount (frames over 16.67 ms) and totalTimeAboveBudgetMsPer1000 (their excess over 16.67 ms, per 1,000 frames). The assertion stays median-based: narcosed median <= sober median * 1.5 + 1 ms (1.25x + 0.5 ms before c9f8c44). Since 745fd32 (Codex round 1) the probe runs at pinned configurations, test.use({ viewport, deviceScaleFactor }): 1280x720 at DPR 1, drawing a 1214x654 backing; 1280x720 at DPR 2, the renderer's resolution cap, drawing 2428x1308, the largest of the three (since 9ef9dab); and 390x844 at DPR 2, drawing 780x1688; it asserts window.devicePixelRatio and records the measured backing in each result. Runs before 745fd32 used the spec's default viewport at DPR 1, not 960x540, which is the visual check's size. The phone is the project's reference phone and the desktop near its 1280x800 one (scripts/screenshots.mjs). The renderer caps the resolution, not the viewport, so a larger window at DPR 2 draws more than any of the three.",
     "runs": [
       {
         "where": "independent run 1 of 3 on a72b0f2's build (an earlier measured build, superseded), alone under the port lock, right after its full run",
@@ -876,7 +890,7 @@
         }
       },
       {
-        "where": "1280x720 at DPR 1, independent run 1 of 3 on the measured build, --workers=1 under the port lock; other work (a Codex review of another PR) ran on the machine at the same time",
+        "where": "1280x720 at DPR 1, independent run 1 of 3 on an earlier measured build (9ef9dab), superseded, --workers=1 under the port lock; other work (a Codex review of another PR) ran on the machine at the same time",
         "view": "1280x720 at DPR 1",
         "backing": {
           "devicePixelRatio": 1,
@@ -905,7 +919,7 @@
         }
       },
       {
-        "where": "1280x720 at DPR 2, independent run 1 of 3 on the measured build, --workers=1 under the port lock; other work (a Codex review of another PR) ran on the machine at the same time",
+        "where": "1280x720 at DPR 2, independent run 1 of 3 on an earlier measured build (9ef9dab), superseded, --workers=1 under the port lock; other work (a Codex review of another PR) ran on the machine at the same time",
         "view": "1280x720 at DPR 2",
         "backing": {
           "devicePixelRatio": 2,
@@ -934,7 +948,7 @@
         }
       },
       {
-        "where": "390x844 at DPR 2, independent run 1 of 3 on the measured build, --workers=1 under the port lock; other work (a Codex review of another PR) ran on the machine at the same time",
+        "where": "390x844 at DPR 2, independent run 1 of 3 on an earlier measured build (9ef9dab), superseded, --workers=1 under the port lock; other work (a Codex review of another PR) ran on the machine at the same time",
         "view": "390x844 at DPR 2",
         "backing": {
           "devicePixelRatio": 2,
@@ -963,7 +977,7 @@
         }
       },
       {
-        "where": "1280x720 at DPR 1, independent run 2 of 3 on the measured build, --workers=1 under the port lock; other work (a Codex review of another PR) ran on the machine at the same time",
+        "where": "1280x720 at DPR 1, independent run 2 of 3 on an earlier measured build (9ef9dab), superseded, --workers=1 under the port lock; other work (a Codex review of another PR) ran on the machine at the same time",
         "view": "1280x720 at DPR 1",
         "backing": {
           "devicePixelRatio": 1,
@@ -992,7 +1006,7 @@
         }
       },
       {
-        "where": "1280x720 at DPR 2, independent run 2 of 3 on the measured build, --workers=1 under the port lock; other work (a Codex review of another PR) ran on the machine at the same time",
+        "where": "1280x720 at DPR 2, independent run 2 of 3 on an earlier measured build (9ef9dab), superseded, --workers=1 under the port lock; other work (a Codex review of another PR) ran on the machine at the same time",
         "view": "1280x720 at DPR 2",
         "backing": {
           "devicePixelRatio": 2,
@@ -1021,7 +1035,7 @@
         }
       },
       {
-        "where": "390x844 at DPR 2, independent run 2 of 3 on the measured build, --workers=1 under the port lock; other work (a Codex review of another PR) ran on the machine at the same time",
+        "where": "390x844 at DPR 2, independent run 2 of 3 on an earlier measured build (9ef9dab), superseded, --workers=1 under the port lock; other work (a Codex review of another PR) ran on the machine at the same time",
         "view": "390x844 at DPR 2",
         "backing": {
           "devicePixelRatio": 2,
@@ -1050,7 +1064,7 @@
         }
       },
       {
-        "where": "1280x720 at DPR 1, independent run 3 of 3 on the measured build, --workers=1 under the port lock; other work (a Codex review of another PR) ran on the machine at the same time",
+        "where": "1280x720 at DPR 1, independent run 3 of 3 on an earlier measured build (9ef9dab), superseded, --workers=1 under the port lock; other work (a Codex review of another PR) ran on the machine at the same time",
         "view": "1280x720 at DPR 1",
         "backing": {
           "devicePixelRatio": 1,
@@ -1079,7 +1093,7 @@
         }
       },
       {
-        "where": "1280x720 at DPR 2, independent run 3 of 3 on the measured build, --workers=1 under the port lock; other work (a Codex review of another PR) ran on the machine at the same time",
+        "where": "1280x720 at DPR 2, independent run 3 of 3 on an earlier measured build (9ef9dab), superseded, --workers=1 under the port lock; other work (a Codex review of another PR) ran on the machine at the same time",
         "view": "1280x720 at DPR 2",
         "backing": {
           "devicePixelRatio": 2,
@@ -1108,7 +1122,7 @@
         }
       },
       {
-        "where": "390x844 at DPR 2, independent run 3 of 3 on the measured build, --workers=1 under the port lock; other work (a Codex review of another PR) ran on the machine at the same time",
+        "where": "390x844 at DPR 2, independent run 3 of 3 on an earlier measured build (9ef9dab), superseded, --workers=1 under the port lock; other work (a Codex review of another PR) ran on the machine at the same time",
         "view": "390x844 at DPR 2",
         "backing": {
           "devicePixelRatio": 2,
@@ -1195,7 +1209,7 @@
         }
       },
       {
-        "where": "1280x720 at DPR 1, in the full suite on 4ef2c0e, 4 workers (the measured run)",
+        "where": "1280x720 at DPR 1, in the full suite on 4ef2c0e, 4 workers (an earlier measured run, superseded)",
         "view": "1280x720 at DPR 1",
         "backing": {
           "devicePixelRatio": 1,
@@ -1224,7 +1238,7 @@
         }
       },
       {
-        "where": "1280x720 at DPR 2, in the full suite on 4ef2c0e, 4 workers (the measured run)",
+        "where": "1280x720 at DPR 2, in the full suite on 4ef2c0e, 4 workers (an earlier measured run, superseded)",
         "view": "1280x720 at DPR 2",
         "backing": {
           "devicePixelRatio": 2,
@@ -1253,7 +1267,7 @@
         }
       },
       {
-        "where": "390x844 at DPR 2, in the full suite on 4ef2c0e, 4 workers (the measured run)",
+        "where": "390x844 at DPR 2, in the full suite on 4ef2c0e, 4 workers (an earlier measured run, superseded)",
         "view": "390x844 at DPR 2",
         "backing": {
           "devicePixelRatio": 2,
@@ -1280,14 +1294,536 @@
           "longFrameCount": 46,
           "totalTimeAboveBudgetMsPer1000": 7091.267
         }
+      },
+      {
+        "where": "1280x720 at DPR 1, in the full suite on 19ce7da, 4 workers (an earlier run)",
+        "view": "1280x720 at DPR 1",
+        "backing": {
+          "devicePixelRatio": 1,
+          "width": 1214,
+          "height": 654
+        },
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 0.9,
+          "medianMs": 2.8,
+          "p95Ms": 103.1,
+          "p99Ms": 167.6,
+          "maxMs": 230.8,
+          "longFrameCount": 70,
+          "totalTimeAboveBudgetMsPer1000": 13334.333
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 0.9,
+          "medianMs": 2.6,
+          "p95Ms": 75.2,
+          "p99Ms": 129.9,
+          "maxMs": 186.2,
+          "longFrameCount": 58,
+          "totalTimeAboveBudgetMsPer1000": 8128.467
+        }
+      },
+      {
+        "where": "1280x720 at DPR 2, in the full suite on 19ce7da, 4 workers (an earlier run)",
+        "view": "1280x720 at DPR 2",
+        "backing": {
+          "devicePixelRatio": 2,
+          "width": 2428,
+          "height": 1308
+        },
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 1.3,
+          "medianMs": 2.6,
+          "p95Ms": 141.9,
+          "p99Ms": 228.4,
+          "maxMs": 322.9,
+          "longFrameCount": 41,
+          "totalTimeAboveBudgetMsPer1000": 15081.767
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 1.2,
+          "medianMs": 2.4,
+          "p95Ms": 125.7,
+          "p99Ms": 196.4,
+          "maxMs": 267.3,
+          "longFrameCount": 44,
+          "totalTimeAboveBudgetMsPer1000": 13998.4
+        }
+      },
+      {
+        "where": "390x844 at DPR 2, in the full suite on 19ce7da, 4 workers (an earlier run)",
+        "view": "390x844 at DPR 2",
+        "backing": {
+          "devicePixelRatio": 2,
+          "width": 780,
+          "height": 1688
+        },
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 1,
+          "medianMs": 2.1,
+          "p95Ms": 132.3,
+          "p99Ms": 238.3,
+          "maxMs": 278.1,
+          "longFrameCount": 63,
+          "totalTimeAboveBudgetMsPer1000": 16754.967
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 0.8,
+          "medianMs": 1.7,
+          "p95Ms": 83.7,
+          "p99Ms": 254.3,
+          "maxMs": 484,
+          "longFrameCount": 44,
+          "totalTimeAboveBudgetMsPer1000": 11796.733
+        }
+      },
+      {
+        "where": "1280x720 at DPR 1, in the full suite on 19ce7da, rerun, 4 workers (an earlier run)",
+        "view": "1280x720 at DPR 1",
+        "backing": {
+          "devicePixelRatio": 1,
+          "width": 1214,
+          "height": 654
+        },
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 1.2,
+          "medianMs": 2.7,
+          "p95Ms": 70.7,
+          "p99Ms": 163.8,
+          "maxMs": 302.9,
+          "longFrameCount": 52,
+          "totalTimeAboveBudgetMsPer1000": 8956.2
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 1,
+          "medianMs": 2.1,
+          "p95Ms": 95.3,
+          "p99Ms": 200.5,
+          "maxMs": 341.2,
+          "longFrameCount": 70,
+          "totalTimeAboveBudgetMsPer1000": 12594.333
+        }
+      },
+      {
+        "where": "1280x720 at DPR 2, in the full suite on 19ce7da, rerun, 4 workers (an earlier run)",
+        "view": "1280x720 at DPR 2",
+        "backing": {
+          "devicePixelRatio": 2,
+          "width": 2428,
+          "height": 1308
+        },
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 1.2,
+          "medianMs": 2.6,
+          "p95Ms": 129.5,
+          "p99Ms": 203,
+          "maxMs": 244.2,
+          "longFrameCount": 49,
+          "totalTimeAboveBudgetMsPer1000": 13927.233
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 1.1,
+          "medianMs": 2.4,
+          "p95Ms": 122.7,
+          "p99Ms": 193.7,
+          "maxMs": 327.4,
+          "longFrameCount": 36,
+          "totalTimeAboveBudgetMsPer1000": 11561.933
+        }
+      },
+      {
+        "where": "390x844 at DPR 2, in the full suite on 19ce7da, rerun, 4 workers (an earlier run)",
+        "view": "390x844 at DPR 2",
+        "backing": {
+          "devicePixelRatio": 2,
+          "width": 780,
+          "height": 1688
+        },
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 1,
+          "medianMs": 2.3,
+          "p95Ms": 42.8,
+          "p99Ms": 90.7,
+          "maxMs": 215.5,
+          "longFrameCount": 30,
+          "totalTimeAboveBudgetMsPer1000": 3586.667
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 0.6,
+          "medianMs": 2,
+          "p95Ms": 85,
+          "p99Ms": 164.3,
+          "maxMs": 171.8,
+          "longFrameCount": 40,
+          "totalTimeAboveBudgetMsPer1000": 7769.333
+        }
+      },
+      {
+        "where": "1280x720 at DPR 1, independent run 1 of 3 on the measured build, --workers=1 under the port lock, right after the measured run",
+        "view": "1280x720 at DPR 1",
+        "backing": {
+          "devicePixelRatio": 1,
+          "width": 1214,
+          "height": 654
+        },
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 0.7,
+          "medianMs": 1.8,
+          "p95Ms": 19.3,
+          "p99Ms": 26.8,
+          "maxMs": 28.8,
+          "longFrameCount": 23,
+          "totalTimeAboveBudgetMsPer1000": 412.633
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 0.8,
+          "medianMs": 1.8,
+          "p95Ms": 18.8,
+          "p99Ms": 24.1,
+          "maxMs": 31.2,
+          "longFrameCount": 30,
+          "totalTimeAboveBudgetMsPer1000": 326.667
+        }
+      },
+      {
+        "where": "1280x720 at DPR 2, independent run 1 of 3 on the measured build, --workers=1 under the port lock, right after the measured run",
+        "view": "1280x720 at DPR 2",
+        "backing": {
+          "devicePixelRatio": 2,
+          "width": 2428,
+          "height": 1308
+        },
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 0.7,
+          "medianMs": 1.8,
+          "p95Ms": 80.7,
+          "p99Ms": 149.8,
+          "maxMs": 155.9,
+          "longFrameCount": 22,
+          "totalTimeAboveBudgetMsPer1000": 6288.533
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 0.9,
+          "medianMs": 1.8,
+          "p95Ms": 28.6,
+          "p99Ms": 126.7,
+          "maxMs": 153,
+          "longFrameCount": 18,
+          "totalTimeAboveBudgetMsPer1000": 4355.467
+        }
+      },
+      {
+        "where": "390x844 at DPR 2, independent run 1 of 3 on the measured build, --workers=1 under the port lock, right after the measured run",
+        "view": "390x844 at DPR 2",
+        "backing": {
+          "devicePixelRatio": 2,
+          "width": 780,
+          "height": 1688
+        },
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 0.7,
+          "medianMs": 1.5,
+          "p95Ms": 16.1,
+          "p99Ms": 34.5,
+          "maxMs": 41.6,
+          "longFrameCount": 15,
+          "totalTimeAboveBudgetMsPer1000": 499.5
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 0.7,
+          "medianMs": 1.4,
+          "p95Ms": 17.5,
+          "p99Ms": 37.1,
+          "maxMs": 58.8,
+          "longFrameCount": 17,
+          "totalTimeAboveBudgetMsPer1000": 479.367
+        }
+      },
+      {
+        "where": "1280x720 at DPR 1, independent run 2 of 3 on the measured build, --workers=1 under the port lock, right after the measured run",
+        "view": "1280x720 at DPR 1",
+        "backing": {
+          "devicePixelRatio": 1,
+          "width": 1214,
+          "height": 654
+        },
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 0.8,
+          "medianMs": 2,
+          "p95Ms": 19.2,
+          "p99Ms": 30.3,
+          "maxMs": 41.7,
+          "longFrameCount": 23,
+          "totalTimeAboveBudgetMsPer1000": 505.633
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 0.8,
+          "medianMs": 1.6,
+          "p95Ms": 18.3,
+          "p99Ms": 23.8,
+          "maxMs": 52.1,
+          "longFrameCount": 23,
+          "totalTimeAboveBudgetMsPer1000": 374.967
+        }
+      },
+      {
+        "where": "1280x720 at DPR 2, independent run 2 of 3 on the measured build, --workers=1 under the port lock, right after the measured run",
+        "view": "1280x720 at DPR 2",
+        "backing": {
+          "devicePixelRatio": 2,
+          "width": 2428,
+          "height": 1308
+        },
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 0.7,
+          "medianMs": 1.8,
+          "p95Ms": 18.8,
+          "p99Ms": 134.3,
+          "maxMs": 140.4,
+          "longFrameCount": 17,
+          "totalTimeAboveBudgetMsPer1000": 4322.033
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 0.8,
+          "medianMs": 1.8,
+          "p95Ms": 17.8,
+          "p99Ms": 114.9,
+          "maxMs": 140.2,
+          "longFrameCount": 16,
+          "totalTimeAboveBudgetMsPer1000": 3442.6
+        }
+      },
+      {
+        "where": "390x844 at DPR 2, independent run 2 of 3 on the measured build, --workers=1 under the port lock, right after the measured run",
+        "view": "390x844 at DPR 2",
+        "backing": {
+          "devicePixelRatio": 2,
+          "width": 780,
+          "height": 1688
+        },
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 0.7,
+          "medianMs": 1.5,
+          "p95Ms": 18.1,
+          "p99Ms": 38.7,
+          "maxMs": 56.3,
+          "longFrameCount": 18,
+          "totalTimeAboveBudgetMsPer1000": 646.467
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 0.8,
+          "medianMs": 1.4,
+          "p95Ms": 18.1,
+          "p99Ms": 37.4,
+          "maxMs": 47.5,
+          "longFrameCount": 17,
+          "totalTimeAboveBudgetMsPer1000": 731.7
+        }
+      },
+      {
+        "where": "1280x720 at DPR 1, independent run 3 of 3 on the measured build, --workers=1 under the port lock, right after the measured run",
+        "view": "1280x720 at DPR 1",
+        "backing": {
+          "devicePixelRatio": 1,
+          "width": 1214,
+          "height": 654
+        },
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 0.9,
+          "medianMs": 1.7,
+          "p95Ms": 13.6,
+          "p99Ms": 25.6,
+          "maxMs": 37.9,
+          "longFrameCount": 14,
+          "totalTimeAboveBudgetMsPer1000": 313.067
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 0.8,
+          "medianMs": 1.7,
+          "p95Ms": 18.6,
+          "p99Ms": 34.3,
+          "maxMs": 44.3,
+          "longFrameCount": 24,
+          "totalTimeAboveBudgetMsPer1000": 499.067
+        }
+      },
+      {
+        "where": "1280x720 at DPR 2, independent run 3 of 3 on the measured build, --workers=1 under the port lock, right after the measured run",
+        "view": "1280x720 at DPR 2",
+        "backing": {
+          "devicePixelRatio": 2,
+          "width": 2428,
+          "height": 1308
+        },
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 0.6,
+          "medianMs": 1.8,
+          "p95Ms": 9.7,
+          "p99Ms": 124.9,
+          "maxMs": 153.5,
+          "longFrameCount": 14,
+          "totalTimeAboveBudgetMsPer1000": 3466.4
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 0.7,
+          "medianMs": 1.6,
+          "p95Ms": 9.2,
+          "p99Ms": 125.1,
+          "maxMs": 157.1,
+          "longFrameCount": 14,
+          "totalTimeAboveBudgetMsPer1000": 2769.4
+        }
+      },
+      {
+        "where": "390x844 at DPR 2, independent run 3 of 3 on the measured build, --workers=1 under the port lock, right after the measured run",
+        "view": "390x844 at DPR 2",
+        "backing": {
+          "devicePixelRatio": 2,
+          "width": 780,
+          "height": 1688
+        },
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 0.8,
+          "medianMs": 1.6,
+          "p95Ms": 16.2,
+          "p99Ms": 28.8,
+          "maxMs": 40.7,
+          "longFrameCount": 15,
+          "totalTimeAboveBudgetMsPer1000": 390.833
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 0.7,
+          "medianMs": 1.4,
+          "p95Ms": 17.4,
+          "p99Ms": 25.3,
+          "maxMs": 40.4,
+          "longFrameCount": 21,
+          "totalTimeAboveBudgetMsPer1000": 338.1
+        }
+      },
+      {
+        "where": "1280x720 at DPR 1, in the full suite on 773ecc3, 4 workers (the measured run)",
+        "view": "1280x720 at DPR 1",
+        "backing": {
+          "devicePixelRatio": 1,
+          "width": 1214,
+          "height": 654
+        },
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 1.1,
+          "medianMs": 2.2,
+          "p95Ms": 85.6,
+          "p99Ms": 176.9,
+          "maxMs": 244,
+          "longFrameCount": 76,
+          "totalTimeAboveBudgetMsPer1000": 11587.267
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 1.3,
+          "medianMs": 2.3,
+          "p95Ms": 72.7,
+          "p99Ms": 121.5,
+          "maxMs": 155,
+          "longFrameCount": 56,
+          "totalTimeAboveBudgetMsPer1000": 7464.933
+        }
+      },
+      {
+        "where": "1280x720 at DPR 2, in the full suite on 773ecc3, 4 workers (the measured run)",
+        "view": "1280x720 at DPR 2",
+        "backing": {
+          "devicePixelRatio": 2,
+          "width": 2428,
+          "height": 1308
+        },
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 1.1,
+          "medianMs": 2.2,
+          "p95Ms": 164.7,
+          "p99Ms": 291.4,
+          "maxMs": 476.7,
+          "longFrameCount": 47,
+          "totalTimeAboveBudgetMsPer1000": 18885.7
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 0.8,
+          "medianMs": 2.5,
+          "p95Ms": 134.7,
+          "p99Ms": 206.2,
+          "maxMs": 251.1,
+          "longFrameCount": 45,
+          "totalTimeAboveBudgetMsPer1000": 15117.5
+        }
+      },
+      {
+        "where": "390x844 at DPR 2, in the full suite on 773ecc3, 4 workers (the measured run)",
+        "view": "390x844 at DPR 2",
+        "backing": {
+          "devicePixelRatio": 2,
+          "width": 780,
+          "height": 1688
+        },
+        "narcosed": {
+          "sampleCount": 300,
+          "minMs": 1.3,
+          "medianMs": 2.5,
+          "p95Ms": 109.9,
+          "p99Ms": 183.2,
+          "maxMs": 325.8,
+          "longFrameCount": 51,
+          "totalTimeAboveBudgetMsPer1000": 14092.1
+        },
+        "sober": {
+          "sampleCount": 300,
+          "minMs": 1.3,
+          "medianMs": 2.5,
+          "p95Ms": 113.5,
+          "p99Ms": 165.6,
+          "maxMs": 323.6,
+          "longFrameCount": 53,
+          "totalTimeAboveBudgetMsPer1000": 12355.967
+        }
       }
     ],
-    "reading": "By configuration, medians narcosed against sober in ms, on the measured build. 1280x720 at DPR 1: alone 2.7/2.6, 3/2.9, 2.3/2.4; in the full suite 2.9/3. 1280x720 at DPR 2: alone 2.6/2.4, 2.9/2.7, 2.4/2.2; in the full suite 2.7/1.9. 390x844 at DPR 2: alone 2.4/2.2, 2.6/2.3, 2.5/2.5; in the full suite 1.6/1.6. Time above 16.67 ms per 1,000 frames, narcosed/sober, alone: 1280x720 at DPR 1 3001/3302, 4951/1334, 1088/1937; 1280x720 at DPR 2 8302/5321, 7964/9827, 3265/6770; 390x844 at DPR 2 1736/1522, 2630/2991, 3705/3050. The alone runs shared the machine with other work, so their tails are noisy. Earlier runs, all listed above: alone the medians agreed within 0.4 ms; in the full suite the narcosed page was mostly slower, by up to about 1.3 ms, and on 4ef2c0e at 1280x720 DPR 2 by 0.8 ms. The full-screen vignette is a real alpha blend in SwiftShader's CPU rasteriser, and under load it shows. The bound, 1.5x + 1 ms on the median, allows that at every configuration and stays well under a 16.67 ms frame; it is a coarse cost bound, not a claim that the effects cost nothing. Every run has long frames on both pages: the port lock keeps other e2e runs out, not other work. SwiftShader in headless Chromium is diagnostic evidence, not physical-device acceptance (docs/decisions.md). The check does not tell a GPU filter apart: a Pixi BlurFilter on the world passes it (V6), unlike legacy's Canvas 2D ctx.filter; the wreck-narcosis reference frame and the parity test fail on a blur (V6)."
+    "reading": "By configuration, medians narcosed against sober in ms, on the measured build. 1280x720 at DPR 1: alone 1.8/1.8, 2/1.6, 1.7/1.7; in the full suite 2.2/2.3. 1280x720 at DPR 2: alone 1.8/1.8, 1.8/1.8, 1.8/1.6; in the full suite 2.2/2.5. 390x844 at DPR 2: alone 1.5/1.4, 1.5/1.4, 1.6/1.4; in the full suite 2.5/2.5. Long frames per 300, narcosed/sober, alone: 1280x720 at DPR 1 23/30, 23/23, 14/24; 1280x720 at DPR 2 22/18, 17/16, 14/14; 390x844 at DPR 2 15/17, 18/17, 15/21. Time above 16.67 ms per 1,000 frames, narcosed/sober, alone: 1280x720 at DPR 1 413/327, 506/375, 313/499; 1280x720 at DPR 2 6289/4355, 4322/3443, 3466/2769; 390x844 at DPR 2 500/479, 646/732, 391/338. Earlier runs, all listed above: alone the medians agreed within 0.4 ms; in the full suite the narcosed page was mostly slower, by up to about 1.3 ms. The full-screen vignette is a real alpha blend in SwiftShader's CPU rasteriser, and under load it shows. The bound, 1.5x + 1 ms on the median, allows that at every configuration and stays well under a 16.67 ms frame; it is a coarse cost bound, not a claim that the effects cost nothing. Every run has long frames on both pages: the port lock keeps other e2e runs out, not other work. SwiftShader in headless Chromium is diagnostic evidence, not physical-device acceptance (docs/decisions.md). The check does not tell a GPU filter apart: a Pixi BlurFilter on the world passes it (V6), unlike legacy's Canvas 2D ctx.filter; the wreck-narcosis reference frame and the parity test fail on a blur (V6)."
   },
   "rule": "Owner decision on #220 (2026-10-07): the tunnel vision above index 0.15 is one pre-rendered overlay sprite whose alpha follows the index, with no per-frame gradient; the wobble above 0.25 is an offset of the world container, on the scene's real-time clock; blur and grayscale are not ported, recorded in docs/decisions.md as a deliberate departure. The wobble is off under prefers-reduced-motion (docs/decisions.md, Accessibility: reduced-motion support).",
   "change": "src/render/narcosis-view.ts holds legacy's vignette alpha, min(0.7, (index - 0.15) * 0.82), and wobble, sin(t * 0.002) * str across and cos(t * 0.0015) * str * 0.5 down with str = (index - 0.25) * 8 px, t in ms of the scene's elapsedRealS. src/render/pixi-renderer.ts draws legacy's radial gradient (clear at 0.3 of the shorter side, black at 0.7 of the longer) on a canvas once per viewport size, as one sprite over the world and not moved by the wobble; each frame sets its alpha and visibility from PresentationState.narcosisIndex and offsets the world container by the wobble, unless prefers-reduced-motion is set. scripts/pixi-visual-check.mjs adds wreck-narcosis, a dive resumed from its own first save at 20 m, index 0.9, frames pinned. docs/decisions.md records blur and grayscale as a deliberate departure. Pre-review pass 1: the migration catalogue's gameOver.info.nitrogenNarcosis.prevention3 (en, de) names only the cues the migration shows, tunnel vision, keys that do not respond and drifting up or down, not legacy's colour loss nor the wobble alone, which reduced motion turns off; claims register NARCOSIS-001 records the departure. The departure row in docs/decisions.md names the five checkpoints that reach it and cites tests/unit/narcosis-view.test.ts.",
   "counterChecks": {
-    "method": "Each mutation applied by a script to a file backed up beforehand, the client rebuilt, the named checks run under the port lock with --retries=0, then the file restored from its backup and compared with filecmp (shallow=False): byte for byte identical in every case, and the client rebuilt. Re-taken on 19b575c, a local commit not on the remote, whose trees provenanceNote records; it differs from the measured da626c0 only by one German catalogue line and spec comments. V3 and V5 use the typechecking forms (this.#reducedMotion?.matches && false) and wobble.x * 0. V6 adds BlurFilter to the pixi.js import, a module constant new BlurFilter({ strength: 3 }) and this.#world.filters = index > 0.15 ? [it] : [] in render().",
+    "method": "Each mutation applied by a script to a file backed up beforehand, the client rebuilt, the named checks run under the port lock with --retries=0, then the file restored from its backup and compared with filecmp (shallow=False): byte for byte identical in every case, and the client rebuilt. Re-taken on 19b575c, a local commit not on the remote, whose trees provenanceNote records together with every difference from the measured 773ecc3; the mutated files (src/render/narcosis-view.ts, src/render/pixi-renderer.ts) are identical in both. V3 and V5 use the typechecking forms (this.#reducedMotion?.matches && false) and wobble.x * 0. V6 adds BlurFilter to the pixi.js import, a module constant new BlurFilter({ strength: 3 }) and this.#world.filters = index > 0.15 ? [it] : [] in render().",
     "results": [
       {
         "revert": "V1: the vignette from index 0.1 (src/render/narcosis-view.ts)",
@@ -1323,9 +1859,9 @@
     "playwrightWorkers": 4
   },
   "durableProvenance": {
-    "src": "5c239cb12d1f4cafc38720c35a3ff794f67917bb",
-    "tests": "20f19554ace515096b9f77dbfd6792b25f9966ca",
-    "scripts": "b12f4decc249968c48da2a4015866ec3648d6d6d",
-    "docs": "6a7cd486dacb01c3193084c0220d1934558dcf1b"
+    "src": "81a9c27c841aa2314435c251cf80f75875f668fd",
+    "tests": "5fe2147ec999ba9a0201ce0dec929360595fe994",
+    "scripts": "b3d1cc25026338f4f11e361d46da5c7ddf5e86a1",
+    "docs": "06c5f5d13fba5312b8a3e3b11a2dba5a6ab1c321"
   }
 }
