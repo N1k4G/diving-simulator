@@ -110,60 +110,82 @@ test('the view darkens above index 0.15 and wobbles above 0.25, and only then', 
   expect((await wobbles(0.4)).wobbled, 'a wobble at 0.4').toBe(true);
 });
 
-test('a frame with every narcosis effect on takes no longer than one without', async ({ page, context }, testInfo) => {
-  test.setTimeout(120000);
-  const saved = await firstSave(page);
-  // Index 0.94 and 0 on two pages, the same dive otherwise, both holding a
-  // fin key and the vent, so the swallowed inputs and the drift draw too.
-  // The index eases toward 20 m's, still above 0.45 at the last frame, so all
-  // four effects stay on.
-  const narcosed = page;
-  const sober = await context.newPage();
-  await resumeAt(narcosed, saved, 0.94);
-  await resumeAt(sober, saved, 0);
-  for (const each of [narcosed, sober]) {
-    await each.keyboard.down('ArrowRight');
-    await each.keyboard.down('ArrowDown');
-    await each.evaluate(() => window.__timeFrames(30));
-  }
-  // Interleaved in short runs, so that a load on the machine falls on both
-  // alike.
-  const times = { narcosed: [], sober: [] };
-  for (let round = 0; round < 30; round += 1) {
-    times.narcosed.push(...(await narcosed.evaluate(() => window.__timeFrames(10))));
-    times.sober.push(...(await sober.evaluate(() => window.__timeFrames(10))));
-  }
-  // docs/decisions.md, Performance evidence, summarised as src/diagnostics.js
-  // summarize() does: a percentile is the ceil(q * n)th sample, and a frame
-  // over the 16.67 ms budget counts its excess.
-  const BUDGET_MS = 16.67;
-  const stats = (samples) => {
-    const sorted = [...samples].sort((a, b) => a - b);
-    const at = (q) => +sorted[Math.max(0, Math.ceil(q * sorted.length) - 1)].toFixed(3);
-    const long = sorted.filter((ms) => ms > BUDGET_MS);
-    return {
-      sampleCount: sorted.length,
-      minMs: at(0),
-      medianMs: at(0.5),
-      p95Ms: at(0.95),
-      p99Ms: at(0.99),
-      maxMs: at(1),
-      longFrameCount: long.length,
-      totalTimeAboveBudgetMsPer1000: +((long.reduce((sum, ms) => sum + ms - BUDGET_MS, 0) * 1000) / sorted.length).toFixed(3),
-    };
-  };
-  const result = { narcosed: stats(times.narcosed), sober: stats(times.sober) };
-  testInfo.annotations.push({ type: 'narcosis-frame-time', description: JSON.stringify(result) });
-  console.log(`narcosis frame time ${JSON.stringify(result)}`);
-  expect(result.narcosed.sampleCount).toBe(300);
-  // A coarse bound on the effects' cost, not a claim that they cost nothing.
-  // Alone, the medians agree within about half a millisecond. Under the full
-  // suite's load the narcosed page has mostly run slower, by around a
-  // millisecond (the evidence lists every run with its numbers,
-  // artifacts/wp-08/220/verification-visuals.json): the full-screen vignette
-  // is a real blend in SwiftShader's CPU rasteriser. The bound allows that,
-  // and it is far under a 16.67 ms frame. It does not tell a blur
-  // apart, since a Pixi BlurFilter on the world measured 1.8 against 1.6 ms;
-  // the wreck-narcosis reference frame (scripts/pixi-visual-check.mjs) does.
-  expect(result.narcosed.medianMs).toBeLessThanOrEqual(result.sober.medianMs * 1.5 + 1);
-});
+// The vignette is a whole-screen blend, so its cost is measured at named
+// backing resolutions (docs/decisions.md): a desktop view at DPR 1, and a
+// phone at DPR 2, the renderer's cap, where it blends twice the pixels across
+// and down.
+const FRAME_TIME_VIEWS = [
+  { name: '1280x720 at DPR 1', viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 },
+  { name: '390x844 at DPR 2', viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 },
+];
+
+for (const view of FRAME_TIME_VIEWS) {
+  test.describe(view.name, () => {
+    test.use({ viewport: view.viewport, deviceScaleFactor: view.deviceScaleFactor });
+
+    test('a frame with every narcosis effect on takes no longer than one without', async ({ page, context }, testInfo) => {
+      test.setTimeout(120000);
+      const saved = await firstSave(page);
+      // Index 0.94 and 0 on two pages, the same dive otherwise, both holding a
+      // fin key and the vent, so the swallowed inputs and the drift draw too.
+      // The index eases toward 20 m's, still above 0.45 at the last frame, so all
+      // four effects stay on.
+      const narcosed = page;
+      const sober = await context.newPage();
+      await resumeAt(narcosed, saved, 0.94);
+      await resumeAt(sober, saved, 0);
+      // The backing resolution the frames are drawn at, as measured.
+      const backing = await narcosed.locator('[data-renderer=pixi] canvas').evaluate((canvas) => ({
+        devicePixelRatio: window.devicePixelRatio,
+        width: canvas.width,
+        height: canvas.height,
+      }));
+      expect(backing.devicePixelRatio).toBe(view.deviceScaleFactor);
+      for (const each of [narcosed, sober]) {
+        await each.keyboard.down('ArrowRight');
+        await each.keyboard.down('ArrowDown');
+        await each.evaluate(() => window.__timeFrames(30));
+      }
+      // Interleaved in short runs, so that a load on the machine falls on both
+      // alike.
+      const times = { narcosed: [], sober: [] };
+      for (let round = 0; round < 30; round += 1) {
+        times.narcosed.push(...(await narcosed.evaluate(() => window.__timeFrames(10))));
+        times.sober.push(...(await sober.evaluate(() => window.__timeFrames(10))));
+      }
+      // docs/decisions.md, Performance evidence, summarised as src/diagnostics.js
+      // summarize() does: a percentile is the ceil(q * n)th sample, and a frame
+      // over the 16.67 ms budget counts its excess.
+      const BUDGET_MS = 16.67;
+      const stats = (samples) => {
+        const sorted = [...samples].sort((a, b) => a - b);
+        const at = (q) => +sorted[Math.max(0, Math.ceil(q * sorted.length) - 1)].toFixed(3);
+        const long = sorted.filter((ms) => ms > BUDGET_MS);
+        return {
+          sampleCount: sorted.length,
+          minMs: at(0),
+          medianMs: at(0.5),
+          p95Ms: at(0.95),
+          p99Ms: at(0.99),
+          maxMs: at(1),
+          longFrameCount: long.length,
+          totalTimeAboveBudgetMsPer1000: +((long.reduce((sum, ms) => sum + ms - BUDGET_MS, 0) * 1000) / sorted.length).toFixed(3),
+        };
+      };
+      const result = { view: view.name, backing, narcosed: stats(times.narcosed), sober: stats(times.sober) };
+      testInfo.annotations.push({ type: 'narcosis-frame-time', description: JSON.stringify(result) });
+      console.log(`narcosis frame time ${JSON.stringify(result)}`);
+      expect(result.narcosed.sampleCount).toBe(300);
+      // A coarse bound on the effects' cost, not a claim that they cost nothing.
+      // Alone, the medians agree within about half a millisecond. Under the full
+      // suite's load the narcosed page has mostly run slower, by around a
+      // millisecond (the evidence lists every run with its numbers,
+      // artifacts/wp-08/220/verification-visuals.json): the full-screen vignette
+      // is a real blend in SwiftShader's CPU rasteriser. The bound allows that,
+      // and it is far under a 16.67 ms frame. It does not tell a blur
+      // apart, since a Pixi BlurFilter on the world measured 1.8 against 1.6 ms;
+      // the wreck-narcosis reference frame (scripts/pixi-visual-check.mjs) does.
+      expect(result.narcosed.medianMs).toBeLessThanOrEqual(result.sober.medianMs * 1.5 + 1);
+    });
+  });
+}
