@@ -1414,4 +1414,35 @@ test.describe('gas information', () => {
       });
     });
   }
+
+  // The worst case for the keyboard hint (#168 pre-review pass 2): a
+  // rebreather's page, which cannot shrink below the HUD, against the German
+  // hint's four lines. 461 px is the first height that shows the hint, and
+  // 585 px a short desktop window. The page has to stay 8 px clear of it.
+  for (const [width, height] of [[1280, 461], [1280, 585]]) {
+    test.describe(`${width}x${height} in German, on a rebreather`, () => {
+      test.use({ viewport: { width, height }, locale: 'de-DE' });
+
+      test('the open page stays 8px clear of the keyboard hint', async ({ page }) => {
+        await page.goto('/dist/');
+        await page.evaluate(() => window.localStorage.clear());
+        await page.locator('[data-accept-safety]').click();
+        await page.locator('.setup-screen').waitFor();
+        await page.locator('[data-setup-group=mode] [data-setup-option=ccr]').check();
+        await page.locator('[data-start-dive]').click();
+        await page.locator('[data-renderer=pixi] canvas').waitFor();
+        await descendTo(page, 1);
+        await expect(page.locator('[data-wreck-ccr]')).toBeVisible();
+        await gasInfoToggle(page).click();
+        await expect(gasInfoPanel(page)).toBeVisible();
+        const hint = page.locator('.controls-hint');
+        await expect(hint).toBeVisible();
+        await expect(hint).toContainText('BCD');
+        await expectHudClearOfControls(page);
+        const hintTop = (await hint.boundingBox()).y;
+        const panel = await gasInfoPanel(page).boundingBox();
+        expect(hintTop - (panel.y + panel.height)).toBeGreaterThanOrEqual(8);
+      });
+    });
+  }
 });

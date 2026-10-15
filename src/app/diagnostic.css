@@ -1201,15 +1201,24 @@ summary:focus-visible {
   }
 }
 
-/* Phones held sideways (#168). With the dive on the screen's 390px, the
-   keyboard hint's four lines reached up into the HUD column: 4px into a
-   rebreather's rows and 2px into an open gas-information page at 844x390.
-   The overlap starts at about 410px, so the hint goes only below 420px,
-   where a phone held sideways has no keyboard to hint at. A desktop window
-   down to 600px keeps it (16px clear of an open page at 1280x585, #168
-   pre-review pass 1): there it is the only text naming T, F, [, ], B and
-   I, and legacy hints the keys on every non-touch device. */
-@media (height <= 420px) {
+/* Short windows (#168). Once the dive fills a screen under 600px tall, the
+   keyboard hint can reach up into the HUD column: at 844x390 it ran 4px
+   into a rebreather's rows and 2px into an open gas-information page.
+
+   The worst case is a rebreather's open page in German, whose hint wraps
+   to four lines (64px) where English takes three (48px). The page cannot
+   shrink below the HUD and its padding, so the gap from the panel's bottom
+   to the hint's top grows one for one with the height: 0 at 446px, 8px at
+   454px, and 15px at 461px, the first height that shows the hint. English
+   is 16px clearer at every height. Measured at 1280 and 932 wide, which
+   give the same gap because the hint's width is capped. (#168 pre-review
+   pass 2; the 420px of pass 1 counted only the HUD rows.)
+
+   Above 460px the hint stays. On a desktop window it is the only text
+   naming T, F, [, ], B and I, and legacy hints the keys on every non-touch
+   device (#168 pre-review pass 1). Below it, a phone held sideways has no
+   keyboard to hint at. */
+@media (height <= 460px) {
   .controls-hint {
     display: none;
   }
