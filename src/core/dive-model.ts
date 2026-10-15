@@ -625,7 +625,11 @@ export function advanceDiveStep(
 /**
  * The acts of a zero-length frame (#202), in the frame's order. Legacy's
  * updateDiving(0) refreshes frameCalc before it reads the keys, so the
- * frame's NDL is the one on the gas before them.
+ * frame's NDL is the one on the gas the frame starts on. It is searched
+ * afresh, not read from frameNdlMinutes: that would hand back the NDL of the
+ * frame that produced the state, which a zero-length frame before this one
+ * took on the gas before its own act (Codex round 1 on #253). A refused act
+ * still refreshes it, as legacy's frame does.
  */
 function applyActsWithoutTime(
   state: DiveState,
@@ -636,9 +640,11 @@ function applyActsWithoutTime(
     applySetpointSteps(applyGasSwitchKeys(state, acts.switchGasIndices), acts.setpointStepsBar),
     acts.bailout,
   );
-  return acted === state
-    ? state
-    : keepFrameNdl(acted, gradientFactorHighPercent, frameNdlMinutes(state, gradientFactorHighPercent));
+  return keepFrameNdl(
+    acted,
+    gradientFactorHighPercent,
+    decompressionLimits(state, gradientFactorHighPercent).ndlMin,
+  );
 }
 
 /**

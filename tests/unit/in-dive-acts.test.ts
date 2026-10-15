@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ndlMinutes } from "../../src/core/decompression";
-import { DiveModel, advanceDiveStep, frameNdlMinutes } from "../../src/core/dive-model";
+import { DiveModel, advanceDiveStep, decompressionGas, frameNdlMinutes } from "../../src/core/dive-model";
 import {
   CCR_SETPOINT_STEP_BAR,
   createCcrState,
@@ -130,5 +130,39 @@ describe("the in-dive acts inside a frame (#202)", () => {
     );
     // Without an act, a zero-length frame is no frame.
     expect(model.advance(env(21), seconds(0))).toBe(switched);
+  });
+
+  it("refreshes the NDL in every zero-length frame, before its act, refused or not", () => {
+    // Codex round 1 on #253. Each updateDiving(0) refreshes frameCalc on the
+    // gas breathed when the frame starts, then reads the key. The second of
+    // two such frames must not carry the first one's NDL.
+    const ndlOn = (state: DiveState, gas: typeof AIR) =>
+      ndlMinutes(state.tissues, state.depthM, gas, GF_HIGH_PERCENT / 100);
+    const EAN32 = createGasMix(0.32, 0);
+    const start = openCircuit();
+    expect(ndlOn(start, EAN32)).not.toBe(ndlOn(start, AIR));
+
+    const model = new DiveModel(start, { gradientFactorHighPercent: GF_HIGH_PERCENT });
+    expect(frameNdlMinutes(model.switchGas(2), GF_HIGH_PERCENT)).toBe(ndlOn(start, AIR));
+    // Air → EAN32, then EAN32 → EAN50: the second frame started on EAN32.
+    const second = model.switchGas(1);
+    expect(second.activeTankIndex).toBe(1);
+    expect(frameNdlMinutes(second, GF_HIGH_PERCENT)).toBe(ndlOn(start, EAN32));
+
+    // A refused key: the frame still refreshes, on the gas it started on.
+    const onEan32 = new DiveModel(start, { gradientFactorHighPercent: GF_HIGH_PERCENT });
+    onEan32.switchGas(2);
+    const refused = onEan32.switchGas(2);
+    expect(refused.activeTankIndex).toBe(2);
+    expect(frameNdlMinutes(refused, GF_HIGH_PERCENT)).toBe(ndlOn(start, EAN32));
+
+    // Two setpoint steps: the second frame started on the loop at 1.3 bar.
+    const ccr = new DiveModel(loop(1.2), { gradientFactorHighPercent: GF_HIGH_PERCENT });
+    const at13 = ccr.adjustSetpoint(CCR_SETPOINT_STEP_BAR);
+    const loopAt13 = decompressionGas(at13);
+    const at14 = ccr.adjustSetpoint(CCR_SETPOINT_STEP_BAR);
+    expect(at14.ccr?.targetPo2Bar).toBe(1.4);
+    expect(ndlOn(at14, loopAt13)).not.toBe(ndlOn(at14, decompressionGas(loop(1.2))));
+    expect(frameNdlMinutes(at14, GF_HIGH_PERCENT)).toBe(ndlOn(at14, loopAt13));
   });
 });
