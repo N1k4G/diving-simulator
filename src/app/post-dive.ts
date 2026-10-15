@@ -15,6 +15,7 @@ import type { DiveLogEntry, GasMix } from "../core/dive-state";
 import type { PostDiveSummary } from "../presentation/post-dive-summary";
 import { formatGradeNote, gradeLabel } from "./debrief-grade";
 import { element, section } from "./game-over";
+import { createHelpButton } from "./help-overlay";
 import { translate, type MessageKey, type SupportedLocale } from "./i18n/catalog";
 import { renderProfileChart } from "./profile-chart";
 import { renderTissueBars } from "./tissue-bars";
@@ -31,6 +32,8 @@ export interface PostDiveOptions {
   readonly locale: SupportedLocale;
   readonly summary: PostDiveSummary;
   readonly onDiveAgain: () => void;
+  /** Opens the help overlay (#160); without it the screen offers no help button. */
+  readonly onHelp?: () => void;
 }
 
 /**
@@ -108,6 +111,13 @@ export function renderPostDiveScreen(
   again.setAttribute("aria-keyshortcuts", "Enter");
   const hint = element("p", "result-hint", t("postDive.diveAgainHint"));
   screen.append(again, hint);
+  // The H key's button (#160), for a screen with no keyboard. Legacy offers
+  // its help here by key only.
+  const help = options.onHelp ? createHelpButton(locale, "secondary-action", false) : null;
+  if (help && options.onHelp) {
+    help.addEventListener("click", options.onHelp);
+    screen.append(help);
+  }
 
   root.replaceChildren(screen);
   heading.focus();
@@ -122,9 +132,15 @@ export function renderPostDiveScreen(
   };
   again.addEventListener("click", finish);
   // Enter anywhere dives again, as legacy's `keys['enter']` on its post-dive
-  // screen; a focused button already turns Enter into a click.
+  // screen; a focused button already turns Enter into a click, and on the
+  // help button that click is the help, not the next dive.
   const handleKey = (event: KeyboardEvent) => {
-    if (event.key !== "Enter" || event.repeat || event.target === again) {
+    if (
+      event.key !== "Enter" ||
+      event.repeat ||
+      event.target === again ||
+      (help !== null && event.target === help)
+    ) {
       return;
     }
     event.preventDefault();

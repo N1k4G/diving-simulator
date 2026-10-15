@@ -49,6 +49,8 @@ import { renderPostDiveScreen } from "./post-dive";
 import { createPostDiveSummary } from "../presentation/post-dive-summary";
 import { siteGameplay } from "../sites/site-resources";
 import { drawDiveSeed } from "./dive-seed";
+import { helpPausesDive, type HelpContext } from "./help-content";
+import { createHelpButton, createHelpOverlay } from "./help-overlay";
 import { isTurnBeepDue } from "./thirds-turn-beep";
 import {
   isWarningBeepActive,
@@ -109,6 +111,7 @@ interface HudElements {
   readonly torch: HTMLButtonElement;
   readonly fastForward: HTMLButtonElement;
   readonly mute: HTMLButtonElement;
+  readonly help: HTMLButtonElement;
   readonly gasInfo: GasInfoElements;
   readonly surfacePrompt: HTMLElement;
 }
@@ -569,6 +572,17 @@ async function startWreckSimulation(
     }
   };
   window.addEventListener("keydown", handleGasInfoKey);
+  // The help overlay (#160): H, ? or the topbar's button. Under water it
+  // stops the dive while it is open, as legacy's showHelp skips
+  // updateDiving().
+  const help = createHelpOverlay({
+    locale,
+    context: () =>
+      diveHelpContext(controller.authoritativeState, controller.awaitingDescent, diveMode),
+    onOpen: (context) => controller.setPaused(helpPausesDive(context.state)),
+    onClose: () => controller.setPaused(false),
+  });
+  hud.help.addEventListener("click", () => help.open());
   hud.mute.addEventListener("click", () => {
     audio.setMuted(!audio.muted);
     hud.mute.setAttribute("aria-pressed", String(audio.muted));
@@ -586,6 +600,7 @@ async function startWreckSimulation(
     disposeDpad();
     document.removeEventListener("visibilitychange", handleVisibility);
     window.removeEventListener("keydown", handleGasInfoKey);
+    help.destroy();
     // Removed here too, not only by its own `once`: after a game over the
     // page stays open, and each ended dive would otherwise keep its
     // destroyed controller, renderer and HUD reachable (#190 pre-review).
@@ -631,10 +646,27 @@ async function startWreckSimulation(
     await audioResume;
     await controller.start(hud.viewport);
   } catch (error) {
+    help.destroy();
     controller.destroy();
     audio.destroy();
     throw error;
   }
+}
+
+/** What the help overlay lists for the dive under way (#160). */
+function diveHelpContext(
+  state: DiveState,
+  awaitingDescent: boolean,
+  diveMode: DiveMode,
+): HelpContext {
+  return {
+    state: awaitingDescent ? "surface" : "diving",
+    // Legacy's gate for I, which gasInfoAvailable applies under water.
+    gasInfo: diveMode === "tec" || diveMode === "ccr",
+    // The model refuses a switch on a rebreather, bailed out or not.
+    switchableCylinders: state.ccr === null ? state.tanks.length : 0,
+    loopControls: state.ccr !== null && !state.ccr.onBailout,
+  };
 }
 
 function saveState(
@@ -681,6 +713,15 @@ function endInPostDive(
   state: DiveState,
 ): void {
   clearSave(repository);
+  // Legacy's post-dive state shows the help overlay too (#160), the case
+  // #120 fixed there; the dive's controls are those of the dive just ended.
+  const help = createHelpOverlay({
+    locale,
+    context: () => ({
+      ...diveHelpContext(state, false, setup.mode),
+      state: "post-dive",
+    }),
+  });
   const dispose = renderPostDiveScreen(root, {
     locale,
     summary: createPostDiveSummary(state, {
@@ -688,9 +729,11 @@ function endInPostDive(
       overheadSite: siteGameplay("wreck")?.hasOverhead ?? false,
     }),
     onDiveAgain: () => {
+      help.destroy();
       dispose();
       showSetupScreen(root, locale, setupForNextDive(setup, state));
     },
+    onHelp: () => help.open(),
   });
 }
 
@@ -701,6 +744,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   const topbar = document.createElement("header");
   topbar.className = "wreck-topbar";
   const identity = document.createElement("div");
+  identity.className = "wreck-identity";
   identity.append(
     createElement("p", "wreck-eyebrow", translate(locale, "wreck.preview")),
     createElement("h1", "wreck-title", translate(locale, "wreck.site")),
@@ -743,7 +787,9 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   mute.setAttribute("aria-pressed", "false");
   mute.textContent = translate(locale, "wreck.symbol.audio");
   const gasInfo = createGasInfo(locale);
-  topbarActions.append(speed, status, gasInfo.toggle, mute);
+  // Legacy's touch-dive-help, the H key's button (#160).
+  const help = createHelpButton(locale, "help-control", true);
+  topbarActions.append(speed, status, gasInfo.toggle, help, mute);
   topbar.append(identity, topbarActions);
 
   const viewport = document.createElement("div");
@@ -968,6 +1014,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     torch,
     fastForward,
     mute,
+    help,
     gasInfo,
     surfacePrompt,
   };

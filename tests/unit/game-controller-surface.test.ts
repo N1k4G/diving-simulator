@@ -19,7 +19,8 @@ import { bars, metres, seconds } from "../../src/core/units";
 
 // The surface wait and the end of the dive at the controller (#223
 // pre-review): legacy's 'surface' state reads S and nothing else, S sets
-// updateSurface()'s BCD, and a dive that has ended takes no keys.
+// updateSurface()'s BCD, and a dive that has ended takes no keys. At the end,
+// the dive paused under the help overlay (#160).
 
 type KeyHandler = (event: KeyboardEvent) => void;
 
@@ -213,6 +214,70 @@ describe("a dive that has ended", () => {
     const waves = frames.at(-1)?.scene.elapsedRealS;
     step(60);
     expect(frames.at(-1)?.scene.elapsedRealS).toBe(waves);
+    controller.destroy();
+  });
+});
+
+// The help overlay over the dive (#160): legacy's gameLoop() skips
+// updateDiving() while showHelp is set, so nothing about the dive moves and
+// nothing pressed meanwhile acts on it.
+
+/** A two-cylinder dive under way, a few metres down. */
+async function diveUnderWay() {
+  const started = await startController(twoCylinders());
+  started.controller.setControl("descend", true);
+  step(60);
+  started.controller.setControl("descend", false);
+  return started;
+}
+
+describe("the dive paused under the help overlay", () => {
+  it("runs no dive time, gas or movement, and no frame, until it is resumed", async () => {
+    const { controller, frames } = await diveUnderWay();
+    const before = controller.authoritativeState;
+    const framesBefore = frames.length;
+    const sceneBefore = frames.at(-1)?.scene;
+
+    controller.setPaused(true);
+    step(120);
+    expect(controller.authoritativeState).toBe(before);
+    expect(frames).toHaveLength(framesBefore);
+
+    // The first frame after it runs no time: the pause is not a frame.
+    controller.setPaused(false);
+    step(1);
+    expect(controller.authoritativeState.elapsedTimeS).toBe(before.elapsedTimeS);
+    expect(frames.at(-1)?.scene.elapsedRealS).toBe(sceneBefore?.elapsedRealS);
+    step(1);
+    expect(controller.authoritativeState.elapsedTimeS).toBeGreaterThan(before.elapsedTimeS);
+    controller.destroy();
+  });
+
+  it("lets go of the held controls, and takes no key or button meanwhile", async () => {
+    const { controller, frames } = await diveUnderWay();
+    controller.setControl("ascend", true);
+    controller.setPaused(true);
+    const before = controller.authoritativeState;
+    const torch = frames.at(-1)?.scene.torchOn;
+
+    expect(press("w")).toBe(false);
+    expect(press("2")).toBe(false);
+    expect(press("t")).toBe(false);
+    controller.setControl("descend", true);
+    controller.requestTankSwitch(1);
+    controller.toggleTorch();
+    expect(controller.authoritativeState).toBe(before);
+
+    controller.setPaused(false);
+    step(2);
+    // Nothing held: neither the W before the pause nor the S during it, so
+    // the BCD neither filled nor vented.
+    expect(controller.authoritativeState.elapsedTimeS).toBeGreaterThan(before.elapsedTimeS);
+    expect(controller.authoritativeState.bcdGasSurfaceLiters).toBe(before.bcdGasSurfaceLiters);
+    expect(frames.at(-1)?.scene.torchOn).toBe(torch);
+    expect(controller.authoritativeState.activeTankIndex).toBe(0);
+    expect(press("2")).toBe(true);
+    expect(controller.authoritativeState.activeTankIndex).toBe(1);
     controller.destroy();
   });
 });

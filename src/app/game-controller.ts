@@ -192,6 +192,8 @@ export class GameController {
   #facing: -1 | 1 = 1;
   #torchOn = true;
   #fastForwardActive = false;
+  /** The help overlay is open over the dive (#160); see setPaused. */
+  #paused = false;
   #lastFrameMs: number | null = null;
   #animationFrame = 0;
   #resizeObserver: ResizeObserver | null = null;
@@ -219,6 +221,11 @@ export class GameController {
 
   get authoritativeState(): DiveState {
     return this.#model.snapshot;
+  }
+
+  /** The dive waits at the surface for S: legacy's 'surface' state (#199). */
+  get awaitingDescent(): boolean {
+    return this.#awaitingDescent;
   }
 
   async start(host: HTMLElement): Promise<void> {
@@ -249,7 +256,29 @@ export class GameController {
     this.#animationFrame = requestAnimationFrame(this.#tick);
   }
 
+  /**
+   * Stops the dive while the help overlay is open over it (#160), as
+   * legacy's gameLoop() skips updateDiving() while showHelp is set: no dive
+   * time, gas, tissues, movement or scene animation, and no control taken
+   * until it is resumed. The controls held are let go, because the overlay
+   * takes the keyboard and their key-ups go to it. The first frame after
+   * the pause runs no time, so the pause is not counted as a frame.
+   */
+  setPaused(paused: boolean): void {
+    if (this.#paused === paused) {
+      return;
+    }
+    this.#paused = paused;
+    this.#lastFrameMs = null;
+    if (paused) {
+      this.#pressed.clear();
+    }
+  }
+
   setControl(control: ContinuousControl, active: boolean): void {
+    if (active && this.#paused) {
+      return;
+    }
     if (active) {
       this.#pressed.add(control);
       // S at the surface begins the dive (src/game-loop.js updateSurface:
@@ -280,7 +309,7 @@ export class GameController {
    * once it has ended (#223 Codex round 1).
    */
   toggleTorch(): void {
-    if (!this.#torchAvailable()) {
+    if (this.#paused || !this.#torchAvailable()) {
       return;
     }
     this.#torchOn = !this.#torchOn;
@@ -302,7 +331,7 @@ export class GameController {
    * or approximated.
    */
   toggleFastForward(): void {
-    if (!this.#fastForwardAvailable()) {
+    if (this.#paused || !this.#fastForwardAvailable()) {
       return;
     }
     this.#fastForwardActive = !this.#fastForwardActive;
@@ -327,7 +356,7 @@ export class GameController {
   requestTankSwitch(index: number): void {
     // Legacy reads the digit keys only in updateDiving(), never at the
     // surface (#223 pre-review).
-    if (!Number.isInteger(index) || index < 0 || this.#awaitingDescent) {
+    if (!Number.isInteger(index) || index < 0 || this.#awaitingDescent || this.#paused) {
       return;
     }
     this.#pendingGasSwitches.add(index);
@@ -342,7 +371,7 @@ export class GameController {
    */
   adjustSetpoint(deltaBar: number): void {
     // Only in updateDiving(), as the cylinder keys (#223 pre-review).
-    if (this.#awaitingDescent) {
+    if (this.#awaitingDescent || this.#paused) {
       return;
     }
     if (deltaBar < 0) {
@@ -362,7 +391,7 @@ export class GameController {
   bailOut(): void {
     // Only in updateDiving(): at the surface an irreversible bailout would
     // otherwise begin the dive on open circuit (#223 pre-review).
-    if (this.#awaitingDescent) {
+    if (this.#awaitingDescent || this.#paused) {
       return;
     }
     this.#pendingBailout = true;
@@ -384,6 +413,10 @@ export class GameController {
 
   readonly #tick = (nowMs: number): void => {
     if (this.#disposed) {
+      return;
+    }
+    if (this.#paused) {
+      this.#animationFrame = requestAnimationFrame(this.#tick);
       return;
     }
     const elapsedS =
@@ -769,8 +802,9 @@ export class GameController {
   readonly #handleKeyDown = (event: KeyboardEvent): void => {
     // A dive that has ended moves no more and has no torch to work, so its
     // movement keys and T are left to whatever else wants them, as every
-    // other dive key is (#223 pre-review).
-    if (isDiveOver(this.#model.snapshot)) {
+    // other dive key is (#223 pre-review). Nor does a paused one, whose
+    // keys belong to the help overlay (#160).
+    if (this.#paused || isDiveOver(this.#model.snapshot)) {
       return;
     }
     const control = controlForKey(event.key);
