@@ -46,6 +46,19 @@
       "disposition": "13 were 60 s timeouts in descendTo or a crashed browser under load. 2 were real: at 844x390 the keyboard hint reached into the HUD column (4 px into a rebreather's rows, 2 px into an open gas-information page) once the dive filled the landscape screen; 590179a hides the hint on short screens"
     }
   ],
+  "prereviewPass1": {
+    "commit": "b9cdc5b9304b94c41b171ec7868a039e129a981b",
+    "tree": "587bfdad73da630b7b6ebbd9b31360b61b0ac429",
+    "finding": "590179a hid the keyboard hint at every height up to 600 px, on desktop windows too, where it is the only text naming T, F, [, ], B and I",
+    "change": "the hint is hidden only below 420 px (its own @media (height <= 420px)); the overlap starts at about 410 px",
+    "command": "npm run lint && npm run build && npx playwright test tests/touch-dpad.spec.js tests/in-dive-controls.spec.js -g \"desktop window|no HUD row meets|no open page meets\" --workers=1",
+    "result": "19 passed of 19, as the only agent on the machine",
+    "added": [
+      "tests/touch-dpad.spec.js: a desktop window at 1280x585 keeps the keyboard hint, 8 px clear of the pad; at 844x390 it is hidden",
+      "tests/in-dive-controls.spec.js: 1280x585 in the rebreather and six-cylinder HUD layout loop and in the open gas-information page loop"
+    ],
+    "earlierAttempt": "the same command on the same tree, while other sessions' browsers ran: 10 passed, 3 crashed (Target crashed, worker exit 3221225794), 6 did not run"
+  },
   "notMeasured": [
     "real touch on a physical device in both orientations (blocked on #155)",
     "env(safe-area-inset-*) on a device: viewport-fit=cover is #137 A7's; the spec sets the injected --safe-area-inset-* properties instead",
