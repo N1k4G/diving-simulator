@@ -1088,8 +1088,9 @@ test.describe('rebreather controls', () => {
   // The HUD against every control, at the sizes a phone takes. The CCR HUD
   // has ten rows; in one column they ran into the dock at short heights
   // (#163 review round 2 on PR #182). Checked for both modes, since the
-  // open-circuit HUD shares the layout.
-  for (const [width, height] of [[844, 390], [667, 375], [390, 844], [1280, 720]]) {
+  // open-circuit HUD shares the layout. 1280x585 is a short desktop window
+  // that keeps the keyboard hint (#168 pre-review pass 1).
+  for (const [width, height] of [[844, 390], [667, 375], [390, 844], [1280, 585], [1280, 720]]) {
     test.describe(`${width}x${height}`, () => {
       test.use({ viewport: { width, height } });
 
@@ -1365,7 +1366,9 @@ test.describe('gas information', () => {
 
   // Open pages against every control, at the sizes a phone takes. The panel
   // shares the HUD's column and has to stop above the dock and the D-pad.
-  for (const [width, height] of [[844, 390], [667, 375], [390, 844], [1280, 720]]) {
+  // At 1280x585, a short desktop window, the keyboard hint stays and the
+  // panel has to stop above it too (#168 pre-review pass 1).
+  for (const [width, height] of [[844, 390], [667, 375], [390, 844], [1280, 585], [1280, 720]]) {
     test.describe(`${width}x${height}`, () => {
       test.use({ viewport: { width, height } });
 

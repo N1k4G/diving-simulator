@@ -358,6 +358,32 @@ for (const { name, viewport } of ORIENTATIONS) {
   });
 }
 
+// The keyboard hint goes only where it collides with the HUD, on a phone held
+// sideways (#168 pre-review pass 1). A short desktop window keeps it: there
+// it is the only text naming T, F, [, ], B and I.
+for (const [width, height, shown] of [[1280, 585, true], [844, 390, false]]) {
+  test.describe(`a desktop window at ${width}x${height}`, () => {
+    test.use({ viewport: { width, height } });
+
+    test(`${shown ? 'keeps' : 'drops'} the keyboard hint`, async ({ page }) => {
+      await startDiveBelow(page, 1);
+      const hint = page.locator('.controls-hint');
+      if (!shown) {
+        await expect(hint).toBeHidden();
+        return;
+      }
+      await expect(hint).toBeVisible();
+      const hintBox = await hint.boundingBox();
+      for (const control of DIRECTIONS) {
+        const box = await pad(page, control).boundingBox();
+        const gapX = Math.max(hintBox.x, box.x) - Math.min(hintBox.x + hintBox.width, box.x + box.width);
+        const gapY = Math.max(hintBox.y, box.y) - Math.min(hintBox.y + hintBox.height, box.y + box.height);
+        expect(Math.max(gapX, gapY), `the hint against ${control}`).toBeGreaterThanOrEqual(8);
+      }
+    });
+  });
+}
+
 test.describe('the pad and the dive state', () => {
   test.use({ ...PHONE, viewport: { width: 390, height: 844 } });
 
