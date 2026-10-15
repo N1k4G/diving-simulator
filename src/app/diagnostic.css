@@ -1190,6 +1190,15 @@ summary:focus-visible {
     border-radius: 0;
   }
 
+  /* With the dive on the screen's 390px, the keyboard hint's four lines
+     reached up into the HUD column: 4px into a rebreather's rows and 2px
+     into an open gas-information page at 844x390. A phone held sideways
+     has no keyboard to hint at, so the hint goes, as it does on a narrow
+     screen. */
+  .controls-hint {
+    display: none;
+  }
+
   .wreck-column {
     width: min(32rem, calc(100% - 2.5rem));
   }
