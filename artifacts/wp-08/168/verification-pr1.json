@@ -1,0 +1,54 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 168,
+  "slice": "PR 1 of 3: the touch D-pad as DOM over the Pixi stage, held by pointer with capture, emitting GameController.setControl as the keyboard does, released on pointerup, pointercancel, lostpointercapture, window blur and visibilitychange; 44px targets with 8px spacing, safe-area offsets, and the dive filling a landscape phone screen",
+  "measuredCommit": "590179a733ba18f7ab4856070e6457c88518b179",
+  "measuredTree": "80483f4914a15162a2f5ffda89dac2d38f40695e",
+  "baseCommit": "03c9a98 (main, #251)",
+  "workingTree": "the runs below ran on the working tree that 590179a then committed unchanged; dist/ was built from it with `npx vite build` after `npm run typecheck`",
+  "recordedAt": "2026-10-15T20:22:34Z",
+  "environment": {
+    "os": "Windows 11 Pro 10.0.26200",
+    "node": "v26.11.0",
+    "playwright": "1.63.0",
+    "browser": "chromium headless shell (Playwright 1.63.0)",
+    "load": "machine shared with other sessions' Playwright and Vitest runs; e2e started only once port 8080 was free"
+  },
+  "results": {
+    "typecheck": { "command": "npm run typecheck", "result": "pass" },
+    "lint": { "command": "npm run lint", "result": "pass" },
+    "unit": {
+      "command": "npx vitest run src tests/unit --maxWorkers=2 --testTimeout=60000",
+      "result": "666 passed of 666",
+      "note": "at the default 5 s timeout, during another session's e2e run, 8 model tests this PR does not touch timed out (among them dive-end, dive-log, dive-model, game-controller-buoyancy)"
+    },
+    "e2eDpad": {
+      "command": "npx playwright test tests/touch-dpad.spec.js tests/wreck-slice.spec.js --workers=1",
+      "result": "24 passed of 24",
+      "finishedAt": "2026-10-15T20:15Z"
+    },
+    "e2eRelated": {
+      "command": "npx playwright test tests/in-dive-controls.spec.js tests/dive-computer-english.spec.js tests/game-over.spec.js tests/hud-readouts.spec.js tests/resume-flow.spec.js --workers=1 --retries=1",
+      "result": "94 passed, 2 flaky, 0 failed",
+      "flaky": [
+        "tests/dive-computer-english.spec.js: under a ceiling the stop row reads Deco stop",
+        "tests/hud-readouts.spec.js: under a ceiling the stop row is the deco stop, with the first stop of the forecast"
+      ],
+      "flakyCause": "the stop row waited past 15 s for the planner worker's forecast under load; both passed on retry",
+      "finishedAt": "2026-10-15T20:03Z"
+    }
+  },
+  "earlierRuns": [
+    {
+      "commit": "3ad614156c1c0b9da506257b747c784f5066b1c4",
+      "command": "npx playwright test tests/in-dive-controls.spec.js tests/game-over.spec.js tests/hud-readouts.spec.js tests/dive-computer-english.spec.js tests/resume-flow.spec.js (2 workers)",
+      "result": "81 passed, 15 failed",
+      "disposition": "13 were 60 s timeouts in descendTo or a crashed browser under load. 2 were real: at 844x390 the keyboard hint reached into the HUD column (4 px into a rebreather's rows, 2 px into an open gas-information page) once the dive filled the landscape screen; 590179a hides the hint on short screens"
+    }
+  ],
+  "notMeasured": [
+    "real touch on a physical device in both orientations (blocked on #155)",
+    "env(safe-area-inset-*) on a device: viewport-fit=cover is #137 A7's; the spec sets the injected --safe-area-inset-* properties instead",
+    "parity, Pixi visual check and the interior probe: no model, renderer or legacy file changed"
+  ]
+}
