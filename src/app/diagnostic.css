@@ -772,20 +772,33 @@ summary:focus-visible {
   color: #ff9b9b;
 }
 
-/* Legacy's ascent chevrons (#222): six in a row before the rate, lit one per
-   3 m/min, in its tones for the rate. The arrow and the number say the same
-   in words; the chevrons repeat them for the eye. Unlit ones are legacy's
-   #333 at a quarter. */
+/* Legacy's ascent chevrons (#222): a column of six beside the rate, lit one
+   per 3 m/min from the bottom, in its tones for the rate. The arrow and the
+   number say the same in words; the chevrons repeat them for the eye.
+   Unlit ones are legacy's #333 at a quarter.
+
+   Out of the row's flow, in the space right of its value (the panel's
+   padding, or the gap between the short screens' two columns), so the row
+   keeps its height: in the flow, between the label and the value, they
+   wrapped both onto two lines in the 12.5rem panel (#254 pre-review pass
+   1). tests/hud-readouts.spec.js measures it. */
+.wreck-hud [data-hud-metric="ascentRate"] {
+  position: relative;
+}
+
 .wreck-hud .ascent-chevrons {
-  display: inline-flex;
-  align-self: center;
-  gap: 2px;
-  margin-left: auto;
+  position: absolute;
+  top: 50%;
+  right: -0.7rem;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 1px;
+  transform: translateY(-50%);
 }
 
 .ascent-chevrons span {
-  width: 0.6rem;
-  height: 0.5rem;
+  width: 0.45rem;
+  height: 0.22rem;
   background: #333;
   opacity: 0.25;
   clip-path: polygon(0 100%, 50% 0, 100% 100%);

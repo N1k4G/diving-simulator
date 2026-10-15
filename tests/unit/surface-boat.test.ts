@@ -10,7 +10,7 @@ import {
   boatShadowSwayM,
   nearSurfaceLightFactor,
 } from "../../src/render/surface-boat";
-import { ROUTE_START_POSITION_M } from "../../src/sites/wreck-route";
+import { WRECK_BOW_X_M } from "../../src/sites/wreck-route";
 
 // The dive boat and its shadow (#222), after legacy's src/renderer.js:
 // drawScene's "Ship on surface", nearSurfaceLightFactor,
@@ -18,9 +18,10 @@ import { ROUTE_START_POSITION_M } from "../../src/sites/wreck-route";
 // here at legacy's 0.05 m a pixel.
 
 describe("the boat at the surface", () => {
-  it("is moored 5 m from where the dive starts, as legacy's wreck has it (entry.x 0, boatX 5)", () => {
-    expect(ROUTE_START_POSITION_M).toBe(10);
-    expect(BOAT_X_M).toBe(15);
+  it("is moored at legacy's boatX 5, its hull clear of the wreck's bow stem at 14", () => {
+    expect(BOAT_X_M).toBe(5);
+    // paintShip's hull runs from -64 to 78 px.
+    expect(BOAT_X_M + 78 * 0.05).toBeLessThan(WRECK_BOW_X_M);
   });
 
   it("bobs 2.2 px and rocks 0.022 rad on the waves' real time", () => {

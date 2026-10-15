@@ -7,14 +7,14 @@
   "scenes": {
     "wreck-exterior-start": {
       "statistics": {
-        "meanLuma": 42.252,
-        "sdLuma": 30.462,
+        "meanLuma": 42.428,
+        "sdLuma": 31.039,
         "meanRGB": [
-          17.622,
-          47.884,
-          58.991
+          17.758,
+          48.07,
+          59.192
         ],
-        "channelSpread": 41.368
+        "channelSpread": 41.434
       }
     },
     "wreck-descended": {

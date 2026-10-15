@@ -766,9 +766,10 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     diveComputerText("diveComputer.ascentRate"),
     unavailable,
   );
-  // And legacy's six chevrons themselves (#222), between the label and the
-  // number. The arrow and the number are what is read; the chevrons repeat
-  // them for the eye, so assistive technology skips them.
+  // And legacy's six chevrons themselves (#222), a column beside the number,
+  // out of the row's flow (diagnostic.css). The arrow and the number are
+  // what is read; the chevrons repeat them for the eye, so assistive
+  // technology skips them.
   const ascentChevrons = document.createElement("span");
   ascentChevrons.className = "ascent-chevrons";
   ascentChevrons.setAttribute("aria-hidden", "true");

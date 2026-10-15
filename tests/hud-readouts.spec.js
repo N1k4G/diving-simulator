@@ -127,6 +127,58 @@ test('past 18 m/min up all six chevrons show in the danger tone, and blink', asy
   expect(frames.some((frame) => !frame.blinkedOff)).toBe(true);
 });
 
+// The chevrons take no room in the row (#254 pre-review pass 1): between
+// its label and its value they wrapped both onto two lines. With and
+// without them the row is as high, and they meet no row's text and stay in
+// the panel. 960x540 and 844x390 lay the HUD out in two columns, 390x844 in
+// one 12.5rem column.
+for (const [width, height] of [[960, 540], [844, 390], [390, 844]]) {
+  test.describe(`${width}x${height}`, () => {
+    test.use({ viewport: { width, height } });
+
+    test('the chevrons leave the ascent-rate row one line high, clear of every row', async ({ page }) => {
+      await page.goto('/dist/');
+      await page.evaluate(() => window.localStorage.clear());
+      await startDiveAndWaitForCanvas(page);
+      await expect(hudValue(page, 'ascentRate')).toHaveText('0 m/min');
+
+      const measure = () =>
+        page.evaluate(() => {
+          const box = (element) => element.getBoundingClientRect().toJSON();
+          const row = document.querySelector('.wreck-hud [data-hud-metric="ascentRate"]');
+          return {
+            row: box(row),
+            hud: box(document.querySelector('.wreck-hud')),
+            chevrons: box(row.querySelector('.ascent-chevrons')),
+            texts: [...document.querySelectorAll('.wreck-hud dt, .wreck-hud dd')]
+              .filter((element) => element.getClientRects().length > 0)
+              .map(box),
+          };
+        });
+      const withChevrons = await measure();
+      await page.addStyleTag({ content: '.ascent-chevrons { display: none !important; }' });
+      const without = await measure();
+
+      expect(withChevrons.row.height).toBe(without.row.height);
+      expect(withChevrons.row.height).toBeLessThan(30);
+      const { chevrons, hud } = withChevrons;
+      expect(chevrons.width).toBeGreaterThan(0);
+      expect(chevrons.left).toBeGreaterThanOrEqual(hud.left);
+      expect(chevrons.right).toBeLessThanOrEqual(hud.right);
+      expect(chevrons.top).toBeGreaterThanOrEqual(hud.top);
+      expect(chevrons.bottom).toBeLessThanOrEqual(hud.bottom);
+      for (const text of withChevrons.texts) {
+        const overlaps =
+          chevrons.left < text.right &&
+          text.left < chevrons.right &&
+          chevrons.top < text.bottom &&
+          text.top < chevrons.bottom;
+        expect(overlaps, JSON.stringify(text)).toBe(false);
+      }
+    });
+  });
+}
+
 test('with reduced motion the chevrons of a fast ascent stay lit and do not blink', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await resumeWith(page, risingFast);

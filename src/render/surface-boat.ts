@@ -5,21 +5,17 @@
 // renderer draws it.
 
 import { siteGameplay } from "../sites/site-resources";
-import { ROUTE_START_POSITION_M } from "../sites/wreck-route";
 
 /** Legacy draws its scene at 0.05 m a pixel, and the boat in those pixels. */
 export const LEGACY_M_PER_PX = 0.05;
 
-const wreck = siteGameplay("wreck");
-
 /**
- * Legacy's wreck moors its boat 5 m from the entry, towards the wreck
- * (src/sites.js wreck: entry.x 0, boatX 5). The route starts at 10 instead of
- * 0, so the boat keeps its place relative to where the dive starts and ends:
- * the diver waits 2 m off its stern and its dive ladder, as in legacy.
+ * Where legacy's wreck moors its boat, src/sites.js boatX 5. The route is
+ * drawn in legacy's x (its bow stem at 14 to 16), so this is legacy's place:
+ * the hull, about 1.8 to 8.9, lies clear of the wreck's bow (#254
+ * pre-review pass 1).
  */
-export const BOAT_X_M =
-  ROUTE_START_POSITION_M + (wreck?.boatX ?? 0) - (wreck?.entry.x ?? 0);
+export const BOAT_X_M = siteGameplay("wreck")?.boatX ?? 0;
 
 /** The boat rides the waves: sin(waveTime * 0.9) * 2.2 px, downward positive. */
 export function boatBobM(elapsedRealS: number): number {
