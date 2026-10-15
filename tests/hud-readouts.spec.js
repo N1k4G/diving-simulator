@@ -25,24 +25,40 @@ const risingFast = (state) => {
 };
 
 /**
- * Whether the chevrons blinked off in any frame over `ms` of real time:
- * legacy's blink past 18 m/min shows all six unlit every other 300 ms.
+ * Watches the chevrons in the page, frame by frame, from the first frame they
+ * show legacy's danger tone for 1.2 s of real time, or until the dive ends
+ * and the HUD goes. In the page, so that a rising dive ending in barotrauma
+ * on a slow machine does not take the HUD away between two Playwright round
+ * trips. Every frame's count, lit chevrons, direction and blink.
  */
-const blinkedOffWithin = (page, ms) =>
+const watchDangerChevrons = (page) =>
   page.evaluate(
-    (duration) =>
+    () =>
       new Promise((resolve) => {
-        const element = document.querySelector('.ascent-chevrons');
-        const until = performance.now() + duration;
-        let seen = false;
+        const frames = [];
+        let firstDanger = null;
+        const started = performance.now();
         const look = () => {
-          seen ||= element.hasAttribute('data-blinked-off');
-          if (performance.now() < until) requestAnimationFrame(look);
-          else resolve(seen);
+          const element = document.querySelector('.ascent-chevrons');
+          const now = performance.now();
+          if (element?.dataset.tier === 'danger') {
+            firstDanger ??= now;
+            frames.push({
+              count: element.dataset.count,
+              direction: element.dataset.direction,
+              ariaHidden: element.getAttribute('aria-hidden'),
+              lit: element.querySelectorAll('span[data-lit]').length,
+              blinkedOff: element.hasAttribute('data-blinked-off'),
+            });
+          }
+          const done =
+            (firstDanger !== null && (now - firstDanger > 1_200 || !element)) ||
+            now - started > 30_000;
+          if (done) resolve({ frames, dangerMs: firstDanger === null ? 0 : now - firstDanger });
+          else requestAnimationFrame(look);
         };
         look();
       }),
-    ms,
   );
 
 /**
@@ -93,22 +109,33 @@ test('a fast ascent warns in words, marks the rate, and names it in the chip', a
   await expect(page.locator('.status-chip')).toHaveText('⚠ Fast ascent');
   await expect(hudValue(page, 'ascentRate')).toHaveText(/^⚠ ↑ \d+ m\/min$/);
   await expect(hudRow(page, 'ascentRate')).toHaveAttribute('data-danger', '');
-  // Legacy's chevrons (#222): all six past 18 m/min, in the danger tone, and
-  // blinking. They repeat the row's words for the eye only.
-  await expect(chevrons(page)).toHaveAttribute('data-tier', 'danger');
-  await expect(chevrons(page)).toHaveAttribute('data-count', '6');
-  await expect(chevrons(page)).toHaveAttribute('data-direction', 'up');
-  await expect(chevrons(page)).toHaveAttribute('aria-hidden', 'true');
-  expect(await blinkedOffWithin(page, 1_000)).toBe(true);
+});
+
+test('past 18 m/min up all six chevrons show in the danger tone, and blink', async ({ page }) => {
+  // Legacy's chevrons (#222). They repeat the row's words for the eye only.
+  await resumeWith(page, risingFast);
+  const { frames, dangerMs } = await watchDangerChevrons(page);
+
+  expect(frames.length).toBeGreaterThan(0);
+  for (const frame of frames) {
+    expect(frame).toMatchObject({ count: '6', direction: 'up', ariaHidden: 'true' });
+    expect(frame.lit).toBe(frame.blinkedOff ? 0 : 6);
+  }
+  // Off for 300 ms in every 600: both seen within the 1.2 s watched.
+  expect(dangerMs).toBeGreaterThan(600);
+  expect(frames.some((frame) => frame.blinkedOff)).toBe(true);
+  expect(frames.some((frame) => !frame.blinkedOff)).toBe(true);
 });
 
 test('with reduced motion the chevrons of a fast ascent stay lit and do not blink', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await resumeWith(page, risingFast);
+  const { frames } = await watchDangerChevrons(page);
 
-  await expect(chevrons(page)).toHaveAttribute('data-tier', 'danger', { timeout: 15_000 });
-  await expect(chevrons(page).locator('span[data-lit]')).toHaveCount(6);
-  expect(await blinkedOffWithin(page, 1_000)).toBe(false);
+  expect(frames.length).toBeGreaterThan(0);
+  for (const frame of frames) {
+    expect(frame).toMatchObject({ count: '6', lit: 6, blinkedOff: false });
+  }
 });
 
 test('a safety stop under way counts down at its 5 m, and fast-forward is offered', async ({ page }) => {
