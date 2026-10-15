@@ -37,6 +37,7 @@ import {
 } from "./i18n/formatters";
 import { CCR_SETPOINT_STEP_BAR } from "../core/dive-state";
 import { selectLoopRowDanger } from "./loop-danger";
+import { ASCENT_CHEVRON_COUNT, ascentChevrons } from "./ascent-chevrons";
 import { renderSetupScreen } from "./setup/setup-screen";
 import {
   isSavedDiveExpired,
@@ -93,6 +94,9 @@ interface HudElements {
   readonly scrubber: HTMLElement;
   readonly ndl: HTMLElement;
   readonly ascentRate: HTMLElement;
+  readonly ascentChevrons: HTMLElement;
+  /** prefers-reduced-motion: the chevrons do not blink (docs/decisions.md). */
+  readonly reducedMotion: MediaQueryList | null;
   readonly safetyStop: HTMLElement;
   readonly thirds: HTMLElement;
   readonly zone: HTMLElement;
@@ -762,6 +766,16 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     diveComputerText("diveComputer.ascentRate"),
     unavailable,
   );
+  // And legacy's six chevrons themselves (#222), between the label and the
+  // number. The arrow and the number are what is read; the chevrons repeat
+  // them for the eye, so assistive technology skips them.
+  const ascentChevrons = document.createElement("span");
+  ascentChevrons.className = "ascent-chevrons";
+  ascentChevrons.setAttribute("aria-hidden", "true");
+  for (let index = 0; index < ASCENT_CHEVRON_COUNT; index += 1) {
+    ascentChevrons.append(document.createElement("span"));
+  }
+  ascentRate.before(ascentChevrons);
   const time = appendMetric(hud, "time", diveComputerText("diveComputer.time"), unavailable);
   const gas = appendMetric(hud, "gas", diveComputerText("diveComputer.gas"), unavailable);
   // Which cylinder is being breathed (#163). Until this row existed the only
@@ -944,6 +958,8 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     scrubber,
     ndl,
     ascentRate,
+    ascentChevrons,
+    reducedMotion: window.matchMedia?.("(prefers-reduced-motion: reduce)") ?? null,
     safetyStop,
     thirds,
     zone,
@@ -990,6 +1006,7 @@ function updateHud(
     translate(DC, "wreck.value.unavailable"),
   );
   syncDiveReadouts(hud, presentation);
+  syncAscentChevrons(hud, presentation.ascentRateMpm, scene.elapsedRealS);
   hud.zone.textContent = translate(locale, zoneMessageKeys[scene.zone]);
   hud.torch.setAttribute("aria-pressed", String(scene.torchOn));
   // Legacy shows its nav pad and torch button, and reads their keys, only in
@@ -1164,6 +1181,32 @@ function writeLoopRow(
   if (row) {
     row.toggleAttribute("data-danger", danger);
   }
+}
+
+/**
+ * Legacy's ascent chevrons (#222, src/app/ascent-chevrons.ts): the count, the
+ * tone and the direction as attributes the stylesheet draws, and each
+ * chevron lit or not. Past 18 m/min they blink, on the scene's real time, so
+ * a pinned clock pins them.
+ */
+function syncAscentChevrons(
+  hud: HudElements,
+  ascentRateMpm: number,
+  elapsedRealS: number,
+): void {
+  const chevrons = ascentChevrons(
+    ascentRateMpm,
+    elapsedRealS,
+    hud.reducedMotion?.matches ?? false,
+  );
+  const element = hud.ascentChevrons;
+  element.dataset.count = String(chevrons.count);
+  element.dataset.tier = chevrons.tier;
+  element.dataset.direction = chevrons.direction;
+  element.toggleAttribute("data-blinked-off", chevrons.blinkedOff);
+  Array.from(element.children).forEach((chevron, index) => {
+    chevron.toggleAttribute("data-lit", index < chevrons.count && !chevrons.blinkedOff);
+  });
 }
 
 /**

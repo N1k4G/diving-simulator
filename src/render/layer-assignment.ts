@@ -16,6 +16,8 @@ import { LAYERS, type LayerId } from "../sites/asset-manifest";
 export type RetainedElement =
   | "sky"
   | "surface"
+  | "boat"
+  | "boatShadow"
   | "distantHull"
   | "seabed"
   | "hull"
@@ -34,6 +36,9 @@ export type RetainedElement =
  * - `sky`, `surface` — the air above the water and the water's surface
  *   (#199). Behind everything, and first in their layer: nothing in the
  *   scene reaches above the surface, and the diver floats in front of it.
+ * - `boat`, `boatShadow` — the dive boat on the surface and its shadow under
+ *   it (#222). After the surface, as legacy draws the boat over the waves and
+ *   the shadow after the boat, behind the terrain (src/renderer.js drawScene).
  * - `distantHull` — parallax silhouette behind everything below the surface.
  * - `seabed` — ground the wreck rests on.
  * - `hull`, `rooms`, `engine` — the wreck itself, opaque, occludes the seabed.
@@ -48,6 +53,8 @@ export const RETAINED_LAYER_ASSIGNMENT: Readonly<Record<RetainedElement, LayerId
   Object.freeze({
     sky: "backdrop",
     surface: "backdrop",
+    boat: "backdrop",
+    boatShadow: "backdrop",
     distantHull: "backdrop",
     seabed: "terrain",
     hull: "structure",

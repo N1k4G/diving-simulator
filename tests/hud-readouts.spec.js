@@ -14,6 +14,36 @@ const SAVE_KEY = 'diving-simulator.save-game';
 
 const hudRow = (page, name) => page.locator(`.wreck-hud [data-hud-metric="${name}"]`);
 const hudValue = (page, name) => hudRow(page, name).locator('dd');
+const chevrons = (page) => hudRow(page, 'ascentRate').locator('.ascent-chevrons');
+
+/** A diver at 20 m with a BCD full enough to rise at legacy's 25 m/min cap. */
+const risingFast = (state) => {
+  state.depthM = 20;
+  state.maxDepthM = Math.max(state.maxDepthM, 20);
+  state.verticalVelocityMpm = 0;
+  state.bcdGasSurfaceLiters = 40;
+};
+
+/**
+ * Whether the chevrons blinked off in any frame over `ms` of real time:
+ * legacy's blink past 18 m/min shows all six unlit every other 300 ms.
+ */
+const blinkedOffWithin = (page, ms) =>
+  page.evaluate(
+    (duration) =>
+      new Promise((resolve) => {
+        const element = document.querySelector('.ascent-chevrons');
+        const until = performance.now() + duration;
+        let seen = false;
+        const look = () => {
+          seen ||= element.hasAttribute('data-blinked-off');
+          if (performance.now() < until) requestAnimationFrame(look);
+          else resolve(seen);
+        };
+        look();
+      }),
+    ms,
+  );
 
 /**
  * Starts a dive, takes a save of it under way, edits it with `mutate` and
@@ -51,22 +81,34 @@ test('the ascent rate points down while the diver sinks', async ({ page }) => {
   // Released, the vented diver goes on sinking.
   await expect(hudValue(page, 'ascentRate')).toHaveText(/^↓ \d+ m\/min$/);
   await expect(hudRow(page, 'ascentRate')).not.toHaveAttribute('data-danger', '');
+  // Legacy's chevrons point down too (#222).
+  await expect(chevrons(page)).toHaveAttribute('data-direction', 'down');
 });
 
 test('a fast ascent warns in words, marks the rate, and names it in the chip', async ({ page }) => {
-  // Legacy's SLOW DOWN banner past 9 m/min up (#197). A diver at 20 m with
-  // a BCD full enough to rise at legacy's 25 m/min cap.
-  await resumeWith(page, (state) => {
-    state.depthM = 20;
-    state.maxDepthM = Math.max(state.maxDepthM, 20);
-    state.verticalVelocityMpm = 0;
-    state.bcdGasSurfaceLiters = 40;
-  });
+  // Legacy's SLOW DOWN banner past 9 m/min up (#197).
+  await resumeWith(page, risingFast);
 
   await expect(page.getByRole('alert')).toHaveText('Ascending too fast — slow down', { timeout: 15_000 });
   await expect(page.locator('.status-chip')).toHaveText('⚠ Fast ascent');
   await expect(hudValue(page, 'ascentRate')).toHaveText(/^⚠ ↑ \d+ m\/min$/);
   await expect(hudRow(page, 'ascentRate')).toHaveAttribute('data-danger', '');
+  // Legacy's chevrons (#222): all six past 18 m/min, in the danger tone, and
+  // blinking. They repeat the row's words for the eye only.
+  await expect(chevrons(page)).toHaveAttribute('data-tier', 'danger');
+  await expect(chevrons(page)).toHaveAttribute('data-count', '6');
+  await expect(chevrons(page)).toHaveAttribute('data-direction', 'up');
+  await expect(chevrons(page)).toHaveAttribute('aria-hidden', 'true');
+  expect(await blinkedOffWithin(page, 1_000)).toBe(true);
+});
+
+test('with reduced motion the chevrons of a fast ascent stay lit and do not blink', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await resumeWith(page, risingFast);
+
+  await expect(chevrons(page)).toHaveAttribute('data-tier', 'danger', { timeout: 15_000 });
+  await expect(chevrons(page).locator('span[data-lit]')).toHaveCount(6);
+  expect(await blinkedOffWithin(page, 1_000)).toBe(false);
 });
 
 test('a safety stop under way counts down at its 5 m, and fast-forward is offered', async ({ page }) => {

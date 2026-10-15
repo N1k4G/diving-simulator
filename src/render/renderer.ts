@@ -64,6 +64,23 @@ export function selectWreckZone(routePositionM: number): WreckZone {
   return "exterior";
 }
 
+/**
+ * The dive is under way: legacy's 'diving' state, in which it draws the boat's
+ * shadow and the fast-ascent flash. Not while the dive waits at the surface
+ * (legacy's 'surface'), nor once it has ended or failed.
+ */
+export function diveUnderway(
+  presentation: Readonly<
+    Pick<PresentationState, "elapsedTimeS" | "depthM" | "completed" | "failureReason">
+  >,
+): boolean {
+  return (
+    (presentation.elapsedTimeS > 0 || presentation.depthM > 0) &&
+    !presentation.completed &&
+    presentation.failureReason === null
+  );
+}
+
 export async function createSelectedRenderer(
   search = typeof location === "undefined" ? "" : location.search,
 ): Promise<SceneRenderer> {

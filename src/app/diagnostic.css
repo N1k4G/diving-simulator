@@ -772,6 +772,42 @@ summary:focus-visible {
   color: #ff9b9b;
 }
 
+/* Legacy's ascent chevrons (#222): six in a row before the rate, lit one per
+   3 m/min, in its tones for the rate. The arrow and the number say the same
+   in words; the chevrons repeat them for the eye. Unlit ones are legacy's
+   #333 at a quarter. */
+.wreck-hud .ascent-chevrons {
+  display: inline-flex;
+  align-self: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.ascent-chevrons span {
+  width: 0.6rem;
+  height: 0.5rem;
+  background: #333;
+  opacity: 0.25;
+  clip-path: polygon(0 100%, 50% 0, 100% 100%);
+}
+
+.ascent-chevrons[data-direction="down"] span {
+  clip-path: polygon(0 0, 50% 100%, 100% 0);
+}
+
+.ascent-chevrons span[data-lit] {
+  background: #fff;
+  opacity: 0.95;
+}
+
+.ascent-chevrons[data-tier="caution"] span[data-lit] {
+  background: #ffcc88;
+}
+
+.ascent-chevrons[data-tier="danger"] span[data-lit] {
+  background: #ff9b9b;
+}
+
 /* Legacy's caution tone for the rule of thirds' turn and a paused safety
    stop (#199). The words say the same; the tone only repeats them. */
 .wreck-hud div[data-phase="turn"] dd,
