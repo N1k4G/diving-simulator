@@ -76,9 +76,9 @@ import {
 import {
   GameController,
   createWreckInitialState,
-  type ContinuousControl,
   type GameFrame,
 } from "./game-controller";
+import { bindDpad, createDpadButtons, prefersArrowGlyphs } from "./touch-dpad";
 
 interface HudElements {
   readonly shell: HTMLElement;
@@ -518,7 +518,7 @@ async function startWreckSimulation(
     },
   });
 
-  bindContinuousControl(hud.shell, controller);
+  const disposeDpad = bindDpad(hud.movement, controller);
   bindTankControls(hud.tanks, controller);
   bindLoopControls(hud.ccr, controller);
   hud.torch.addEventListener("click", () => controller.toggleTorch());
@@ -583,6 +583,7 @@ async function startWreckSimulation(
   // teardown destroys the sound with the dive, so a dive surfaced on low gas
   // does not go on sounding its alarm (#223 pre-review).
   const teardown = () => {
+    disposeDpad();
     document.removeEventListener("visibilitychange", handleVisibility);
     window.removeEventListener("keydown", handleGasInfoKey);
     // Removed here too, not only by its own `once`: after a game over the
@@ -838,21 +839,9 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   const controls = document.createElement("div");
   controls.className = "wreck-controls";
   controls.setAttribute("aria-label", translate(locale, "wreck.controls.heading"));
-  const movement: HTMLButtonElement[] = [];
-  for (const [control, key, glyph] of [
-    ["left", "wreck.controls.left", "←"],
-    ["ascend", "wreck.controls.ascend", "↑"],
-    ["descend", "wreck.controls.descend", "↓"],
-    ["right", "wreck.controls.right", "→"],
-  ] as const) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.dataset.control = control;
-    button.setAttribute("aria-label", translate(locale, key));
-    button.textContent = glyph;
-    controls.append(button);
-    movement.push(button);
-  }
+  // The D-pad (#168): arrows on a touch screen, W/A/S/D on a desktop.
+  const movement = createDpadButtons(locale, prefersArrowGlyphs());
+  controls.append(...movement);
   const torch = document.createElement("button");
   torch.type = "button";
   torch.className = "torch-control";
@@ -1410,26 +1399,6 @@ function bindTankControls(
     }
     controller.requestTankSwitch(Number.parseInt(index, 10));
   });
-}
-
-function bindContinuousControl(
-  shell: HTMLElement,
-  controller: GameController,
-): void {
-  for (const button of shell.querySelectorAll<HTMLButtonElement>(
-    "[data-control]",
-  )) {
-    const control = button.dataset.control as ContinuousControl;
-    const release = () => controller.setControl(control, false);
-    button.addEventListener("pointerdown", (event) => {
-      event.preventDefault();
-      button.setPointerCapture(event.pointerId);
-      controller.setControl(control, true);
-    });
-    button.addEventListener("pointerup", release);
-    button.addEventListener("pointercancel", release);
-    button.addEventListener("lostpointercapture", release);
-  }
 }
 
 // Stable identity for each HUD metric, independent of render order.

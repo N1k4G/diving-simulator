@@ -687,9 +687,12 @@ summary:focus-visible {
   text-decoration: line-through;
 }
 
+/* The play surface (#168): a finger on the stage neither scrolls nor zooms
+   the page, so a thumb that misses the D-pad does not pan the dive away. */
 .wreck-viewport {
   position: absolute;
   inset: 0;
+  touch-action: none;
 }
 
 .wreck-canvas {
@@ -702,8 +705,9 @@ summary:focus-visible {
    one is open (#163). The column carries the position the HUD used to, so
    the panel sits below the readouts instead of over them — NDL is never the
    thing a page hides (#137 §4.4.1). Its height stops above the bottom
-   controls (dock and D-pad, both under 8.1rem tall), and the panel scrolls
-   inside what is left rather than running into them. */
+   controls (the dock, and the D-pad at 8.15rem with its gutter, which the
+   bottom safe-area inset raises; #168), and the panel scrolls inside what
+   is left rather than running into them. */
 .wreck-column {
   position: absolute;
   z-index: 4;
@@ -714,7 +718,7 @@ summary:focus-visible {
   align-items: flex-start;
   gap: 0.5rem;
   width: min(20rem, calc(100% - 2.5rem));
-  max-height: calc(100% - 5.8rem - 9.5rem);
+  max-height: calc(100% - 5.8rem - 9.5rem - var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
   pointer-events: none;
 }
 
@@ -927,11 +931,14 @@ summary:focus-visible {
    rather than being tuned not to.
 
    The width cap is what keeps the pair clear of the D-pad on the right: its
-   grid is 3*3.2rem + 2*0.4rem = 10.4rem, plus a 1.25rem gutter and a gap.
-   Six cylinders are 6*44 + 5*8 = 304px, so at 390px they wrap to three per
-   row instead of running underneath the movement buttons — measured, five
-   overlapping pairs, and invisible to a check that only compared the
-   cylinder buttons with each other.
+   grid is 3*3.2rem + 2*0.5rem = 10.6rem, plus the two 1.25rem gutters (the
+   dock's own and the pad's), the pad's safe-area inset and an 8px gap:
+   13.6rem and the inset (#168; the cap was 12rem, which left the two able
+   to overlap once the dock filled its width). Six cylinders are
+   6*44 + 5*8 = 304px, so at 390px they wrap to three per row instead of
+   running underneath the movement buttons — measured, five overlapping
+   pairs, and invisible to a check that only compared the cylinder buttons
+   with each other.
 
    tests/in-dive-controls.spec.js asserts no cylinder button overlaps any
    other control, at 390px and at desktop width, so this stays honest if
@@ -944,7 +951,7 @@ summary:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  max-width: calc(100% - 12rem);
+  max-width: calc(100% - 13.6rem - var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
 }
 
 .wreck-tanks {
@@ -1023,15 +1030,23 @@ summary:focus-visible {
   color: #f6db72;
 }
 
+/* The D-pad (#168), legacy's WASD cross, with the torch and fast-forward in
+   the two corners the cross leaves empty. 3.2rem cells clear the 44px
+   target and the 0.5rem gap is the 8px spacing the #121 test asks for;
+   tests/touch-dpad.spec.js measures both, in portrait and landscape.
+
+   The safe-area insets are written as #137 A7 writes them, the injected
+   Capacitor value first, so the cross keeps clear of a notch or the home
+   indicator once A7 lets the page reach under them. */
 .wreck-controls {
   position: absolute;
   z-index: 4;
-  right: 1.25rem;
-  bottom: 1.25rem;
+  right: calc(1.25rem + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
+  bottom: calc(1.25rem + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
   display: grid;
   grid-template-columns: repeat(3, 3.2rem);
   grid-template-rows: repeat(2, 3.2rem);
-  gap: 0.4rem;
+  gap: 0.5rem;
 }
 
 .wreck-controls button {
@@ -1041,10 +1056,16 @@ summary:focus-visible {
   background: rgb(3 24 32 / 82%);
   cursor: pointer;
   font-size: 1.25rem;
+  font-weight: 750;
   touch-action: none;
+  /* A held button is a long press: no selection, no callout. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .wreck-controls button:active,
+.wreck-controls button[data-held],
 .wreck-controls button[aria-pressed="true"] {
   color: #061923;
   background: #83d9e7;
@@ -1118,7 +1139,7 @@ summary:focus-visible {
 
   .wreck-column {
     top: 5rem;
-    max-height: calc(100% - 5rem - 9.5rem);
+    max-height: calc(100% - 5rem - 9.5rem - var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
   }
 
   .wreck-hud {
@@ -1153,6 +1174,22 @@ summary:focus-visible {
    where both apply. tests/in-dive-controls.spec.js asserts neither the
    panel nor a row meets a control at these sizes. */
 @media (height <= 600px) {
+  /* The dive fills the screen, as it does on a narrow one. The shell's
+     34rem minimum is taller than a phone held sideways, so at 844x390 it
+     ran 154px below the screen and took the D-pad with it, out of reach
+     (#168). Only the dive: the other screens keep their frame. */
+  #app:has(> .wreck-shell) {
+    padding: 0;
+  }
+
+  .wreck-shell {
+    width: 100%;
+    height: 100vh;
+    min-height: 0;
+    border: 0;
+    border-radius: 0;
+  }
+
   .wreck-column {
     width: min(32rem, calc(100% - 2.5rem));
   }
