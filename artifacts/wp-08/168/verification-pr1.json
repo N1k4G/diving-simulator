@@ -50,7 +50,7 @@
     "commit": "b9cdc5b9304b94c41b171ec7868a039e129a981b",
     "tree": "587bfdad73da630b7b6ebbd9b31360b61b0ac429",
     "finding": "590179a hid the keyboard hint at every height up to 600 px, on desktop windows too, where it is the only text naming T, F, [, ], B and I",
-    "change": "the hint is hidden only below 420 px (its own @media (height <= 420px)); the overlap starts at about 410 px",
+    "change": "the hint is hidden only at 420 px and below (its own @media (height <= 420px)); about 410 px is where the HUD rows meet the hint, not where an open gas-information page does (corrected in prereviewPass2)",
     "command": "npm run lint && npm run build && npx playwright test tests/touch-dpad.spec.js tests/in-dive-controls.spec.js -g \"desktop window|no HUD row meets|no open page meets\" --workers=1",
     "result": "19 passed of 19, as the only agent on the machine",
     "added": [
@@ -58,6 +58,25 @@
       "tests/in-dive-controls.spec.js: 1280x585 in the rebreather and six-cylinder HUD layout loop and in the open gas-information page loop"
     ],
     "earlierAttempt": "the same command on the same tree, while other sessions' browsers ran: 10 passed, 3 crashed (Target crashed, worker exit 3221225794), 6 did not run"
+  },
+  "prereviewPass2": {
+    "commit": "55270ddfc641656ad3d690533eba7d8e052a36d9",
+    "tree": "852751d87b04a2b02abdf63bac6c7787d77a4df8",
+    "finding": "with the hint hidden only at 420 px and below, a rebreather's open gas-information page, which cannot shrink below the HUD, ran into the hint between about 421 and 446 px tall, worse in German",
+    "measurement": {
+      "method": "a temporary Playwright spec, not committed: a rebreather dive at 1 m with its gas-information page open, the viewport stepped from 421 to 480 px tall at 1280 and 932 wide, gap = hint top minus the lower of the panel's and the HUD's bottoms",
+      "build": "dist/ of b9cdc5b's CSS (hint hidden at 420 px and below)",
+      "en": "48 px hint (3 lines); gap -9 at 421, 0 at 430, 8 at 438, 32 from 463 on",
+      "de": "64 px hint (4 lines); gap -25 at 421, 0 at about 446, 8 at 454, 15 at 461, 16 from 463 on",
+      "widths": "1280 and 932 gave the same gap at every height: the hint's width is capped at 26rem"
+    },
+    "change": "the hint is hidden at 460 px and below (@media (height <= 460px)); 461 px, the first height that shows it, leaves the German rebreather page 15 px clear, 7 px more than the 8 px minimum",
+    "command": "npm run lint && npm run build && npx playwright test tests/touch-dpad.spec.js tests/in-dive-controls.spec.js -g \"desktop window|no HUD row meets|no open page meets|keyboard hint\" --workers=1",
+    "result": "23 passed of 23, as the only agent on the machine",
+    "added": [
+      "tests/in-dive-controls.spec.js: in German, on a rebreather, at 1280x461 and 1280x585, the open page stays at least 8 px clear of the visible keyboard hint and meets no control",
+      "tests/touch-dpad.spec.js: the hint is shown at 1280x461 and hidden at 1280x460, beside 1280x585 (shown) and 844x390 (hidden)"
+    ]
   },
   "notMeasured": [
     "real touch on a physical device in both orientations (blocked on #155)",
