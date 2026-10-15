@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import baselineFixture from "../fixtures/traces/baseline-v1.json";
 import { diveStateFromLegacyCheckpoint } from "../../src/app/legacy-dive-adapter";
-import { DiveModel } from "../../src/core/dive-model";
+import { DiveModel, advanceDiveStep } from "../../src/core/dive-model";
 import { CCR_SETPOINT_STEP_BAR, type DiveState } from "../../src/core/dive-state";
+import { NO_ACTS, type DiveActs } from "../../src/core/inputs";
 import { metres, minutes, minutesToSeconds } from "../../src/core/units";
 
 // #163 acceptance: "a recorded legacy dive with a tank switch, a setpoint
@@ -25,14 +26,19 @@ import { metres, minutes, minutesToSeconds } from "../../src/core/units";
 // (#184 review round 1).
 //
 // WHY THE KEYS ARE ZERO-LENGTH TICKS. Legacy's updateDiving() reads the keys
-// after it has integrated the tissues and billed the gas. So a key read
-// inside an ordinary tick splits that tick: for a switch, the tick integrates
-// the old gas and bills the new one. The migration client acts between
-// whole-second steps, where that split does not exist. The recording reads
-// each key in a zero-length tick, on a tick boundary, where both clients mean
-// the same thing (scripts/baseline-scenarios.cjs). The five minutes after ]
-// are recorded in one-second ticks, the model's fixed step, because the loop
-// climbs to the new setpoint inside them.
+// after it has integrated the tissues, and the setpoint and B after the gas
+// use. So a key read inside an ordinary tick splits that tick: for a switch,
+// the tick integrates the old gas and bills the new one. The recording reads
+// each key in a zero-length tick, on a tick boundary, where nothing else
+// moves (scripts/baseline-scenarios.cjs), and the model replays it as a
+// zero-length frame (DiveModel.switchGas, adjustSetpoint, bailOut). The five
+// minutes after ] are recorded in one-second ticks, the model's fixed step,
+// because the loop climbs to the new setpoint inside them.
+//
+// The model reads the keys inside its frames at legacy's points too (#202).
+// Two older recordings read a key inside an ordinary 1.5 s tick:
+// trimix-45m-20min's key 2 at 21 m and ccr-bailout-30m's B at 30 m. The last
+// describe block replays each as one frame with the act.
 
 interface Checkpoint {
   checkpointId: string;
@@ -200,5 +206,62 @@ describe("in-dive controls against the recorded legacy dives", () => {
     expect(model.snapshot.failure.reason).toBeNull();
     expectTissues(model.snapshot, ascent);
     expectLoop(model.snapshot, ascent);
+  });
+});
+
+describe("in-dive keys read inside an ordinary legacy tick (#202)", () => {
+  /** The recorded tick with the key, as one model frame carrying the act. */
+  function frameWithKey(start: Checkpoint, recorded: Checkpoint, seed: number, acts: DiveActs, actFirst: (state: DiveState) => DiveState = (state) => state): DiveState {
+    expect(recorded.trajectory).toHaveLength(1);
+    const tick = recorded.trajectory[0]!;
+    return advanceDiveStep(
+      actFirst(diveStateFromLegacyCheckpoint(start, seed)),
+      { depthM: metres(tick.depth_m) },
+      minutesToSeconds(minutes(tick.dtDive_min)),
+      acts,
+    );
+  }
+
+  it("key 2 at 21 m: the tick's tissues and CNS on the old gas, its gas billed to the new cylinder", () => {
+    const start = checkpoint("trimix-45m-20min", "ascent-21m");
+    const switched = checkpoint("trimix-45m-20min", "deco-gas-21m");
+    const acts = { ...NO_ACTS, switchGasIndices: [1] };
+
+    const after = frameWithKey(start, switched, 403, acts);
+    expect(after.activeTankIndex).toBe(switched.state.activeTankIndex);
+    expect(after.events).toEqual([
+      { type: "gas-switch", elapsedTimeS: after.elapsedTimeS, tankIndex: 1 },
+    ]);
+    expectTissues(after, switched);
+    expectCylinders(after, switched);
+
+    // Counter-check: switched before the tick, as the client did before
+    // #202, the tick breathes the 50 % and leaves the recording.
+    const early = frameWithKey(start, switched, 403, NO_ACTS, (state) =>
+      new DiveModel(state).switchGas(1),
+    );
+    expect(Math.abs(early.cnsPercent - switched.state.cns_percent)).toBeGreaterThan(eps.default);
+    expect(Math.abs((early.tissues.nitrogenBar[0] ?? 0) - (switched.tissues.n2_bar[0] ?? 0))).toBeGreaterThan(eps["tissues.*_bar"]);
+  });
+
+  it("B at 30 m: the tick on the loop, its oxygen and scrubber used, the diluent untouched", () => {
+    const start = checkpoint("ccr-bailout-30m", "pre-bailout");
+    const bailedOut = checkpoint("ccr-bailout-30m", "bailed-out");
+    const acts = { ...NO_ACTS, bailout: true };
+
+    const after = frameWithKey(start, bailedOut, 404, acts);
+    expect(after.events).toEqual([
+      { type: "bailout", elapsedTimeS: after.elapsedTimeS },
+    ]);
+    expectTissues(after, bailedOut);
+    expectLoop(after, bailedOut);
+
+    // Counter-check: bailed out before the tick, it draws the diluent.
+    const early = frameWithKey(start, bailedOut, 404, NO_ACTS, (state) =>
+      new DiveModel(state).bailOut(),
+    );
+    expect(
+      Math.abs((early.ccr?.diluentCylinderPressureBar ?? 0) - (bailedOut.ccr?.diluentPressure_bar ?? 0)),
+    ).toBeGreaterThan(eps["ccr.*Pressure_bar"]);
   });
 });

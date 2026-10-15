@@ -31,12 +31,14 @@ describe("DiveModel life-support transitions", () => {
     const snapshot = model.advance(
       { depthM: metres(10) },
       seconds(1),
-      { ...NO_INPUT, switchGasIndex: 1 },
+      { ...NO_INPUT, switchGasIndices: [1] },
     );
 
     expect(snapshot.activeTankIndex).toBe(1);
+    // Read after the step's tissues, as legacy reads the key (#202), so at
+    // the step's end.
     expect(snapshot.events).toEqual([
-      { type: "gas-switch", elapsedTimeS: 0, tankIndex: 1 },
+      { type: "gas-switch", elapsedTimeS: 1, tankIndex: 1 },
     ]);
     expect(Object.isFrozen(snapshot)).toBe(true);
     expect(Object.isFrozen(snapshot.tanks)).toBe(true);

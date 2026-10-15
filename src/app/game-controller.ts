@@ -9,10 +9,12 @@ import {
 import {
   DiveModel,
   SAFETY_STOP_NEEDED_BELOW_M,
+  applyGasSwitchKeys,
   isAtSafetyStop,
   isDiveOver,
   type SharkFrame,
 } from "../core/dive-model";
+import { NO_ACTS, type DiveActs } from "../core/inputs";
 import { neutralBcdSurfaceLitres } from "../core/buoyancy";
 import type { MovementControls } from "../core/narcosis-effects";
 import { metres, seconds } from "../core/units";
@@ -168,6 +170,16 @@ export class GameController {
    * latest state instead of waiting for the next whole-second step.
    */
   #forcedForecastQueued = false;
+  /**
+   * The in-dive acts asked for since the last frame (#202), for the next
+   * frame to apply where legacy reads their keys. Like legacy's key flags,
+   * each key counts once per frame: a cylinder once, [ and ] once each, B
+   * once.
+   */
+  #pendingGasSwitches = new Set<number>();
+  #pendingSetpointDownBar: number | null = null;
+  #pendingSetpointUpBar: number | null = null;
+  #pendingBailout = false;
   #routePositionM = ROUTE_START_POSITION_M;
   /**
    * Legacy's 'surface' state (src/game-loop.js updateSurface): the diver
@@ -298,14 +310,15 @@ export class GameController {
   }
 
   /**
-   * Breathes a different cylinder (#163).
+   * Breathes a different cylinder (#163), from the next frame (#202).
    *
-   * Applied at once, as legacy does in the frame it reads the key
-   * (game-loop.js TASK-019). An earlier revision queued it for the next
-   * whole-second step in a single slot, which lost a valid switch whenever a
-   * second press arrived first — 2 then an out-of-range 6 left nothing at all
-   * (#163 review). A discrete act does not belong in a latest-value slot
-   * beside the continuous controls.
+   * Legacy reads the cylinder keys inside updateDiving(), after the frame's
+   * tissues and decompression limits (game-loop.js TASK-019), so the frame
+   * that reads the key still loads the tissues on the old gas and bills the
+   * new one. The request waits for that frame, where the model applies it at
+   * that point. A second press before it is kept too, as legacy keeps one
+   * flag per key, so 2 then an out-of-range 6 still switches to 2 (#163
+   * review).
    *
    * Whether the switch is allowed stays the model's call:
    * src/core/dive-model.ts refuses the active cylinder, an empty one, any
@@ -317,52 +330,34 @@ export class GameController {
     if (!Number.isInteger(index) || index < 0 || this.#awaitingDescent) {
       return;
     }
-    const before = this.#model.snapshot;
-    const after = this.#model.switchGas(index);
-    if (after === before) {
-      return;
-    }
-    // A gas switch ends a fast-forward (src/game-loop.js TASK-019 sets
-    // fastForwardActive = false alongside activeTank). The new gas changes
-    // the schedule the diver was waiting out, so the sped-up clock stops and
-    // they see the new plan at normal speed before choosing to skip again.
-    this.#fastForwardActive = false;
-    // The save and the forecast both describe the breathed gas, so neither
-    // may wait for the next step to hear about it.
-    this.#onAuthoritativeState?.(after);
-    this.#invalidateForecast();
-    this.#publishFrame();
+    this.#pendingGasSwitches.add(index);
   }
 
   /**
-   * Moves the loop setpoint by a signed number of bar (#163).
+   * Moves the loop setpoint by a signed number of bar (#163), in the next
+   * frame, after its loop update (#202): legacy's [ and ] in updateDiving().
    *
-   * Whether it is allowed is the model's call — no rebreather, on bailout,
-   * failed, or already at the bound all leave the state as it was, and then
-   * nothing is published. The forecast is re-requested because the planner
-   * breathes the loop at the *target* PO₂ (currentForecastGas), so a new
-   * setpoint is a new forecast gas.
+   * Whether it is allowed is the model's call: no rebreather, on bailout,
+   * failed, or already at the bound all leave the state as it was.
    */
   adjustSetpoint(deltaBar: number): void {
     // Only in updateDiving(), as the cylinder keys (#223 pre-review).
     if (this.#awaitingDescent) {
       return;
     }
-    const before = this.#model.snapshot;
-    const after = this.#model.adjustSetpoint(deltaBar);
-    if (after === before) {
-      return;
+    if (deltaBar < 0) {
+      this.#pendingSetpointDownBar = deltaBar;
+    } else if (deltaBar > 0) {
+      this.#pendingSetpointUpBar = deltaBar;
     }
-    this.#onAuthoritativeState?.(after);
-    this.#invalidateForecast();
-    this.#publishFrame();
   }
 
   /**
-   * Bails out to open circuit (#163). Irreversible, and confirmed by the
-   * state rather than a dialog (#67): once onBailout is set the controls
-   * that could be pressed again are gone, and DiveModel.bailOut refuses a
-   * second one anyway. The forecast changes with the breathed gas.
+   * Bails out to open circuit (#163), in the next frame, after its gas use
+   * (#202): legacy reads B last in updateDiving() (TASK-032F). Irreversible,
+   * and confirmed by the state rather than a dialog (#67): once onBailout is
+   * set the controls that could be pressed again are gone, and the model
+   * refuses a second one anyway.
    */
   bailOut(): void {
     // Only in updateDiving(): at the surface an irreversible bailout would
@@ -370,14 +365,7 @@ export class GameController {
     if (this.#awaitingDescent) {
       return;
     }
-    const before = this.#model.snapshot;
-    const after = this.#model.bailOut();
-    if (after === before) {
-      return;
-    }
-    this.#onAuthoritativeState?.(after);
-    this.#invalidateForecast();
-    this.#publishFrame();
+    this.#pendingBailout = true;
   }
 
   destroy(): void {
@@ -426,6 +414,15 @@ export class GameController {
         this.#routePositionM,
         this.#model.snapshot.depthM,
       );
+      const acts = this.#takeActs();
+      const before = this.#model.snapshot;
+      // Whether the frame's cylinder keys switch: the model applies them
+      // before the frame's gas use, where the cylinders and the one breathed
+      // are still those the frame started with, so this is the model's own
+      // answer.
+      const switching =
+        !isDiveOver(before) &&
+        applyGasSwitchKeys(before, acts.switchGasIndices) !== before;
       this.#model.advanceWithBuoyancy(
         space,
         seconds(frameDiveS),
@@ -438,9 +435,28 @@ export class GameController {
           (this.#routePositionM - fromPositionM) / frameDiveS,
         ),
         elapsedS,
+        acts,
       );
-      this.#onAuthoritativeState?.(this.#model.snapshot);
-      this.#requestForecast();
+      const after = this.#model.snapshot;
+      // A gas switch ends a fast-forward (src/game-loop.js TASK-019 sets
+      // fastForwardActive = false alongside activeTank). The new gas changes
+      // the schedule the diver was waiting out, so the sped-up clock stops and
+      // they see the new plan at normal speed before choosing to skip again.
+      if (switching) {
+        this.#fastForwardActive = false;
+      }
+      this.#onAuthoritativeState?.(after);
+      // The forecast describes the breathed gas, so an act that changed it
+      // drops the forecast on screen at once.
+      if (
+        switching ||
+        after.ccr?.targetPo2Bar !== before.ccr?.targetPo2Bar ||
+        after.ccr?.onBailout !== before.ccr?.onBailout
+      ) {
+        this.#invalidateForecast();
+      } else {
+        this.#requestForecast();
+      }
     } else if (frameDiveS > 0) {
       // Waiting at the surface the state does not change, but legacy's
       // autosave runs in its 'surface' state as in 'diving' (gameLoop), so a
@@ -451,6 +467,29 @@ export class GameController {
     this.#publishFrame();
     this.#animationFrame = requestAnimationFrame(this.#tick);
   };
+
+  /** The acts asked for since the last frame, handed to it once (#202). */
+  #takeActs(): DiveActs {
+    const setpointStepsBar = [
+      this.#pendingSetpointDownBar,
+      this.#pendingSetpointUpBar,
+    ].filter((step): step is number => step !== null);
+    const acts: DiveActs =
+      this.#pendingGasSwitches.size === 0 &&
+      setpointStepsBar.length === 0 &&
+      !this.#pendingBailout
+        ? NO_ACTS
+        : {
+            switchGasIndices: [...this.#pendingGasSwitches],
+            setpointStepsBar,
+            bailout: this.#pendingBailout,
+          };
+    this.#pendingGasSwitches.clear();
+    this.#pendingSetpointDownBar = null;
+    this.#pendingSetpointUpBar = null;
+    this.#pendingBailout = false;
+    return acts;
+  }
 
   /**
    * The movement keys this frame acts on (#220): those held, less the ones
@@ -769,8 +808,9 @@ export class GameController {
     //
     // The setpoint keys repeat while held, as legacy's do: its keydown
     // listener sets keys[k] on every event, autorepeat included, and
-    // updateDiving consumes one step per set (#163 review round 3 on
-    // PR #182). The bound stops the climb, not the key. B stays
+    // updateDiving consumes one step per frame that finds it set (#163
+    // review round 3 on PR #182, #202). The bound stops the climb, not the
+    // key. B stays
     // edge-triggered — after the first press there is nothing left to bail
     // out of, and the model refuses a second one either way.
     if (this.#loopControlsOffered()) {

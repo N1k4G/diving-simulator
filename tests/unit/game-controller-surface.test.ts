@@ -108,12 +108,15 @@ describe("waiting at the surface, as legacy's updateSurface()", () => {
     const { controller } = await startController(twoCylinders());
     expect(press("2")).toBe(false);
     controller.requestTankSwitch(1);
+    // Not kept for a later frame either (#202).
+    controller.setControl("descend", true);
+    step(1);
     expect(controller.authoritativeState.activeTankIndex).toBe(0);
     expect(controller.authoritativeState.events).toHaveLength(0);
 
-    // Once the dive has begun, the same press switches.
-    controller.setControl("descend", true);
+    // Once the dive has begun, the same press switches, on the next frame.
     expect(press("2")).toBe(true);
+    step(1);
     expect(controller.authoritativeState.activeTankIndex).toBe(1);
     controller.destroy();
   });
@@ -125,11 +128,14 @@ describe("waiting at the surface, as legacy's updateSurface()", () => {
     expect(press("]")).toBe(false);
     controller.bailOut();
     controller.adjustSetpoint(CCR_SETPOINT_STEP_BAR);
+    // Not kept for a later frame either (#202).
+    controller.setControl("descend", true);
+    step(1);
     expect(controller.authoritativeState.ccr?.onBailout).toBe(false);
     expect(controller.authoritativeState.ccr?.targetPo2Bar).toBe(target);
 
-    controller.setControl("descend", true);
     controller.bailOut();
+    step(1);
     expect(controller.authoritativeState.ccr?.onBailout).toBe(true);
     controller.destroy();
   });
