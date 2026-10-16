@@ -136,7 +136,7 @@ for (const [width, height] of [[960, 540], [844, 390], [390, 844]]) {
   test.describe(`${width}x${height}`, () => {
     test.use({ viewport: { width, height } });
 
-    test('the chevrons leave the ascent-rate row one line high, clear of every row', async ({ page }) => {
+    test('the chevrons leave the ascent-rate row as high as without them, clear of every row', async ({ page }) => {
       await page.goto('/dist/');
       await page.evaluate(() => window.localStorage.clear());
       await startDiveAndWaitForCanvas(page);
@@ -159,8 +159,9 @@ for (const [width, height] of [[960, 540], [844, 390], [390, 844]]) {
       await page.addStyleTag({ content: '.ascent-chevrons { display: none !important; }' });
       const without = await measure();
 
+      // No absolute height: at 390x844 linux's fonts wrap the row with or
+      // without the chevrons (38 px in CI), win32's do not.
       expect(withChevrons.row.height).toBe(without.row.height);
-      expect(withChevrons.row.height).toBeLessThan(30);
       const { chevrons, hud } = withChevrons;
       expect(chevrons.width).toBeGreaterThan(0);
       expect(chevrons.left).toBeGreaterThanOrEqual(hud.left);
