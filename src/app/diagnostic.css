@@ -1633,9 +1633,27 @@ html:has(.help-overlay[open]) {
   overflow: hidden;
 }
 
-/* The topbar fits at every width: with Help (#160) the site's name has to
-   give way to the chips and the round buttons, so it shrinks first, to an
-   ellipsis or to nothing, and the buttons keep their 44 px on screen. */
+/* The topbar fits at every width (#160): the site's name gives way first,
+   to an ellipsis or to nothing; where the chips and the round buttons still
+   do not fit on one line, as with fast-forward's chip on a phone, they wrap
+   to a second, and the HUD column's padding moves its content below them
+   (--topbar-height, set by wreck-app.ts). The buttons keep their 44 px on
+   screen. */
+.topbar-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.wreck-column {
+  padding-top: max(0px, var(--topbar-height, 0px) - 5.8rem);
+}
+
+@media (width <= 720px) {
+  .wreck-column {
+    padding-top: max(0px, var(--topbar-height, 0px) - 5rem);
+  }
+}
+
 .wreck-identity {
   min-width: 0;
   flex-shrink: 100;
