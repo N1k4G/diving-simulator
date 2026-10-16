@@ -70,13 +70,31 @@
       "de": "64 px hint (4 lines); gap -25 at 421, 0 at about 446, 8 at 454, 15 at 461, 16 from 463 on",
       "widths": "1280 and 932 gave the same gap at every height: the hint's width is capped at 26rem"
     },
-    "change": "the hint is hidden at 460 px and below (@media (height <= 460px)); 461 px, the first height that shows it, leaves the German rebreather page 15 px clear, 7 px more than the 8 px minimum",
+    "change": "the hint is hidden at 460 px and below (@media (height <= 460px)); 461 px, the first height that shows it, leaves the German rebreather page 15 px clear, 7 px more than the 8 px minimum. Superseded by prereviewPass3: this was the worst case of a dive at 1 m only, not of every HUD",
     "command": "npm run lint && npm run build && npx playwright test tests/touch-dpad.spec.js tests/in-dive-controls.spec.js -g \"desktop window|no HUD row meets|no open page meets|keyboard hint\" --workers=1",
     "result": "23 passed of 23, as the only agent on the machine",
     "added": [
       "tests/in-dive-controls.spec.js: in German, on a rebreather, at 1280x461 and 1280x585, the open page stays at least 8 px clear of the visible keyboard hint and meets no control",
       "tests/touch-dpad.spec.js: the hint is shown at 1280x461 and hidden at 1280x460, beside 1280x585 (shown) and 844x390 (hidden)"
     ]
+  },
+  "prereviewPass3": {
+    "commit": "702159bd53ec5288af8a80c960b3e0f8b12a9796",
+    "tree": "ad7c901f9db66060679adeeae3c917b11395f6ea",
+    "finding": "during a rebreather safety stop the German stop row wraps to two lines, so an open page ended 19 px lower and met the hint at 461 px (-4 px); any height threshold is beaten by the next taller HUD",
+    "change": [
+      "no height threshold for the hint: src/app/controls-hint.ts measures it against the HUD list and the gas-information panel and hides it while it would come within 8 px of either; a ResizeObserver on the HUD, the panel, the dock and the shell re-measures on every size change, and opening or closing a page re-measures at once",
+      "an open gas-information page hides the in-dive buttons (D-pad, torch, fast-forward, cylinders, rebreather row), as legacy hides them while showGasInfo (src/touch.js updateNavPadVisibility, updateCcrDiveButtonVisibility, touchUpdateUI); brought forward from #168 PR 3 because the worst-case test found an open page 3 px into the setpoint buttons at 844x390, which no layout of that screen avoids"
+    ],
+    "worstCaseTest": "tests/in-dive-controls.spec.js 'wherever the hint is shown, it stands 8px clear of the HUD and an open page': German, rebreather, resumed at 9 m from 20 m with its safety stop paused at 2 min 52 sec (the codec requires a started stop to be paused exactly outside the 2.4-8.3 m band; 9 m is neutral so the diver stays), the gas page closed and then open, at 1280x720, 600, 585, 520, 480, 473, 465, 461, 446, 932x430 and 844x390; every size asserts the hint hidden or 8 px clear and the HUD and page clear of every control; the hint is asserted kept at 1280x720 closed and gone at 844x390 open",
+    "notCovered": "the rule-of-thirds row: it shows only under an overhead and is cleared outside one, so it cannot appear with this resumed open-water dive; the measuring rule does not depend on which rows are shown",
+    "tests": [
+      { "command": "npx vitest run src tests/unit --maxWorkers=2 --testTimeout=60000", "result": "672 passed of 672 (6 new in tests/unit/controls-hint.test.ts)" },
+      { "command": "npx playwright test tests/in-dive-controls.spec.js tests/touch-dpad.spec.js --workers=1", "result": "85 passed, 1 failed: the new 'an open page hides the in-dive buttons' case expected 6 buttons where a rebreather shows 8 (four directions, torch, two setpoint, bailout); corrected, it passed alone with one worker" },
+      { "command": "npx playwright test tests/planner-worker.spec.js tests/wreck-slice.spec.js --workers=1", "result": "10 passed of 10" },
+      { "command": "npm run typecheck && npm run lint", "result": "pass" }
+    ],
+    "testChanged": "expectHudClearOfControls in tests/in-dive-controls.spec.js required at least one visible control; with a page open there is now legitimately none, so with a page open it asserts that no in-dive button is on screen, and with the page closed it keeps requiring controls"
   },
   "notMeasured": [
     "real touch on a physical device in both orientations (blocked on #155)",
