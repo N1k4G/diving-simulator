@@ -449,10 +449,13 @@ async function startWreckSimulation(
     // otherwise (#191).
     initialState:
       resumed?.state ?? createWreckInitialState(toInitialDiveOptions(setup)),
+    // Where on the route the saved dive was (#222): a dive resumed inside
+    // the wreck stays there.
+    initialRoutePositionM: resumed?.routePositionM,
     // The configured gradient factors, or the planner keeps using its
     // defaults and the GF controls change a number nobody reads (#158 review).
     plannerSettings,
-    onAuthoritativeState: (state) => {
+    onAuthoritativeState: (state, routePositionM) => {
       if (ended) {
         return;
       }
@@ -474,7 +477,7 @@ async function startWreckSimulation(
       }
       const nowMs = performance.now();
       if (nowMs - lastSaveMs > SAVE_INTERVAL_MS) {
-        saveState(repository, state, plannerSettings, diveMode);
+        saveState(repository, state, routePositionM, plannerSettings, diveMode);
         lastSaveMs = nowMs;
       }
     },
@@ -642,7 +645,13 @@ async function startWreckSimulation(
       return;
     }
     if (!controller.authoritativeState.completed) {
-      saveState(repository, controller.authoritativeState, plannerSettings, diveMode);
+      saveState(
+        repository,
+        controller.authoritativeState,
+        controller.routePositionM,
+        plannerSettings,
+        diveMode,
+      );
     }
     teardown();
   }
@@ -679,6 +688,7 @@ function diveHelpContext(
 function saveState(
   repository: LocalSaveRepository,
   state: DiveState,
+  routePositionM: number,
   settings: Readonly<PlannerSettings>,
   diveMode: DiveMode,
 ): void {
@@ -691,6 +701,7 @@ function saveState(
       },
       Date.now(),
       diveMode,
+      routePositionM,
     );
   } catch (error) {
     console.error(error);

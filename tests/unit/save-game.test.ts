@@ -1524,6 +1524,113 @@ describe("SaveGame gradient factors", () => {
     });
   });
 
+  // v18 adds the route position (#222).
+  describe("the route position", () => {
+    type Encoded = { version: number; routePositionM?: unknown; state: Record<string, unknown> };
+    /** A diver in the cargo hold, under the deck's underside (23.8 m at x 50). */
+    const inTheHold = () =>
+      freezeDiveState({
+        ...createInitialDiveState(181),
+        elapsedTimeS: seconds(600),
+        depthM: metres(30),
+        maxDepthM: metres(30),
+      });
+    const encode = (state: DiveState, routePositionM?: number) =>
+      JSON.parse(
+        encodeSaveGame(
+          createSaveGame(state, CONSERVATIVE_FACTORS, 1_735_689_600_000, undefined, routePositionM),
+        ),
+      ) as Encoded;
+
+    it("round-trips in a current save", () => {
+      const encoded = encode(inTheHold(), 50);
+      expect(encoded.version).toBe(18);
+      expect(encoded.routePositionM).toBe(50);
+      const decoded = decodeSaveGame(JSON.stringify(encoded));
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      expect(decoded.migratedFrom).toBeNull();
+      expect(decoded.saveGame.routePositionM).toBe(50);
+    });
+
+    it("is the route's start in a save built without one", () => {
+      expect(createSaveGame(inTheHold(), CONSERVATIVE_FACTORS).routePositionM).toBe(10);
+    });
+
+    it("resumes a v17 save at the route's start, whatever the payload carries", () => {
+      for (const carried of [false, true]) {
+        const v17 = encode(inTheHold(), 50);
+        v17.version = 17;
+        if (!carried) delete v17.routePositionM;
+        const result = decodeSaveGame(JSON.stringify(v17));
+        expect(result.ok, String(carried)).toBe(true);
+        if (!result.ok) return;
+        expect(result.migratedFrom).toBe("save-game-v17");
+        expect(result.saveGame.version).toBe(CURRENT_SAVE_GAME_VERSION);
+        expect(result.saveGame.routePositionM, String(carried)).toBe(10);
+        expect(result.saveGame.state).toEqual(inTheHold());
+      }
+    });
+
+    it("keeps the dive and resumes it at the start for a position that is no place on the route", () => {
+      // Not a number; off the route's 8..106 m; inside the hull at the saved
+      // 30 m: the stem, which stands to 24.5 m, and the stern's hull behind
+      // the hold's wall.
+      for (const value of [undefined, null, "50", Number.NaN, Infinity, 7.9, 106.1, 15, 104]) {
+        const save = encode(inTheHold(), 50);
+        save.routePositionM = value;
+        const result = decodeSaveGame(JSON.stringify(save));
+        expect(result.ok, String(value)).toBe(true);
+        if (!result.ok) return;
+        expect(result.saveGame.routePositionM, String(value)).toBe(10);
+      }
+      // Below the hold's floor, 33.5 m, at x 50.
+      const deep = encode(
+        freezeDiveState({ ...inTheHold(), depthM: metres(33.6), maxDepthM: metres(33.6) }),
+        10,
+      );
+      deep.routePositionM = 50;
+      const result = decodeSaveGame(JSON.stringify(deep));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.saveGame.routePositionM).toBe(10);
+    });
+
+    it("keeps the route's bounds and the hold's floor and ceiling as places", () => {
+      for (const [positionM, depthM] of [[8, 34], [106, 0], [50, 33.5], [50, 30], [16.5, 33.5]] as const) {
+        const save = encode(
+          freezeDiveState({ ...inTheHold(), depthM: metres(depthM), maxDepthM: metres(34) }),
+          positionM,
+        );
+        const result = decodeSaveGame(JSON.stringify(save));
+        expect(result.ok, `${positionM}, ${depthM}`).toBe(true);
+        if (!result.ok) return;
+        expect(result.saveGame.routePositionM, `${positionM}, ${depthM}`).toBe(positionM);
+      }
+    });
+
+    it("carries a legacy wreck save's diverX over, and nothing from another site", () => {
+      // legacyV2Save is at 24 m: at x 50 that is in the hold, under the
+      // deck's underside at 23.8 m.
+      const wreck = decodeSaveGame(JSON.stringify({ ...legacyV2Save(), diveSite: "wreck", diverX: 50 }));
+      expect(wreck.ok).toBe(true);
+      if (!wreck.ok) return;
+      expect(wreck.migratedFrom).toBe("legacy-v2");
+      expect(wreck.saveGame.routePositionM).toBe(50);
+      for (const other of [
+        { diveSite: "reef", diverX: 50 },
+        { diverX: 50 },
+        { diveSite: "wreck", diverX: 0 },
+        { diveSite: "wreck" },
+      ]) {
+        const result = decodeSaveGame(JSON.stringify({ ...legacyV2Save(), ...other }));
+        expect(result.ok, JSON.stringify(other)).toBe(true);
+        if (!result.ok) return;
+        expect(result.saveGame.routePositionM, JSON.stringify(other)).toBe(10);
+      }
+    });
+  });
+
   describe("the dive mode", () => {
     const singleCylinder = () =>
       createInitialDiveState(81, {

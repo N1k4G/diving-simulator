@@ -40,6 +40,7 @@ import {
   SURFACE_DCS_DEPTH_M,
   isInSafetyStopBand,
 } from "../core/dive-model";
+import { ROUTE_START_POSITION_M, resumedRoutePosition } from "../sites/wreck-route";
 import {
   DEFAULT_GF_HIGH_PERCENT,
   DEFAULT_GF_LOW_PERCENT,
@@ -136,7 +137,18 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // v17 adds state.narcosisDrift, narcosis's vertical drift (#220). Older saves
 // never drifted and resume at zero: above index 0.45 the walk starts again
 // from rest. Legacy saves carry narcDrift and keep it.
-export const CURRENT_SAVE_GAME_VERSION = 17;
+//
+// v18 adds routePositionM, where on the wreck's route the diver is (#222).
+// Older saves never recorded it and resume at the route's start, as they
+// did. Legacy saves carry diverX on the same axis (src/game-loop.js
+// saveDiveState) and keep it on the wreck. Either is kept only where the
+// route has water at the saved depth, which the physics leaves every
+// position it saves at; anything else resumes at the start too
+// (resumedRoutePosition, docs/decisions.md). A dive resumed under the
+// overhead keeps the rule-of-thirds plan it saved, which legacy's reload
+// drops (it saves only thirdsReserveHitThisDive).
+export const CURRENT_SAVE_GAME_VERSION = 18;
+export const SEVENTEENTH_SAVE_GAME_VERSION = 17;
 export const SIXTEENTH_SAVE_GAME_VERSION = 16;
 export const FIFTEENTH_SAVE_GAME_VERSION = 15;
 export const FOURTEENTH_SAVE_GAME_VERSION = 14;
@@ -195,6 +207,12 @@ export interface SaveGame {
    */
   readonly gradientFactors: SavedGradientFactors;
   readonly diveMode: SavedDiveMode;
+  /**
+   * Where on the wreck's route the diver is (#222), the controller's route
+   * position: a dive resumed inside the wreck stays there, under the deck
+   * with its rule of thirds, instead of picking up at the route's start.
+   */
+  readonly routePositionM: number;
 }
 
 export type SaveGameMigration =
@@ -215,6 +233,7 @@ export type SaveGameMigration =
   | "save-game-v14"
   | "save-game-v15"
   | "save-game-v16"
+  | "save-game-v17"
   | null;
 
 /**
@@ -260,6 +279,7 @@ export function createSaveGame(
   gradientFactors: SavedGradientFactors,
   savedAtEpochMs = Date.now(),
   diveMode: SavedDiveMode = inferDiveMode(state),
+  routePositionM: number = ROUTE_START_POSITION_M,
 ): SaveGame {
   if (!isPositiveFinite(savedAtEpochMs)) {
     throw new RangeError("save timestamp must be a positive finite number");
@@ -288,6 +308,10 @@ export function createSaveGame(
       highPercent: gradientFactors.highPercent,
     }),
     diveMode,
+    // Not a reason to refuse the save, as an invalid state is: a position
+    // the diver could not be at costs only the place, and resumes at the
+    // start, as every save before v18 does.
+    routePositionM: resumedRoutePosition(routePositionM, frozenState.depthM),
   });
 }
 
@@ -456,7 +480,7 @@ export function decodeSaveGame(
       candidate.state = { ...candidate.state, shark: createSharkState() };
     }
     // Before v17 nothing drifted: the walk resumes at rest.
-    if (v < CURRENT_SAVE_GAME_VERSION && isRecord(candidate.state)) {
+    if (v < SEVENTEENTH_SAVE_GAME_VERSION && isRecord(candidate.state)) {
       candidate.state = { ...candidate.state, narcosisDrift: 0 };
     }
     // A v1 payload has no gradientFactors and is filled with the defaults; a
@@ -494,6 +518,11 @@ export function decodeSaveGame(
         savedFactors,
         candidate.savedAtEpochMs,
         diveMode,
+        // Before v18 no position was recorded: the route's start, whatever
+        // the payload carries.
+        v === CURRENT_SAVE_GAME_VERSION
+          ? (candidate.routePositionM as number)
+          : ROUTE_START_POSITION_M,
       ),
       migratedFrom:
         v === CURRENT_SAVE_GAME_VERSION
@@ -643,11 +672,15 @@ function migrateLegacyV2(
 
   try {
     // The legacy save records its mode, so it is carried over, not inferred.
+    // Its diverX is on the route's axis (src/sites.js, entry at x 0) and
+    // restoreDiveState() restores it, but only the wreck's is a place on the
+    // route: a dive saved on another site resumes at the route's start.
     return createSaveGame(
       state,
       gradientFactors,
       candidate.savedAt,
       candidate.diveMode as SavedDiveMode,
+      candidate.diveSite === "wreck" ? (candidate.diverX as number) : ROUTE_START_POSITION_M,
     );
   } catch {
     return null;

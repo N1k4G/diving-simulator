@@ -113,10 +113,10 @@ export const OPEN_WATER_FLOOR_M = 34;
 export const ROUTE_MIN_POSITION_M = 8;
 export const ROUTE_MAX_POSITION_M = 106;
 /**
- * Where a dive starts and a resumed one picks up: in open water off the bow,
- * clear of the hull, as legacy's dives start at the site's entry beside the
- * boat (src/sites.js entry.x, boatX). Legacy does not save diverX either, so a
- * resumed legacy dive starts at its entry too.
+ * Where a dive starts: in open water off the bow, clear of the hull, as
+ * legacy's dives start at the site's entry beside the boat (src/sites.js
+ * entry.x, boatX). A resumed dive picks up where it was saved
+ * (resumedRoutePosition), and here when that is not a place on the route.
  */
 export const ROUTE_START_POSITION_M = 10;
 
@@ -255,6 +255,32 @@ export function floorUnder(positionM: number, depthM: number): number {
     return OPEN_WATER_FLOOR_M;
   }
   return routeSpaceNear(positionM, depthM).floorM;
+}
+
+/**
+ * Where a resumed dive picks up (#222): the saved route position, when it is
+ * on the route and the saved depth is in water there, and otherwise the
+ * route's start. Every position the controller saves passes, since the
+ * physics holds the depth to the stretch of water at the position before a
+ * save is taken. Legacy restores its diverX unchecked (src/game-loop.js
+ * restoreDiveState), on a world that reaches beyond the route; a position
+ * off the route, inside the hull at the saved depth, or not a number at all
+ * is not one the route can resume, and the start is where a dive is always
+ * well placed (docs/decisions.md, deliberate departures).
+ */
+export function resumedRoutePosition(positionM: unknown, depthM: number): number {
+  if (
+    typeof positionM !== "number" ||
+    !Number.isFinite(positionM) ||
+    positionM < ROUTE_MIN_POSITION_M ||
+    positionM > ROUTE_MAX_POSITION_M ||
+    !Number.isFinite(depthM)
+  ) {
+    return ROUTE_START_POSITION_M;
+  }
+  return distanceOutside(routeSpaceNear(positionM, depthM), depthM) === 0
+    ? positionM
+    : ROUTE_START_POSITION_M;
 }
 
 /**

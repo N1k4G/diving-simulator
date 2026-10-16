@@ -63,8 +63,8 @@ const watchDangerChevrons = (page) =>
 
 /**
  * Starts a dive, takes a save of it under way, edits it with `mutate` and
- * resumes it. A resumed dive picks up at the route's start, in open water
- * off the bow, as the save holds no route position.
+ * resumes it. The save is taken before the diver has finned, so the resumed
+ * dive picks up at the route's start, in open water off the bow.
  */
 async function resumeWith(page, mutate) {
   await page.goto('/dist/');
@@ -315,4 +315,61 @@ test('the rule of thirds is kept under the deck, from the plan made on entering,
   await expect(zone).toHaveText('Wreck exterior', { timeout: 30_000 });
   await page.keyboard.up('a');
   await expect(hudRow(page, 'thirds')).toBeHidden();
+});
+
+test('a dive resumed in the cargo hold stays there, under the overhead with the plan it entered on', async ({ page }) => {
+  test.setTimeout(120_000);
+  // Into the hold as above (#222), then a reload: the save holds the route
+  // position, so the resumed diver is still under the deck, and the rule of
+  // thirds runs on from the plan made on entering, not one made afresh.
+  await resumeWith(page, (state) => {
+    state.depthM = 21;
+    state.maxDepthM = Math.max(state.maxDepthM, 21);
+    state.verticalVelocityMpm = 0;
+    state.bcdGasSurfaceLiters = 5;
+  });
+  const zone = hudValue(page, 'zone');
+  await page.keyboard.down('d');
+  await expect(zone).toHaveText('Cargo hold', { timeout: 30_000 });
+  await page.keyboard.up('d');
+  await expect(hudValue(page, 'thirds')).toHaveText(/^Outbound · \d+%$/);
+
+  // An autosave taken under the deck, with the plan made on entering.
+  const inHold = await page
+    .waitForFunction((key) => {
+      const raw = window.localStorage.getItem(key);
+      const parsed = raw === null ? null : JSON.parse(raw);
+      return parsed !== null && parsed.routePositionM >= 22 && parsed.state.thirds.startingGasL > 0
+        ? parsed
+        : null;
+    }, SAVE_KEY, { timeout: 15_000 })
+    .then((handle) => handle.jsonValue());
+  expect(inHold.version).toBe(18);
+
+  // A real reload, and Resume on the banner. Leaving the page saved once
+  // more, still in the hold.
+  await page.goto('/dist/');
+  const reloaded = await page.evaluate((key) => JSON.parse(window.localStorage.getItem(key)), SAVE_KEY);
+  expect(reloaded.routePositionM).toBeGreaterThanOrEqual(22);
+  expect(reloaded.state.thirds.startingGasL).toBe(inHold.state.thirds.startingGasL);
+  await resumeSavedDive(page);
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+
+  await expect(zone).toHaveText('Cargo hold');
+  await expect(hudRow(page, 'thirds')).toBeVisible();
+  await expect(hudValue(page, 'thirds')).toHaveText(/^Outbound · \d+%$/);
+  // The resumed dive's own saves: still in the hold, on the same plan.
+  const resumed = await page
+    .waitForFunction(
+      ([key, before]) => {
+        const raw = window.localStorage.getItem(key);
+        const parsed = raw === null ? null : JSON.parse(raw);
+        return parsed !== null && parsed.state.elapsedTimeS > before ? parsed : null;
+      },
+      [SAVE_KEY, reloaded.state.elapsedTimeS],
+      { timeout: 15_000 },
+    )
+    .then((handle) => handle.jsonValue());
+  expect(resumed.routePositionM).toBe(reloaded.routePositionM);
+  expect(resumed.state.thirds.startingGasL).toBe(reloaded.state.thirds.startingGasL);
 });

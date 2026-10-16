@@ -44,6 +44,7 @@ import {
   ROUTE_START_POSITION_M,
   floorUnder,
   moveAlongRoute,
+  resumedRoutePosition,
   routeSpaceNear,
 } from "../sites/wreck-route";
 import { siteGameplay } from "../sites/site-resources";
@@ -135,14 +136,23 @@ export interface GameControllerOptions {
    * changed a stored number and nothing else.
    */
   readonly plannerSettings?: Readonly<PlannerSettings>;
-  readonly onAuthoritativeState?: (state: DiveState) => void;
+  /**
+   * Where on the route a resumed dive picks up (#222), from its save. The
+   * route's start without it, or where it is not a place the saved depth
+   * can be (resumedRoutePosition).
+   */
+  readonly initialRoutePositionM?: number;
+  /** Each new state, with the route position it was reached at, for the save. */
+  readonly onAuthoritativeState?: (state: DiveState, routePositionM: number) => void;
 }
 
 export class GameController {
   readonly #renderer: SceneRenderer;
   readonly #onFrame: (frame: Readonly<GameFrame>) => void;
   readonly #plannerClient: PlannerWorkerClient;
-  readonly #onAuthoritativeState: ((state: DiveState) => void) | null;
+  readonly #onAuthoritativeState:
+    | ((state: DiveState, routePositionM: number) => void)
+    | null;
   readonly #plannerSettings: Readonly<PlannerSettings>;
   readonly #forecastScheduler = new ForecastScheduler();
   readonly #pressed = new Set<ContinuousControl>();
@@ -180,7 +190,7 @@ export class GameController {
   #pendingSetpointDownBar: number | null = null;
   #pendingSetpointUpBar: number | null = null;
   #pendingBailout = false;
-  #routePositionM = ROUTE_START_POSITION_M;
+  #routePositionM: number;
   /**
    * Legacy's 'surface' state (src/game-loop.js updateSurface): the diver
    * floats at the entry, the dive clock does not run, and nothing but S
@@ -207,8 +217,15 @@ export class GameController {
     this.#onAuthoritativeState = options.onAuthoritativeState ?? null;
     this.#plannerClient = options.plannerClient ?? new PlannerWorkerClient();
     this.#plannerSettings = options.plannerSettings ?? DEFAULT_PLANNER_SETTINGS;
+    const initialState = options.initialState ?? createWreckInitialState();
+    // A dive resumed inside the wreck stays there (#222), and with it the
+    // overhead and its rule of thirds, which follow from the position.
+    this.#routePositionM = resumedRoutePosition(
+      options.initialRoutePositionM ?? ROUTE_START_POSITION_M,
+      initialState.depthM,
+    );
     this.#model = new DiveModel(
-      withinRoute(options.initialState ?? createWreckInitialState()),
+      withinRoute(initialState, this.#routePositionM),
       // The log's ceiling and NDL at the dive's GF high, as the forecast.
       { gradientFactorHighPercent: this.#plannerSettings.gfHighPercent },
     );
@@ -227,6 +244,11 @@ export class GameController {
   /** The dive waits at the surface for S: legacy's 'surface' state (#199). */
   get awaitingDescent(): boolean {
     return this.#awaitingDescent;
+  }
+
+  /** Where on the route the diver is, for the save (#222). */
+  get routePositionM(): number {
+    return this.#routePositionM;
   }
 
   async start(host: HTMLElement): Promise<void> {
@@ -482,7 +504,7 @@ export class GameController {
       if (switching) {
         this.#fastForwardActive = false;
       }
-      this.#onAuthoritativeState?.(after);
+      this.#onAuthoritativeState?.(after, this.#routePositionM);
       // The forecast describes the breathed gas, so an act that changed it
       // drops the forecast on screen at once.
       if (
@@ -498,7 +520,7 @@ export class GameController {
       // Waiting at the surface the state does not change, but legacy's
       // autosave runs in its 'surface' state as in 'diving' (gameLoop), so a
       // dive left before its descent resumes there too.
-      this.#onAuthoritativeState?.(this.#model.snapshot);
+      this.#onAuthoritativeState?.(this.#model.snapshot, this.#routePositionM);
     }
 
     this.#publishFrame();
@@ -980,17 +1002,20 @@ function hasNotBegun(state: DiveState): boolean {
 }
 
 /**
- * A resumed dive picks up at the route's start, in open water beside the
- * wreck, because the save does not record the route position (nor does
- * legacy's diverX). There the water runs from the surface to the floor, so
- * only a dive saved below the floor, such as a legacy save at 40 m, has to
+ * A resumed dive picks up where it was saved (#222) when the saved depth is in
+ * water there, and only then away from the route's start. At the start, in
+ * open water beside the wreck, the water runs from the surface to the floor,
+ * so only a dive saved below the floor, such as a legacy save at 40 m, has to
  * move: to the floor, at rest and neutral there (#198 pre-review). The physics
  * would clamp the depth on the first frame but keep the saved BCD gas, so a
  * diver moved up from 40 m would arrive light and rise on its own. At rest and
  * neutral is how a save without live motion resumes (src/save/save-game.ts,
  * v6).
  */
-function withinRoute(state: DiveState): DiveState {
+function withinRoute(state: DiveState, routePositionM: number): DiveState {
+  if (routePositionM !== ROUTE_START_POSITION_M) {
+    return state;
+  }
   const depthM = Math.min(state.depthM, OPEN_WATER_FLOOR_M);
   if (depthM === state.depthM) {
     return state;
