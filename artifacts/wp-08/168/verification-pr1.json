@@ -145,6 +145,7 @@
     "notRun": "tests/smoke.spec.js: it drives the legacy client (src/diving-simulator.html), which this PR does not touch"
   },
   "codexRound1": {
+    "supersededInPart": "its narrower dock cap is reverted by preReviewAfterCodexRound1; the flex layout (.wreck-side) stays",
     "commit": "6a7503ddb42569262729088c2ac4a8b9561c1b3f",
     "tree": "e0d53e6201680a11eec6575349e8ba3c03596d51",
     "finding": "minor: on a 360 px phone the dock cap (100% - 13.6rem = 142.4 px) fits two cylinder buttons a row, so six make a 148 px dock whose top is 168 px above the shell's bottom, while the column could reach 152 px above it: an open gas page painted under the cylinder buttons",
@@ -171,6 +172,48 @@
       }
     ],
     "diffSize": "879 changed lines against origin/main without artifacts: 365 in src, 514 in tests"
+  },
+  "preReviewAfterCodexRound1": {
+    "commit": "0ad971dd44e8013363b6eb651bf79fd2c65a3952",
+    "tree": "5c0079f435312a9e27bd0f02241067cd4c7c5d6b",
+    "finding": "the narrower dock cap (13.6rem) fitted the two setpoint buttons (126 px) only from 343.6 px wide, where main's fits them from 318 px; below it the rebreather row wrapped to three rows and the HUD, which cannot shrink, ran into the setpoint buttons; at 360x640 a rebreather page stood 6.4 px from the pad where main stands 8.0",
+    "change": [
+      "the dock's width cap is main's again (12rem and the right inset short of the shell, written against .wreck-side as 100% - 9.5rem - inset), so every mode's dock wraps to the same rows as on main at every width",
+      "the D-pad's cells are 3rem (48 px, at least 44) instead of 3.2rem, so with the 8 px gap the pad is 10rem wide and 6.5rem tall, narrower and lower than main's 10.4rem and 6.8rem; the dock stands no nearer to it than on main"
+    ],
+    "mainMeasurement": {
+      "build": "origin/main 03c9a98 built into a temporary dist-main/ (git archive of index.html, vite.config.mts, tsconfig.json, package.json and src; vite build), removed afterwards",
+      "method": "the new matrix test copied to a temporary spec pointed at /dist-main/, not committed",
+      "belowEightOnMain": {
+        "tec 320x568 page 1-4": -16,
+        "ccr 320x568 closed": 6.6,
+        "ccr 320x568 page 1": -29
+      }
+    },
+    "matrix": {
+      "test": "tests/in-dive-controls.spec.js 'the HUD and every open page stand 8px clear of every control on the narrowest phones', per mode (rec, tec with six cylinders, ccr), German, resumed at 9 m with the safety stop paused (row wrapped), at 320x568, 340x640, 360x640, 375x667 and 390x844, page closed and every page open; least distance from the HUD or an open page to any visible control >= 8 px, or >= main's where main is below 8",
+      "thisBranch": {
+        "rec": "17.8 / 56 / 76 / 91 / 106 px, equal to main",
+        "tec": "closed 17.8 / 31.6 / 31.6 / 37.4 / 52.4 (main equal); pages 4.8 / 28 / 28 / 28 / 28.7 (main -16 / 23.2 / 23.2 / 23.2 / 23.9)",
+        "ccr": "closed 11.4 / 31.6 / 31.6 / 37.4 / 52.4 (main 6.6 / 31.6 / 31.6 / 37.4 / 52.4); page -24.2 / 12.8 / 12.8 / 28 / 28 (main -29 / 8 / 8 / 23.2 / 23.2)"
+      },
+      "stillBelowEight": "320x568 only, on main as here: tec pages 4.8 (main -16), ccr page -24.2 (main -29); an open page does not fit under the tallest HUD at 320x568"
+    },
+    "tests": [
+      {
+        "command": "npm run typecheck && npm run lint && npm run build",
+        "result": "pass"
+      },
+      {
+        "command": "npx vitest run src tests/unit --maxWorkers=2 --testTimeout=60000",
+        "result": "666 passed of 666"
+      },
+      {
+        "command": "npx playwright test tests/touch-dpad.spec.js tests/in-dive-controls.spec.js tests/hud-readouts.spec.js tests/wreck-slice.spec.js --workers=1",
+        "result": "91 passed of 91"
+      }
+    ],
+    "diffSize": "955 changed lines against origin/main without artifacts: 374 in src, 581 in tests"
   },
   "notMeasured": [
     "real touch on a physical device (blocked on #155)",
