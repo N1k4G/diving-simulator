@@ -16,11 +16,14 @@ export interface HelpContext {
   readonly switchableCylinders: number;
   /** The loop's setpoint and bailout: a rebreather, not bailed out. */
   readonly loopControls: boolean;
+  /** The D-pad shows arrows (a touch screen) rather than W, S, A and D (#255). */
+  readonly arrowGlyphs: boolean;
 }
 
 export interface HelpRow {
   readonly keys: MessageKey;
-  readonly touch: MessageKey;
+  /** The on-screen button's face, by the key the button shows; a pair is joined. */
+  readonly touch: MessageKey | readonly [MessageKey, MessageKey];
   readonly action: MessageKey;
   /** Replaces `{n}` in the keys and the touch text. */
   readonly count?: number;
@@ -31,20 +34,27 @@ export interface HelpSection {
   readonly rows: readonly HelpRow[];
 }
 
-const row = (keys: MessageKey, touch: MessageKey, action: MessageKey): HelpRow => ({ keys, touch, action });
+const row = (keys: MessageKey, touch: HelpRow["touch"], action: MessageKey): HelpRow => ({ keys, touch, action });
 
 const HELP_ROWS = [
   row("help.keys.help", "help.symbol", "help.action.help"),
   row("help.keys.close", "help.touch.close", "help.action.close"),
 ];
-const DESCEND = row("help.keys.descend", "help.touch.descend", "wreck.controls.descend");
+/** A D-pad direction, named by the face the pad shows (createDpadButtons). */
+function padRow(direction: "ascend" | "descend" | "left" | "right", arrows: boolean): HelpRow {
+  return row(
+    `help.keys.${direction}`,
+    arrows ? `wreck.symbol.dpad.${direction}` : `wreck.symbol.dpad.key.${direction}`,
+    `wreck.controls.${direction}`,
+  );
+}
 
 function diveRows(context: Readonly<HelpContext>): HelpRow[] {
   const rows = [
-    row("help.keys.ascend", "help.touch.ascend", "wreck.controls.ascend"),
-    DESCEND,
-    row("help.keys.left", "help.touch.left", "wreck.controls.left"),
-    row("help.keys.right", "help.touch.right", "wreck.controls.right"),
+    padRow("ascend", context.arrowGlyphs),
+    padRow("descend", context.arrowGlyphs),
+    padRow("left", context.arrowGlyphs),
+    padRow("right", context.arrowGlyphs),
     row("help.keys.torch", "wreck.symbol.torch", "wreck.controls.torch"),
     row("help.keys.fastForward", "wreck.symbol.fastForward", "wreck.controls.fastForward"),
   ];
@@ -59,7 +69,7 @@ function diveRows(context: Readonly<HelpContext>): HelpRow[] {
   }
   if (context.loopControls) {
     rows.push(
-      row("help.keys.setpoint", "help.touch.setpoint", "help.action.setpoint"),
+      row("help.keys.setpoint", ["wreck.symbol.setpointDown", "wreck.symbol.setpointUp"], "help.action.setpoint"),
       row("help.keys.bailout", "wreck.controls.bailout.label", "wreck.controls.bailout"),
     );
   }
@@ -78,7 +88,7 @@ export function helpSections(context: Readonly<HelpContext>): HelpSection[] {
     case "surface":
       // Legacy's updateSurface() reads S, and nothing else, to begin.
       return [
-        { headingKey: "help.section.surface", rows: [DESCEND, ...HELP_ROWS] },
+        { headingKey: "help.section.surface", rows: [padRow("descend", context.arrowGlyphs), ...HELP_ROWS] },
         { headingKey: "help.section.dive", rows: dive },
       ];
     case "diving":

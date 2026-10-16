@@ -6,11 +6,30 @@ import { translate } from "./i18n/catalog";
 // The help overlay (#160) lists the controls this client has, per state and
 // per what the dive offers, as the HUD shows the controls themselves.
 
-const rec: HelpContext = { state: "diving", gasInfo: false, switchableCylinders: 1, loopControls: false };
+const rec: HelpContext = {
+  state: "diving",
+  gasInfo: false,
+  switchableCylinders: 1,
+  loopControls: false,
+  arrowGlyphs: true,
+};
 const actions = (context: HelpContext) =>
   helpSections(context).map((section) => section.rows.map((row) => row.action));
+/** The "On screen" column, each face by its key as the pad and the buttons show it. */
+const faces = (context: HelpContext) =>
+  helpSections(context)[0]!.rows.map((row) =>
+    (typeof row.touch === "string" ? [row.touch] : [...row.touch]).map((key) => translate("en", key)).join(" / "),
+  );
 
 describe("the help overlay's controls", () => {
+  it("names the D-pad's faces as the pad shows them: arrows on a touch screen, W S A D otherwise (#255)", () => {
+    expect(faces(rec).slice(0, 4)).toEqual(["↑", "↓", "←", "→"]);
+    expect(faces({ ...rec, arrowGlyphs: false }).slice(0, 4)).toEqual(["W", "S", "A", "D"]);
+    expect(faces({ ...rec, state: "surface", arrowGlyphs: false })[0]).toBe("S");
+    // The setpoint buttons' own faces, joined.
+    expect(faces({ ...rec, loopControls: true })).toContain("SP − / SP +");
+  });
+
   it("lists a recreational dive's controls, with no cylinder keys, I or loop", () => {
     expect(actions(rec)).toEqual([[
       "wreck.controls.ascend", "wreck.controls.descend", "wreck.controls.left", "wreck.controls.right",

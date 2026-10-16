@@ -48,6 +48,9 @@ test('under water H opens it and stops the dive; Escape, ?, H and Enter on Close
   await expect(page.locator('[data-help-close]')).toBeFocused();
   expect(await overlay(page).locator('[aria-live], [role=alert], [role=status]').count()).toBe(0);
   await expect(overlay(page).locator('.help-paused')).toHaveText('The dive is paused while this help is open.');
+  // The "On screen" column names the D-pad's face as the pad shows it (#255).
+  await expect(overlay(page).locator('[data-help-row="wreck.controls.ascend"] td').first())
+    .toHaveText(await page.locator('.wreck-controls [data-control="ascend"]').innerText());
 
   // Paused: no dive time passes, and S held behind it vents nothing.
   const time = await hudValue(page, 'time').textContent();

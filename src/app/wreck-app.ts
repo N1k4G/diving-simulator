@@ -671,6 +671,8 @@ function diveHelpContext(
     // The model refuses a switch on a rebreather, bailed out or not.
     switchableCylinders: state.ccr === null ? state.tanks.length : 0,
     loopControls: state.ccr !== null && !state.ccr.onBailout,
+    // The face the D-pad shows (createDpadButtons).
+    arrowGlyphs: prefersArrowGlyphs(),
   };
 }
 

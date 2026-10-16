@@ -174,8 +174,10 @@ function buildBody(context: Readonly<HelpContext>, t: (key: MessageKey) => strin
   if (context.state === "diving") {
     nodes.push(element("p", "help-hint help-paused", t("help.paused")));
   }
-  const text = (row: HelpRow, key: MessageKey) =>
-    row.count === undefined ? t(key) : t(key).replace("{n}", String(row.count));
+  const text = (row: HelpRow, key: HelpRow["touch"]) => {
+    const raw = typeof key === "string" ? t(key) : key.map(t).join(" / ");
+    return row.count === undefined ? raw : raw.replace("{n}", String(row.count));
+  };
   for (const section of helpSections(context)) {
     const table = element("table", "help-table", "");
     const head = table.createTHead().insertRow();
