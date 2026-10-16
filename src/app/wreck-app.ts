@@ -933,7 +933,13 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   column.className = "wreck-column";
   column.append(hud, gasInfo.panel);
 
-  shell.append(topbar, viewport, column, warning, dock, controls);
+  // The column above and the dock below share one flex column, so an open
+  // page shrinks above the dock however many rows it wraps to (#168).
+  const side = document.createElement("div");
+  side.className = "wreck-side";
+  side.append(column, dock);
+
+  shell.append(topbar, viewport, side, warning, controls);
   return {
     shell,
     viewport,

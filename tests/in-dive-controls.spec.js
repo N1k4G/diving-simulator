@@ -1363,6 +1363,40 @@ test.describe('gas information', () => {
     expect(Math.round(box.height)).toBeGreaterThanOrEqual(44);
   });
 
+  // The narrowest phones (#168, Codex round 1 on PR #255). Below about
+  // 366 px the dock cannot hold three cylinder buttons a row 8 px clear of
+  // the D-pad, so six wrap to three rows, a dock taller than the 9.5rem the
+  // column used to leave under it. The open page has to stop 8 px above
+  // every control however many rows the dock takes.
+  for (const [width, height] of [[360, 640], [360, 800], [375, 667], [390, 844]]) {
+    test.describe(`${width}x${height}, six cylinders`, () => {
+      test.use({ viewport: { width, height } });
+
+      test('every open page stands 8px clear of every control', async ({ page }) => {
+        await startSixCylinderDive(page);
+        for (let step = 0; step < 4; step += 1) {
+          await gasInfoToggle(page).click();
+          await expect(gasInfoPanel(page)).toBeVisible();
+          const tight = await page.evaluate(() => {
+            const box = (element) => element.getBoundingClientRect();
+            const panel = box(document.querySelector('[data-gas-info]'));
+            return [...document.querySelectorAll('.wreck-controls button, .wreck-dock button')]
+              .filter((element) => element.getClientRects().length > 0)
+              .map((element) => {
+                const r = box(element);
+                const apart = Math.max(r.top - panel.bottom, panel.top - r.bottom, r.left - panel.right, panel.left - r.right);
+                return { label: element.getAttribute('aria-label') || element.textContent, apart };
+              })
+              .filter(({ apart }) => apart < 8)
+              .map(({ label, apart }) => `${label}: ${apart.toFixed(1)}px`);
+          });
+          expect(tight, tight.join('\n')).toEqual([]);
+          await expect(hudRow(page, 'ndl')).toBeVisible();
+        }
+      });
+    });
+  }
+
   // Open pages against every control, at the sizes a phone takes. The panel
   // shares the HUD's column and has to stop above the dock and the D-pad.
   for (const [width, height] of [[844, 390], [667, 375], [390, 844], [1280, 720]]) {
