@@ -262,11 +262,11 @@ export function floorUnder(positionM: number, depthM: number): number {
  * on the route and the saved depth is in water there, and otherwise the
  * route's start. Every position the controller saves passes, since the
  * physics holds the depth to the stretch of water at the position before a
- * save is taken. Legacy restores its diverX unchecked (src/game-loop.js
- * restoreDiveState), on a world that reaches beyond the route; a position
- * off the route, inside the hull at the saved depth, or not a number at all
- * is not one the route can resume, and the start is where a dive is always
- * well placed (docs/decisions.md, deliberate departures).
+ * save is taken. A position off the route, inside the hull at the saved
+ * depth, or not a number at all is not one the route can resume, and the
+ * start is where a dive is always well placed. Only the migration's own
+ * saves carry a position: legacy's diverX is on its own hull, not the
+ * route's (docs/decisions.md, deliberate departures).
  */
 export function resumedRoutePosition(positionM: unknown, depthM: number): number {
   if (

@@ -140,11 +140,12 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 //
 // v18 adds routePositionM, where on the wreck's route the diver is (#222).
 // Older saves never recorded it and resume at the route's start, as they
-// did. Legacy saves carry diverX on the same axis (src/game-loop.js
-// saveDiveState) and keep it on the wreck. Either is kept only where the
-// route has water at the saved depth, which the physics leaves every
-// position it saves at; anything else resumes at the start too
-// (resumedRoutePosition, docs/decisions.md). A dive resumed under the
+// did. A position is kept only where the route has water at the saved
+// depth, which the physics leaves every position it saves at; anything else
+// resumes at the start too (resumedRoutePosition, docs/decisions.md).
+// Legacy saves carry diverX, but on legacy's own hull, whose decks lie at
+// other depths than the route's simplified slice (#240): they resume at the
+// start, as before v18. A dive resumed under the
 // overhead keeps the rule-of-thirds plan it saved, which legacy's reload
 // drops (it saves only thirdsReserveHitThisDive).
 export const CURRENT_SAVE_GAME_VERSION = 18;
@@ -672,15 +673,17 @@ function migrateLegacyV2(
 
   try {
     // The legacy save records its mode, so it is carried over, not inferred.
-    // Its diverX is on the route's axis (src/sites.js, entry at x 0) and
-    // restoreDiveState() restores it, but only the wreck's is a place on the
-    // route: a dive saved on another site resumes at the route's start.
+    // Its diverX is not (#261 pre-review): restoreDiveState() restores it on
+    // legacy's own hull, whose main deck and accommodation lie at other depths
+    // than the route's simplified slice (#240), so the same x and depth can be
+    // open water in one and under an overhead in the other. A legacy dive
+    // resumes at the route's start until the two structures agree.
     return createSaveGame(
       state,
       gradientFactors,
       candidate.savedAt,
       candidate.diveMode as SavedDiveMode,
-      candidate.diveSite === "wreck" ? (candidate.diverX as number) : ROUTE_START_POSITION_M,
+      ROUTE_START_POSITION_M,
     );
   } catch {
     return null;

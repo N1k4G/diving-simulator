@@ -1609,24 +1609,23 @@ describe("SaveGame gradient factors", () => {
       }
     });
 
-    it("carries a legacy wreck save's diverX over, and nothing from another site", () => {
-      // legacyV2Save is at 24 m: at x 50 that is in the hold, under the
-      // deck's underside at 23.8 m.
-      const wreck = decodeSaveGame(JSON.stringify({ ...legacyV2Save(), diveSite: "wreck", diverX: 50 }));
-      expect(wreck.ok).toBe(true);
-      if (!wreck.ok) return;
-      expect(wreck.migratedFrom).toBe("legacy-v2");
-      expect(wreck.saveGame.routePositionM).toBe(50);
-      for (const other of [
+    it("resumes a legacy save at the route's start, whatever its diverX", () => {
+      // Legacy's diverX is on its own hull, whose decks lie at other depths
+      // than the route's (#261 pre-review): legacyV2Save's 24 m at x 30 is
+      // under the route's deck but open water above legacy's main deck at
+      // 27 m (tests/parity/route-resume.test.ts).
+      for (const carried of [
+        { diveSite: "wreck", diverX: 50 },
+        { diveSite: "wreck", diverX: 30 },
         { diveSite: "reef", diverX: 50 },
         { diverX: 50 },
-        { diveSite: "wreck", diverX: 0 },
         { diveSite: "wreck" },
       ]) {
-        const result = decodeSaveGame(JSON.stringify({ ...legacyV2Save(), ...other }));
-        expect(result.ok, JSON.stringify(other)).toBe(true);
+        const result = decodeSaveGame(JSON.stringify({ ...legacyV2Save(), ...carried }));
+        expect(result.ok, JSON.stringify(carried)).toBe(true);
         if (!result.ok) return;
-        expect(result.saveGame.routePositionM, JSON.stringify(other)).toBe(10);
+        expect(result.migratedFrom).toBe("legacy-v2");
+        expect(result.saveGame.routePositionM, JSON.stringify(carried)).toBe(10);
       }
     });
   });
