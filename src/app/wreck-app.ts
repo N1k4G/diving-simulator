@@ -414,16 +414,6 @@ async function startWreckSimulation(
   }
   const hud = createWreckShell(locale);
   root.replaceChildren(hud.shell);
-  // Where its chips and buttons do not fit on one line, the topbar wraps to
-  // a second, and the HUD column moves down by what it grew (#160).
-  const topbarObserver = new ResizeObserver(([entry]) => {
-    const height = entry?.borderBoxSize[0]?.blockSize ?? 0;
-    hud.shell.style.setProperty("--topbar-height", `${height}px`);
-  });
-  const topbar = hud.shell.querySelector(".wreck-topbar");
-  if (topbar) {
-    topbarObserver.observe(topbar);
-  }
   const audio = new WebAudioService();
   const audioResume = audio.resume();
   const renderer = await createSelectedRenderer();
@@ -611,7 +601,6 @@ async function startWreckSimulation(
     document.removeEventListener("visibilitychange", handleVisibility);
     window.removeEventListener("keydown", handleGasInfoKey);
     help.destroy();
-    topbarObserver.disconnect();
     // Removed here too, not only by its own `once`: after a game over the
     // page stays open, and each ended dive would otherwise keep its
     // destroyed controller, renderer and HUD reachable (#190 pre-review).
@@ -658,7 +647,6 @@ async function startWreckSimulation(
     await controller.start(hud.viewport);
   } catch (error) {
     help.destroy();
-    topbarObserver.disconnect();
     controller.destroy();
     audio.destroy();
     throw error;
