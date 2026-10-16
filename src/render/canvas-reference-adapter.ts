@@ -25,6 +25,12 @@ import {
 
 type ScreenPoint = ReturnType<typeof worldToScreen>;
 
+/**
+ * How far each of the sky's fills reaches into the next one's metre, past
+ * the pixel a fractional edge spreads over at any scale the camera uses.
+ */
+const SKY_BAND_OVERLAP_M = 0.5;
+
 /** Each wave's line, unslid, sampled once: a frame only slides it. */
 const WAVE_LINES = SURFACE_WAVES.map((wave) => waveLineM(wave));
 
@@ -281,14 +287,16 @@ export class CanvasReferenceAdapter implements SceneRenderer {
       const corner = point(x, y);
       context.fillRect(corner.x, corner.y, rectWidth * scale, height * scale);
     };
-    // Each fill reaches down to the surface and the next is laid over it.
     // Canvas antialiases each fill's fractional edges on its own, so bands
-    // that only met would leave a dark seam where Pixi leaves none.
+    // that only met would leave a dark seam where Pixi leaves none, and
+    // fills that shared an edge would stack their coverage on its row. So
+    // each fill reaches half a band into the next, which is laid over it and
+    // hides that edge, and only the horizon band ends on the surface.
     context.fillStyle = cssColour(SKY_HIGH);
-    rect(left, SKY_TOP_M, width, -SKY_TOP_M);
+    rect(left, SKY_TOP_M, width, -SKY_TOP_M - SKY_BANDS + SKY_BAND_OVERLAP_M);
     for (let band = 0; band < SKY_BANDS; band += 1) {
       context.fillStyle = cssColour(skyBandColour(band));
-      rect(left, -SKY_BANDS + band, width, SKY_BANDS - band);
+      rect(left, -SKY_BANDS + band, width, band < SKY_BANDS - 1 ? 1 + SKY_BAND_OVERLAP_M : 1);
     }
 
     SURFACE_WAVES.forEach((wave, index) => {

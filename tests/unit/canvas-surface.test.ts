@@ -92,12 +92,32 @@ describe("the canvas comparison renderer's surface (#222)", () => {
     // The first fillRect is the water's background.
     const sky = calls.filter(([name]) => name === "fillRect").slice(1, 2 + SKY_BANDS);
 
-    // Each reaches down to the surface, under the next, so no seam shows
-    // between them; what is left of each is Pixi's one-metre band.
-    expect(sky[0]).toEqual(["fillRect", "rgba(196,230,240,1)", screenX(-60), screenY(-200), 240 * 20, 200 * 20]);
-    expect(sky[1]).toEqual(["fillRect", "rgba(191,227,238,1)", screenX(-60), screenY(-6), 240 * 20, 6 * 20]);
+    // Each reaches half a metre under the next, so no seam shows between
+    // them; what is left of each is Pixi's one-metre band.
+    expect(sky).toHaveLength(1 + SKY_BANDS);
+    expect(sky[0]).toEqual(["fillRect", "rgba(196,230,240,1)", screenX(-60), screenY(-200), 240 * 20, 194.5 * 20]);
+    expect(sky[1]).toEqual(["fillRect", "rgba(191,227,238,1)", screenX(-60), screenY(-6), 240 * 20, 1.5 * 20]);
     expect(sky.at(-1)).toEqual(["fillRect", "rgba(136,192,213,1)", screenX(-60), screenY(-1), 240 * 20, 20]);
     expect(screenY(-6)).toBe(0);
+  });
+
+  it("ends one sky fill on the surface, and hides every other fill's bottom edge under the next fill", async () => {
+    const { adapter, calls } = await mountedAdapter();
+    adapter.render(presentation, scene(0));
+    const sky = calls
+      .filter(([name]) => name === "fillRect")
+      .slice(1, 2 + SKY_BANDS)
+      .map(([, , , y, , height]) => ({ top: y as number, bottom: (y as number) + (height as number) }));
+
+    // Canvas antialiases each fill's edge on its own: fills that shared the
+    // surface's row would stack their coverage there into a bright line.
+    expect(sky.filter(({ bottom }) => bottom === screenY(0))).toEqual([sky.at(-1)]);
+    for (let index = 0; index + 1 < sky.length; index += 1) {
+      const fill = sky[index];
+      const next = sky[index + 1];
+      expect(fill?.bottom).toBeGreaterThan((next?.top ?? 0) + 1);
+      expect(fill?.bottom).toBeLessThan((next?.bottom ?? 0) - 1);
+    }
   });
 
   it("matches the shared sky's legacy endpoints, #c4e6f0 high up and #83bcd2 at the horizon", () => {
