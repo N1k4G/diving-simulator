@@ -40,6 +40,21 @@ import {
   boatShadowStrength,
   boatShadowSwayM,
 } from "./surface-boat";
+import {
+  SKY_BANDS,
+  SKY_HIGH,
+  SKY_TOP_M,
+  SURFACE_BAND_M,
+  SURFACE_HIGHLIGHT,
+  SURFACE_SPAN_M,
+  SURFACE_WATER,
+  SURFACE_WAVES,
+  skyBandColour,
+  waveLineM,
+  waveSlideM,
+  type Rgb,
+  type SurfaceWave,
+} from "./surface-view";
 
 const MAX_RESOLUTION = 2;
 const BUBBLE_COUNT = 14;
@@ -65,21 +80,6 @@ const CULL_MARGIN_M = 10;
 // and tested.
 const QUALITY_TIER: QualityTier = "high";
 const RESYNC_DISTANCE_M = 4;
-
-// The water surface (#199), after src/renderer.js drawScene: a band of light
-// water under a moving wave line, the sum of two sines, with the sky above
-// it. Legacy draws in screen pixels at 0.05 m a pixel; these are the same
-// waves in metres. Each sine is its own strip, drawn once and slid sideways
-// by its phase every frame, so the animation allocates nothing.
-const SURFACE_SPAN_M = { left: -60, right: 180 } as const;
-const SKY_TOP_M = -200;
-const SURFACE_WAVES = [
-  // sin(x * 0.02 + t * 2) * 4 px, then sin(x * 0.035 + t * 1.5) * 2 px.
-  { amplitudeM: 0.2, wavelengthM: 15.7, speedMps: 5, alpha: 0.18, highlight: true },
-  { amplitudeM: 0.1, wavelengthM: 9, speedMps: 2.14, alpha: 0.18, highlight: false },
-] as const;
-/** Legacy fills 20 px under the wave line: one metre. */
-const SURFACE_BAND_M = 1;
 
 export class PixiWreckRenderer implements SceneRenderer {
   readonly kind = "pixi" as const;
@@ -246,9 +246,7 @@ export class PixiWreckRenderer implements SceneRenderer {
     SURFACE_WAVES.forEach((wave, index) => {
       const strip = this.#waves[index];
       if (strip) {
-        // sin(kx + wt) travels towards -x.
-        strip.position.x =
-          -((scene.elapsedRealS * wave.speedMps) % wave.wavelengthM);
+        strip.position.x = -waveSlideM(wave, scene.elapsedRealS);
       }
     });
 
@@ -804,55 +802,42 @@ function flatten(points: readonly RoutePoint[]): number[] {
  * camera shows above the surface.
  */
 function buildSky(): Graphics {
-  const high = { r: 0xc4, g: 0xe6, b: 0xf0 };
-  const horizon = { r: 0x83, g: 0xbc, b: 0xd2 };
-  const bands = 6;
+  const width = SURFACE_SPAN_M.right - SURFACE_SPAN_M.left;
   const sky = new Graphics()
-    .rect(SURFACE_SPAN_M.left, SKY_TOP_M, SURFACE_SPAN_M.right - SURFACE_SPAN_M.left, -SKY_TOP_M - bands)
-    .fill({ color: rgb(high) });
-  for (let band = 0; band < bands; band += 1) {
-    const t = (band + 0.5) / bands;
+    .rect(SURFACE_SPAN_M.left, SKY_TOP_M, width, -SKY_TOP_M - SKY_BANDS)
+    .fill({ color: rgb(SKY_HIGH) });
+  for (let band = 0; band < SKY_BANDS; band += 1) {
     sky
-      .rect(SURFACE_SPAN_M.left, -bands + band, SURFACE_SPAN_M.right - SURFACE_SPAN_M.left, 1)
-      .fill({
-        color: rgb({
-          r: high.r + (horizon.r - high.r) * t,
-          g: high.g + (horizon.g - high.g) * t,
-          b: high.b + (horizon.b - high.b) * t,
-        }),
-      });
+      .rect(SURFACE_SPAN_M.left, -SKY_BANDS + band, width, 1)
+      .fill({ color: rgb(skyBandColour(band)) });
   }
   return sky;
 }
 
-function rgb(color: { r: number; g: number; b: number }): number {
+function rgb(color: Rgb): number {
   return (Math.round(color.r) << 16) | (Math.round(color.g) << 8) | Math.round(color.b);
 }
 
 /**
  * One of the surface's two sines: a band of light water from the wave line
- * down a metre, rgba(135,206,235) as legacy fills it, one wavelength wider
- * than the span so that sliding it by up to a wavelength never shows an edge.
- * The first carries legacy's bright line just under the surface
- * (_drawSurfaceUnderside).
+ * down a metre, one wavelength wider than the span so that sliding it by up
+ * to a wavelength never shows an edge. The first carries legacy's bright
+ * line just under the surface (_drawSurfaceUnderside).
  */
-function buildWaveStrip(wave: (typeof SURFACE_WAVES)[number]): Graphics {
+function buildWaveStrip(wave: SurfaceWave): Graphics {
   const left = SURFACE_SPAN_M.left;
   const right = SURFACE_SPAN_M.right + wave.wavelengthM;
-  const step = 0.5;
-  const line: number[] = [];
-  for (let x = left; x <= right; x += step) {
-    line.push(x, -wave.amplitudeM * Math.sin((2 * Math.PI * x) / wave.wavelengthM));
-  }
+  const line = waveLineM(wave);
   const strip = new Graphics()
     .poly([...line, right, SURFACE_BAND_M, left, SURFACE_BAND_M])
-    .fill({ color: 0x87ceeb, alpha: wave.alpha });
+    .fill({ color: SURFACE_WATER, alpha: wave.alpha });
   if (wave.highlight) {
-    strip.moveTo(line[0] as number, (line[1] as number) + 0.1);
+    const { color, offsetM, widthM, alpha } = SURFACE_HIGHLIGHT;
+    strip.moveTo(line[0] as number, (line[1] as number) + offsetM);
     for (let index = 2; index < line.length; index += 2) {
-      strip.lineTo(line[index] as number, (line[index + 1] as number) + 0.1);
+      strip.lineTo(line[index] as number, (line[index + 1] as number) + offsetM);
     }
-    strip.stroke({ color: 0xe6f8ff, width: 0.06, alpha: 0.35 });
+    strip.stroke({ color, width: widthM, alpha });
   }
   return strip;
 }

@@ -8,6 +8,25 @@ import {
 } from "./camera";
 import type { SceneRenderer, WreckSceneState } from "./renderer";
 import { SHARK_MOUTH_WIDTH_M, SHARK_SIZE_M, sharkBobM } from "./shark-view";
+import {
+  SKY_BANDS,
+  SKY_HIGH,
+  SKY_TOP_M,
+  SURFACE_BAND_M,
+  SURFACE_HIGHLIGHT,
+  SURFACE_SPAN_M,
+  SURFACE_WATER,
+  SURFACE_WAVES,
+  skyBandColour,
+  waveLineM,
+  waveSlideM,
+  type Rgb,
+} from "./surface-view";
+
+type ScreenPoint = ReturnType<typeof worldToScreen>;
+
+/** Each wave's line, unslid, sampled once: a frame only slides it. */
+const WAVE_LINES = SURFACE_WAVES.map((wave) => waveLineM(wave));
 
 export class CanvasReferenceAdapter implements SceneRenderer {
   readonly kind = "canvas" as const;
@@ -84,6 +103,8 @@ export class CanvasReferenceAdapter implements SceneRenderer {
     gradient.addColorStop(1, "#06141c");
     context.fillStyle = gradient;
     context.fillRect(0, 0, this.#viewport.width, this.#viewport.height);
+    // The sky and the water's surface, behind the wreck (#222).
+    this.#drawSurface(context, point, camera.scale, scene.elapsedRealS);
 
     // The hull and the hold the route holds the diver to, open at the bow
     // visor as the Pixi scene draws them (#222).
@@ -241,4 +262,74 @@ export class CanvasReferenceAdapter implements SceneRenderer {
     }
     return this.#context;
   }
+
+  /**
+   * The sky and the surface's two waves as the Pixi scene draws them, from
+   * the same values (render/surface-view.ts): the sky's six bands over its
+   * high colour, then each wave's band of light water, its line slid by the
+   * real time as Pixi slides its strip, the first with its bright line.
+   */
+  #drawSurface(
+    context: CanvasRenderingContext2D,
+    point: (x: number, y: number) => ScreenPoint,
+    scale: number,
+    elapsedRealS: number,
+  ): void {
+    const left = SURFACE_SPAN_M.left;
+    const width = SURFACE_SPAN_M.right - left;
+    const rect = (x: number, y: number, rectWidth: number, height: number) => {
+      const corner = point(x, y);
+      context.fillRect(corner.x, corner.y, rectWidth * scale, height * scale);
+    };
+    // Each fill reaches down to the surface and the next is laid over it.
+    // Canvas antialiases each fill's fractional edges on its own, so bands
+    // that only met would leave a dark seam where Pixi leaves none.
+    context.fillStyle = cssColour(SKY_HIGH);
+    rect(left, SKY_TOP_M, width, -SKY_TOP_M);
+    for (let band = 0; band < SKY_BANDS; band += 1) {
+      context.fillStyle = cssColour(skyBandColour(band));
+      rect(left, -SKY_BANDS + band, width, SKY_BANDS - band);
+    }
+
+    SURFACE_WAVES.forEach((wave, index) => {
+      const line = WAVE_LINES[index] ?? [];
+      const slide = waveSlideM(wave, elapsedRealS);
+      const trace = (offsetM: number) => {
+        for (let at = 0; at < line.length; at += 2) {
+          const screen = point((line[at] as number) - slide, (line[at + 1] as number) + offsetM);
+          if (at === 0) {
+            context.moveTo(screen.x, screen.y);
+          } else {
+            context.lineTo(screen.x, screen.y);
+          }
+        }
+      };
+      const right = SURFACE_SPAN_M.right + wave.wavelengthM;
+      const bandRight = point(right - slide, SURFACE_BAND_M);
+      const bandLeft = point(left - slide, SURFACE_BAND_M);
+      context.beginPath();
+      trace(0);
+      context.lineTo(bandRight.x, bandRight.y);
+      context.lineTo(bandLeft.x, bandLeft.y);
+      context.closePath();
+      context.fillStyle = cssColour(SURFACE_WATER, wave.alpha);
+      context.fill();
+      if (wave.highlight) {
+        context.beginPath();
+        trace(SURFACE_HIGHLIGHT.offsetM);
+        context.strokeStyle = cssColour(SURFACE_HIGHLIGHT.color, SURFACE_HIGHLIGHT.alpha);
+        context.lineWidth = SURFACE_HIGHLIGHT.widthM * scale;
+        context.stroke();
+      }
+    });
+  }
+}
+
+/** A colour, as an Rgb or as Pixi's 0xRRGGBB, in CSS for a 2D context. */
+function cssColour(colour: Rgb | number, alpha = 1): string {
+  const { r, g, b } =
+    typeof colour === "number"
+      ? { r: (colour >> 16) & 0xff, g: (colour >> 8) & 0xff, b: colour & 0xff }
+      : colour;
+  return `rgba(${r},${g},${b},${alpha})`;
 }
