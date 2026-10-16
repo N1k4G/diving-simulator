@@ -174,6 +174,7 @@
     "diffSize": "879 changed lines against origin/main without artifacts: 365 in src, 514 in tests"
   },
   "preReviewAfterCodexRound1": {
+    "supersededInPart": "its main-relative floors (MAIN_BELOW_8, measured on win32) failed on linux CI and are gone; see platformIndependentMatrix",
     "commit": "0ad971dd44e8013363b6eb651bf79fd2c65a3952",
     "tree": "5c0079f435312a9e27bd0f02241067cd4c7c5d6b",
     "finding": "the narrower dock cap (13.6rem) fitted the two setpoint buttons (126 px) only from 343.6 px wide, where main's fits them from 318 px; below it the rebreather row wrapped to three rows and the HUD, which cannot shrink, ran into the setpoint buttons; at 360x640 a rebreather page stood 6.4 px from the pad where main stands 8.0",
@@ -214,6 +215,45 @@
       }
     ],
     "diffSize": "955 changed lines against origin/main without artifacts: 374 in src, 581 in tests"
+  },
+  "platformIndependentMatrix": {
+    "commit": "beb6e9b30b31dcec7d7d27cafe2bd94e74237c91",
+    "tree": "247d073644709f0928c12adb1a09c51b26d0bb58",
+    "trigger": "CI verify run 38869628717 on 29e4a08 (linux): 'ccr 320x568 closed' expected >= 6.6 (main's number on win32), received -28.6",
+    "linuxMeasurement": {
+      "environment": "WSL Ubuntu 26.04, node v22.11.0 and Playwright 1.63.0's chromium-headless-shell installed per user without sudo (libnss3, libnspr4 and libasound2t64 unpacked from apt-get download into LD_LIBRARY_PATH); the same dist/ builds as on win32; it reproduces CI's -28.6",
+      "builds": "origin/main 03c9a98 built into a temporary dist-main/, and this branch's dist/; both removed or rebuilt afterwards",
+      "method": "a temporary spec, not committed, that runs the whole matrix including 320x568 and prints every number with the nearest control",
+      "main": {
+        "rec": "18.8 / 56 / 76 / 91 / 106",
+        "tec closed": "18.8 / 51.5 / 51.5 / 51.5 / 52.4",
+        "tec pages": "-16 / 23.2 / 23.2 / 23.2 / 23.2 (390x844 pages 3 and 4: 52.4, 50.1)",
+        "ccr closed": "-28.6 / 44.6 / 44.6 / 51.5 / 52.4",
+        "ccr page": "-28.6 / 9 / 9 / 23.2 / 23.2"
+      },
+      "branch": {
+        "rec": "18.8 / 56 / 76 / 91 / 106",
+        "tec closed": "18.8 / 51.5 / 51.5 / 51.5 / 52.4",
+        "tec pages": "4.8 / 28 / 28 / 28 / 28 (390x844 pages 3 and 4: 52.4)",
+        "ccr closed": "-28.6 / 49.4 / 49.4 / 51.5 / 52.4",
+        "ccr page": "-28.6 / 13.8 / 13.8 / 28 / 28"
+      },
+      "sizes": "320x568 / 340x640 / 360x640 / 375x667 / 390x844, px, German, paused safety stop",
+      "verdict": "the branch is never nearer than main on linux, as on win32; from 340 px up every case is at least 8 px on both platforms, for main and the branch; below 8 px is only 320x568, on main as here (#258)"
+    },
+    "win32Numbers": "in preReviewAfterCodexRound1.matrix (branch) and its mainMeasurement (main)",
+    "change": "the matrix drops 320x568 (#258 adds it back with the same check) and asserts an absolute 8 px everywhere else with expect.soft, so a failure reports every case; MAIN_BELOW_8 is gone",
+    "tests": [
+      {
+        "command": "npx playwright test tests/in-dive-controls.spec.js -g 'narrowest phones' --workers=1",
+        "result": "3 passed of 3 on win32, 3 passed of 3 on linux (WSL)"
+      },
+      {
+        "command": "npm run lint",
+        "result": "pass"
+      }
+    ],
+    "diffSize": "946 changed lines against origin/main without artifacts: 374 in src, 572 in tests"
   },
   "notMeasured": [
     "real touch on a physical device (blocked on #155)",
