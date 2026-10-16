@@ -1369,21 +1369,11 @@ test.describe('gas information', () => {
   // row wraps to two lines. A dock that wrapped to more rows than before ran
   // into an open page at 360 px and into the HUD itself below 344 px.
   //
-  // Each distance is at least 8 px, or, where main before #168 (03c9a98)
-  // already stood nearer, no nearer than main: those cases are listed with
-  // main's distance, measured with this same test on main's build.
-  const NARROW_SIZES = [[320, 568], [340, 640], [360, 640], [375, 667], [390, 844]];
-  const MAIN_BELOW_8 = {
-    // At 320x568 an open page does not fit under the tallest HUD, on main
-    // as here; a negative distance is an overlap. This branch measured 4.8
-    // (technical) and -24.2 (rebreather) with a page open, and 11.4 closed.
-    'tec 320x568 page 1': -16,
-    'tec 320x568 page 2': -16,
-    'tec 320x568 page 3': -16,
-    'tec 320x568 page 4': -16,
-    'ccr 320x568 closed': 6.6,
-    'ccr 320x568 page 1': -29,
-  };
+  // Every distance is at least 8 px, on any platform's fonts. 320x568 is not
+  // in the list: there an open page, and on a rebreather the HUD itself, do
+  // not fit above the dock on main either (#258), and how far they overlap
+  // depends on the platform's fonts. #258 adds it back with the same check.
+  const NARROW_SIZES = [[340, 640], [360, 640], [375, 667], [390, 844]];
 
   /** A German dive in `mode`, resumed at 9 m, neutral, its safety stop paused. */
   async function resumeGermanAtPausedStop(page, mode) {
@@ -1458,7 +1448,8 @@ test.describe('gas information', () => {
           }
         }
         for (const [label, apart] of Object.entries(measured)) {
-          expect(apart, label).toBeGreaterThanOrEqual(Math.min(8, MAIN_BELOW_8[label] ?? 8));
+          // Soft, so a failure reports the whole matrix rather than its first case.
+          expect.soft(apart, label).toBeGreaterThanOrEqual(8);
         }
       });
     });
