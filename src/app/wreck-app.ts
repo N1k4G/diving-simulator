@@ -79,7 +79,6 @@ import {
   type GameFrame,
 } from "./game-controller";
 import { bindDpad, createDpadButtons, prefersArrowGlyphs } from "./touch-dpad";
-import { keepHintClear } from "./controls-hint";
 
 interface HudElements {
   readonly shell: HTMLElement;
@@ -112,10 +111,6 @@ interface HudElements {
   readonly mute: HTMLButtonElement;
   readonly gasInfo: GasInfoElements;
   readonly surfacePrompt: HTMLElement;
-  /** The HUD's list itself, which the keyboard hint must keep clear of. */
-  readonly hudList: HTMLElement;
-  readonly hint: HTMLElement;
-  readonly dock: HTMLElement;
 }
 
 const zoneMessageKeys: Record<WreckZone, MessageKey> = {
@@ -524,13 +519,6 @@ async function startWreckSimulation(
   });
 
   const disposeDpad = bindDpad(hud.movement, controller);
-  // The keyboard hint yields to the HUD and an open page wherever they would
-  // meet, measured rather than set by a window height (#168).
-  const hintFit = keepHintClear(
-    hud.hint,
-    [hud.hudList, hud.gasInfo.panel],
-    [hud.dock, hud.shell],
-  );
   bindTankControls(hud.tanks, controller);
   bindLoopControls(hud.ccr, controller);
   hud.torch.addEventListener("click", () => controller.toggleTorch());
@@ -552,9 +540,6 @@ async function startWreckSimulation(
       lastPresentation,
       plannerSettings,
     );
-    // Before the next frame paints, not after: the page opened in this
-    // event, outside the frame the observer would report it in.
-    hintFit.refit();
   };
   hud.gasInfo.toggle.addEventListener("click", cycleGasInfo);
   // I walks the pages and Escape closes them, as src/state.js binds both.
@@ -581,7 +566,6 @@ async function startWreckSimulation(
         lastPresentation,
         plannerSettings,
       );
-      hintFit.refit();
     }
   };
   window.addEventListener("keydown", handleGasInfoKey);
@@ -600,7 +584,6 @@ async function startWreckSimulation(
   // does not go on sounding its alarm (#223 pre-review).
   const teardown = () => {
     disposeDpad();
-    hintFit.dispose();
     document.removeEventListener("visibilitychange", handleVisibility);
     window.removeEventListener("keydown", handleGasInfoKey);
     // Removed here too, not only by its own `once`: after a game over the
@@ -981,9 +964,6 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     mute,
     gasInfo,
     surfacePrompt,
-    hudList: hud,
-    hint,
-    dock,
   };
 }
 

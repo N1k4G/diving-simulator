@@ -1033,7 +1033,8 @@ summary:focus-visible {
 /* The D-pad (#168), legacy's WASD cross, with the torch and fast-forward in
    the two corners the cross leaves empty. 3.2rem cells clear the 44px
    target and the 0.5rem gap is the 8px spacing the #121 test asks for;
-   tests/touch-dpad.spec.js measures both, in portrait and landscape.
+   tests/touch-dpad.spec.js measures both. On a phone held sideways the
+   shell is still taller than the screen and the pad below it: #256.
 
    The safe-area insets are written as #137 A7 writes them, the injected
    Capacitor value first, so the cross keeps clear of a notch or the home
@@ -1110,21 +1111,6 @@ summary:focus-visible {
   display: none;
 }
 
-/* An open gas-information page hides the in-dive buttons, as legacy hides
-   them while showGasInfo: updateNavPadVisibility() the pad,
-   updateCcrDiveButtonVisibility() the rebreather row, and touchUpdateUI()
-   the rest of its touch-dive group (src/touch.js). The keys still work.
-
-   Brought forward from #168's visibility rules (PR 3) by pre-review pass 3.
-   A page cannot shrink below the HUD above it, and at 844x390 a rebreather's
-   HUD with a stop row that wraps in German pushed an open page 3px into
-   the setpoint buttons. No layout of the short screen fits the tallest HUD,
-   a page and the dock together. With legacy's rule, the page and the
-   buttons are never on screen at once. */
-.wreck-shell:has(.gas-info:not([hidden])) :is(.wreck-controls, .wreck-tanks, .wreck-ccr) {
-  display: none;
-}
-
 .controls-hint {
   max-width: 26rem;
   margin: 0;
@@ -1189,22 +1175,6 @@ summary:focus-visible {
    where both apply. tests/in-dive-controls.spec.js asserts neither the
    panel nor a row meets a control at these sizes. */
 @media (height <= 600px) {
-  /* The dive fills the screen, as it does on a narrow one. The shell's
-     34rem minimum is taller than a phone held sideways, so at 844x390 it
-     ran 154px below the screen and took the D-pad with it, out of reach
-     (#168). Only the dive: the other screens keep their frame. */
-  #app:has(> .wreck-shell) {
-    padding: 0;
-  }
-
-  .wreck-shell {
-    width: 100%;
-    height: 100vh;
-    min-height: 0;
-    border: 0;
-    border-radius: 0;
-  }
-
   .wreck-column {
     width: min(32rem, calc(100% - 2.5rem));
   }
@@ -1215,15 +1185,6 @@ summary:focus-visible {
     width: 100%;
   }
 }
-
-/* Once the dive fills a screen under 600px tall, the keyboard hint can
-   reach up into the HUD column (#168). No window height keeps the two
-   apart, because the HUD's height depends on the dive: three thresholds
-   were each beaten by a taller HUD (a rebreather's rows, an open page, a
-   German stop row that wraps). The hint is measured against the HUD and an
-   open page instead, and hidden while it would come within 8px of either
-   (src/app/controls-hint.ts). Anywhere it fits, a desktop window keeps it:
-   there it is the only text naming T, F, [, ], B and I. */
 
 /* The gas-information panel (#163). Same treatment as the HUD above it. */
 .gas-info {

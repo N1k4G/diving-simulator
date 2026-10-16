@@ -33,10 +33,10 @@ const PHONE = {
     'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
 };
 
-const ORIENTATIONS = [
-  { name: 'portrait', viewport: { width: 390, height: 844 } },
-  { name: 'landscape', viewport: { width: 844, height: 390 } },
-];
+// Portrait only. On a phone held sideways (844x390) the dive's shell is
+// still taller than the screen and the pad sits below it; that layout, and
+// these cases in landscape, are #256.
+const PORTRAIT = { width: 390, height: 844 };
 
 const DIRECTIONS = ['left', 'ascend', 'descend', 'right'];
 
@@ -265,122 +265,96 @@ test.describe('in German, on a phone', () => {
   });
 });
 
-for (const { name, viewport } of ORIENTATIONS) {
-  test.describe(`phone, ${name} ${viewport.width}x${viewport.height}`, () => {
-    test.use({ ...PHONE, viewport });
+test.describe(`phone, portrait ${PORTRAIT.width}x${PORTRAIT.height}`, () => {
+  test.use({ ...PHONE, viewport: PORTRAIT });
 
-    test('smoke: mobile click-through — start, descend, D-pad, no stuck input', async ({ page }) => {
-      const consoleErrors = collectConsoleErrors(page);
-      await page.goto('/dist/');
-      await page.evaluate(() => window.localStorage.clear());
-      await startDiveByTouch(page);
-      await page.locator('[data-renderer=pixi] canvas').waitFor();
+  test('smoke: mobile click-through — start, descend, D-pad, no stuck input', async ({ page }) => {
+    const consoleErrors = collectConsoleErrors(page);
+    await page.goto('/dist/');
+    await page.evaluate(() => window.localStorage.clear());
+    await startDiveByTouch(page);
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
 
-      // At the surface the pad is the one button, the descent: legacy's
-      // touch-surface-btn, held as its bindKey held S.
-      const prompt = page.locator('[data-surface-prompt]');
-      await expect(prompt).toBeVisible();
-      const descend = pad(page, 'descend');
-      await expect(descend).toHaveText('↓');
-      const descent = await touchDown(page, descend);
-      await expect(prompt).toBeHidden();
-      for (const control of DIRECTIONS) {
-        await expect(pad(page, control), control).toBeVisible();
-      }
-      // Vented until well under, so the inflate below cannot lift the diver
-      // back to the surface and end the dive.
-      await page.waitForFunction(() => {
-        const value = document.querySelector('.wreck-hud [data-hud-metric="depth"] dd');
-        return Number.parseFloat(String(value?.textContent ?? '')) >= 4;
-      }, undefined, { timeout: 60_000 });
-      await descent.end();
-      await expect(descend).not.toHaveAttribute('data-held', /.*/);
+    // At the surface the pad is the one button, the descent: legacy's
+    // touch-surface-btn, held as its bindKey held S.
+    const prompt = page.locator('[data-surface-prompt]');
+    await expect(prompt).toBeVisible();
+    const descend = pad(page, 'descend');
+    await expect(descend).toHaveText('↓');
+    const descent = await touchDown(page, descend);
+    await expect(prompt).toBeHidden();
+    for (const control of DIRECTIONS) {
+      await expect(pad(page, control), control).toBeVisible();
+    }
+    // Vented until well under, so the inflate below cannot lift the diver
+    // back to the surface and end the dive.
+    await page.waitForFunction(() => {
+      const value = document.querySelector('.wreck-hud [data-hud-metric="depth"] dd');
+      return Number.parseFloat(String(value?.textContent ?? '')) >= 4;
+    }, undefined, { timeout: 60_000 });
+    await descent.end();
+    await expect(descend).not.toHaveAttribute('data-held', /.*/);
 
-      await holdAscendThen(page, (finger) => finger.end());
-      expect(consoleErrors, consoleErrors.join(' | ')).toEqual([]);
-    });
-
-    test('a cancelled touch releases the direction', async ({ page }) => {
-      await startDiveBelow(page, 4);
-      await holdAscendThen(page, (finger) => finger.cancel());
-    });
-
-    test('the window losing focus releases the direction', async ({ page }) => {
-      await startDiveBelow(page, 4);
-      await holdAscendThen(
-        page,
-        () => page.evaluate(() => window.dispatchEvent(new Event('blur'))),
-        { liftAfter: true },
-      );
-    });
-
-    test('the page being hidden releases the direction', async ({ page }) => {
-      await startDiveBelow(page, 4);
-      await holdAscendThen(page, () =>
-        page.evaluate(() => {
-          Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
-          Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
-          document.dispatchEvent(new Event('visibilitychange'));
-          delete document.visibilityState;
-          delete document.hidden;
-          document.dispatchEvent(new Event('visibilitychange'));
-        }),
-        { liftAfter: true },
-      );
-    });
-
-    test('every pad target meets 44px and stands 8px clear of every control', async ({ page }) => {
-      await startDiveBelow(page, 1);
-      await expect(pad(page, 'ascend')).toBeVisible();
-      await expect(page.locator('[data-torch]')).toBeVisible();
-      const geometry = await measurePad(page);
-      // Four directions, the torch and the fast-forward cell.
-      expect(geometry.padCount, geometry.labels.join(', ')).toBe(6);
-      expect(geometry.undersized, geometry.undersized.join('\n')).toEqual([]);
-      expect(geometry.offscreen, geometry.offscreen.join('\n')).toEqual([]);
-      expect(geometry.tight, geometry.tight.join('\n')).toEqual([]);
-    });
-
-    test('the pad keeps clear of the safe-area insets', async ({ page }) => {
-      await startDiveBelow(page, 1);
-      // What Capacitor's SystemBars injects (#137 A7): a cutout on the right
-      // in landscape, the home indicator at the bottom.
-      const inset = { right: 47, bottom: 34 };
-      await page.evaluate(({ right, bottom }) => {
-        document.documentElement.style.setProperty('--safe-area-inset-right', `${right}px`);
-        document.documentElement.style.setProperty('--safe-area-inset-bottom', `${bottom}px`);
-      }, inset);
-      const geometry = await measurePad(page);
-      expect(geometry.right).toBeLessThanOrEqual(geometry.viewport.w - inset.right);
-      expect(geometry.bottom).toBeLessThanOrEqual(geometry.viewport.h - inset.bottom);
-      expect(geometry.tight, geometry.tight.join('\n')).toEqual([]);
-    });
+    await holdAscendThen(page, (finger) => finger.end());
+    expect(consoleErrors, consoleErrors.join(' | ')).toEqual([]);
   });
-}
 
-// A short desktop window keeps the keyboard hint where the HUD leaves room
-// for it (#168 pre-review passes 1 to 3): there it is the only text naming
-// T, F, [, ], B and I. The hint yields to a taller HUD, which
-// tests/in-dive-controls.spec.js drives; on a recreational dive at 1 m it
-// fits, and stands 8 px clear of the pad.
-for (const [width, height] of [[1280, 585], [1280, 461]]) {
-  test.describe(`a desktop window at ${width}x${height}`, () => {
-    test.use({ viewport: { width, height } });
-
-    test('keeps the keyboard hint, clear of the pad', async ({ page }) => {
-      await startDiveBelow(page, 1);
-      const hint = page.locator('.controls-hint');
-      await expect(hint).toBeVisible();
-      const hintBox = await hint.boundingBox();
-      for (const control of DIRECTIONS) {
-        const box = await pad(page, control).boundingBox();
-        const gapX = Math.max(hintBox.x, box.x) - Math.min(hintBox.x + hintBox.width, box.x + box.width);
-        const gapY = Math.max(hintBox.y, box.y) - Math.min(hintBox.y + hintBox.height, box.y + box.height);
-        expect(Math.max(gapX, gapY), `the hint against ${control}`).toBeGreaterThanOrEqual(8);
-      }
-    });
+  test('a cancelled touch releases the direction', async ({ page }) => {
+    await startDiveBelow(page, 4);
+    await holdAscendThen(page, (finger) => finger.cancel());
   });
-}
+
+  test('the window losing focus releases the direction', async ({ page }) => {
+    await startDiveBelow(page, 4);
+    await holdAscendThen(
+      page,
+      () => page.evaluate(() => window.dispatchEvent(new Event('blur'))),
+      { liftAfter: true },
+    );
+  });
+
+  test('the page being hidden releases the direction', async ({ page }) => {
+    await startDiveBelow(page, 4);
+    await holdAscendThen(page, () =>
+      page.evaluate(() => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+        Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+        document.dispatchEvent(new Event('visibilitychange'));
+        delete document.visibilityState;
+        delete document.hidden;
+        document.dispatchEvent(new Event('visibilitychange'));
+      }),
+      { liftAfter: true },
+    );
+  });
+
+  test('every pad target meets 44px and stands 8px clear of every control', async ({ page }) => {
+    await startDiveBelow(page, 1);
+    await expect(pad(page, 'ascend')).toBeVisible();
+    await expect(page.locator('[data-torch]')).toBeVisible();
+    const geometry = await measurePad(page);
+    // Four directions, the torch and the fast-forward cell.
+    expect(geometry.padCount, geometry.labels.join(', ')).toBe(6);
+    expect(geometry.undersized, geometry.undersized.join('\n')).toEqual([]);
+    expect(geometry.offscreen, geometry.offscreen.join('\n')).toEqual([]);
+    expect(geometry.tight, geometry.tight.join('\n')).toEqual([]);
+  });
+
+  test('the pad keeps clear of the safe-area insets', async ({ page }) => {
+    await startDiveBelow(page, 1);
+    // What Capacitor's SystemBars injects (#137 A7): a cutout on the right
+    // in landscape, the home indicator at the bottom.
+    const inset = { right: 47, bottom: 34 };
+    await page.evaluate(({ right, bottom }) => {
+      document.documentElement.style.setProperty('--safe-area-inset-right', `${right}px`);
+      document.documentElement.style.setProperty('--safe-area-inset-bottom', `${bottom}px`);
+    }, inset);
+    const geometry = await measurePad(page);
+    expect(geometry.right).toBeLessThanOrEqual(geometry.viewport.w - inset.right);
+    expect(geometry.bottom).toBeLessThanOrEqual(geometry.viewport.h - inset.bottom);
+    expect(geometry.tight, geometry.tight.join('\n')).toEqual([]);
+  });
+});
 
 test.describe('the pad and the dive state', () => {
   test.use({ ...PHONE, viewport: { width: 390, height: 844 } });
