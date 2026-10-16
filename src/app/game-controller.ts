@@ -257,12 +257,10 @@ export class GameController {
   }
 
   /**
-   * Stops the dive while the help overlay is open over it (#160), as
-   * legacy's gameLoop() skips updateDiving() while showHelp is set: no dive
-   * time, gas, tissues, movement or scene animation, and no control taken
-   * until it is resumed. The controls held are let go, because the overlay
-   * takes the keyboard and their key-ups go to it. The first frame after
-   * the pause runs no time, so the pause is not counted as a frame.
+   * Stops the dive under the help overlay (#160), as legacy's gameLoop()
+   * skips updateDiving() while showHelp: no frame runs and no intent is
+   * taken. Held controls are let go, since the overlay takes their key-ups,
+   * and the first frame after it runs no time.
    */
   setPaused(paused: boolean): void {
     if (this.#paused === paused) {

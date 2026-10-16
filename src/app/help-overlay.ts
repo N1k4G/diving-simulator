@@ -1,21 +1,16 @@
-// The help overlay (#160): legacy's H / ? overlay (src/state.js
-// showHtmlHelp, #html-help-overlay) as a modal dialog over the stage.
+// The help overlay (#160): legacy's H / ? overlay (src/state.js showHtmlHelp)
+// as a modal dialog over the stage.
 //
-// - H, ? and Escape close it, as legacy's keydown handler does; so do its
-//   Close button and a tap outside it.
-// - It takes the keyboard while open. Legacy's keys went on reaching its
-//   game loop behind the overlay (keys[] is set whatever is shown), so S at
-//   the surface began the dive behind it and Enter on the debriefing waited
-//   for it to close; here no key reaches the dive or the screen until it is
-//   closed (docs/decisions.md, deliberate departures). Escape still reaches
-//   the gas information, which legacy's Escape closes in the same press.
+// - H, ? and Escape close it, as legacy's keydown handler; so do its Close
+//   button and a tap outside it.
+// - While open it takes the keyboard: no key but Escape reaches the dive or
+//   the screen behind it (docs/decisions.md, deliberate departures). Escape
+//   still reaches the gas information, which legacy's Escape closes too.
 // - It scrolls on its own and never the screen behind it, the case #120
-//   fixed in legacy, where the window's wheel handler scrolled the result
-//   screen under the open overlay.
+//   fixed in legacy (overscroll-behavior in the stylesheet).
 // - It is announced once, as a dialog named by its heading when focus moves
-//   into it, and built once per opening; nothing in it is a live region
-//   (#138).
-import { translate, type SupportedLocale } from "./i18n/catalog";
+//   into it; nothing in it is a live region (#138).
+import { translate, type MessageKey, type SupportedLocale } from "./i18n/catalog";
 import { helpSections, type HelpContext, type HelpRow } from "./help-content";
 
 export interface HelpOverlayOptions {
@@ -27,60 +22,38 @@ export interface HelpOverlayOptions {
 }
 
 export interface HelpOverlay {
-  readonly dialog: HTMLDialogElement;
-  readonly isOpen: boolean;
   open(): void;
-  close(): void;
-  /** Closes the overlay without its onClose, and removes it and its key. */
+  /** Closes it without onClose, and removes it and its key. */
   destroy(): void;
 }
 
 /** H or ?, unmodified but for Shift, which ? takes on most layouts. */
-export function isHelpKey(event: KeyboardEvent): boolean {
-  if (event.ctrlKey || event.metaKey || event.altKey) {
-    return false;
-  }
-  return event.key === "h" || event.key === "H" || event.key === "?";
+function isHelpKey(event: KeyboardEvent): boolean {
+  return !event.ctrlKey && !event.metaKey && !event.altKey && ["h", "H", "?"].includes(event.key);
 }
 
-/**
- * The button that opens the overlay, with H as its key: legacy's
- * touch-dive-help. `compact` shows the ? alone and names it in its label,
- * for the round buttons of the dive's topbar.
- */
-export function createHelpButton(
-  locale: SupportedLocale,
-  className: string,
-  compact: boolean,
-): HTMLButtonElement {
+/** Legacy's touch-dive-help. `compact` shows the ? alone and names it in its label. */
+export function createHelpButton(locale: SupportedLocale, className: string, compact: boolean): HTMLButtonElement {
   const button = document.createElement("button");
   button.type = "button";
   button.className = className;
   button.dataset.helpOpen = "true";
   button.setAttribute("aria-haspopup", "dialog");
   button.setAttribute("aria-keyshortcuts", "H");
+  button.textContent = translate(locale, compact ? "help.symbol" : "help.open");
   if (compact) {
     button.setAttribute("aria-label", translate(locale, "help.open"));
-    button.textContent = translate(locale, "help.symbol");
-  } else {
-    button.textContent = translate(locale, "help.open");
   }
   return button;
 }
 
-/**
- * Builds the overlay, appends it to the document, and binds H and ? to open
- * it. It is not open until H, ? or `open()`.
- */
+/** Builds the overlay into the document and binds H and ? to open it. */
 export function createHelpOverlay(options: Readonly<HelpOverlayOptions>): HelpOverlay {
-  const { locale } = options;
-  const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
-
+  const t = (key: MessageKey) => translate(options.locale, key);
   const dialog = document.createElement("dialog");
   dialog.className = "help-overlay";
   dialog.dataset.helpOverlay = "true";
   dialog.setAttribute("aria-labelledby", "help-heading");
-
   const header = document.createElement("div");
   header.className = "help-header";
   const heading = document.createElement("h2");
@@ -93,7 +66,6 @@ export function createHelpOverlay(options: Readonly<HelpOverlayOptions>): HelpOv
   closeButton.textContent = t("help.close");
   header.append(heading, closeButton);
   const body = document.createElement("div");
-  body.className = "help-body";
   dialog.append(header, body);
   document.body.append(dialog);
 
@@ -117,11 +89,10 @@ export function createHelpOverlay(options: Readonly<HelpOverlayOptions>): HelpOv
     returnFocus = null;
   };
 
-  // In the capture phase on the window, so it runs before every other key
-  // handler of the page. stopPropagation() keeps a key from the dive and the
-  // screens; the key's default action, which moves focus with Tab, presses
-  // the focused button with Enter and scrolls the dialog with the arrows,
-  // Page Up/Down and Space, is left alone.
+  // In the window's capture phase, before every other key handler of the
+  // page. stopPropagation() keeps the key from the dive and the screens; its
+  // default action is left alone, so Tab moves focus, Enter presses the
+  // focused button and the arrows, Page Up/Down and Space scroll the dialog.
   function takeKey(event: KeyboardEvent): void {
     if (event.type === "keydown" && event.key === "Escape") {
       event.preventDefault();
@@ -140,7 +111,7 @@ export function createHelpOverlay(options: Readonly<HelpOverlayOptions>): HelpOv
       return;
     }
     const context = options.context();
-    body.replaceChildren(...buildBody(context, locale));
+    body.replaceChildren(...buildBody(context, t));
     returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     open = true;
     window.addEventListener("keydown", takeKey, true);
@@ -154,26 +125,18 @@ export function createHelpOverlay(options: Readonly<HelpOverlayOptions>): HelpOv
   closeButton.addEventListener("click", () => close(true));
   // A press on the backdrop is a click on the dialog itself, outside its box.
   dialog.addEventListener("click", (event) => {
-    if (event.target !== dialog) {
-      return;
-    }
     const box = dialog.getBoundingClientRect();
-    const inside =
-      event.clientX >= box.left &&
-      event.clientX <= box.right &&
-      event.clientY >= box.top &&
-      event.clientY <= box.bottom;
-    if (!inside) {
+    const outside =
+      event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom;
+    if (event.target === dialog && outside) {
       close(true);
     }
   });
-  // A close request the page did not see as a key, such as Android's back
-  // gesture, closes it the same way.
+  // A close request that is not a key, such as Android's back gesture.
   dialog.addEventListener("cancel", (event) => {
     event.preventDefault();
     close(true);
   });
-
   const openOnKey = (event: KeyboardEvent) => {
     if (!open && !event.repeat && isHelpKey(event)) {
       event.preventDefault();
@@ -183,12 +146,7 @@ export function createHelpOverlay(options: Readonly<HelpOverlayOptions>): HelpOv
   window.addEventListener("keydown", openOnKey);
 
   return {
-    dialog,
-    get isOpen() {
-      return open;
-    },
     open: show,
-    close: () => close(true),
     destroy: () => {
       close(false);
       window.removeEventListener("keydown", openOnKey);
@@ -197,15 +155,14 @@ export function createHelpOverlay(options: Readonly<HelpOverlayOptions>): HelpOv
   };
 }
 
-function buildBody(context: Readonly<HelpContext>, locale: SupportedLocale): HTMLElement[] {
-  const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
-  const nodes: HTMLElement[] = [paragraph("help-hint", t("help.closeHint"))];
+function buildBody(context: Readonly<HelpContext>, t: (key: MessageKey) => string): HTMLElement[] {
+  const nodes = [paragraph("help-hint", t("help.closeHint"))];
   if (context.state === "diving") {
-    nodes.push(paragraph("help-paused", t("help.paused")));
+    nodes.push(paragraph("help-hint help-paused", t("help.paused")));
   }
+  const text = (row: HelpRow, key: MessageKey) =>
+    row.count === undefined ? t(key) : t(key).replace("{n}", String(row.count));
   for (const section of helpSections(context)) {
-    const wrapper = document.createElement("section");
-    wrapper.className = "help-section";
     const title = document.createElement("h3");
     title.textContent = t(section.headingKey);
     const table = document.createElement("table");
@@ -223,25 +180,19 @@ function buildBody(context: Readonly<HelpContext>, locale: SupportedLocale): HTM
       line.dataset.helpRow = row.action;
       const keys = document.createElement("th");
       keys.scope = "row";
-      keys.textContent = rowText(row, row.keys, locale);
+      keys.textContent = text(row, row.keys);
       line.append(keys);
-      line.insertCell().textContent = rowText(row, row.touch, locale);
+      line.insertCell().textContent = text(row, row.touch);
       line.insertCell().textContent = t(row.action);
     }
-    wrapper.append(title, table);
-    nodes.push(wrapper);
+    nodes.push(title, table);
   }
   // Legacy's warning from its controls paragraph, under the controls it is about.
   nodes.push(paragraph("help-safety", `${t("wreck.symbol.warning")} ${t("help.buoyancy")}`));
   return nodes;
 }
 
-function rowText(row: HelpRow, key: HelpRow["keys"], locale: SupportedLocale): string {
-  const text = translate(locale, key);
-  return row.count === undefined ? text : text.replace("{n}", String(row.count));
-}
-
-function paragraph(className: string, text: string): HTMLParagraphElement {
+function paragraph(className: string, text: string): HTMLElement {
   const node = document.createElement("p");
   node.className = className;
   node.textContent = text;

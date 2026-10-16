@@ -1547,24 +1547,21 @@ summary:focus-visible {
   background: rgb(131 217 231 / 18%);
 }
 
-/* The help overlay (#160), legacy's #html-help-overlay as a modal dialog.
-   It scrolls on its own: overscroll-behavior keeps a wheel or a drag that
-   reaches its end from scrolling the screen behind it, the case #120 fixed
-   in legacy. Its margin leaves backdrop around it to tap, which closes it. */
+/* The help overlay (#160). overscroll-behavior keeps a wheel or drag that
+   reaches its end from scrolling the screen behind it (#120); the margin
+   leaves backdrop around it to tap, which closes it. */
 .help-overlay {
-  box-sizing: border-box;
   width: min(44rem, calc(100% - 2rem));
   max-width: none;
   max-height: calc(100% - 2rem);
-  margin: auto;
   padding: 0 1.25rem 1.25rem;
   overflow-y: auto;
   overscroll-behavior: contain;
   border: 1px solid rgb(129 226 241 / 35%);
   border-radius: 1rem;
   color: #e9fbff;
-  background: rgb(3 24 32 / 97%);
-  overflow-wrap: anywhere;
+  background: rgb(3 24 32);
+  font-size: 0.85rem;
 }
 
 .help-overlay::backdrop {
@@ -1573,27 +1570,18 @@ summary:focus-visible {
 
 .help-header {
   position: sticky;
-  z-index: 1;
   top: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
   padding: 1rem 0 0.75rem;
   border-bottom: 1px solid rgb(129 226 241 / 35%);
-  background: rgb(3 24 32);
-}
-
-.help-header h2 {
-  margin: 0;
-  font-size: 1.3rem;
+  background: inherit;
 }
 
 .help-close,
 .secondary-action {
-  min-width: 2.75rem;
   min-height: 2.75rem;
-  flex-shrink: 0;
   padding: 0.5rem 1rem;
   border: 1px solid rgb(131 217 231 / 48%);
   border-radius: 0.7rem;
@@ -1604,42 +1592,26 @@ summary:focus-visible {
 }
 
 .result-screen .secondary-action {
-  display: block;
   width: 100%;
   margin-top: 1rem;
 }
 
-.help-hint,
-.help-paused {
-  margin: 0.75rem 0 0;
-  color: #a5cbd2;
-  font-size: 0.85rem;
-}
-
-.help-section h3 {
+.help-overlay h3 {
   margin: 1.25rem 0 0.5rem;
   color: #83d9e7;
-  font-size: 0.95rem;
 }
 
 .help-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  text-align: left;
 }
 
 .help-table th,
 .help-table td {
   padding: 0.4rem 0.5rem 0.4rem 0;
   border-bottom: 1px solid rgb(129 226 241 / 12%);
-  text-align: left;
   vertical-align: top;
-}
-
-.help-table thead th {
-  color: #8694a1;
-  font-size: 0.72rem;
-  font-weight: 750;
 }
 
 .help-table tbody th {
@@ -1647,18 +1619,17 @@ summary:focus-visible {
   white-space: nowrap;
 }
 
-.help-safety {
-  margin: 1.25rem 0 0;
-  color: #f6db72;
-  font-size: 0.85rem;
-  line-height: 1.45;
+.help-hint {
+  color: #a5cbd2;
 }
 
-/* Under 390 px the topbar cannot hold the site's name beside the status
-   chip and three 44 px buttons (#160 added Help): the buttons ran off the
-   right edge, mute first. The name is the one part with no function, and
-   the HUD column already covered most of it at these widths, so it gives
-   way. It stays in the document for assistive technology. */
+.help-safety {
+  color: #f6db72;
+}
+
+/* Under 390 px the site's name no longer fits beside the status chip and
+   three 44 px buttons (Help, #160): mute ran off the right edge. The name
+   gives way, visually only; the HUD column covered most of it there. */
 @media (width < 390px) {
   .wreck-identity {
     position: absolute;
@@ -1666,7 +1637,6 @@ summary:focus-visible {
     height: 1px;
     overflow: hidden;
     clip-path: inset(50%);
-    white-space: nowrap;
   }
 
   .topbar-actions {
