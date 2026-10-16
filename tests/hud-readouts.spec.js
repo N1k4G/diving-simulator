@@ -14,6 +14,52 @@ const SAVE_KEY = 'diving-simulator.save-game';
 
 const hudRow = (page, name) => page.locator(`.wreck-hud [data-hud-metric="${name}"]`);
 const hudValue = (page, name) => hudRow(page, name).locator('dd');
+const chevrons = (page) => hudRow(page, 'ascentRate').locator('.ascent-chevrons');
+
+/** A diver at 20 m with a BCD full enough to rise at legacy's 25 m/min cap. */
+const risingFast = (state) => {
+  state.depthM = 20;
+  state.maxDepthM = Math.max(state.maxDepthM, 20);
+  state.verticalVelocityMpm = 0;
+  state.bcdGasSurfaceLiters = 40;
+};
+
+/**
+ * Watches the chevrons in the page, frame by frame, from the first frame they
+ * show legacy's danger tone for 1.2 s of real time, or until the dive ends
+ * and the HUD goes. In the page, so that a rising dive ending in barotrauma
+ * on a slow machine does not take the HUD away between two Playwright round
+ * trips. Every frame's count, lit chevrons, direction and blink.
+ */
+const watchDangerChevrons = (page) =>
+  page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        const frames = [];
+        let firstDanger = null;
+        const started = performance.now();
+        const look = () => {
+          const element = document.querySelector('.ascent-chevrons');
+          const now = performance.now();
+          if (element?.dataset.tier === 'danger') {
+            firstDanger ??= now;
+            frames.push({
+              count: element.dataset.count,
+              direction: element.dataset.direction,
+              ariaHidden: element.getAttribute('aria-hidden'),
+              lit: element.querySelectorAll('span[data-lit]').length,
+              blinkedOff: element.hasAttribute('data-blinked-off'),
+            });
+          }
+          const done =
+            (firstDanger !== null && (now - firstDanger > 1_200 || !element)) ||
+            now - started > 30_000;
+          if (done) resolve({ frames, dangerMs: firstDanger === null ? 0 : now - firstDanger });
+          else requestAnimationFrame(look);
+        };
+        look();
+      }),
+  );
 
 /**
  * Starts a dive, takes a save of it under way, edits it with `mutate` and
@@ -51,22 +97,98 @@ test('the ascent rate points down while the diver sinks', async ({ page }) => {
   // Released, the vented diver goes on sinking.
   await expect(hudValue(page, 'ascentRate')).toHaveText(/^↓ \d+ m\/min$/);
   await expect(hudRow(page, 'ascentRate')).not.toHaveAttribute('data-danger', '');
+  // Legacy's chevrons point down too (#222).
+  await expect(chevrons(page)).toHaveAttribute('data-direction', 'down');
 });
 
 test('a fast ascent warns in words, marks the rate, and names it in the chip', async ({ page }) => {
-  // Legacy's SLOW DOWN banner past 9 m/min up (#197). A diver at 20 m with
-  // a BCD full enough to rise at legacy's 25 m/min cap.
-  await resumeWith(page, (state) => {
-    state.depthM = 20;
-    state.maxDepthM = Math.max(state.maxDepthM, 20);
-    state.verticalVelocityMpm = 0;
-    state.bcdGasSurfaceLiters = 40;
-  });
+  // Legacy's SLOW DOWN banner past 9 m/min up (#197).
+  await resumeWith(page, risingFast);
 
   await expect(page.getByRole('alert')).toHaveText('Ascending too fast — slow down', { timeout: 15_000 });
   await expect(page.locator('.status-chip')).toHaveText('⚠ Fast ascent');
   await expect(hudValue(page, 'ascentRate')).toHaveText(/^⚠ ↑ \d+ m\/min$/);
   await expect(hudRow(page, 'ascentRate')).toHaveAttribute('data-danger', '');
+});
+
+test('past 18 m/min up all six chevrons show in the danger tone, and blink', async ({ page }) => {
+  // Legacy's chevrons (#222). They repeat the row's words for the eye only.
+  await resumeWith(page, risingFast);
+  const { frames, dangerMs } = await watchDangerChevrons(page);
+
+  expect(frames.length).toBeGreaterThan(0);
+  for (const frame of frames) {
+    expect(frame).toMatchObject({ count: '6', direction: 'up', ariaHidden: 'true' });
+    expect(frame.lit).toBe(frame.blinkedOff ? 0 : 6);
+  }
+  // Off for 300 ms in every 600: both seen within the 1.2 s watched.
+  expect(dangerMs).toBeGreaterThan(600);
+  expect(frames.some((frame) => frame.blinkedOff)).toBe(true);
+  expect(frames.some((frame) => !frame.blinkedOff)).toBe(true);
+});
+
+// The chevrons take no room in the row (#254 pre-review pass 1): between
+// its label and its value they wrapped both onto two lines. With and
+// without them the row is as high, and they meet no row's text and stay in
+// the panel. 960x540 and 844x390 lay the HUD out in two columns, 390x844 in
+// one 12.5rem column.
+for (const [width, height] of [[960, 540], [844, 390], [390, 844]]) {
+  test.describe(`${width}x${height}`, () => {
+    test.use({ viewport: { width, height } });
+
+    test('the chevrons leave the ascent-rate row as high as without them, clear of every row', async ({ page }) => {
+      await page.goto('/dist/');
+      await page.evaluate(() => window.localStorage.clear());
+      await startDiveAndWaitForCanvas(page);
+      await expect(hudValue(page, 'ascentRate')).toHaveText('0 m/min');
+
+      const measure = () =>
+        page.evaluate(() => {
+          const box = (element) => element.getBoundingClientRect().toJSON();
+          const row = document.querySelector('.wreck-hud [data-hud-metric="ascentRate"]');
+          return {
+            row: box(row),
+            hud: box(document.querySelector('.wreck-hud')),
+            chevrons: box(row.querySelector('.ascent-chevrons')),
+            texts: [...document.querySelectorAll('.wreck-hud dt, .wreck-hud dd')]
+              .filter((element) => element.getClientRects().length > 0)
+              .map(box),
+          };
+        });
+      const withChevrons = await measure();
+      await page.addStyleTag({ content: '.ascent-chevrons { display: none !important; }' });
+      const without = await measure();
+
+      // No absolute height: at 390x844 linux's fonts wrap the row with or
+      // without the chevrons (38 px in CI), win32's do not.
+      expect(withChevrons.row.height).toBe(without.row.height);
+      const { chevrons, hud } = withChevrons;
+      expect(chevrons.width).toBeGreaterThan(0);
+      expect(chevrons.left).toBeGreaterThanOrEqual(hud.left);
+      expect(chevrons.right).toBeLessThanOrEqual(hud.right);
+      expect(chevrons.top).toBeGreaterThanOrEqual(hud.top);
+      expect(chevrons.bottom).toBeLessThanOrEqual(hud.bottom);
+      for (const text of withChevrons.texts) {
+        const overlaps =
+          chevrons.left < text.right &&
+          text.left < chevrons.right &&
+          chevrons.top < text.bottom &&
+          text.top < chevrons.bottom;
+        expect(overlaps, JSON.stringify(text)).toBe(false);
+      }
+    });
+  });
+}
+
+test('with reduced motion the chevrons of a fast ascent stay lit and do not blink', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await resumeWith(page, risingFast);
+  const { frames } = await watchDangerChevrons(page);
+
+  expect(frames.length).toBeGreaterThan(0);
+  for (const frame of frames) {
+    expect(frame).toMatchObject({ count: '6', lit: 6, blinkedOff: false });
+  }
 });
 
 test('a safety stop under way counts down at its 5 m, and fast-forward is offered', async ({ page }) => {

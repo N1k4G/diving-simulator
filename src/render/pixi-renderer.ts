@@ -1,4 +1,12 @@
-import { Application, CanvasSource, Container, Graphics, Sprite, Texture } from "pixi.js";
+import {
+  Application,
+  CanvasSource,
+  Container,
+  FillGradient,
+  Graphics,
+  Sprite,
+  Texture,
+} from "pixi.js";
 
 import type { PresentationState } from "../presentation/presentation-state";
 import { LAYERS, type LayerId, type QualityTier } from "../sites/asset-manifest";
@@ -19,9 +27,19 @@ import {
   visibleHalfExtentM,
   type RetainedElement,
 } from "./layer-assignment";
+import { FAST_ASCENT_FLASH_EDGE_PX, fastAscentFlashAlpha } from "./fast-ascent-flash";
 import { narcosisVignetteAlpha, narcosisWobblePx } from "./narcosis-view";
-import type { SceneRenderer, WreckSceneState } from "./renderer";
+import { diveUnderway, type SceneRenderer, type WreckSceneState } from "./renderer";
 import { SHARK_MOUTH_WIDTH_M, SHARK_SIZE_M, sharkBobM } from "./shark-view";
+import {
+  BOAT_SHADOW_DEPTH_M,
+  BOAT_X_M,
+  LEGACY_M_PER_PX,
+  boatBobM,
+  boatRockRad,
+  boatShadowStrength,
+  boatShadowSwayM,
+} from "./surface-boat";
 
 const MAX_RESOLUTION = 2;
 const BUBBLE_COUNT = 14;
@@ -91,7 +109,19 @@ export class PixiWreckRenderer implements SceneRenderer {
    * world and not moved by its wobble, as legacy draws it after restoring.
    */
   #vignette = new Sprite();
-  /** prefers-reduced-motion: the view does not wobble (docs/decisions.md). */
+  /** The dive boat at the surface (#222), built once; a frame moves it. */
+  #boat = new Container();
+  /** Its shadow under the surface, a canvas texture drawn once. */
+  #boatShadow = new Sprite();
+  /**
+   * The fast-ascent flash (#222): four red strips along the edges of the
+   * view, drawn once per viewport size; a frame sets their alpha.
+   */
+  #flash = new Graphics();
+  /**
+   * prefers-reduced-motion: the view does not wobble, and the fast-ascent
+   * flash holds steady instead of pulsing (docs/decisions.md).
+   */
   #reducedMotion: MediaQueryList | null = null;
 
   async mount(host: HTMLElement): Promise<void> {
@@ -116,7 +146,9 @@ export class PixiWreckRenderer implements SceneRenderer {
     host.dataset.renderer = this.kind;
     host.replaceChildren(app.canvas);
     this.#vignette.visible = false;
-    app.stage.addChild(this.#background, this.#world, this.#vignette);
+    this.#flash.visible = false;
+    // Legacy draws the flash inside narcosis's wobble and under its vignette.
+    app.stage.addChild(this.#background, this.#world, this.#flash, this.#vignette);
     this.#reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)") ?? null;
     this.#buildRetainedScene();
 
@@ -146,6 +178,7 @@ export class PixiWreckRenderer implements SceneRenderer {
     app.renderer.resize(this.#viewport.width, this.#viewport.height);
     this.#drawBackground();
     this.#drawVignette();
+    this.#drawFlash();
     // The cull window is a function of the viewport, so a resize or an
     // orientation change invalidates it even when the camera has not moved.
     // Without this, rotating to portrait keeps the landscape window and the
@@ -179,6 +212,16 @@ export class PixiWreckRenderer implements SceneRenderer {
     this.#world.pivot.set(camera.focus.x, camera.focus.y);
     this.#world.scale.set(camera.scale);
     this.#syncSceneLayers(camera, false);
+    this.#placeBoat(presentation, scene);
+    const flashAlpha = fastAscentFlashAlpha(
+      diveUnderway(presentation),
+      presentation.ascentRateMpm,
+      scene.elapsedRealS,
+      this.#reducedMotion?.matches ?? false,
+    );
+    this.#flash.visible = flashAlpha > 0;
+    this.#flash.alpha = flashAlpha;
+    this.#flash.position.set(wobble.x, wobble.y);
     this.#diver.position.set(scene.routePositionM, scene.diverDepthM);
     this.#diver.scale.x = scene.facing;
     this.#torch.visible = scene.torchOn;
@@ -216,9 +259,12 @@ export class PixiWreckRenderer implements SceneRenderer {
     if (!this.#app) {
       return;
     }
-    // The vignette's texture is this renderer's own, drawn on a canvas.
-    if (this.#vignette.texture !== Texture.EMPTY) {
-      this.#vignette.texture.destroy(true);
+    // The vignette's and the boat shadow's textures are this renderer's own,
+    // drawn on canvases.
+    for (const sprite of [this.#vignette, this.#boatShadow]) {
+      if (sprite.texture !== Texture.EMPTY) {
+        sprite.texture.destroy(true);
+      }
     }
     this.#app.destroy({ removeView: true }, { children: true });
     if (this.#host) {
@@ -256,6 +302,29 @@ export class PixiWreckRenderer implements SceneRenderer {
       shark.depthM + sharkBobM(scene.elapsedRealS - this.#sharkSinceRealS),
     );
     this.#shark.scale.x = shark.direction;
+  }
+
+  /**
+   * Legacy's boat where its site moors it (src/renderer.js drawScene, "Ship
+   * on surface"), bobbing and rocking on the waves' real time, and its shadow
+   * while the dive is under way (_drawBoatShadow), swaying and fading with the
+   * diver's depth.
+   */
+  #placeBoat(
+    presentation: Readonly<PresentationState>,
+    scene: Readonly<WreckSceneState>,
+  ): void {
+    const t = scene.elapsedRealS;
+    this.#boat.position.set(BOAT_X_M, boatBobM(t));
+    this.#boat.rotation = boatRockRad(t);
+    const shadow = boatShadowStrength(
+      diveUnderway(presentation),
+      scene.zone !== "exterior",
+      scene.diverDepthM,
+    );
+    this.#boatShadow.visible = shadow > 0;
+    this.#boatShadow.alpha = shadow;
+    this.#boatShadow.position.set(BOAT_X_M + boatShadowSwayM(t), BOAT_SHADOW_DEPTH_M);
   }
 
   #syncSceneLayers(camera: CameraTransform, force: boolean): void {
@@ -455,10 +524,15 @@ export class PixiWreckRenderer implements SceneRenderer {
     const surface = new Container();
     this.#waves = SURFACE_WAVES.map((wave) => buildWaveStrip(wave));
     surface.addChild(...this.#waves);
+    this.#boat = buildBoat();
+    this.#boatShadow = buildBoatShadow();
+    this.#boatShadow.visible = false;
 
     const retained: Readonly<Record<RetainedElement, Graphics | Container>> = {
       sky,
       surface,
+      boat: this.#boat,
+      boatShadow: this.#boatShadow,
       distantHull,
       seabed,
       hull,
@@ -527,6 +601,27 @@ export class PixiWreckRenderer implements SceneRenderer {
     }
   }
 
+  /**
+   * Legacy's fast-ascent strips for this viewport: red, 20 px deep along the
+   * top, the bottom, the left and the right, each filled on its own so the
+   * corners take two, as legacy's four fillRects do. render() sets the alpha.
+   */
+  #drawFlash(): void {
+    const { width, height } = this.#viewport;
+    const edge = FAST_ASCENT_FLASH_EDGE_PX;
+    const red = { color: 0xff0000 };
+    this.#flash
+      .clear()
+      .rect(0, 0, width, edge)
+      .fill(red)
+      .rect(0, height - edge, width, edge)
+      .fill(red)
+      .rect(0, 0, edge, height)
+      .fill(red)
+      .rect(width - edge, 0, edge, height)
+      .fill(red);
+  }
+
   #requireApp(): Application {
     if (!this.#app) {
       throw new Error("renderer must be mounted before use");
@@ -561,6 +656,142 @@ function buildShark(): Graphics {
     .fill({ color: 0x111111 })
     .circle(s * 0.6, -s * 0.1, s * 0.03)
     .fill({ color: 0xc80000, alpha: 0.5 });
+}
+
+/**
+ * Legacy's dive boat (src/renderer.js drawScene, "Ship on surface"), drawn
+ * in its pixels and scaled to metres, at the waterline: its reflection,
+ * flipped 6 px above the waterline at 0.16 alpha, the three wake ripples,
+ * and the boat itself.
+ */
+function buildBoat(): Container {
+  const reflection = paintShip(new Graphics(), true);
+  reflection.alpha = 0.16;
+  reflection.scale.y = -1;
+  reflection.position.y = -6;
+  const wake = new Graphics();
+  for (let ring = 0; ring < 3; ring += 1) {
+    wake
+      .ellipse(0, 2, 70 + ring * 26, 5 + ring * 2)
+      .stroke({ color: 0xe1f8ff, alpha: 0.22 * (0.5 - ring * 0.14), width: 1.4 });
+  }
+  const boat = new Container();
+  boat.addChild(reflection, wake, paintShip(new Graphics(), false));
+  boat.scale.set(LEGACY_M_PER_PX);
+  return boat;
+}
+
+/**
+ * Legacy's paintShip: the hull, shaded but for the reflection, its cyan
+ * waterline stripe, the wheelhouse and its windows, the hardtop, the A-frame
+ * at the stern, the dive ladder, the mast with the Alpha flag (white hoist,
+ * blue swallowtail fly) and the diver-down flag under it. The reflection
+ * leaves out the highlights and the ladder, as legacy's does. Legacy clips
+ * the flags' fills to their outlines; here they are the clipped shapes.
+ */
+function paintShip(ship: Graphics, reflection: boolean): Graphics {
+  const highlight = { color: 0xcee7f0, alpha: 0.5 };
+  ship
+    .moveTo(-64, 0)
+    .lineTo(64, 0)
+    .quadraticCurveTo(78, -2, 70, -14)
+    .lineTo(-50, -16)
+    .quadraticCurveTo(-66, -15, -64, -2)
+    .closePath()
+    .fill(
+      reflection
+        ? { color: 0x16252f }
+        : new FillGradient({
+            type: "linear",
+            start: { x: 0, y: -16 },
+            end: { x: 0, y: 0 },
+            textureSpace: "global",
+            colorStops: [
+              { offset: 0, color: 0x1e3340 },
+              { offset: 0.5, color: 0x16252f },
+              { offset: 1, color: 0x0f1b23 },
+            ],
+          }),
+    )
+    .rect(-60, -5, 128, 2.4)
+    .fill({ color: 0x34e6ff, alpha: 0.5 });
+  if (!reflection) {
+    ship.moveTo(-50, -16).lineTo(70, -14).stroke({ ...highlight, width: 1.4 });
+  }
+  ship
+    .roundRect(-20, -40, 40, 26, 4)
+    .fill({ color: 0x0f1b23 })
+    .roundRect(-14, -36, 16, 12, 2)
+    .fill(reflection ? { color: 0x96c8dc, alpha: 0.25 } : { color: 0xb4e1f0, alpha: 0.6 })
+    .roundRect(8, -34, 7, 7, 2)
+    .fill(reflection ? { color: 0x96c8dc, alpha: 0.18 } : { color: 0xb4e1f0, alpha: 0.45 })
+    .roundRect(-26, -50, 52, 8, 3)
+    .fill({ color: 0x16252f })
+    .rect(-22, -42, 3, 12)
+    .rect(19, -42, 3, 12)
+    .fill({ color: 0x0f1b23 });
+  if (!reflection) {
+    ship.moveTo(-26, -50).lineTo(26, -50).stroke({ ...highlight, width: 1.2 });
+  }
+  ship
+    .moveTo(-46, -16)
+    .lineTo(-40, -44)
+    .lineTo(-34, -16)
+    .stroke({ color: 0x0f1b23, width: 3 });
+  if (!reflection) {
+    const ladder = { color: 0xb4d2dc, alpha: 0.65, width: 1.5 };
+    ship.moveTo(-57, -3).lineTo(-57, 15).stroke(ladder);
+    ship.moveTo(-51, -3).lineTo(-51, 15).stroke(ladder);
+    for (let rung = 1; rung <= 14; rung += 4.5) {
+      ship.moveTo(-57, rung).lineTo(-51, rung).stroke(ladder);
+    }
+  }
+  ship
+    .moveTo(58, -14)
+    .lineTo(58, -56)
+    .stroke({ color: 0xcdd5da, width: 1.6 })
+    .poly([58, -56, 70, -56, 70, -39, 58, -39])
+    .fill({ color: 0xf4f7f8 })
+    .poly([70, -56, 84, -56, 76, -47.5, 84, -39, 70, -39])
+    .fill({ color: 0x1555c0 });
+  if (!reflection) {
+    ship
+      .poly([58, -56, 84, -56, 76, -47.5, 84, -39, 58, -39])
+      .stroke({ color: 0x648cc8, alpha: 0.3, width: 0.8 });
+  }
+  // The diver-down flag, its white diagonal 3 px wide clipped to the flag.
+  return ship
+    .rect(58, -36, 20, 13)
+    .fill({ color: 0xd83a39 })
+    .poly([58, -24.79, 58, -23, 60.75, -23, 78, -34.21, 78, -36, 75.25, -36])
+    .fill({ color: 0xf4f7f8 });
+}
+
+/**
+ * Legacy's boat shadow (_drawBoatShadow) at full strength: an ellipse 80 by
+ * 14 px filled with a radial gradient from 6 to 90 px, rgba(4,10,16) at 0.22,
+ * a third of that halfway, clear at the edge. Drawn once on a canvas; the
+ * sprite's alpha is the strength, which legacy multiplies into every stop.
+ */
+function buildBoatShadow(): Sprite {
+  const canvas = document.createElement("canvas");
+  canvas.width = 160;
+  canvas.height = 28;
+  const context = canvas.getContext("2d");
+  if (context) {
+    const gradient = context.createRadialGradient(80, 14, 6, 80, 14, 90);
+    gradient.addColorStop(0, "rgba(4,10,16,0.22)");
+    gradient.addColorStop(0.5, `rgba(4,10,16,${0.22 * 0.35})`);
+    gradient.addColorStop(1, "rgba(4,10,16,0)");
+    context.fillStyle = gradient;
+    context.beginPath();
+    context.ellipse(80, 14, 80, 14, 0, 0, Math.PI * 2);
+    context.fill();
+  }
+  const shadow = new Sprite(new Texture({ source: new CanvasSource({ resource: canvas }) }));
+  shadow.anchor.set(0.5);
+  shadow.scale.set(LEGACY_M_PER_PX);
+  return shadow;
 }
 
 function flatten(points: readonly RoutePoint[]): number[] {
