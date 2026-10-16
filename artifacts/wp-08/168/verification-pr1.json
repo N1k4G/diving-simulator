@@ -144,6 +144,34 @@
     ],
     "notRun": "tests/smoke.spec.js: it drives the legacy client (src/diving-simulator.html), which this PR does not touch"
   },
+  "codexRound1": {
+    "commit": "6a7503ddb42569262729088c2ac4a8b9561c1b3f",
+    "tree": "e0d53e6201680a11eec6575349e8ba3c03596d51",
+    "finding": "minor: on a 360 px phone the dock cap (100% - 13.6rem = 142.4 px) fits two cylinder buttons a row, so six make a 148 px dock whose top is 168 px above the shell's bottom, while the column could reach 152 px above it: an open gas page painted under the cylinder buttons",
+    "reproduced": {
+      "commit": "a137cbb61d67dfc6db316973fd6016ac50cf1aaa",
+      "test": "tests/in-dive-controls.spec.js 'every open page stands 8px clear of every control', six cylinders, all four pages",
+      "result": "360x640: cylinders 1 and 2 -16.0 px from the panel; 360x800: -13.3 px; 375x667 and 390x844 passed (three a row fit there)"
+    },
+    "why3PerRowCannotStay": "three buttons a row are 148 px; from the 20 px gutter the row ends at 168 px, and the D-pad (10.6rem, 20 px gutter) starts at 360 - 189.6 = 170.4 px: 2.4 px apart, under the 8 px rule; three a row keep 8 px from the pad only from about 366 px wide",
+    "change": "the column and the dock share one flex column (.wreck-side, from under the topbar to 1.25rem above the bottom, 8 px gap), so the column's panel shrinks above the dock however many rows it wraps to; the column keeps its own cap above the D-pad (100% - 8.25rem - inset of the side, the same 9.5rem from the shell's bottom as before), and the dock's width cap is the same length written against the side's width",
+    "tests": [
+      {
+        "command": "npm run typecheck && npm run lint && npm run build",
+        "result": "pass"
+      },
+      {
+        "command": "npx vitest run src tests/unit --maxWorkers=2 --testTimeout=60000",
+        "result": "666 passed of 666"
+      },
+      {
+        "command": "npx playwright test tests/touch-dpad.spec.js tests/in-dive-controls.spec.js tests/hud-readouts.spec.js tests/wreck-slice.spec.js --workers=1",
+        "result": "92 passed of 92",
+        "note": "one other agent ran e2e on the machine; the first attempt hit EADDRINUSE and was retried once the port was free"
+      }
+    ],
+    "diffSize": "879 changed lines against origin/main without artifacts: 365 in src, 514 in tests"
+  },
   "notMeasured": [
     "real touch on a physical device (blocked on #155)",
     "landscape: the dive on a short landscape screen and the D-pad there are #256",
