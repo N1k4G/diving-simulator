@@ -358,25 +358,18 @@ for (const { name, viewport } of ORIENTATIONS) {
   });
 }
 
-// The keyboard hint goes only where it could reach the HUD column, at 460 px
-// tall and below (#168 pre-review passes 1 and 2). A taller desktop window
-// keeps it: there it is the only text naming T, F, [, ], B and I.
-for (const [width, height, shown] of [
-  [1280, 585, true],
-  [1280, 461, true],
-  [1280, 460, false],
-  [844, 390, false],
-]) {
+// A short desktop window keeps the keyboard hint where the HUD leaves room
+// for it (#168 pre-review passes 1 to 3): there it is the only text naming
+// T, F, [, ], B and I. The hint yields to a taller HUD, which
+// tests/in-dive-controls.spec.js drives; on a recreational dive at 1 m it
+// fits, and stands 8 px clear of the pad.
+for (const [width, height] of [[1280, 585], [1280, 461]]) {
   test.describe(`a desktop window at ${width}x${height}`, () => {
     test.use({ viewport: { width, height } });
 
-    test(`${shown ? 'keeps' : 'drops'} the keyboard hint`, async ({ page }) => {
+    test('keeps the keyboard hint, clear of the pad', async ({ page }) => {
       await startDiveBelow(page, 1);
       const hint = page.locator('.controls-hint');
-      if (!shown) {
-        await expect(hint).toBeHidden();
-        return;
-      }
       await expect(hint).toBeVisible();
       const hintBox = await hint.boundingBox();
       for (const control of DIRECTIONS) {

@@ -838,7 +838,18 @@ async function expectHudClearOfControls(page) {
     '.wreck-controls button, .wreck-dock button, .controls-hint',
   );
   expect(rows.length).toBeGreaterThan(0);
-  expect(controls.length).toBeGreaterThan(0);
+  // An open page hides every in-dive button, as legacy does while
+  // showGasInfo (#168 pre-review pass 3), and the hint yields where it
+  // would meet the page; so with a page open there may be nothing left to
+  // meet it. That is asserted rather than assumed: no button is on screen.
+  // With the page closed there must be controls to measure, or the check
+  // would pass on an empty set.
+  const pageOpen = (await boxesOf('.gas-info')).length > 0;
+  if (pageOpen) {
+    expect(await boxesOf('.wreck-controls button, .wreck-dock button')).toEqual([]);
+  } else {
+    expect(controls.length).toBeGreaterThan(0);
+  }
   for (const row of rows) {
     for (const control of controls) {
       const dx = Math.min(row.x + row.width, control.x + control.width) - Math.max(row.x, control.x);
@@ -1338,6 +1349,25 @@ test.describe('gas information', () => {
     await expect(gasInfoPanel(page)).toBeHidden();
   });
 
+  test('an open page hides the in-dive buttons, as legacy, and closing it brings them back', async ({ page }) => {
+    // Legacy hides its pad and its touch-dive group while showGasInfo
+    // (src/touch.js updateNavPadVisibility, updateCcrDiveButtonVisibility,
+    // touchUpdateUI) (#168 pre-review pass 3). The keys still work.
+    await startCcrDive(page);
+    // The four directions, the torch, setpoint down and up, and bailout.
+    const buttons = page.locator('.wreck-controls [data-control], [data-torch], [data-wreck-ccr] button');
+    await expect(buttons).toHaveCount(8);
+    for (const button of await buttons.all()) await expect(button).toBeVisible();
+    await page.keyboard.press('i');
+    await expect(gasInfoPanel(page)).toBeVisible();
+    for (const button of await buttons.all()) await expect(button).toBeHidden();
+    await page.keyboard.press(']');
+    await expect(hudValue(page, 'setpoint')).toHaveText('0.80 bar');
+    await page.keyboard.press('i');
+    await expect(gasInfoPanel(page)).toBeHidden();
+    for (const button of await buttons.all()) await expect(button).toBeVisible();
+  });
+
   test('a failed dive has no gas information: it ends on the game-over screen', async ({ page }) => {
     // Legacy's gate is gameState === 'diving', and a failed dive is game over.
     await resumeCcrDiveWith(page, (state) => {
@@ -1415,34 +1445,112 @@ test.describe('gas information', () => {
     });
   }
 
-  // The worst case for the keyboard hint (#168 pre-review pass 2): a
-  // rebreather's page, which cannot shrink below the HUD, against the German
-  // hint's four lines. 461 px is the first height that shows the hint, and
-  // 585 px a short desktop window. The page has to stay 8 px clear of it.
-  for (const [width, height] of [[1280, 461], [1280, 585]]) {
-    test.describe(`${width}x${height} in German, on a rebreather`, () => {
-      test.use({ viewport: { width, height }, locale: 'de-DE' });
+  // The keyboard hint against the tallest HUD this spec can raise (#168
+  // pre-review passes 2 and 3): a rebreather's rows, a safety-stop row that
+  // wraps to two lines, the German hint's four lines, with the gas page open
+  // and closed. No window height keeps the hint clear of every HUD, so the
+  // hint is measured and yields (src/app/controls-hint.ts): wherever it is
+  // shown it stands 8 px clear of the HUD and the page.
+  test.describe('the keyboard hint against the tallest HUD, in German', () => {
+    test.use({ viewport: { width: 1280, height: 720 }, locale: 'de-DE' });
 
-      test('the open page stays 8px clear of the keyboard hint', async ({ page }) => {
-        await page.goto('/dist/');
-        await page.evaluate(() => window.localStorage.clear());
-        await page.locator('[data-accept-safety]').click();
-        await page.locator('.setup-screen').waitFor();
-        await page.locator('[data-setup-group=mode] [data-setup-option=ccr]').check();
-        await page.locator('[data-start-dive]').click();
-        await page.locator('[data-renderer=pixi] canvas').waitFor();
-        await descendTo(page, 1);
-        await expect(page.locator('[data-wreck-ccr]')).toBeVisible();
-        await gasInfoToggle(page).click();
-        await expect(gasInfoPanel(page)).toBeVisible();
-        const hint = page.locator('.controls-hint');
-        await expect(hint).toBeVisible();
-        await expect(hint).toContainText('BCD');
-        await expectHudClearOfControls(page);
-        const hintTop = (await hint.boundingBox()).y;
-        const panel = await gasInfoPanel(page).boundingBox();
-        expect(hintTop - (panel.y + panel.height)).toBeGreaterThanOrEqual(8);
+    const SIZES = [
+      [1280, 720],
+      [1280, 600],
+      [1280, 585],
+      [1280, 520],
+      [1280, 480],
+      [1280, 473],
+      [1280, 465],
+      [1280, 461],
+      [1280, 446],
+      [932, 430],
+      [844, 390],
+    ];
+
+    /** Two frames, so the resize has been laid out and observed. */
+    const settle = (page) =>
+      page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+
+    /** The hint is hidden, or 8 px clear of the HUD and of an open page. */
+    async function expectHintClear(page, label) {
+      const geometry = await page.evaluate(() => {
+        const rect = (selector) => {
+          const element = document.querySelector(selector);
+          if (!element || element.getClientRects().length === 0) return null;
+          const r = element.getBoundingClientRect();
+          return { top: r.top, bottom: r.bottom, left: r.left, right: r.right };
+        };
+        return { hint: rect('.controls-hint'), hud: rect('.wreck-hud'), panel: rect('[data-gas-info]') };
       });
+      if (geometry.hint === null) return false;
+      for (const name of ['hud', 'panel']) {
+        const box = geometry[name];
+        if (box === null) continue;
+        const apart = Math.max(
+          geometry.hint.top - box.bottom,
+          box.top - geometry.hint.bottom,
+          geometry.hint.left - box.right,
+          box.left - geometry.hint.right,
+        );
+        expect(apart, `${label}: the hint against the ${name}`).toBeGreaterThanOrEqual(8);
+      }
+      return true;
+    }
+
+    test('wherever the hint is shown, it stands 8px clear of the HUD and an open page', async ({ page }) => {
+      test.setTimeout(120_000);
+      await page.goto('/dist/');
+      await page.evaluate(() => window.localStorage.clear());
+      await page.locator('[data-accept-safety]').click();
+      await page.locator('.setup-screen').waitFor();
+      await page.locator('[data-setup-group=mode] [data-setup-option=ccr]').check();
+      await page.locator('[data-start-dive]').click();
+      await page.locator('[data-renderer=pixi] canvas').waitFor();
+      await descendTo(page, 1);
+      // Resumed at its safety stop, as tests/hud-readouts.spec.js does: from
+      // 20 m, with nearly three minutes left, and paused, the longest the row
+      // reads ("2 min 52 sec left · paused"). The pause is the save codec's
+      // rule, not a choice: a started stop is paused exactly outside the
+      // 2.4-8.3 m band. At 9 m the diver floats neutral (the formula is
+      // src/core/buoyancy.ts neutralBcdSurfaceLitres), so it stays there.
+      const saved = await persistedSave(page);
+      const pressureBar = 1 + 9 / 10;
+      const neutralL = (7 + 2 - 3 - 5 * Math.pow(1 / pressureBar, 0.7)) * pressureBar;
+      Object.assign(saved.state, {
+        depthM: 9,
+        maxDepthM: 20,
+        verticalVelocityMpm: 0,
+        bcdGasSurfaceLiters: neutralL,
+        safetyStop: { needed: true, countdownStarted: true, remainingS: 172, paused: true, complete: false },
+      });
+      await page.goto('/dist/');
+      await page.evaluate(([key, value]) => window.localStorage.setItem(key, value), [SAVE_KEY, JSON.stringify(saved)]);
+      await page.locator('[data-accept-safety]').click();
+      await page.locator('.setup-screen').waitFor();
+      await page.locator('[data-resume-continue]').click();
+      await page.locator('[data-renderer=pixi] canvas').waitFor();
+      await expect(hudRow(page, 'safetyStop').locator('dd')).toContainText('paused');
+      await expect(hudRow(page, 'setpoint')).toBeVisible();
+      await expect(page.locator('.controls-hint')).toContainText('BCD');
+
+      const shown = {};
+      for (const pageOpen of [false, true]) {
+        if (pageOpen) {
+          await gasInfoToggle(page).click();
+          await expect(gasInfoPanel(page)).toBeVisible();
+        }
+        for (const [width, height] of SIZES) {
+          await page.setViewportSize({ width, height });
+          await settle(page);
+          const label = `${width}x${height}, page ${pageOpen ? 'open' : 'closed'}`;
+          shown[label] = await expectHintClear(page, label);
+          await expectHudClearOfControls(page);
+        }
+      }
+      // Both branches are taken: kept where it fits, gone where it cannot.
+      expect(shown['1280x720, page closed'], 'the hint is kept where it fits').toBe(true);
+      expect(shown['844x390, page open'], 'the hint yields where it cannot fit').toBe(false);
     });
-  }
+  });
 });

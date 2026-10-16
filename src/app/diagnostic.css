@@ -1110,6 +1110,21 @@ summary:focus-visible {
   display: none;
 }
 
+/* An open gas-information page hides the in-dive buttons, as legacy hides
+   them while showGasInfo: updateNavPadVisibility() the pad,
+   updateCcrDiveButtonVisibility() the rebreather row, and touchUpdateUI()
+   the rest of its touch-dive group (src/touch.js). The keys still work.
+
+   Brought forward from #168's visibility rules (PR 3) by pre-review pass 3.
+   A page cannot shrink below the HUD above it, and at 844x390 a rebreather's
+   HUD with a stop row that wraps in German pushed an open page 3px into
+   the setpoint buttons. No layout of the short screen fits the tallest HUD,
+   a page and the dock together. With legacy's rule, the page and the
+   buttons are never on screen at once. */
+.wreck-shell:has(.gas-info:not([hidden])) :is(.wreck-controls, .wreck-tanks, .wreck-ccr) {
+  display: none;
+}
+
 .controls-hint {
   max-width: 26rem;
   margin: 0;
@@ -1201,28 +1216,14 @@ summary:focus-visible {
   }
 }
 
-/* Short windows (#168). Once the dive fills a screen under 600px tall, the
-   keyboard hint can reach up into the HUD column: at 844x390 it ran 4px
-   into a rebreather's rows and 2px into an open gas-information page.
-
-   The worst case is a rebreather's open page in German, whose hint wraps
-   to four lines (64px) where English takes three (48px). The page cannot
-   shrink below the HUD and its padding, so the gap from the panel's bottom
-   to the hint's top grows one for one with the height: 0 at 446px, 8px at
-   454px, and 15px at 461px, the first height that shows the hint. English
-   is 16px clearer at every height. Measured at 1280 and 932 wide, which
-   give the same gap because the hint's width is capped. (#168 pre-review
-   pass 2; the 420px of pass 1 counted only the HUD rows.)
-
-   Above 460px the hint stays. On a desktop window it is the only text
-   naming T, F, [, ], B and I, and legacy hints the keys on every non-touch
-   device (#168 pre-review pass 1). Below it, a phone held sideways has no
-   keyboard to hint at. */
-@media (height <= 460px) {
-  .controls-hint {
-    display: none;
-  }
-}
+/* Once the dive fills a screen under 600px tall, the keyboard hint can
+   reach up into the HUD column (#168). No window height keeps the two
+   apart, because the HUD's height depends on the dive: three thresholds
+   were each beaten by a taller HUD (a rebreather's rows, an open page, a
+   German stop row that wraps). The hint is measured against the HUD and an
+   open page instead, and hidden while it would come within 8px of either
+   (src/app/controls-hint.ts). Anywhere it fits, a desktop window keeps it:
+   there it is the only text naming T, F, [, ], B and I. */
 
 /* The gas-information panel (#163). Same treatment as the HUD above it. */
 .gas-info {
