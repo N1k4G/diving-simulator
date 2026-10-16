@@ -164,17 +164,26 @@ describe("the HUD's NDL row (#244)", () => {
     expect(onAir).not.toBe(STALE_NDL_MIN);
 
     controller.requestTankSwitch(1);
-    const switched = frames.at(-1)!.presentation;
-    const state = controller.authoritativeState;
-    expect(state.activeTankIndex).toBe(1);
+    // The next frame reads it (#202).
+    expect(controller.authoritativeState.activeTankIndex).toBe(0);
+    const [switchTick] = await run(1, false);
+    expect(switchTick!.state.activeTankIndex).toBe(1);
     // The forecast is dropped with the gas it was computed for, and the
     // replacement is pending.
+    expect(switchTick!.frame.presentation.planner).toBeNull();
+    // Legacy's frame that reads the key computed its NDL before it, on air,
+    // and draws that.
+    expect(switchTick!.frame.presentation.ndlMin).toBe(legacyNdl(switchTick!.state, AIR));
+
+    const [nextTick] = await run(1, false);
+    const switched = nextTick!.frame.presentation;
+    const state = nextTick!.state;
     expect(switched.planner).toBeNull();
     const onNitrox = legacyNdl(state, EAN32);
     expect(switched.ndlMin).toBe(onNitrox);
     // Counter-checks: the switch moved the NDL, and the row shows a number,
     // not the unavailable mark the forecast's absence would give.
-    expect(onNitrox).toBeGreaterThan(onAir);
+    expect(onNitrox).toBeGreaterThan(legacyNdl(state, AIR));
     expect(onNitrox).toBeLessThan(NDL_UNLIMITED_MINUTES);
     expect(ndlText(switched.ndlMin, "en", UNAVAILABLE)).toBe(`${Math.min(99, onNitrox)} min`);
     expect(ndlText(switched.planner?.ndlMin ?? null, "en", UNAVAILABLE)).toBe(UNAVAILABLE);

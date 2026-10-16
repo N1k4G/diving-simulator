@@ -13,8 +13,9 @@ import {
 import { bars, metres, seconds } from "../../src/core/units";
 
 // The in-dive rebreather operations (#163): the setpoint and the bailout,
-// applied when pressed rather than sampled at the next step, with the same
-// refusal rules legacy applies in src/game-loop.js updateDiving.
+// each in a zero-length frame here (#202; their place inside a frame is in
+// tests/unit/in-dive-acts.test.ts), with the same refusal rules legacy
+// applies in src/game-loop.js updateDiving.
 
 function ccrModel(targetPo2Bar = 0.7) {
   const ccr = createCcrState(createGasMix(0.21, 0), {

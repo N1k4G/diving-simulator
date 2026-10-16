@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GameController, type GameFrame } from "../../src/app/game-controller";
 import {
@@ -16,12 +16,43 @@ import {
   decoStopDepth,
 } from "../../src/planner/dive-planner";
 
-// Fast-forward (#163) at the controller, without a DOM or an animation
-// frame. The controller publishes a frame on every discrete act — a gas
-// switch, the torch, the fast-forward toggle — so the rule can be read from
-// the last frame it handed to onFrame. What needs a running frame loop (the
-// clock actually running faster, the auto-cancel on leaving the band) is
-// covered in tests/in-dive-controls.spec.js.
+// Fast-forward (#163) at the controller, without a DOM. The controller
+// publishes a frame on the torch and the fast-forward toggle, so the rule can
+// be read from the last frame it handed to onFrame. A gas switch waits for
+// the next frame, which applies it where legacy reads its key (#202), so the
+// tests of a switch run one. What needs a running frame loop (the clock
+// actually running faster, the auto-cancel on leaving the band) is covered
+// in tests/in-dive-controls.spec.js.
+
+const FRAME_MS = 20;
+let queue: FrameRequestCallback[] = [];
+let nowMs = 0;
+
+beforeEach(() => {
+  queue = [];
+  nowMs = 0;
+  vi.stubGlobal("window", { addEventListener: () => undefined, removeEventListener: () => undefined });
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe(): void {}
+      disconnect(): void {}
+    },
+  );
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => queue.push(callback));
+  vi.stubGlobal("cancelAnimationFrame", () => undefined);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+function step(): void {
+  nowMs += FRAME_MS;
+  const due = queue;
+  queue = [];
+  for (const callback of due) callback(nowMs);
+}
 
 /**
  * A diver holding an 18 m stop: every compartment loaded to 3.0 bar of
@@ -173,25 +204,34 @@ describe("fast-forward at the controller", () => {
     expect(last()).toEqual({ available: true, active: false });
   });
 
-  it("a gas switch ends it", () => {
+  it("a gas switch ends it", async () => {
     // src/game-loop.js TASK-019 sets fastForwardActive = false on a switch.
     const { controller, last } = createHarness(stateAtStop());
+    await controller.start({} as HTMLElement);
+    step();
     controller.toggleFastForward();
     expect(last().active).toBe(true);
 
     controller.requestTankSwitch(1);
+    // It runs until the frame that switches.
+    expect(last().active).toBe(true);
+    step();
     expect(last().active).toBe(false);
     expect(controller.authoritativeState.activeTankIndex).toBe(1);
+    controller.destroy();
   });
 
-  it("a refused switch leaves it running", () => {
+  it("a refused switch leaves it running", async () => {
     // The cancel belongs to an actual switch. Asking for the cylinder
     // already breathed changes nothing, so it must not stop the clock.
     const { controller, last } = createHarness(stateAtStop());
+    await controller.start({} as HTMLElement);
+    step();
     controller.toggleFastForward();
 
     controller.requestTankSwitch(0);
-    controller.toggleTorch();
-    expect(last().active).toBe(true);
+    step();
+    expect(last()).toEqual({ available: true, active: true });
+    controller.destroy();
   });
 });

@@ -23,7 +23,7 @@ import {
   type DiveState,
   type GasMix,
 } from "./dive-state";
-import { NO_INPUT, type InputIntent } from "./inputs";
+import { NO_ACTS, NO_INPUT, hasActs, type DiveActs, type InputIntent } from "./inputs";
 import { nextRandom } from "./rng";
 import {
   narcosisDriftStep,
@@ -251,6 +251,16 @@ export class DiveModel {
     let remainingS = elapsedS;
     let pendingIntent = intent;
 
+    // A key read in a zero-length frame (#202): legacy's updateDiving(0).
+    if (elapsedS === 0 && hasActs(intent)) {
+      this.#state = advanceDiveStep(
+        this.#state,
+        { gradientFactorHighPercent: this.#gradientFactorHighPercent, ...environment },
+        elapsedS,
+        intent,
+      );
+    }
+
     while (remainingS > 0 && !isDiveOver(this.#state)) {
       const stepS = seconds(Math.min(remainingS, FIXED_STEP_SECONDS));
       this.#state = advanceDiveStep(
@@ -293,6 +303,10 @@ export class DiveModel {
    * With `realS`, the frame's real seconds (legacy's dtReal), narcosis drifts
    * the velocity after the physics (#220), drawing before the shark as
    * legacy's frame does; without it nothing drifts or is drawn.
+   *
+   * `acts` are the cylinder, setpoint and bailout keys read in this frame
+   * (#202), applied where legacy's updateDiving() reads them: after the
+   * frame's tissues and decompression limits (advanceDiveStep).
    */
   advanceWithBuoyancy(
     bounds: Readonly<VerticalBounds>,
@@ -301,6 +315,7 @@ export class DiveModel {
     inOverhead = false,
     shark?: SharkFrame,
     realS?: number,
+    acts: Readonly<DiveActs> = NO_ACTS,
   ): DiveState {
     if (frameS <= 0 || isDiveOver(this.#state)) {
       return this.#state;
@@ -339,6 +354,7 @@ export class DiveModel {
         ...(shark ? { shark } : {}),
       },
       frameS,
+      acts,
     );
     return this.#state;
   }
@@ -368,46 +384,30 @@ export class DiveModel {
   }
 
   /**
-   * Switches the breathed cylinder now, outside the time step (#163 review).
+   * Switches the breathed cylinder in a zero-length frame (#202): legacy's
+   * updateDiving(0) with the key held, where nothing else moves. The
+   * recorded #163 dives read their keys so, on a tick boundary. The game
+   * reads them in its frames instead, through the acts of
+   * advanceWithBuoyancy, as legacy does (src/game-loop.js TASK-019).
    *
-   * A gas switch is a discrete act, not a level to sample. Carrying it in the
-   * intent meant holding it somewhere until the next whole-second step, and
-   * the client held it in a single slot — so a second press before that step
-   * overwrote the first, and pressing 2 and then an out-of-range 6 lost the
-   * valid switch entirely. A queue would have kept both, but then two presses
-   * inside one second would emit two gas-switch events where legacy produces
-   * one transition.
-   *
-   * Legacy applies the switch in the frame the key is read
-   * (src/game-loop.js TASK-019), so this does too and nothing is held
-   * anywhere. The refusal rules are untouched: applyGasSwitchIntent still
-   * decides, and a dive that has already failed does not switch at all, as
-   * advanceDiveStep would also refuse.
+   * The refusal rules are applyGasSwitchIntent's, and a dive that is over
+   * does not switch at all.
    */
   switchGas(requestedIndex: number): DiveState {
-    if (isDiveOver(this.#state)) {
-      return this.#state;
-    }
-    this.#state = applyGasSwitchIntent(this.#state, requestedIndex);
-    return this.#state;
+    return this.#actWithoutTime({ ...NO_ACTS, switchGasIndices: [requestedIndex] });
   }
 
   /**
-   * Moves the loop setpoint, now, outside the time step (#163).
+   * Moves the loop setpoint in a zero-length frame (#202), as switchGas.
    *
    * src/game-loop.js updateDiving: `ccrState.targetSP = Math.max(CCR_SP_MIN,
    * +(ccrState.targetSP - CCR_SP_STEP).toFixed(1))` and the mirror for `]`,
-   * both only while `diveMode === 'ccr' && !ccrState.onBailout`. A discrete
-   * act, applied when pressed for the same reason switchGas is. The setpoint
+   * both only while `diveMode === 'ccr' && !ccrState.onBailout`. The setpoint
    * is not an event: legacy records none, and the parity trace compares the
    * ccr.targetPO2_bar field at checkpoints instead.
    */
   adjustSetpoint(deltaBar: number): DiveState {
-    if (isDiveOver(this.#state)) {
-      return this.#state;
-    }
-    this.#state = applySetpointAdjustment(this.#state, deltaBar);
-    return this.#state;
+    return this.#actWithoutTime({ ...NO_ACTS, setpointStepsBar: [deltaBar] });
   }
 
   /**
@@ -425,21 +425,23 @@ export class DiveModel {
   }
 
   /**
-   * Bails out to open circuit, now, outside the time step (#163).
+   * Bails out to open circuit in a zero-length frame (#202), as switchGas.
    *
    * src/game-loop.js TASK-032F: `if (keys['b']) { ccrState.onBailout = true }`
    * while `diveMode === 'ccr' && !ccrState.onBailout`. Irreversible by
    * construction — there is no operation that clears onBailout — and
-   * confirmed by the state rather than by a dialog (#67). Same rules as the
-   * intent path through advance(), which stays for traces that carry the
-   * intent; a second call is a no-op and adds no second event.
+   * confirmed by the state rather than by a dialog (#67). A second call is a
+   * no-op and adds no second event.
    */
   bailOut(): DiveState {
-    if (isDiveOver(this.#state)) {
-      return this.#state;
-    }
-    this.#state = applyBailoutIntent(this.#state, true);
-    return this.#state;
+    return this.#actWithoutTime({ ...NO_ACTS, bailout: true });
+  }
+
+  #actWithoutTime(acts: Readonly<DiveActs>): DiveState {
+    return this.advance({ depthM: this.#state.depthM }, seconds(0), {
+      ...NO_INPUT,
+      ...acts,
+    });
   }
 }
 
@@ -519,20 +521,35 @@ export function advanceTissues(
   });
 }
 
+/**
+ * One frame of the dive. Its acts (#202) are applied where legacy's
+ * updateDiving() reads their keys: the cylinder keys after the rule of
+ * thirds and before the gas use (TASK-019), the setpoint keys after the loop
+ * update, B last before the dive-ending checks (TASK-032F). So the frame an
+ * act arrives in loads the tissues and evaluates the ceiling, the NDL, the
+ * CNS and narcosis on the old gas, and bills the new cylinder. A zero-length
+ * frame, legacy's updateDiving(0), applies its acts and moves nothing.
+ */
 export function advanceDiveStep(
   state: DiveState,
   environment: DiveEnvironment,
   elapsedS: Seconds,
-  intent: Readonly<InputIntent> = NO_INPUT,
+  acts: Readonly<DiveActs> = NO_ACTS,
 ): DiveState {
-  if (isDiveOver(state) || elapsedS === 0) {
+  if (isDiveOver(state)) {
     return state;
+  }
+  if (elapsedS === 0) {
+    return applyActsWithoutTime(
+      state,
+      acts,
+      environment.gradientFactorHighPercent ?? DEFAULT_GF_HIGH_PERCENT,
+    );
   }
 
   const previousDepthM = state.depthM;
-  let nextState = applyGasSwitchIntent(state, intent.switchGasIndex);
-  nextState = applyCcrDiluentOnDescent(
-    nextState,
+  let nextState = applyCcrDiluentOnDescent(
+    state,
     previousDepthM,
     environment.depthM,
   );
@@ -558,13 +575,15 @@ export function advanceDiveStep(
   // Legacy's rule of thirds runs after updateCNS(), before the tick's gas
   // use and before any check can end the dive.
   nextState = updateRuleOfThirds(nextState, environment.inOverhead ?? false);
+  nextState = applyGasSwitchKeys(nextState, acts.switchGasIndices);
   nextState = updateLifeSupport(
     nextState,
     environment,
     previousDepthM,
     elapsedS,
   );
-  nextState = applyBailoutIntent(nextState, intent.bailout);
+  nextState = applySetpointSteps(nextState, acts.setpointStepsBar);
+  nextState = applyBailoutIntent(nextState, acts.bailout);
   // Legacy moves the shark after the frame's other updates and before its
   // dive-ending checks, which the failure update makes.
   const shark = environment.shark
@@ -604,11 +623,36 @@ export function advanceDiveStep(
 }
 
 /**
+ * The acts of a zero-length frame (#202), in the frame's order. Legacy's
+ * updateDiving(0) refreshes frameCalc before it reads the keys, so the
+ * frame's NDL is the one on the gas the frame starts on. It is searched
+ * afresh, not read from frameNdlMinutes: that would hand back the NDL of the
+ * frame that produced the state, which a zero-length frame before this one
+ * took on the gas before its own act (Codex round 1 on #253). A refused act
+ * still refreshes it, as legacy's frame does.
+ */
+function applyActsWithoutTime(
+  state: DiveState,
+  acts: Readonly<DiveActs>,
+  gradientFactorHighPercent: number,
+): DiveState {
+  const acted = applyBailoutIntent(
+    applySetpointSteps(applyGasSwitchKeys(state, acts.switchGasIndices), acts.setpointStepsBar),
+    acts.bailout,
+  );
+  return keepFrameNdl(
+    acted,
+    gradientFactorHighPercent,
+    decompressionLimits(state, gradientFactorHighPercent).ndlMin,
+  );
+}
+
+/**
  * Legacy's frameCalc.ndl of each state (#244): the NDL the step that produced
  * it computed, at that step's GF high. Kept beside the state rather than in
  * it, so the save format does not change; a state no step produced (a new or
- * resumed dive, a gas switch, a setpoint change or a bailout between steps)
- * has its NDL computed once, on first read, from the same inputs.
+ * resumed dive) has its NDL computed once, on first read, from the same
+ * inputs.
  */
 const frameNdls = new WeakMap<
   DiveState,
@@ -1170,6 +1214,29 @@ function applyGasSwitchIntent(
       tankIndex: requestedIndex,
     },
   );
+}
+
+/**
+ * Legacy's cylinder keys of one frame (src/game-loop.js TASK-019): read in
+ * cylinder order, each switching to a cylinder other than the one breathed
+ * that has gas left, so two keys in one frame are two switches. A dive that
+ * is over switches nothing; the caller checks that.
+ */
+export function applyGasSwitchKeys(
+  state: DiveState,
+  indices: readonly number[],
+): DiveState {
+  return [...indices]
+    .sort((a, b) => a - b)
+    .reduce<DiveState>(applyGasSwitchIntent, state);
+}
+
+/** Legacy's [ and ] of one frame, in that order. */
+function applySetpointSteps(
+  state: DiveState,
+  stepsBar: readonly number[],
+): DiveState {
+  return stepsBar.reduce<DiveState>(applySetpointAdjustment, state);
 }
 
 function applySetpointAdjustment(
