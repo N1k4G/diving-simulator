@@ -76,6 +76,7 @@ export function createHelpOverlay(options: Readonly<HelpOverlayOptions>): HelpOv
     }
     open = false;
     window.removeEventListener("keydown", takeKey, true);
+    window.removeEventListener("keyup", takeKey, true);
     dialog.close();
     if (notify) {
       options.onClose?.();
@@ -89,10 +90,24 @@ export function createHelpOverlay(options: Readonly<HelpOverlayOptions>): HelpOv
   // A key press, in the window's capture phase, before every other key
   // handler of the page. stopPropagation() keeps it from the dive and the
   // screens; its default action is left alone, so Tab moves focus, Enter
-  // presses the focused button and the arrows, Page Up/Down and Space scroll
-  // the dialog. Key releases pass, so a key let go here is let go in the
-  // dive, as legacy's keyup always clears its key.
+  // presses the focused button and the arrows and Page Up/Down scroll the
+  // dialog. Key releases pass, so a key let go here is let go in the dive,
+  // as legacy's keyup always clears its key.
   function takeKey(event: KeyboardEvent): void {
+    // Space pages the dialog down and Shift+Space up, as on a page. It never
+    // presses the focused Close, which a button does on Space's release, and
+    // legacy's Space does not close its help either.
+    if (event.key === " ") {
+      event.preventDefault();
+      if (event.type === "keydown") {
+        event.stopPropagation();
+        dialog.scrollBy(0, (event.shiftKey ? -0.875 : 0.875) * dialog.clientHeight);
+      }
+      return;
+    }
+    if (event.type === "keyup") {
+      return;
+    }
     if (event.key === "Escape") {
       event.preventDefault();
       close(true);
@@ -114,6 +129,7 @@ export function createHelpOverlay(options: Readonly<HelpOverlayOptions>): HelpOv
     returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     open = true;
     window.addEventListener("keydown", takeKey, true);
+    window.addEventListener("keyup", takeKey, true);
     options.onOpen?.(context);
     dialog.showModal();
     dialog.scrollTop = 0;

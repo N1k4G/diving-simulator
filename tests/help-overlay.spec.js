@@ -201,6 +201,19 @@ test.describe('over the debriefing, on a small phone', () => {
 
     await page.keyboard.press('h');
     await expect(overlay(page).locator('h3').first()).toHaveText('After the dive');
+    // With focus on Close, Space pages the dialog down and Shift+Space back
+    // up, and neither presses Close; Page Down scrolls it too.
+    const scrollTop = () => overlay(page).evaluate((dialog) => dialog.scrollTop);
+    await expect(page.locator('[data-help-close]')).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect.poll(scrollTop).toBeGreaterThan(100);
+    expect(await isOpen(page)).toBe(true);
+    await page.keyboard.press('Shift+Space');
+    await expect.poll(scrollTop).toBe(0);
+    await page.keyboard.press('PageDown');
+    await expect.poll(scrollTop).toBeGreaterThan(0);
+    expect(await isOpen(page)).toBe(true);
+    await overlay(page).evaluate((dialog) => { dialog.scrollTop = 0; });
     const box = await overlay(page).boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     // Wheeled on each poll: a wheel on the frame the dialog is shown in can be dropped.
