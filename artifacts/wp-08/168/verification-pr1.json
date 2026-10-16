@@ -1,0 +1,264 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 168,
+  "slice": "PR 1 of 3: the touch D-pad as DOM over the Pixi stage, held by pointer with capture, emitting GameController.setControl as the keyboard does, released on pointerup, pointercancel, lostpointercapture, window blur and visibilitychange; 44px targets with 8px spacing and safe-area offsets. The landscape layout (the dive filling a short screen) was cut from this PR by the owner at pre-review pass 4 and is #256",
+  "measuredCommit": "590179a733ba18f7ab4856070e6457c88518b179",
+  "measuredTree": "80483f4914a15162a2f5ffda89dac2d38f40695e",
+  "baseCommit": "03c9a98 (main, #251)",
+  "workingTree": "the runs below ran on the working tree that 590179a then committed unchanged; dist/ was built from it with `npx vite build` after `npm run typecheck`",
+  "recordedAt": "2026-10-15T20:22:34Z",
+  "environment": {
+    "os": "Windows 11 Pro 10.0.26200",
+    "node": "v26.11.0",
+    "playwright": "1.63.0",
+    "browser": "chromium headless shell (Playwright 1.63.0)",
+    "load": "machine shared with other sessions' Playwright and Vitest runs; e2e started only once port 8080 was free"
+  },
+  "results": {
+    "typecheck": {
+      "command": "npm run typecheck",
+      "result": "pass"
+    },
+    "lint": {
+      "command": "npm run lint",
+      "result": "pass"
+    },
+    "unit": {
+      "command": "npx vitest run src tests/unit --maxWorkers=2 --testTimeout=60000",
+      "result": "666 passed of 666",
+      "note": "at the default 5 s timeout, during another session's e2e run, 8 model tests this PR does not touch timed out (among them dive-end, dive-log, dive-model, game-controller-buoyancy)"
+    },
+    "e2eDpad": {
+      "command": "npx playwright test tests/touch-dpad.spec.js tests/wreck-slice.spec.js --workers=1",
+      "result": "24 passed of 24",
+      "finishedAt": "2026-10-15T20:15Z"
+    },
+    "e2eRelated": {
+      "command": "npx playwright test tests/in-dive-controls.spec.js tests/dive-computer-english.spec.js tests/game-over.spec.js tests/hud-readouts.spec.js tests/resume-flow.spec.js --workers=1 --retries=1",
+      "result": "94 passed, 2 flaky, 0 failed",
+      "flaky": [
+        "tests/dive-computer-english.spec.js: under a ceiling the stop row reads Deco stop",
+        "tests/hud-readouts.spec.js: under a ceiling the stop row is the deco stop, with the first stop of the forecast"
+      ],
+      "flakyCause": "the stop row waited past 15 s for the planner worker's forecast under load; both passed on retry",
+      "finishedAt": "2026-10-15T20:03Z"
+    },
+    "note": "these runs are on 590179a, which still made the dive fill short screens; the current measurement of the PR as it stands is prereviewPass4"
+  },
+  "earlierRuns": [
+    {
+      "commit": "3ad614156c1c0b9da506257b747c784f5066b1c4",
+      "command": "npx playwright test tests/in-dive-controls.spec.js tests/game-over.spec.js tests/hud-readouts.spec.js tests/dive-computer-english.spec.js tests/resume-flow.spec.js (2 workers)",
+      "result": "81 passed, 15 failed",
+      "disposition": "13 were 60 s timeouts in descendTo or a crashed browser under load. 2 were real: at 844x390 the keyboard hint reached into the HUD column (4 px into a rebreather's rows, 2 px into an open gas-information page) once the dive filled the landscape screen; 590179a hides the hint on short screens"
+    }
+  ],
+  "prereviewPass1": {
+    "supersededBy": "superseded by the split at pre-review pass 4: the landscape layout and everything below moved to #256",
+    "commit": "b9cdc5b9304b94c41b171ec7868a039e129a981b",
+    "tree": "587bfdad73da630b7b6ebbd9b31360b61b0ac429",
+    "finding": "590179a hid the keyboard hint at every height up to 600 px, on desktop windows too, where it is the only text naming T, F, [, ], B and I",
+    "change": "the hint is hidden only at 420 px and below (its own @media (height <= 420px)); about 410 px is where the HUD rows meet the hint, not where an open gas-information page does (corrected in prereviewPass2)",
+    "command": "npm run lint && npm run build && npx playwright test tests/touch-dpad.spec.js tests/in-dive-controls.spec.js -g \"desktop window|no HUD row meets|no open page meets\" --workers=1",
+    "result": "19 passed of 19, as the only agent on the machine",
+    "added": [
+      "tests/touch-dpad.spec.js: a desktop window at 1280x585 keeps the keyboard hint, 8 px clear of the pad; at 844x390 it is hidden",
+      "tests/in-dive-controls.spec.js: 1280x585 in the rebreather and six-cylinder HUD layout loop and in the open gas-information page loop"
+    ],
+    "earlierAttempt": "the same command on the same tree, while other sessions' browsers ran: 10 passed, 3 crashed (Target crashed, worker exit 3221225794), 6 did not run"
+  },
+  "prereviewPass2": {
+    "supersededBy": "superseded by the split at pre-review pass 4: the landscape layout and everything below moved to #256",
+    "commit": "55270ddfc641656ad3d690533eba7d8e052a36d9",
+    "tree": "852751d87b04a2b02abdf63bac6c7787d77a4df8",
+    "finding": "with the hint hidden only at 420 px and below, a rebreather's open gas-information page, which cannot shrink below the HUD, ran into the hint between about 421 and 446 px tall, worse in German",
+    "measurement": {
+      "method": "a temporary Playwright spec, not committed: a rebreather dive at 1 m with its gas-information page open, the viewport stepped from 421 to 480 px tall at 1280 and 932 wide, gap = hint top minus the lower of the panel's and the HUD's bottoms",
+      "build": "dist/ of b9cdc5b's CSS (hint hidden at 420 px and below)",
+      "en": "48 px hint (3 lines); gap -9 at 421, 0 at 430, 8 at 438, 32 from 463 on",
+      "de": "64 px hint (4 lines); gap -25 at 421, 0 at about 446, 8 at 454, 15 at 461, 16 from 463 on",
+      "widths": "1280 and 932 gave the same gap at every height: the hint's width is capped at 26rem"
+    },
+    "change": "the hint is hidden at 460 px and below (@media (height <= 460px)); 461 px, the first height that shows it, leaves the German rebreather page 15 px clear, 7 px more than the 8 px minimum. Superseded by prereviewPass3: this was the worst case of a dive at 1 m only, not of every HUD",
+    "command": "npm run lint && npm run build && npx playwright test tests/touch-dpad.spec.js tests/in-dive-controls.spec.js -g \"desktop window|no HUD row meets|no open page meets|keyboard hint\" --workers=1",
+    "result": "23 passed of 23, as the only agent on the machine",
+    "added": [
+      "tests/in-dive-controls.spec.js: in German, on a rebreather, at 1280x461 and 1280x585, the open page stays at least 8 px clear of the visible keyboard hint and meets no control",
+      "tests/touch-dpad.spec.js: the hint is shown at 1280x461 and hidden at 1280x460, beside 1280x585 (shown) and 844x390 (hidden)"
+    ]
+  },
+  "prereviewPass3": {
+    "supersededBy": "superseded by the split at pre-review pass 4: the landscape layout and everything below moved to #256",
+    "commit": "702159bd53ec5288af8a80c960b3e0f8b12a9796",
+    "tree": "ad7c901f9db66060679adeeae3c917b11395f6ea",
+    "finding": "during a rebreather safety stop the German stop row wraps to two lines, so an open page ended 19 px lower and met the hint at 461 px (-4 px); any height threshold is beaten by the next taller HUD",
+    "change": [
+      "no height threshold for the hint: src/app/controls-hint.ts measures it against the HUD list and the gas-information panel and hides it while it would come within 8 px of either; a ResizeObserver on the HUD, the panel, the dock and the shell re-measures on every size change, and opening or closing a page re-measures at once",
+      "an open gas-information page hides the in-dive buttons (D-pad, torch, fast-forward, cylinders, rebreather row), as legacy hides them while showGasInfo (src/touch.js updateNavPadVisibility, updateCcrDiveButtonVisibility, touchUpdateUI); brought forward from #168 PR 3 because the worst-case test found an open page 3 px into the setpoint buttons at 844x390, which no layout of that screen avoids"
+    ],
+    "worstCaseTest": "tests/in-dive-controls.spec.js 'wherever the hint is shown, it stands 8px clear of the HUD and an open page': German, rebreather, resumed at 9 m from 20 m with its safety stop paused at 2 min 52 sec (the codec requires a started stop to be paused exactly outside the 2.4-8.3 m band; 9 m is neutral so the diver stays), the gas page closed and then open, at 1280x720, 600, 585, 520, 480, 473, 465, 461, 446, 932x430 and 844x390; every size asserts the hint hidden or 8 px clear and the HUD and page clear of every control; the hint is asserted kept at 1280x720 closed and gone at 844x390 open",
+    "notCovered": "the rule-of-thirds row: it shows only under an overhead and is cleared outside one, so it cannot appear with this resumed open-water dive; the measuring rule does not depend on which rows are shown",
+    "tests": [
+      {
+        "command": "npx vitest run src tests/unit --maxWorkers=2 --testTimeout=60000",
+        "result": "672 passed of 672 (6 new in tests/unit/controls-hint.test.ts)"
+      },
+      {
+        "command": "npx playwright test tests/in-dive-controls.spec.js tests/touch-dpad.spec.js --workers=1",
+        "result": "85 passed, 1 failed: the new 'an open page hides the in-dive buttons' case expected 6 buttons where a rebreather shows 8 (four directions, torch, two setpoint, bailout); corrected, it passed alone with one worker"
+      },
+      {
+        "command": "npx playwright test tests/planner-worker.spec.js tests/wreck-slice.spec.js --workers=1",
+        "result": "10 passed of 10"
+      },
+      {
+        "command": "npm run typecheck && npm run lint",
+        "result": "pass"
+      }
+    ],
+    "testChanged": "expectHudClearOfControls in tests/in-dive-controls.spec.js required at least one visible control; with a page open there is now legitimately none, so with a page open it asserts that no in-dive button is on screen, and with the page closed it keeps requiring controls"
+  },
+  "prereviewPass4": {
+    "commit": "14767ae1327752ac3c0aa4b2eac0e2da3145fb30",
+    "tree": "e313ea63d76a51e75149d4e2f188eb8a2813a04a",
+    "finding": "major: the gas-page :has rule (pass 3) was not legacy's. Legacy never sets showGasInfo in the shipped client; the page the migration opens is legacy's infoPageMode, which updateNavPadVisibility, updateCcrDiveButtonVisibility and touchUpdateUI do not read, so legacy keeps the pad, setpoint, bailout and cylinder buttons on screen with any info page open",
+    "disposition": "fixed by removal: the owner cut the landscape layout from this PR (#256). Removed: the dive filling screens under 600 px (#app:has(> .wreck-shell)), the keyboard hint's height rules and its measuring (src/app/controls-hint.ts, its wiring and tests/unit/controls-hint.test.ts), the gas-page :has rule, the change to expectHudClearOfControls, and every hint, worst-case and landscape-only test; tests/in-dive-controls.spec.js is main's again. Kept: the D-pad adapter, its faces and catalogue keys, touch-action on the stage, the 8 px gap, the safe-area offsets, the dock width cap, and the D-pad cases in portrait 390x844 and on a desktop",
+    "deferredTo256": [
+      "the dive on a short landscape screen (844x390, 667x375): the shell's 34rem minimum keeps the pad below the fold",
+      "the D-pad e2e cases in landscape: click-through, cancel, blur, hidden page, geometry and safe area"
+    ],
+    "diffSize": "797 changed lines against origin/main without artifacts: 317 in src, 480 in tests (747 insertions, 50 deletions)",
+    "tests": [
+      {
+        "command": "npm run typecheck && npm run lint && npm run build",
+        "result": "pass"
+      },
+      {
+        "command": "npx vitest run src tests/unit --maxWorkers=2 --testTimeout=60000",
+        "result": "666 passed of 666"
+      },
+      {
+        "command": "npx playwright test tests/touch-dpad.spec.js tests/in-dive-controls.spec.js tests/hud-readouts.spec.js --workers=1",
+        "result": "80 passed of 80, as the only agent on the machine"
+      }
+    ],
+    "notRun": "tests/smoke.spec.js: it drives the legacy client (src/diving-simulator.html), which this PR does not touch"
+  },
+  "codexRound1": {
+    "supersededInPart": "its narrower dock cap is reverted by preReviewAfterCodexRound1; the flex layout (.wreck-side) stays",
+    "commit": "6a7503ddb42569262729088c2ac4a8b9561c1b3f",
+    "tree": "e0d53e6201680a11eec6575349e8ba3c03596d51",
+    "finding": "minor: on a 360 px phone the dock cap (100% - 13.6rem = 142.4 px) fits two cylinder buttons a row, so six make a 148 px dock whose top is 168 px above the shell's bottom, while the column could reach 152 px above it: an open gas page painted under the cylinder buttons",
+    "reproduced": {
+      "commit": "a137cbb61d67dfc6db316973fd6016ac50cf1aaa",
+      "test": "tests/in-dive-controls.spec.js 'every open page stands 8px clear of every control', six cylinders, all four pages",
+      "result": "360x640: cylinders 1 and 2 -16.0 px from the panel; 360x800: -13.3 px; 375x667 and 390x844 passed (three a row fit there)"
+    },
+    "why3PerRowCannotStay": "three buttons a row are 148 px; from the 20 px gutter the row ends at 168 px, and the D-pad (10.6rem, 20 px gutter) starts at 360 - 189.6 = 170.4 px: 2.4 px apart, under the 8 px rule; three a row keep 8 px from the pad only from about 366 px wide",
+    "change": "the column and the dock share one flex column (.wreck-side, from under the topbar to 1.25rem above the bottom, 8 px gap), so the column's panel shrinks above the dock however many rows it wraps to; the column keeps its own cap above the D-pad (100% - 8.25rem - inset of the side, the same 9.5rem from the shell's bottom as before), and the dock's width cap is the same length written against the side's width",
+    "tests": [
+      {
+        "command": "npm run typecheck && npm run lint && npm run build",
+        "result": "pass"
+      },
+      {
+        "command": "npx vitest run src tests/unit --maxWorkers=2 --testTimeout=60000",
+        "result": "666 passed of 666"
+      },
+      {
+        "command": "npx playwright test tests/touch-dpad.spec.js tests/in-dive-controls.spec.js tests/hud-readouts.spec.js tests/wreck-slice.spec.js --workers=1",
+        "result": "92 passed of 92",
+        "note": "one other agent ran e2e on the machine; the first attempt hit EADDRINUSE and was retried once the port was free"
+      }
+    ],
+    "diffSize": "879 changed lines against origin/main without artifacts: 365 in src, 514 in tests"
+  },
+  "preReviewAfterCodexRound1": {
+    "supersededInPart": "its main-relative floors (MAIN_BELOW_8, measured on win32) failed on linux CI and are gone; see platformIndependentMatrix",
+    "commit": "0ad971dd44e8013363b6eb651bf79fd2c65a3952",
+    "tree": "5c0079f435312a9e27bd0f02241067cd4c7c5d6b",
+    "finding": "the narrower dock cap (13.6rem) fitted the two setpoint buttons (126 px) only from 343.6 px wide, where main's fits them from 318 px; below it the rebreather row wrapped to three rows and the HUD, which cannot shrink, ran into the setpoint buttons; at 360x640 a rebreather page stood 6.4 px from the pad where main stands 8.0",
+    "change": [
+      "the dock's width cap is main's again (12rem and the right inset short of the shell, written against .wreck-side as 100% - 9.5rem - inset), so every mode's dock wraps to the same rows as on main at every width",
+      "the D-pad's cells are 3rem (48 px, at least 44) instead of 3.2rem, so with the 8 px gap the pad is 10rem wide and 6.5rem tall, narrower and lower than main's 10.4rem and 6.8rem; the dock stands no nearer to it than on main"
+    ],
+    "mainMeasurement": {
+      "build": "origin/main 03c9a98 built into a temporary dist-main/ (git archive of index.html, vite.config.mts, tsconfig.json, package.json and src; vite build), removed afterwards",
+      "method": "the new matrix test copied to a temporary spec pointed at /dist-main/, not committed",
+      "belowEightOnMain": {
+        "tec 320x568 page 1-4": -16,
+        "ccr 320x568 closed": 6.6,
+        "ccr 320x568 page 1": -29
+      }
+    },
+    "matrix": {
+      "test": "tests/in-dive-controls.spec.js 'the HUD and every open page stand 8px clear of every control on the narrowest phones', per mode (rec, tec with six cylinders, ccr), German, resumed at 9 m with the safety stop paused (row wrapped), at 320x568, 340x640, 360x640, 375x667 and 390x844, page closed and every page open; least distance from the HUD or an open page to any visible control >= 8 px, or >= main's where main is below 8",
+      "thisBranch": {
+        "rec": "17.8 / 56 / 76 / 91 / 106 px, equal to main",
+        "tec": "closed 17.8 / 31.6 / 31.6 / 37.4 / 52.4 (main equal); pages 4.8 / 28 / 28 / 28 / 28.7 (main -16 / 23.2 / 23.2 / 23.2 / 23.9)",
+        "ccr": "closed 11.4 / 31.6 / 31.6 / 37.4 / 52.4 (main 6.6 / 31.6 / 31.6 / 37.4 / 52.4); page -24.2 / 12.8 / 12.8 / 28 / 28 (main -29 / 8 / 8 / 23.2 / 23.2)"
+      },
+      "stillBelowEight": "320x568 only, on main as here: tec pages 4.8 (main -16), ccr page -24.2 (main -29); an open page does not fit under the tallest HUD at 320x568"
+    },
+    "tests": [
+      {
+        "command": "npm run typecheck && npm run lint && npm run build",
+        "result": "pass"
+      },
+      {
+        "command": "npx vitest run src tests/unit --maxWorkers=2 --testTimeout=60000",
+        "result": "666 passed of 666"
+      },
+      {
+        "command": "npx playwright test tests/touch-dpad.spec.js tests/in-dive-controls.spec.js tests/hud-readouts.spec.js tests/wreck-slice.spec.js --workers=1",
+        "result": "91 passed of 91"
+      }
+    ],
+    "diffSize": "955 changed lines against origin/main without artifacts: 374 in src, 581 in tests"
+  },
+  "platformIndependentMatrix": {
+    "commit": "beb6e9b30b31dcec7d7d27cafe2bd94e74237c91",
+    "tree": "247d073644709f0928c12adb1a09c51b26d0bb58",
+    "trigger": "CI verify run 38869628717 on 29e4a08 (linux): 'ccr 320x568 closed' expected >= 6.6 (main's number on win32), received -28.6",
+    "linuxMeasurement": {
+      "environment": "WSL Ubuntu 26.04, node v22.11.0 and Playwright 1.63.0's chromium-headless-shell installed per user without sudo (libnss3, libnspr4 and libasound2t64 unpacked from apt-get download into LD_LIBRARY_PATH); the same dist/ builds as on win32; it reproduces CI's -28.6",
+      "builds": "origin/main 03c9a98 built into a temporary dist-main/, and this branch's dist/; both removed or rebuilt afterwards",
+      "method": "a temporary spec, not committed, that runs the whole matrix including 320x568 and prints every number with the nearest control",
+      "main": {
+        "rec": "18.8 / 56 / 76 / 91 / 106",
+        "tec closed": "18.8 / 51.5 / 51.5 / 51.5 / 52.4",
+        "tec pages": "-16 / 23.2 / 23.2 / 23.2 / 23.2 (390x844 pages 3 and 4: 52.4, 50.1)",
+        "ccr closed": "-28.6 / 44.6 / 44.6 / 51.5 / 52.4",
+        "ccr page": "-28.6 / 9 / 9 / 23.2 / 23.2"
+      },
+      "branch": {
+        "rec": "18.8 / 56 / 76 / 91 / 106",
+        "tec closed": "18.8 / 51.5 / 51.5 / 51.5 / 52.4",
+        "tec pages": "4.8 / 28 / 28 / 28 / 28 (390x844 pages 3 and 4: 52.4)",
+        "ccr closed": "-28.6 / 49.4 / 49.4 / 51.5 / 52.4",
+        "ccr page": "-28.6 / 13.8 / 13.8 / 28 / 28"
+      },
+      "sizes": "320x568 / 340x640 / 360x640 / 375x667 / 390x844, px, German, paused safety stop",
+      "verdict": "the branch is never nearer than main on linux, as on win32; from 340 px up every case is at least 8 px on both platforms, for main and the branch; below 8 px is only 320x568, on main as here (#258)"
+    },
+    "win32Numbers": "in preReviewAfterCodexRound1.matrix (branch) and its mainMeasurement (main)",
+    "change": "the matrix drops 320x568 (#258 adds it back with the same check) and asserts an absolute 8 px everywhere else with expect.soft, so a failure reports every case; MAIN_BELOW_8 is gone",
+    "tests": [
+      {
+        "command": "npx playwright test tests/in-dive-controls.spec.js -g 'narrowest phones' --workers=1",
+        "result": "3 passed of 3 on win32, 3 passed of 3 on linux (WSL)"
+      },
+      {
+        "command": "npm run lint",
+        "result": "pass"
+      }
+    ],
+    "diffSize": "946 changed lines against origin/main without artifacts: 374 in src, 572 in tests"
+  },
+  "notMeasured": [
+    "real touch on a physical device (blocked on #155)",
+    "landscape: the dive on a short landscape screen and the D-pad there are #256",
+    "env(safe-area-inset-*) on a device: viewport-fit=cover is #137 A7's; the spec sets the injected --safe-area-inset-* properties instead",
+    "parity, Pixi visual check and the interior probe: no model, renderer or legacy file changed"
+  ]
+}
