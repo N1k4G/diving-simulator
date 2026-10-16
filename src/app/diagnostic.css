@@ -725,7 +725,7 @@ summary:focus-visible {
    one is open (#163). The column carries the position the HUD used to, so
    the panel sits below the readouts instead of over them — NDL is never the
    thing a page hides (#137 §4.4.1). It stops above the dock (the flex
-   layout above) and above the D-pad, 8.15rem with its gutter, which the
+   layout above) and above the D-pad, 7.75rem with its gutter, which the
    bottom safe-area inset raises (#168): 8.25rem of the side's height, which
    already ends 1.25rem above the bottom. The panel scrolls inside what is
    left rather than running into either. */
@@ -948,12 +948,15 @@ summary:focus-visible {
    (#163 review). Stacking them means they cannot overlap each other at all,
    rather than being tuned not to.
 
-   The width cap is what keeps the pair clear of the D-pad on the right: its
-   grid is 3*3.2rem + 2*0.5rem = 10.6rem, plus the two 1.25rem gutters (the
-   dock's own and the pad's), the pad's safe-area inset and an 8px gap:
-   13.6rem and the inset of the shell's width, written against the side's,
-   which is 2.5rem narrower (#168; the cap was 12rem, which left the two
-   able to overlap once the dock filled its width). Six cylinders are
+   The width cap is what keeps the pair clear of the D-pad on the right:
+   12rem and the pad's safe-area inset short of the shell's width, written
+   against the side's, which is 2.5rem narrower. It is the cap from before
+   #168 on purpose, so the dock wraps its cylinders and its rebreather row
+   to the same rows at every width as before; a narrower cap wrapped them
+   to more rows below 344px and 366px wide, and a dock that tall ran into
+   the HUD (Codex round 1 and the pre-review after it on PR #255). The pad
+   is 10rem wide, narrower than the 10.4rem before, so the dock stands no
+   nearer to it than it did. Six cylinders are
    6*44 + 5*8 = 304px, so at 390px they wrap to three per row instead of
    running underneath the movement buttons — measured, five overlapping
    pairs, and invisible to a check that only compared the cylinder buttons
@@ -967,7 +970,7 @@ summary:focus-visible {
   flex: none;
   flex-direction: column;
   gap: 0.5rem;
-  max-width: calc(100% - 11.1rem - var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
+  max-width: calc(100% - 9.5rem - var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
   pointer-events: auto;
 }
 
@@ -1048,7 +1051,7 @@ summary:focus-visible {
 }
 
 /* The D-pad (#168), legacy's WASD cross, with the torch and fast-forward in
-   the two corners the cross leaves empty. 3.2rem cells clear the 44px
+   the two corners the cross leaves empty. 3rem (48px) cells clear the 44px
    target and the 0.5rem gap is the 8px spacing the #121 test asks for;
    tests/touch-dpad.spec.js measures both. On a phone held sideways the
    shell is still taller than the screen and the pad below it: #256.
@@ -1062,8 +1065,8 @@ summary:focus-visible {
   right: calc(1.25rem + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
   bottom: calc(1.25rem + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
   display: grid;
-  grid-template-columns: repeat(3, 3.2rem);
-  grid-template-rows: repeat(2, 3.2rem);
+  grid-template-columns: repeat(3, 3rem);
+  grid-template-rows: repeat(2, 3rem);
   gap: 0.5rem;
 }
 

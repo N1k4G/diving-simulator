@@ -1363,35 +1363,102 @@ test.describe('gas information', () => {
     expect(Math.round(box.height)).toBeGreaterThanOrEqual(44);
   });
 
-  // The narrowest phones (#168, Codex round 1 on PR #255). Below about
-  // 366 px the dock cannot hold three cylinder buttons a row 8 px clear of
-  // the D-pad, so six wrap to three rows, a dock taller than the 9.5rem the
-  // column used to leave under it. The open page has to stop 8 px above
-  // every control however many rows the dock takes.
-  for (const [width, height] of [[360, 640], [360, 800], [375, 667], [390, 844]]) {
-    test.describe(`${width}x${height}, six cylinders`, () => {
-      test.use({ viewport: { width, height } });
+  // The HUD and every open page against every control on the narrowest
+  // phones, at the tallest HUD each mode shows (#168: Codex round 1 and the
+  // pre-review after it on PR #255). German, at a paused safety stop, whose
+  // row wraps to two lines. A dock that wrapped to more rows than before ran
+  // into an open page at 360 px and into the HUD itself below 344 px.
+  //
+  // Each distance is at least 8 px, or, where main before #168 (03c9a98)
+  // already stood nearer, no nearer than main: those cases are listed with
+  // main's distance, measured with this same test on main's build.
+  const NARROW_SIZES = [[320, 568], [340, 640], [360, 640], [375, 667], [390, 844]];
+  const MAIN_BELOW_8 = {
+    // At 320x568 an open page does not fit under the tallest HUD, on main
+    // as here; a negative distance is an overlap. This branch measured 4.8
+    // (technical) and -24.2 (rebreather) with a page open, and 11.4 closed.
+    'tec 320x568 page 1': -16,
+    'tec 320x568 page 2': -16,
+    'tec 320x568 page 3': -16,
+    'tec 320x568 page 4': -16,
+    'ccr 320x568 closed': 6.6,
+    'ccr 320x568 page 1': -29,
+  };
 
-      test('every open page stands 8px clear of every control', async ({ page }) => {
-        await startSixCylinderDive(page);
-        for (let step = 0; step < 4; step += 1) {
-          await gasInfoToggle(page).click();
-          await expect(gasInfoPanel(page)).toBeVisible();
-          const tight = await page.evaluate(() => {
-            const box = (element) => element.getBoundingClientRect();
-            const panel = box(document.querySelector('[data-gas-info]'));
-            return [...document.querySelectorAll('.wreck-controls button, .wreck-dock button')]
-              .filter((element) => element.getClientRects().length > 0)
-              .map((element) => {
-                const r = box(element);
-                const apart = Math.max(r.top - panel.bottom, panel.top - r.bottom, r.left - panel.right, panel.left - r.right);
-                return { label: element.getAttribute('aria-label') || element.textContent, apart };
-              })
-              .filter(({ apart }) => apart < 8)
-              .map(({ label, apart }) => `${label}: ${apart.toFixed(1)}px`);
-          });
-          expect(tight, tight.join('\n')).toEqual([]);
-          await expect(hudRow(page, 'ndl')).toBeVisible();
+  /** A German dive in `mode`, resumed at 9 m, neutral, its safety stop paused. */
+  async function resumeGermanAtPausedStop(page, mode) {
+    await page.goto('/dist/');
+    await page.evaluate(() => window.localStorage.clear());
+    await page.locator('[data-accept-safety]').click();
+    await page.locator('.setup-screen').waitFor();
+    await page.locator(`[data-setup-group=mode] [data-setup-option=${mode}]`).check();
+    if (mode === 'tec') {
+      for (let i = 0; i < 5; i += 1) await page.locator('[data-setup-tank-add]').click();
+    }
+    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+    await descendTo(page, 1);
+    const saved = await persistedSave(page);
+    // A started stop is paused exactly outside the 2.4-8.3 m band (the save
+    // codec's rule); 9 m is, and neutral there (src/core/buoyancy.ts
+    // neutralBcdSurfaceLitres) the diver stays.
+    const pressureBar = 1 + 9 / 10;
+    Object.assign(saved.state, {
+      depthM: 9,
+      maxDepthM: 20,
+      verticalVelocityMpm: 0,
+      bcdGasSurfaceLiters: (7 + 2 - 3 - 5 * Math.pow(1 / pressureBar, 0.7)) * pressureBar,
+      safetyStop: { needed: true, countdownStarted: true, remainingS: 172, paused: true, complete: false },
+    });
+    await page.goto('/dist/');
+    await page.evaluate(([key, value]) => window.localStorage.setItem(key, value), [SAVE_KEY, JSON.stringify(saved)]);
+    await page.locator('[data-accept-safety]').click();
+    await page.locator('.setup-screen').waitFor();
+    await page.locator('[data-resume-continue]').click();
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+    await expect(hudValue(page, 'safetyStop')).toContainText('paused');
+  }
+
+  /** The least distance from the HUD or an open page to any visible control. */
+  const nearestControl = (page) =>
+    page.evaluate(() => {
+      const shown = (element) => element !== null && element.getClientRects().length > 0;
+      const blocks = [document.querySelector('.wreck-hud'), document.querySelector('[data-gas-info]')]
+        .filter(shown)
+        .map((element) => element.getBoundingClientRect());
+      let nearest = Infinity;
+      for (const control of document.querySelectorAll('.wreck-shell button')) {
+        if (!shown(control)) continue;
+        const c = control.getBoundingClientRect();
+        for (const b of blocks) {
+          nearest = Math.min(nearest, Math.max(c.top - b.bottom, b.top - c.bottom, c.left - b.right, b.left - c.right));
+        }
+      }
+      return Math.round(nearest * 10) / 10;
+    });
+
+  for (const mode of ['rec', 'tec', 'ccr']) {
+    test.describe(`${mode} in German at a paused safety stop`, () => {
+      test.use({ viewport: { width: 390, height: 844 }, locale: 'de-DE' });
+
+      test('the HUD and every open page stand 8px clear of every control on the narrowest phones', async ({ page }) => {
+        test.setTimeout(240_000);
+        await resumeGermanAtPausedStop(page, mode);
+        const measured = {};
+        for (const [width, height] of NARROW_SIZES) {
+          await page.setViewportSize({ width, height });
+          await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+          measured[`${mode} ${width}x${height} closed`] = await nearestControl(page);
+          if (await gasInfoToggle(page).isVisible()) {
+            for (let step = 1; ; step += 1) {
+              await gasInfoToggle(page).click();
+              if (!(await gasInfoPanel(page).isVisible())) break;
+              measured[`${mode} ${width}x${height} page ${step}`] = await nearestControl(page);
+            }
+          }
+        }
+        for (const [label, apart] of Object.entries(measured)) {
+          expect(apart, label).toBeGreaterThanOrEqual(Math.min(8, MAIN_BELOW_8[label] ?? 8));
         }
       });
     });
