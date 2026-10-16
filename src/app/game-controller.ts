@@ -194,6 +194,7 @@ export class GameController {
   #fastForwardActive = false;
   /** The help overlay is open over the dive (#160); see setPaused. */
   #paused = false;
+  #lastFrame: Readonly<GameFrame> | null = null;
   #lastFrameMs: number | null = null;
   #animationFrame = 0;
   #resizeObserver: ResizeObserver | null = null;
@@ -258,8 +259,8 @@ export class GameController {
 
   /**
    * Stops the dive under the help overlay (#160), as legacy's gameLoop()
-   * skips updateDiving() while showHelp: no frame runs and no intent is
-   * taken. Held controls are let go, since the overlay takes their key-ups,
+   * skips updateDiving() while showHelp: nothing advances and no intent is
+   * taken. Held controls are let go, a touch held under the modal included,
    * and the first frame after it runs no time.
    */
   setPaused(paused: boolean): void {
@@ -414,6 +415,11 @@ export class GameController {
       return;
     }
     if (this.#paused) {
+      // Legacy still draws its dive computer under the help, so a warning
+      // goes on beeping (#160): the last frame again, with nothing advanced.
+      if (this.#lastFrame) {
+        this.#onFrame(this.#lastFrame);
+      }
       this.#animationFrame = requestAnimationFrame(this.#tick);
       return;
     }
@@ -711,14 +717,13 @@ export class GameController {
       active: this.#fastForwardActive,
     });
     this.#renderer.render(presentation, scene);
-    this.#onFrame(
-      Object.freeze({
-        presentation,
-        scene,
-        fastForward,
-        awaitingDescent: this.#awaitingDescent,
-      }),
-    );
+    this.#lastFrame = Object.freeze({
+      presentation,
+      scene,
+      fastForward,
+      awaitingDescent: this.#awaitingDescent,
+    });
+    this.#onFrame(this.#lastFrame);
   }
 
   /**

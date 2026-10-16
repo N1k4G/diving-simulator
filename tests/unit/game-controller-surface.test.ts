@@ -227,13 +227,17 @@ describe("the dive paused under the help overlay (#160), as legacy skips updateD
     controller.setPaused(true);
     const before = controller.authoritativeState;
     const seen = frames.length;
+    const last = frames.at(-1);
     step(120);
     expect(press("w") || press("2") || press("t")).toBe(false);
     controller.setControl("descend", true);
     controller.requestTankSwitch(1);
     controller.toggleTorch();
     expect(controller.authoritativeState).toBe(before);
-    expect(frames).toHaveLength(seen);
+    // The last frame again, every frame, so a warning goes on beeping as
+    // legacy's drawDiveComputer() goes on under its help.
+    expect(frames.length).toBe(seen + 120);
+    expect(frames.slice(seen).every((frame) => frame === last)).toBe(true);
 
     controller.setPaused(false);
     step(1);

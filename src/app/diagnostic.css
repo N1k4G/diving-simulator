@@ -1627,19 +1627,24 @@ summary:focus-visible {
   color: #f6db72;
 }
 
-/* Under 390 px the site's name no longer fits beside the status chip and
-   three 44 px buttons (Help, #160): mute ran off the right edge. The name
-   gives way, visually only; the HUD column covered most of it there. */
-@media (width < 390px) {
-  .wreck-identity {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
+/* No page scroll behind the open overlay: legacy's result screen does not
+   scroll while its help is shown (#160, #120). */
+html:has(.help-overlay[open]) {
+  overflow: hidden;
+}
 
-  .topbar-actions {
-    margin-left: auto;
-  }
+/* The topbar fits at every width: with Help (#160) the site's name has to
+   give way to the chips and the round buttons, so it shrinks first, to an
+   ellipsis or to nothing, and the buttons keep their 44 px on screen. */
+.wreck-identity {
+  min-width: 0;
+  flex-shrink: 100;
+  margin-right: 0.75rem;
+  overflow: hidden;
+}
+
+.wreck-identity > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

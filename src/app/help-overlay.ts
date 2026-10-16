@@ -3,14 +3,15 @@
 //
 // - H, ? and Escape close it, as legacy's keydown handler; so do its Close
 //   button and a tap outside it.
-// - While open it takes the keyboard: no key but Escape reaches the dive or
+// - While open it takes the key presses: none but Escape reaches the dive or
 //   the screen behind it (docs/decisions.md, deliberate departures). Escape
 //   still reaches the gas information, which legacy's Escape closes too.
-// - It scrolls on its own and never the screen behind it, the case #120
-//   fixed in legacy (overscroll-behavior in the stylesheet).
+// - It scrolls on its own and the page behind it not at all, the case #120
+//   fixed in legacy (the stylesheet's overscroll-behavior and scroll lock).
 // - It is announced once, as a dialog named by its heading when focus moves
 //   into it; nothing in it is a live region (#138).
 import { translate, type MessageKey, type SupportedLocale } from "./i18n/catalog";
+import { element } from "./game-over";
 import { helpSections, type HelpContext, type HelpRow } from "./help-content";
 
 export interface HelpOverlayOptions {
@@ -56,14 +57,11 @@ export function createHelpOverlay(options: Readonly<HelpOverlayOptions>): HelpOv
   dialog.setAttribute("aria-labelledby", "help-heading");
   const header = document.createElement("div");
   header.className = "help-header";
-  const heading = document.createElement("h2");
+  const heading = element("h2", "", t("help.heading"));
   heading.id = "help-heading";
-  heading.textContent = t("help.heading");
-  const closeButton = document.createElement("button");
+  const closeButton = element("button", "help-close", t("help.close"));
   closeButton.type = "button";
-  closeButton.className = "help-close";
   closeButton.dataset.helpClose = "true";
-  closeButton.textContent = t("help.close");
   header.append(heading, closeButton);
   const body = document.createElement("div");
   dialog.append(header, body);
@@ -78,7 +76,6 @@ export function createHelpOverlay(options: Readonly<HelpOverlayOptions>): HelpOv
     }
     open = false;
     window.removeEventListener("keydown", takeKey, true);
-    window.removeEventListener("keyup", takeKey, true);
     dialog.close();
     if (notify) {
       options.onClose?.();
@@ -89,18 +86,20 @@ export function createHelpOverlay(options: Readonly<HelpOverlayOptions>): HelpOv
     returnFocus = null;
   };
 
-  // In the window's capture phase, before every other key handler of the
-  // page. stopPropagation() keeps the key from the dive and the screens; its
-  // default action is left alone, so Tab moves focus, Enter presses the
-  // focused button and the arrows, Page Up/Down and Space scroll the dialog.
+  // A key press, in the window's capture phase, before every other key
+  // handler of the page. stopPropagation() keeps it from the dive and the
+  // screens; its default action is left alone, so Tab moves focus, Enter
+  // presses the focused button and the arrows, Page Up/Down and Space scroll
+  // the dialog. Key releases pass, so a key let go here is let go in the
+  // dive, as legacy's keyup always clears its key.
   function takeKey(event: KeyboardEvent): void {
-    if (event.type === "keydown" && event.key === "Escape") {
+    if (event.key === "Escape") {
       event.preventDefault();
       close(true);
       return;
     }
     event.stopPropagation();
-    if (event.type === "keydown" && isHelpKey(event) && !event.repeat) {
+    if (isHelpKey(event) && !event.repeat) {
       event.preventDefault();
       close(true);
     }
@@ -115,7 +114,6 @@ export function createHelpOverlay(options: Readonly<HelpOverlayOptions>): HelpOv
     returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     open = true;
     window.addEventListener("keydown", takeKey, true);
-    window.addEventListener("keyup", takeKey, true);
     options.onOpen?.(context);
     dialog.showModal();
     dialog.scrollTop = 0;
@@ -156,45 +154,29 @@ export function createHelpOverlay(options: Readonly<HelpOverlayOptions>): HelpOv
 }
 
 function buildBody(context: Readonly<HelpContext>, t: (key: MessageKey) => string): HTMLElement[] {
-  const nodes = [paragraph("help-hint", t("help.closeHint"))];
+  const nodes: HTMLElement[] = [element("p", "help-hint", t("help.closeHint"))];
   if (context.state === "diving") {
-    nodes.push(paragraph("help-hint help-paused", t("help.paused")));
+    nodes.push(element("p", "help-hint help-paused", t("help.paused")));
   }
   const text = (row: HelpRow, key: MessageKey) =>
     row.count === undefined ? t(key) : t(key).replace("{n}", String(row.count));
   for (const section of helpSections(context)) {
-    const title = document.createElement("h3");
-    title.textContent = t(section.headingKey);
-    const table = document.createElement("table");
-    table.className = "help-table";
+    const table = element("table", "help-table", "");
     const head = table.createTHead().insertRow();
     for (const key of ["help.column.keys", "help.column.touch", "help.column.action"] as const) {
-      const cell = document.createElement("th");
-      cell.scope = "col";
-      cell.textContent = t(key);
-      head.append(cell);
+      head.append(Object.assign(element("th", "", t(key)), { scope: "col" }));
     }
     const rows = table.createTBody();
     for (const row of section.rows) {
       const line = rows.insertRow();
       line.dataset.helpRow = row.action;
-      const keys = document.createElement("th");
-      keys.scope = "row";
-      keys.textContent = text(row, row.keys);
-      line.append(keys);
+      line.append(Object.assign(element("th", "", text(row, row.keys)), { scope: "row" }));
       line.insertCell().textContent = text(row, row.touch);
       line.insertCell().textContent = t(row.action);
     }
-    nodes.push(title, table);
+    nodes.push(element("h3", "", t(section.headingKey)), table);
   }
   // Legacy's warning from its controls paragraph, under the controls it is about.
-  nodes.push(paragraph("help-safety", `${t("wreck.symbol.warning")} ${t("help.buoyancy")}`));
+  nodes.push(element("p", "help-safety", `${t("wreck.symbol.warning")} ${t("help.buoyancy")}`));
   return nodes;
-}
-
-function paragraph(className: string, text: string): HTMLElement {
-  const node = document.createElement("p");
-  node.className = className;
-  node.textContent = text;
-  return node;
 }

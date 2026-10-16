@@ -1,7 +1,6 @@
 const { expect, test } = require('./helpers/pinned-seed.cjs');
 const {
   acceptSafetyGate,
-  beginDescent,
   descendTo,
   startDiveAndWaitForCanvas,
 } = require('./helpers/start-dive.cjs');
@@ -72,17 +71,54 @@ test('under water H opens it and stops the dive; Escape, ?, H and Enter on Close
   expect(await isOpen(page)).toBe(false);
 });
 
-test('at the surface it leads with S, and S pressed behind it does not begin the dive', async ({ page }) => {
+test('at the surface it leads with S, S pressed behind it does not begin the dive, and a key let go behind it is let go', async ({ page }) => {
   await page.goto('/dist/');
   await startDiveAndWaitForCanvas(page);
+  // W held as it opens and let go behind it: legacy's keyup clears the key.
+  // The first frame first, so the controller is listening.
+  await expect(hudValue(page, 'depth')).toHaveText('0 m');
+  await page.keyboard.down('w');
   await page.locator('[data-help-open]').click();
+  await page.keyboard.up('w');
   await expect(overlay(page).locator('h3').first()).toHaveText('At the surface');
   await expect(overlay(page).locator('.help-paused')).toHaveCount(0);
   await page.keyboard.press('s');
   await page.keyboard.press('Escape');
   await expect(page.locator('[data-surface-prompt]')).toBeVisible();
   await expect(page.locator('[data-help-open]')).toBeFocused();
-  await beginDescent(page);
+  // A stuck W goes on inflating once S is let go: 6 s after 4 s of S the
+  // diver is back at 0.6 m, where without it the dive is at 7.9 m.
+  await page.keyboard.down('s');
+  await page.waitForTimeout(4000);
+  await page.keyboard.up('s');
+  await page.waitForTimeout(6000);
+  expect(Number.parseFloat(await hudValue(page, 'depth').textContent())).toBeGreaterThan(3);
+});
+
+test.describe('in German, the topbar', () => {
+  test.use({ locale: 'de-DE' });
+
+  test('fits from 320 to 430 px on tec and rebreather dives', async ({ page }) => {
+    test.setTimeout(120_000);
+    for (const mode of ['tec', 'ccr']) {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto('/dist/');
+      await page.evaluate(() => window.localStorage.clear());
+      await page.locator('[data-accept-safety]').click();
+      await page.locator(`[data-setup-group=mode] [data-setup-option=${mode}]`).check();
+      await page.locator('[data-start-dive]').click();
+      await page.locator('[data-renderer=pixi] canvas').waitFor();
+      await descendTo(page, 1);
+      await expect(page.locator('[data-gas-info-toggle]')).toBeVisible();
+      for (const width of [320, 360, 375, 390, 393, 402, 412, 430]) {
+        await page.setViewportSize({ width, height: 844 });
+        // The chip, I, Hilfe and mute: on screen, 44 px, 8 px apart.
+        expect(await expectTouchTargets(page, '.topbar-actions'), `${mode} at ${width}`).toBe(3);
+        const actions = await page.locator('.topbar-actions').boundingBox();
+        expect(actions.x + actions.width, `${mode} at ${width}`).toBeLessThanOrEqual(width);
+      }
+    }
+  });
 });
 
 test.describe('in German, by touch, on the smallest phone', () => {
@@ -96,10 +132,6 @@ test.describe('in German, by touch, on the smallest phone', () => {
     // I is offered under water, past 0.5 m.
     await page.locator('[data-renderer=pixi] canvas').waitFor();
     await descendTo(page, 1);
-    await expect(page.locator('[data-gas-info-toggle]')).toBeVisible();
-    // The status chip, I, Hilfe and mute, all on screen at 320 px.
-    expect(await expectTouchTargets(page, '.topbar-actions')).toBe(3);
-
     await page.getByRole('button', { name: 'Hilfe' }).tap();
     await expect(page.getByRole('dialog', { name: 'Steuerung' })).toBeVisible();
     await expect(overlay(page)).toContainText('H, ? oder ESC zum Schließen');
@@ -174,6 +206,9 @@ test.describe('over the debriefing, on a small phone', () => {
       return overlay(page).evaluate((dialog) => dialog.scrollTop);
     }).toBeGreaterThan(0);
     await page.mouse.wheel(0, 5000);
+    // Nor over the backdrop beside it.
+    await page.mouse.move(4, box.y + box.height / 2);
+    await page.mouse.wheel(0, 3000);
     await page.waitForTimeout(250);
     expect(await page.evaluate(() => window.scrollY), 'the debriefing behind it must not move').toBe(pageScroll);
     await expect(page.locator('[data-help-close]')).toBeInViewport();
