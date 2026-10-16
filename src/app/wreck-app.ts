@@ -521,7 +521,7 @@ async function startWreckSimulation(
     },
   });
 
-  const disposeDpad = bindDpad(hud.movement, controller);
+  const dpad = bindDpad(hud.movement, controller);
   bindTankControls(hud.tanks, controller);
   bindLoopControls(hud.ccr, controller);
   hud.torch.addEventListener("click", () => controller.toggleTorch());
@@ -579,7 +579,12 @@ async function startWreckSimulation(
     locale,
     context: () =>
       diveHelpContext(controller.authoritativeState, controller.awaitingDescent, diveMode),
-    onOpen: (context) => controller.setPaused(helpPausesDive(context.state)),
+    // A direction held on the D-pad is let go: the modal leaves the pad
+    // inert, so its pointerup need never arrive (#168).
+    onOpen: (context) => {
+      dpad.releaseAll();
+      controller.setPaused(helpPausesDive(context.state));
+    },
     onClose: () => controller.setPaused(false),
   });
   hud.help.addEventListener("click", () => help.open());
@@ -597,7 +602,7 @@ async function startWreckSimulation(
   // teardown destroys the sound with the dive, so a dive surfaced on low gas
   // does not go on sounding its alarm (#223 pre-review).
   const teardown = () => {
-    disposeDpad();
+    dpad.dispose();
     document.removeEventListener("visibilitychange", handleVisibility);
     window.removeEventListener("keydown", handleGasInfoKey);
     help.destroy();

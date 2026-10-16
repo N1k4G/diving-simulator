@@ -247,7 +247,11 @@ describe("the dive paused under the help overlay (#160), as legacy skips updateD
     expect(controller.authoritativeState.elapsedTimeS).toBeGreaterThan(before.elapsedTimeS);
     expect(controller.authoritativeState.bcdGasSurfaceLiters).toBe(before.bcdGasSurfaceLiters);
     expect(frames.at(-1)?.scene.torchOn).toBe(true);
+    // Nor did the switch asked for during it wait for the end of it.
+    expect(controller.authoritativeState.activeTankIndex).toBe(0);
+    // The switch lands in the next frame, at legacy's point in it (#202).
     expect(press("2")).toBe(true);
+    step(1);
     expect(controller.authoritativeState.activeTankIndex).toBe(1);
     controller.destroy();
   });

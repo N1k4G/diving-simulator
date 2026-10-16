@@ -71,6 +71,29 @@ test('under water H opens it and stops the dive; Escape, ?, H and Enter on Close
   expect(await isOpen(page)).toBe(false);
 });
 
+test('a D-pad direction held as it opens is let go, and stays let go once it closes', async ({ page }) => {
+  await page.goto('/dist/');
+  await startDiveAndWaitForCanvas(page);
+  await descendTo(page, 2);
+  const ascend = page.locator('.wreck-controls [data-control="ascend"]');
+  const box = await ascend.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await expect(ascend).toHaveAttribute('data-held', 'true');
+  await page.keyboard.press('h');
+  // The modal leaves the pad inert, so its pointerup need never arrive.
+  await expect(ascend).not.toHaveAttribute('data-held', /.*/);
+  await page.keyboard.press('Escape');
+  // Still pressed, the button inflates nothing: the BCD's gas, which only
+  // inflate and vent change, is the same in two autosaves 3 s apart.
+  const bcd = () => page.evaluate((key) => JSON.parse(window.localStorage.getItem(key)).state.bcdGasSurfaceLiters, SAVE_KEY);
+  await page.waitForTimeout(3500);
+  const first = await bcd();
+  await page.waitForTimeout(3500);
+  expect(await bcd()).toBe(first);
+  await page.mouse.up();
+});
+
 test('at the surface it leads with S, S pressed behind it does not begin the dive, and a key let go behind it is let go', async ({ page }) => {
   await page.goto('/dist/');
   await startDiveAndWaitForCanvas(page);
