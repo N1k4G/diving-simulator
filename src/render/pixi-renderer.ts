@@ -34,6 +34,7 @@ import { SHARK_MOUTH_WIDTH_M, SHARK_SIZE_M, sharkBobM } from "./shark-view";
 import {
   BOAT_SHADOW_DEPTH_M,
   BOAT_X_M,
+  LEGACY_M_PER_PX,
   boatBobM,
   boatRockRad,
   boatShadowStrength,
