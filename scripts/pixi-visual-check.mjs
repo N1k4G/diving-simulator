@@ -184,6 +184,27 @@ const SCENES = [
     minNarcosisIndex: 0.6,
     expectTorch: true,
   },
+  {
+    id: 'wreck-shark',
+    // Legacy's shark (#219, #246), which no other scene meets: their dives
+    // run on the pinned seed, whose first spawn roll is the 193rd. The dive
+    // resumes as wreck-narcosis does, neutral at 20 m, with a shark put in
+    // its save 6 m ahead of the diver and 2 m above, heading back towards
+    // them so the frame shows it mirrored, all but still and past its
+    // contact roll, so nothing is rolled for. Its bob runs on the pinned
+    // clock. 200 frames let the next autosave show it still swimming.
+    frames: 200,
+    resume: {
+      depthM: 20,
+      bcdGasSurfaceLiters: 11.05,
+      shark: {
+        timerS: 60,
+        encounter: { offsetM: 6, depthM: 18, direction: -1, speedMps: 0.001, passed: true },
+      },
+    },
+    expectShark: true,
+    expectTorch: true,
+  },
 ];
 
 const SAVE_KEY = 'diving-simulator.save-game';
@@ -309,8 +330,13 @@ async function captureScene(browser, baseUrl, scene) {
       maxDepthM: scene.resume.depthM,
       verticalVelocityMpm: 0,
       bcdGasSurfaceLiters: scene.resume.bcdGasSurfaceLiters,
-      narcosisIndex: scene.resume.narcosisIndex,
     });
+    if (scene.resume.narcosisIndex !== undefined) {
+      saved.state.narcosisIndex = scene.resume.narcosisIndex;
+    }
+    if (scene.resume.shark !== undefined) {
+      saved.state.shark = scene.resume.shark;
+    }
     await page.goto(`${baseUrl}/dist/?renderer=pixi`);
     await page.evaluate(([key, value]) => localStorage.setItem(key, value), [SAVE_KEY, JSON.stringify(saved)]);
     await page.getByRole('button', { name: /I understand/ }).click();
@@ -363,6 +389,17 @@ async function captureScene(browser, baseUrl, scene) {
       throw new Error(
         `${scene.id}: expected a narcosis index of ${scene.minNarcosisIndex} or more but the save holds ` +
         `${index} — the scene is not exercising what its name says.`,
+      );
+    }
+  }
+
+  if (scene.expectShark) {
+    // A save written after the resume, not the one the scene put in.
+    const state = await page.evaluate(key => JSON.parse(localStorage.getItem(key)).state, SAVE_KEY);
+    if (!(state.elapsedTimeS > 300 && state.shark.encounter !== null)) {
+      throw new Error(
+        `${scene.id}: expected a later save with a shark swimming but it holds ` +
+        `${JSON.stringify(state.shark)} at ${state.elapsedTimeS} s — the scene is not exercising what its name says.`,
       );
     }
   }

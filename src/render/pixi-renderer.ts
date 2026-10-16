@@ -21,6 +21,7 @@ import {
 } from "./layer-assignment";
 import { narcosisVignetteAlpha, narcosisWobblePx } from "./narcosis-view";
 import type { SceneRenderer, WreckSceneState } from "./renderer";
+import { SHARK_MOUTH_WIDTH_M, SHARK_SIZE_M, sharkBobM } from "./shark-view";
 
 const MAX_RESOLUTION = 2;
 const BUBBLE_COUNT = 14;
@@ -61,14 +62,6 @@ const SURFACE_WAVES = [
 ] as const;
 /** Legacy fills 20 px under the wave line: one metre. */
 const SURFACE_BAND_M = 1;
-
-// Legacy's shark (src/renderer.js drawScene, TASK-044), at its 0.05 m a
-// pixel: shark.size 45 px from the snout's centre to the tail's root, a 4 px
-// bob, and a phase that advances 3 a real second (src/game-loop.js).
-const LEGACY_M_PER_PX = 0.05;
-const SHARK_SIZE_M = 45 * LEGACY_M_PER_PX;
-const SHARK_BOB_M = 4 * LEGACY_M_PER_PX;
-const SHARK_PHASE_PER_S = 3;
 
 export class PixiWreckRenderer implements SceneRenderer {
   readonly kind = "pixi" as const;
@@ -258,8 +251,10 @@ export class PixiWreckRenderer implements SceneRenderer {
       return;
     }
     this.#sharkSinceRealS ??= scene.elapsedRealS;
-    const phase = (scene.elapsedRealS - this.#sharkSinceRealS) * SHARK_PHASE_PER_S;
-    this.#shark.position.set(shark.positionM, shark.depthM + Math.sin(phase) * SHARK_BOB_M);
+    this.#shark.position.set(
+      shark.positionM,
+      shark.depthM + sharkBobM(scene.elapsedRealS - this.#sharkSinceRealS),
+    );
     this.#shark.scale.x = shark.direction;
   }
 
@@ -561,7 +556,7 @@ function buildShark(): Graphics {
     .moveTo(s * 0.7, s * 0.08)
     .lineTo(s * 0.95, s * 0.02)
     .lineTo(s * 0.7, -s * 0.05)
-    .stroke({ color: 0x14191e, alpha: 0.9, width: 1.5 * LEGACY_M_PER_PX })
+    .stroke({ color: 0x14191e, alpha: 0.9, width: SHARK_MOUTH_WIDTH_M })
     .circle(s * 0.6, -s * 0.1, s * 0.06)
     .fill({ color: 0x111111 })
     .circle(s * 0.6, -s * 0.1, s * 0.03)

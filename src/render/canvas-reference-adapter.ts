@@ -1,7 +1,13 @@
 import type { PresentationState } from "../presentation/presentation-state";
 import { WRECK_HOLD_EDGE, WRECK_HULL_EDGE, type RoutePoint } from "../sites/wreck-route";
-import { createCameraTransform, worldToScreen, wreckCameraFocusX } from "./camera";
+import {
+  createCameraTransform,
+  worldToScreen,
+  wreckCameraFocusX,
+  type CameraTransform,
+} from "./camera";
 import type { SceneRenderer, WreckSceneState } from "./renderer";
+import { SHARK_MOUTH_WIDTH_M, SHARK_SIZE_M, sharkBobM } from "./shark-view";
 
 export class CanvasReferenceAdapter implements SceneRenderer {
   readonly kind = "canvas" as const;
@@ -11,6 +17,8 @@ export class CanvasReferenceAdapter implements SceneRenderer {
   #host: HTMLElement | null = null;
   #viewport = { width: 1, height: 1 };
   #resolution = 1;
+  /** The real time the shark on screen was first drawn at, for its phase. */
+  #sharkSinceRealS: number | null = null;
 
   async mount(host: HTMLElement): Promise<void> {
     if (this.#canvas) {
@@ -101,6 +109,10 @@ export class CanvasReferenceAdapter implements SceneRenderer {
     context.lineWidth = Math.max(1, camera.scale * 0.3);
     context.stroke();
 
+    // In front of the wreck and behind the diver and the torch, as the Pixi
+    // scene layers it (#246).
+    this.#drawShark(context, camera, scene);
+
     if (scene.torchOn) {
       const origin = point(scene.routePositionM, scene.diverDepthM);
       const farTop = point(
@@ -146,6 +158,74 @@ export class CanvasReferenceAdapter implements SceneRenderer {
     this.#canvas = null;
     this.#context = null;
     this.#host = null;
+    this.#sharkSinceRealS = null;
+  }
+
+  /**
+   * Legacy's shark (src/renderer.js drawScene, TASK-044) while one swims, as
+   * the Pixi scene draws it: turned to its heading and bobbing on its phase
+   * from when it is first drawn. Drawn in metres under the camera's scale,
+   * each part filled on its own as legacy fills them.
+   */
+  #drawShark(
+    context: CanvasRenderingContext2D,
+    camera: CameraTransform,
+    scene: Readonly<WreckSceneState>,
+  ): void {
+    const shark = scene.shark;
+    if (!shark) {
+      this.#sharkSinceRealS = null;
+      return;
+    }
+    this.#sharkSinceRealS ??= scene.elapsedRealS;
+    const at = worldToScreen(
+      {
+        x: shark.positionM,
+        y: shark.depthM + sharkBobM(scene.elapsedRealS - this.#sharkSinceRealS),
+      },
+      camera,
+    );
+    const s = SHARK_SIZE_M;
+    const fill = (points: readonly (readonly [number, number])[]) => {
+      context.beginPath();
+      for (const [index, [x, y]] of points.entries()) {
+        if (index === 0) {
+          context.moveTo(x, y);
+        } else {
+          context.lineTo(x, y);
+        }
+      }
+      context.closePath();
+      context.fill();
+    };
+
+    context.save();
+    context.translate(at.x, at.y);
+    context.scale(camera.scale * shark.direction, camera.scale);
+    context.fillStyle = "rgba(40,50,60,0.85)";
+    context.beginPath();
+    context.ellipse(0, 0, s, s * 0.35, 0, 0, Math.PI * 2);
+    context.fill();
+    // Dorsal, tail and pectoral fins.
+    fill([[-s * 0.1, -s * 0.35], [s * 0.05, -s * 0.85], [s * 0.3, -s * 0.3]]);
+    fill([[-s, 0], [-s * 1.5, -s * 0.5], [-s * 1.2, 0], [-s * 1.5, s * 0.4]]);
+    fill([[s * 0.1, s * 0.2], [-s * 0.2, s * 0.55], [-s * 0.3, s * 0.15]]);
+    context.strokeStyle = "rgba(20,25,30,0.9)";
+    context.lineWidth = SHARK_MOUTH_WIDTH_M;
+    context.beginPath();
+    context.moveTo(s * 0.7, s * 0.08);
+    context.lineTo(s * 0.95, s * 0.02);
+    context.lineTo(s * 0.7, -s * 0.05);
+    context.stroke();
+    context.fillStyle = "#111";
+    context.beginPath();
+    context.arc(s * 0.6, -s * 0.1, s * 0.06, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = "rgba(200,0,0,0.5)";
+    context.beginPath();
+    context.arc(s * 0.6, -s * 0.1, s * 0.03, 0, Math.PI * 2);
+    context.fill();
+    context.restore();
   }
 
   #requireCanvas(): HTMLCanvasElement {

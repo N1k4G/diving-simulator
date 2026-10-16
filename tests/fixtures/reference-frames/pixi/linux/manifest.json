@@ -52,6 +52,18 @@
         ],
         "channelSpread": 35.376
       }
+    },
+    "wreck-shark": {
+      "statistics": {
+        "meanLuma": 40.614,
+        "sdLuma": 21.284,
+        "meanRGB": [
+          17.426,
+          46.054,
+          55.008
+        ],
+        "channelSpread": 37.582
+      }
     }
   }
 }
