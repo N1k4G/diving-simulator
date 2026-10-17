@@ -609,6 +609,13 @@ summary:focus-visible {
 }
 
 .wreck-shell {
+  /* The left side's measures (#168), named so the onboarding hint (#160)
+     can stand clear of the HUD by the same numbers. */
+  --wreck-gutter: 1.25rem;
+  --wreck-side-top: 5.8rem;
+  --wreck-hud-width: 15rem;
+  --wreck-column-short-width: 32rem;
+
   position: relative;
   display: grid;
   width: min(100%, 96rem);
@@ -710,10 +717,10 @@ summary:focus-visible {
 .wreck-side {
   position: absolute;
   z-index: 4;
-  top: 5.8rem;
-  right: 1.25rem;
-  bottom: 1.25rem;
-  left: 1.25rem;
+  top: var(--wreck-side-top);
+  right: var(--wreck-gutter);
+  bottom: var(--wreck-gutter);
+  left: var(--wreck-gutter);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -748,7 +755,7 @@ summary:focus-visible {
 .wreck-hud {
   flex-shrink: 0;
   display: grid;
-  width: min(15rem, 100%);
+  width: min(var(--wreck-hud-width), 100%);
   gap: 0.5rem;
   margin: 0;
   padding: 0.8rem;
@@ -875,30 +882,41 @@ summary:focus-visible {
   transform: translateX(-50%);
 }
 
-/* The onboarding hint (#160): legacy's toast, centred at 36% of the height,
-   in its amber. It takes no touch, as legacy's does not. It is drawn over
-   the stage and under everything else, as legacy draws it in drawScene()
-   and its dive computer over it: the HUD column, the topbar, the controls
-   (z-index 4) and the warning (5) are never covered by it. Empty, it keeps
-   its place in the accessibility tree, so the status region is there when a
-   hint is written into it. */
+/* The onboarding hint (#160): legacy's toast, at 36% of the height, in its
+   amber. It takes no touch, as legacy's does not.
+
+   It stands in the stage to the right of the HUD, 8px clear of it by the
+   HUD's own width, centred there, under the topbar (the side's top) and
+   wrapping to the width left. So nothing covers it, and it covers nothing:
+   it is also stacked under the HUD column, the topbar, the controls
+   (z-index 4) and the warning (5), as legacy draws it in drawScene() and
+   its dive computer over it. On a phone the space beside the HUD is narrow,
+   so a long word breaks rather than runs out of it.
+
+   Empty, it keeps its place in the accessibility tree, so the status region
+   is there when a hint is written into it. */
 .onboarding-hint {
+  --wreck-hud-extent: var(--wreck-hud-width);
+
   position: absolute;
   z-index: 3;
-  top: 36%;
-  left: 50%;
-  width: max-content;
-  max-width: min(34rem, calc(100% - 2rem));
-  margin: 0;
-  padding: 0.6rem 1rem;
+  top: max(36%, var(--wreck-side-top));
+  right: calc(var(--wreck-gutter) + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
+  left: calc(var(--wreck-gutter) + var(--wreck-hud-extent) + 0.5rem);
+  width: fit-content;
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 0.5rem 0.75rem;
   border-radius: 0.65rem;
   color: #ffdc78;
   background: rgb(3 24 32 / 85%);
-  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
   font-weight: 800;
+  line-height: 1.35;
   text-align: center;
+  overflow-wrap: anywhere;
+  hyphens: auto;
   pointer-events: none;
-  transform: translateX(-50%);
 }
 
 .onboarding-hint:empty {
@@ -1187,14 +1205,9 @@ summary:focus-visible {
     min-height: 30rem;
     border: 0;
     border-radius: 0;
-  }
 
-  .wreck-side {
-    top: 5rem;
-  }
-
-  .wreck-hud {
-    width: 12.5rem;
+    --wreck-side-top: 5rem;
+    --wreck-hud-width: 12.5rem;
   }
 
   /* #137 §4.4.1: this used to hide the HUD's 4th metric to make five fit a
@@ -1226,7 +1239,12 @@ summary:focus-visible {
    panel nor a row meets a control at these sizes. */
 @media (height <= 600px) {
   .wreck-column {
-    width: min(32rem, 100%);
+    width: min(var(--wreck-column-short-width), 100%);
+  }
+
+  /* The two-column HUD fills the column, measured here from the shell. */
+  .onboarding-hint {
+    --wreck-hud-extent: min(var(--wreck-column-short-width), 100% - 2 * var(--wreck-gutter));
   }
 
   .wreck-hud {
