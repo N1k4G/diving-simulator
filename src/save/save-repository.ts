@@ -63,19 +63,23 @@ export class LocalSaveRepository {
   /**
    * Returns the save that was built. `persisted` is false when the store
    * refused the write, so a caller can surface degraded persistence instead of
-   * assuming the dive is recoverable.
+   * assuming the dive is recoverable. `routePositionM` is where on the
+   * wreck's route the diver is (#222); without it the dive resumes at the
+   * route's start.
    */
   save(
     state: DiveState,
     gradientFactors: SavedGradientFactors,
     savedAtEpochMs = Date.now(),
     diveMode?: SavedDiveMode,
+    routePositionM?: number,
   ): { readonly saveGame: SaveGame; readonly persisted: boolean } {
     const saveGame = createSaveGame(
       state,
       gradientFactors,
       savedAtEpochMs,
       diveMode,
+      routePositionM,
     );
     const persisted = tryWrite(
       this.#store,
