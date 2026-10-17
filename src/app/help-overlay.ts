@@ -10,6 +10,9 @@
 //   fixed in legacy (the stylesheet's overscroll-behavior and scroll lock).
 // - It is announced once, as a dialog named by its heading when focus moves
 //   into it; nothing in it is a live region (#138).
+// - Legacy's "Don't show hints again" sits at its foot while the onboarding
+//   hints are on: the button stops them (#38) and goes, and focus returns to
+//   Close.
 import { translate, type MessageKey, type SupportedLocale } from "./i18n/catalog";
 import { element } from "./game-over";
 import { helpSections, type HelpContext, type HelpRow } from "./help-content";
@@ -20,6 +23,8 @@ export interface HelpOverlayOptions {
   readonly context: () => HelpContext;
   readonly onOpen?: (context: Readonly<HelpContext>) => void;
   readonly onClose?: () => void;
+  /** The onboarding hints' opt-out (#160); without it there is no button. */
+  readonly hints?: { dismissed(): boolean; dismiss(): void };
 }
 
 export interface HelpOverlay {
@@ -126,6 +131,18 @@ export function createHelpOverlay(options: Readonly<HelpOverlayOptions>): HelpOv
     }
     const context = options.context();
     body.replaceChildren(...buildBody(context, t));
+    const hints = options.hints;
+    if (hints && !hints.dismissed()) {
+      const dismiss = element("button", "help-close help-dismiss-hints", t("hint.dismiss"));
+      dismiss.type = "button";
+      dismiss.dataset.hintDismiss = "true";
+      dismiss.addEventListener("click", () => {
+        hints.dismiss();
+        dismiss.remove();
+        closeButton.focus();
+      });
+      body.append(dismiss);
+    }
     returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     open = true;
     window.addEventListener("keydown", takeKey, true);

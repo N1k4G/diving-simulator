@@ -48,6 +48,16 @@ import {
   routeSpaceNear,
 } from "../sites/wreck-route";
 import { siteGameplay } from "../sites/site-resources";
+import {
+  NO_HINTS,
+  NO_HINT_STORE,
+  clearHints,
+  hintConditions,
+  stepHints,
+  type HintId,
+  type HintStore,
+  type HintsState,
+} from "./onboarding-hints";
 
 const FIN_SPEED_MPS = 5;
 /** src/game-loop.js gameLoop(): `dtReal = Math.min(dtReal, 0.1)`. */
@@ -122,6 +132,8 @@ export interface GameFrame {
    * 'surface' state, which waits for S (#199). The HUD says how to begin.
    */
   readonly awaitingDescent: boolean;
+  /** The onboarding hint showing (#160), null between them. */
+  readonly hint: Readonly<{ id: HintId; serial: number }> | null;
 }
 
 export interface GameControllerOptions {
@@ -144,6 +156,8 @@ export interface GameControllerOptions {
   readonly initialRoutePositionM?: number;
   /** Each new state, with the route position it was reached at, for the save. */
   readonly onAuthoritativeState?: (state: DiveState, routePositionM: number) => void;
+  /** Which onboarding hints are seen or dismissed (#160); none show without it. */
+  readonly hintStore?: HintStore;
 }
 
 export class GameController {
@@ -204,6 +218,10 @@ export class GameController {
   #fastForwardActive = false;
   /** The help overlay is open over the dive (#160); see setPaused. */
   #paused = false;
+  readonly #hintStore: HintStore;
+  #hints: HintsState = NO_HINTS;
+  /** The previous frame's overhead, which legacy's hint triggers read (#160). */
+  #inOverhead = false;
   #lastFrame: Readonly<GameFrame> | null = null;
   #lastFrameMs: number | null = null;
   #animationFrame = 0;
@@ -217,6 +235,7 @@ export class GameController {
     this.#onAuthoritativeState = options.onAuthoritativeState ?? null;
     this.#plannerClient = options.plannerClient ?? new PlannerWorkerClient();
     this.#plannerSettings = options.plannerSettings ?? DEFAULT_PLANNER_SETTINGS;
+    this.#hintStore = options.hintStore ?? NO_HINT_STORE;
     const initialState = options.initialState ?? createWreckInitialState();
     // A dive resumed inside the wreck stays there (#222), and with it the
     // overhead and its rule of thirds, which follow from the position.
@@ -418,6 +437,18 @@ export class GameController {
     this.#pendingBailout = true;
   }
 
+  /**
+   * "Don't show hints again" (#160), legacy's dismissAllHints(): no hint
+   * shows again in this browser, and the one showing and those queued go now.
+   */
+  dismissHints(): void {
+    this.#hintStore.dismiss();
+    this.#hints = clearHints(this.#hints);
+    if (this.#lastFrame && !this.#disposed) {
+      this.#publishFrame();
+    }
+  }
+
   destroy(): void {
     if (this.#disposed) {
       return;
@@ -475,6 +506,19 @@ export class GameController {
       );
       const acts = this.#takeActs();
       const before = this.#model.snapshot;
+      // Legacy's hint pump and triggers run at the top of updateDiving(), on
+      // the state the previous frame left, its overhead included (#160).
+      if (!isDiveOver(before)) {
+        this.#hints = stepHints(
+          this.#hints,
+          {
+            elapsedRealS: elapsedS,
+            fastForward: this.#fastForwardActive,
+            conditions: hintConditions(before, this.#plannerSettings.gfHighPercent, this.#inOverhead),
+          },
+          (id) => this.#hintStore.admit(id),
+        );
+      }
       // Whether the frame's cylinder keys switch: the model applies them
       // before the frame's gas use, where the cylinders and the one breathed
       // are still those the frame started with, so this is the model's own
@@ -496,6 +540,7 @@ export class GameController {
         elapsedS,
         acts,
       );
+      this.#inOverhead = space.inOverhead;
       const after = this.#model.snapshot;
       // A gas switch ends a fast-forward (src/game-loop.js TASK-019 sets
       // fastForwardActive = false alongside activeTank). The new gas changes
@@ -744,6 +789,9 @@ export class GameController {
       scene,
       fastForward,
       awaitingDescent: this.#awaitingDescent,
+      hint: this.#hints.shown
+        ? Object.freeze({ id: this.#hints.shown.id, serial: this.#hints.shown.serial })
+        : null,
     });
     this.#onFrame(this.#lastFrame);
   }

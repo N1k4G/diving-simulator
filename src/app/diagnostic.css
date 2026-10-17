@@ -875,6 +875,33 @@ summary:focus-visible {
   transform: translateX(-50%);
 }
 
+/* The onboarding hint (#160): legacy's toast, centred at 36% of the height,
+   below the warning, in its amber. It takes no touch, as legacy's does not.
+   Empty, it keeps its place in the accessibility tree, so the status region
+   is there when a hint is written into it. */
+.onboarding-hint {
+  position: absolute;
+  z-index: 5;
+  top: 36%;
+  left: 50%;
+  width: max-content;
+  max-width: min(34rem, calc(100% - 2rem));
+  margin: 0;
+  padding: 0.6rem 1rem;
+  border-radius: 0.65rem;
+  color: #ffdc78;
+  background: rgb(3 24 32 / 85%);
+  font-family: ui-monospace, monospace;
+  font-weight: 800;
+  text-align: center;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.onboarding-hint:empty {
+  padding: 0;
+}
+
 .wreck-warning[hidden] {
   display: none;
 }
@@ -1625,6 +1652,10 @@ summary:focus-visible {
 
 .help-safety {
   color: #f6db72;
+}
+
+.help-dismiss-hints {
+  margin-top: 0.5rem;
 }
 
 /* No page scroll behind the open overlay: legacy's result screen does not

@@ -51,6 +51,7 @@ import { siteGameplay } from "../sites/site-resources";
 import { drawDiveSeed } from "./dive-seed";
 import { helpPausesDive, type HelpContext } from "./help-content";
 import { createHelpButton, createHelpOverlay } from "./help-overlay";
+import { HINT_MESSAGES, createHintStore, visibleHint } from "./onboarding-hints";
 import { isTurnBeepDue } from "./thirds-turn-beep";
 import {
   isWarningBeepActive,
@@ -114,7 +115,11 @@ interface HudElements {
   readonly help: HTMLButtonElement;
   readonly gasInfo: GasInfoElements;
   readonly surfacePrompt: HTMLElement;
+  readonly onboardingHint: HTMLElement;
 }
+
+/** Legacy's hint flags, in the page's storage (#160). */
+const hintStore = createHintStore(() => window.localStorage);
 
 const zoneMessageKeys: Record<WreckZone, MessageKey> = {
   exterior: "wreck.zone.exterior",
@@ -443,6 +448,7 @@ async function startWreckSimulation(
   // 'drill'; clearSavedDive()), because an ended dive is not one to resume.
   let ended = false;
   let thirdsTurnWarned: boolean | null = null;
+  let helpOpen = false;
   const controller = new GameController({
     renderer,
     // The save when the diver chose to resume it, a new dive on the setup
@@ -455,6 +461,7 @@ async function startWreckSimulation(
     // The configured gradient factors, or the planner keeps using its
     // defaults and the GF controls change a number nobody reads (#158 review).
     plannerSettings,
+    hintStore,
     onAuthoritativeState: (state, routePositionM) => {
       if (ended) {
         return;
@@ -507,6 +514,15 @@ async function startWreckSimulation(
         gasInfoAvailable(frame.presentation, diveMode),
         frame.presentation,
         plannerSettings,
+      );
+      syncOnboardingHint(
+        hud.onboardingHint,
+        visibleHint(frame.hint, {
+          help: helpOpen,
+          gasInfo: gasInfoPage !== null,
+          fastForward: frame.fastForward.active,
+        }),
+        locale,
       );
       audio.update({
         elapsedRealS: frame.scene.elapsedRealS,
@@ -586,9 +602,14 @@ async function startWreckSimulation(
     // inert, so its pointerup need never arrive (#168).
     onOpen: (context) => {
       dpad.releaseAll();
+      helpOpen = true;
       controller.setPaused(helpPausesDive(context.state));
     },
-    onClose: () => controller.setPaused(false),
+    onClose: () => {
+      helpOpen = false;
+      controller.setPaused(false);
+    },
+    hints: { dismissed: hintStore.dismissed, dismiss: () => controller.dismissHints() },
   });
   hud.help.addEventListener("click", () => help.open());
   hud.mute.addEventListener("click", () => {
@@ -739,6 +760,7 @@ function endInPostDive(
       ...diveHelpContext(state, false, setup.mode),
       state: "post-dive",
     }),
+    hints: hintStore,
   });
   const dispose = renderPostDiveScreen(root, {
     locale,
@@ -1003,7 +1025,14 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   side.className = "wreck-side";
   side.append(column, dock);
 
-  shell.append(topbar, viewport, side, warning, controls);
+  // The onboarding hint (#160), where legacy draws its toast. A status
+  // region written only when the hint shown changes, so each is announced
+  // once and nothing per frame (#138).
+  const onboardingHint = createElement("p", "onboarding-hint", "");
+  onboardingHint.dataset.onboardingHint = "true";
+  onboardingHint.setAttribute("role", "status");
+
+  shell.append(topbar, viewport, side, warning, onboardingHint, controls);
   return {
     shell,
     viewport,
@@ -1035,7 +1064,20 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     help,
     gasInfo,
     surfacePrompt,
+    onboardingHint,
   };
+}
+
+/** Writes the hint only when it changes, so a status region announces it once. */
+function syncOnboardingHint(
+  element: HTMLElement,
+  hint: GameFrame["hint"],
+  locale: SupportedLocale,
+): void {
+  const text = hint ? translate(locale, HINT_MESSAGES[hint.id]) : "";
+  if (element.textContent !== text) {
+    element.textContent = text;
+  }
 }
 
 function updateHud(
