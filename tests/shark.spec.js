@@ -8,6 +8,10 @@ const { acceptSafetyGate } = require('./helpers/start-dive.cjs');
 // save with a shark close by plays out the same every time.
 
 const SAVE_KEY = 'diving-simulator.save-game';
+// The shell's chrome, hidden so a frame holds only the renderer's output, as
+// narcosis.spec.js does: the onboarding hint (#160) shows over the first of
+// two identical loads only, its flag being set by the second.
+const HIDE_CHROME = '.wreck-shell > :not([data-wreck-viewport]) { visibility: hidden !important; }';
 
 // src/core/rng.ts nextRandom(): the first roll of random state 0 is 0.266,
 // under the 0.33 that attacks; of 1 it is 0.627, which lets the diver be.
@@ -95,7 +99,7 @@ test('the scene draws the shark while one swims, and only then', async ({ page }
     await page.locator('[data-resume-continue]').click();
     await page.locator('[data-renderer=pixi] canvas').waitFor();
     await page.evaluate(() => window.__stepFrames(30));
-    return page.locator('[data-wreck-viewport]').screenshot();
+    return page.locator('[data-wreck-viewport]').screenshot({ style: HIDE_CHROME });
   };
   const without = await frameWith(null);
   expect((await frameWith(null)).equals(without), 'the same dive renders the same frame').toBe(true);

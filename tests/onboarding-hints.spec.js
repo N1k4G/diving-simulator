@@ -80,6 +80,80 @@ test('by keyboard: shown once past 2 m and announced once, hidden under the gas 
   await expect(dismiss(page)).toHaveCount(0);
 });
 
+const SAVE_KEY = 'diving-simulator.save-game';
+
+/**
+ * A dive in `mode` resumed at 9 m, neutral, its safety stop paused, so the
+ * stop row shows (tests/in-dive-controls.spec.js resumeGermanAtPausedStop).
+ * No hint has been seen: the BCD and safety-stop hints follow, 12 s of them.
+ */
+async function resumeAtPausedStop(page, mode) {
+  await page.goto('/dist/');
+  await page.locator('[data-accept-safety]').click();
+  await page.locator(`[data-setup-group=mode] [data-setup-option=${mode}]`).check();
+  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  await descendTo(page, 1);
+  const saved = await page
+    .waitForFunction((key) => {
+      const parsed = JSON.parse(window.localStorage.getItem(key) ?? 'null');
+      return parsed !== null && parsed.state.elapsedTimeS > 0 ? parsed : null;
+    }, SAVE_KEY)
+    .then((handle) => handle.jsonValue());
+  const pressureBar = 1 + 9 / 10;
+  Object.assign(saved.state, {
+    depthM: 9,
+    maxDepthM: 20,
+    verticalVelocityMpm: 0,
+    bcdGasSurfaceLiters: (7 + 2 - 3 - 5 * Math.pow(1 / pressureBar, 0.7)) * pressureBar,
+    safetyStop: { needed: true, countdownStarted: true, remainingS: 172, paused: true, complete: false },
+  });
+  await page.goto('/dist/');
+  await page.evaluate(([key, value]) => window.localStorage.setItem(key, value), [SAVE_KEY, JSON.stringify(saved)]);
+  await page.locator('[data-accept-safety]').click();
+  await page.locator('[data-resume-continue]').click();
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  await expect(page.locator('.wreck-hud [data-hud-metric="safetyStop"] dd')).toContainText('paused');
+}
+
+// Legacy draws its toast in drawScene() and its dive computer over it
+// (src/game-loop.js gameLoop), so no hint ever hides a HUD row.
+for (const mode of ['rec', 'ccr']) {
+  test(`on a ${mode} dive with the stop row showing, every HUD row stays on top of the hint`, async ({ page }) => {
+    test.setTimeout(120_000);
+    await resumeAtPausedStop(page, mode);
+    let overlapped = 0;
+    for (const [width, height] of [[844, 390], [667, 375], [390, 844]]) {
+      await page.setViewportSize({ width, height });
+      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      await expect(toast(page)).not.toHaveText('');
+      const { covered, overlaps } = await page.evaluate(() => {
+        // The hint takes no touch, so hit testing passes through it; for the
+        // test it is made to take it, so elementFromPoint finds it if on top.
+        const region = document.querySelector('[data-onboarding-hint]');
+        region.style.pointerEvents = 'auto';
+        const hint = region.getBoundingClientRect();
+        const result = { covered: [], overlaps: 0 };
+        for (const cell of document.querySelectorAll('.wreck-hud > div:not([hidden]) > :is(dt, dd)')) {
+          const r = cell.getBoundingClientRect();
+          if (r.width === 0 || r.bottom > window.innerHeight) continue;
+          if (r.left < hint.right && hint.left < r.right && r.top < hint.bottom && hint.top < r.bottom) result.overlaps += 1;
+          for (const x of [r.left + 2, r.left + r.width / 2, r.right - 2]) {
+            const top = document.elementFromPoint(x, r.top + r.height / 2);
+            if (!cell.contains(top)) result.covered.push(`${cell.parentElement.dataset.hudMetric} ${cell.tagName} at ${Math.round(x)}: ${top?.className}`);
+          }
+        }
+        region.style.pointerEvents = '';
+        return result;
+      });
+      expect(covered, `${width}x${height}`).toEqual([]);
+      overlapped += overlaps;
+    }
+    // The hint does lie across HUD rows here, so the check above means something.
+    expect(overlapped).toBeGreaterThan(0);
+  });
+}
+
 test.describe('by touch, in German, on a phone', () => {
   test.use({ locale: 'de-DE', viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 

@@ -876,12 +876,15 @@ summary:focus-visible {
 }
 
 /* The onboarding hint (#160): legacy's toast, centred at 36% of the height,
-   below the warning, in its amber. It takes no touch, as legacy's does not.
-   Empty, it keeps its place in the accessibility tree, so the status region
-   is there when a hint is written into it. */
+   in its amber. It takes no touch, as legacy's does not. It is drawn over
+   the stage and under everything else, as legacy draws it in drawScene()
+   and its dive computer over it: the HUD column, the topbar, the controls
+   (z-index 4) and the warning (5) are never covered by it. Empty, it keeps
+   its place in the accessibility tree, so the status region is there when a
+   hint is written into it. */
 .onboarding-hint {
   position: absolute;
-  z-index: 5;
+  z-index: 3;
   top: 36%;
   left: 50%;
   width: max-content;
