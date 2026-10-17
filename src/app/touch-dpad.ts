@@ -148,14 +148,18 @@ export function createDpadButtons(
   });
 }
 
-/**
- * Binds the buttons to the target and returns the teardown, which removes
- * the window and document listeners and lets go of anything still held.
- */
+export interface DpadBinding {
+  /** Lets go of every held direction, as for a lost focus. */
+  releaseAll(): void;
+  /** Removes the window and document listeners and lets go of anything still held. */
+  dispose(): void;
+}
+
+/** Binds the buttons to the target. */
 export function bindDpad(
   buttons: readonly HTMLButtonElement[],
   target: DpadTarget,
-): () => void {
+): DpadBinding {
   const holds = new DpadHolds(target);
   // The held look follows the bookkeeping, not the event, so a button never
   // shows a direction as held that the controller has been told is not.
@@ -200,9 +204,12 @@ export function bindDpad(
   };
   window.addEventListener("blur", releaseAll);
   document.addEventListener("visibilitychange", releaseAll);
-  return () => {
-    window.removeEventListener("blur", releaseAll);
-    document.removeEventListener("visibilitychange", releaseAll);
-    releaseAll();
+  return {
+    releaseAll,
+    dispose: () => {
+      window.removeEventListener("blur", releaseAll);
+      document.removeEventListener("visibilitychange", releaseAll);
+      releaseAll();
+    },
   };
 }

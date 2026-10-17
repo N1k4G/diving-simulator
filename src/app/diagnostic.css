@@ -659,7 +659,8 @@ summary:focus-visible {
 }
 
 .audio-control,
-.gas-info-control {
+.gas-info-control,
+.help-control {
   /* #137 §4.4.2: was 2.3rem (~37px), below this project's 44px touch-target
      standard (the same class of defect #121 fixed in the legacy client).
      2.75rem = 44px at the unmodified 16px root this file assumes throughout. */
@@ -1544,4 +1545,106 @@ summary:focus-visible {
 .resume-banner-discard:hover {
   border-color: #83d9e7;
   background: rgb(131 217 231 / 18%);
+}
+
+/* The help overlay (#160). overscroll-behavior keeps a wheel or drag that
+   reaches its end from scrolling the screen behind it (#120); the margin
+   leaves backdrop around it to tap, which closes it. */
+.help-overlay {
+  width: min(44rem, calc(100% - 2rem));
+  max-width: none;
+  max-height: calc(100% - 2rem);
+  padding: 0 1.25rem 1.25rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid rgb(129 226 241 / 35%);
+  border-radius: 1rem;
+  color: #e9fbff;
+  background: rgb(3 24 32);
+  font-size: 0.85rem;
+}
+
+.help-overlay::backdrop {
+  background: rgb(0 0 0 / 72%);
+}
+
+.help-header {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 0 0.75rem;
+  border-bottom: 1px solid rgb(129 226 241 / 35%);
+  background: inherit;
+}
+
+.help-close,
+.secondary-action {
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid rgb(131 217 231 / 48%);
+  border-radius: 0.7rem;
+  color: #e9fbff;
+  background: rgb(2 17 23 / 70%);
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.result-screen .secondary-action {
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.help-overlay h3 {
+  margin: 1.25rem 0 0.5rem;
+  color: #83d9e7;
+}
+
+.help-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.help-table th,
+.help-table td {
+  padding: 0.4rem 0.5rem 0.4rem 0;
+  border-bottom: 1px solid rgb(129 226 241 / 12%);
+  vertical-align: top;
+}
+
+.help-table tbody th {
+  font-family: ui-monospace, monospace;
+  white-space: nowrap;
+}
+
+.help-hint {
+  color: #a5cbd2;
+}
+
+.help-safety {
+  color: #f6db72;
+}
+
+/* No page scroll behind the open overlay: legacy's result screen does not
+   scroll while its help is shown (#160, #120). */
+html:has(.help-overlay[open]) {
+  overflow: hidden;
+}
+
+/* The topbar fits at every width: with Help (#160) the site's name has to
+   give way to the chips and the round buttons, so it shrinks first, to an
+   ellipsis or to nothing, and the buttons keep their 44 px on screen. */
+.wreck-identity {
+  min-width: 0;
+  flex-shrink: 100;
+  margin-right: 0.75rem;
+  overflow: hidden;
+}
+
+.wreck-identity > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

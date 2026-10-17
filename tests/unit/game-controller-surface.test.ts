@@ -216,3 +216,43 @@ describe("a dive that has ended", () => {
     controller.destroy();
   });
 });
+
+describe("the dive paused under the help overlay (#160), as legacy skips updateDiving() while showHelp", () => {
+  it("moves nothing, lets go of held controls, takes no intent, and runs no time on its first frame after", async () => {
+    const { controller, frames } = await startController(twoCylinders());
+    controller.setControl("descend", true);
+    step(60);
+    controller.setControl("descend", false);
+    controller.setControl("ascend", true);
+    controller.setPaused(true);
+    const before = controller.authoritativeState;
+    const seen = frames.length;
+    const last = frames.at(-1);
+    step(120);
+    expect(press("w") || press("2") || press("t")).toBe(false);
+    controller.setControl("descend", true);
+    controller.requestTankSwitch(1);
+    controller.toggleTorch();
+    expect(controller.authoritativeState).toBe(before);
+    // The last frame again, every frame, so a warning goes on beeping as
+    // legacy's drawDiveComputer() goes on under its help.
+    expect(frames.length).toBe(seen + 120);
+    expect(frames.slice(seen).every((frame) => frame === last)).toBe(true);
+
+    controller.setPaused(false);
+    step(1);
+    expect(controller.authoritativeState.elapsedTimeS).toBe(before.elapsedTimeS);
+    step(1);
+    // Neither the W held before it nor the S during it: the BCD is as it was.
+    expect(controller.authoritativeState.elapsedTimeS).toBeGreaterThan(before.elapsedTimeS);
+    expect(controller.authoritativeState.bcdGasSurfaceLiters).toBe(before.bcdGasSurfaceLiters);
+    expect(frames.at(-1)?.scene.torchOn).toBe(true);
+    // Nor did the switch asked for during it wait for the end of it.
+    expect(controller.authoritativeState.activeTankIndex).toBe(0);
+    // The switch lands in the next frame, at legacy's point in it (#202).
+    expect(press("2")).toBe(true);
+    step(1);
+    expect(controller.authoritativeState.activeTankIndex).toBe(1);
+    controller.destroy();
+  });
+});
