@@ -48,8 +48,19 @@ test('by keyboard: shown once past 2 m and announced once, hidden under the gas 
   await expect(toast(page)).toHaveText('');
   await page.keyboard.press('Escape');
   await expect(toast(page)).toHaveText(BCD_EN);
+  // Its last half second fades, as legacy's alpha min(1, time / 0.5), and
+  // fading writes nothing to the region.
+  const shownWrites = await writes();
+  await page.waitForFunction(() => {
+    const element = document.querySelector('[data-onboarding-hint]');
+    const opacity = Number(getComputedStyle(element).opacity);
+    return element.textContent !== '' && opacity > 0 && opacity < 1;
+  }, undefined, { timeout: 10_000 });
+  expect(await writes()).toBe(shownWrites);
   // Gone after its 6 s, and not shown again this dive.
   await expect(toast(page)).toHaveText('', { timeout: 10_000 });
+  expect(await writes()).toBe(shownWrites + 1);
+  await expect(toast(page)).toHaveCSS('opacity', '1');
   const settled = await writes();
   await page.waitForTimeout(1500);
   expect(await writes()).toBe(settled);

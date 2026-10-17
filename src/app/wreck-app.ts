@@ -51,7 +51,7 @@ import { siteGameplay } from "../sites/site-resources";
 import { drawDiveSeed } from "./dive-seed";
 import { helpPausesDive, type HelpContext } from "./help-content";
 import { createHelpButton, createHelpOverlay } from "./help-overlay";
-import { HINT_MESSAGES, createHintStore, visibleHint } from "./onboarding-hints";
+import { HINT_MESSAGES, createHintStore, hintOpacity, visibleHint } from "./onboarding-hints";
 import { isTurnBeepDue } from "./thirds-turn-beep";
 import {
   isWarningBeepActive,
@@ -1068,7 +1068,11 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   };
 }
 
-/** Writes the hint only when it changes, so a status region announces it once. */
+/**
+ * Writes the hint only when it changes, so a status region announces it
+ * once. Its fade over the last half second, legacy's, is the element's
+ * opacity, set apart from the text, so fading writes nothing to the region.
+ */
 function syncOnboardingHint(
   element: HTMLElement,
   hint: GameFrame["hint"],
@@ -1078,6 +1082,8 @@ function syncOnboardingHint(
   if (element.textContent !== text) {
     element.textContent = text;
   }
+  const opacity = hint ? hintOpacity(hint.remainingS) : 1;
+  element.style.opacity = opacity < 1 ? String(opacity) : "";
 }
 
 function updateHud(

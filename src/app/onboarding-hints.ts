@@ -22,6 +22,8 @@ export type HintId = (typeof HINT_IDS)[number];
 
 /** src/state.js HINT_DISPLAY_SEC: the real seconds a hint shows for. */
 export const HINT_DISPLAY_S = 6;
+/** src/renderer.js: the toast fades over its last half second. */
+export const HINT_FADE_S = 0.5;
 /** HINT_NDL_MIN: the NDL hint fires below 10 minutes. */
 export const HINT_NDL_MIN = 10;
 /** HINT_BCD_MIN_DEPTH: the BCD and NDL hints wait for 2 m. */
@@ -153,6 +155,14 @@ export function visibleHint<T>(
   covered: Readonly<{ help: boolean; gasInfo: boolean; fastForward: boolean }>,
 ): T | null {
   return covered.help || covered.gasInfo || covered.fastForward ? null : hint;
+}
+
+/**
+ * The toast's opacity: legacy draws it at `min(1, hintNotifyTime / 0.5)`
+ * (src/renderer.js drawScene, Issue #38), on the time left after the frame.
+ */
+export function hintOpacity(remainingS: number): number {
+  return Math.min(1, Math.max(0, remainingS) / HINT_FADE_S);
 }
 
 /** Legacy's dismissAllHints(): the queued and the shown hint go at once. */

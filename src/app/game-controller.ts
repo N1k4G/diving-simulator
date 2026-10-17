@@ -132,8 +132,8 @@ export interface GameFrame {
    * 'surface' state, which waits for S (#199). The HUD says how to begin.
    */
   readonly awaitingDescent: boolean;
-  /** The onboarding hint showing (#160), null between them. */
-  readonly hint: Readonly<{ id: HintId; serial: number }> | null;
+  /** The onboarding hint showing (#160), with its real seconds left; null between them. */
+  readonly hint: Readonly<{ id: HintId; serial: number; remainingS: number }> | null;
 }
 
 export interface GameControllerOptions {
@@ -790,7 +790,7 @@ export class GameController {
       fastForward,
       awaitingDescent: this.#awaitingDescent,
       hint: this.#hints.shown
-        ? Object.freeze({ id: this.#hints.shown.id, serial: this.#hints.shown.serial })
+        ? Object.freeze({ ...this.#hints.shown })
         : null,
     });
     this.#onFrame(this.#lastFrame);

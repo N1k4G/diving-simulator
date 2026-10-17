@@ -14,6 +14,7 @@ import { translate } from "./i18n/catalog";
 import {
   HINT_DISPLAY_S,
   HINT_DONE_KEY,
+  HINT_FADE_S,
   HINT_IDS,
   HINT_MESSAGES,
   HINT_STORAGE_PREFIX,
@@ -21,6 +22,7 @@ import {
   clearHints,
   createHintStore,
   hintConditions,
+  hintOpacity,
   hintTriggered,
   stepHints,
   visibleHint,
@@ -150,6 +152,11 @@ describe("the onboarding hints' pump and store (#38)", () => {
     expect(state.shown).toEqual({ id: "deco", serial: 2, remainingS: HINT_DISPLAY_S });
     for (let i = 0; i < 50; i += 1) state = stepHints(state, { elapsedRealS: 0.5, fastForward: false, conditions: QUIET }, () => true);
     expect(state.shown).toBeNull();
+  });
+
+  it("fades over its last half second, as legacy's min(1, hintNotifyTime / 0.5)", () => {
+    expect(HINT_FADE_S).toBe(0.5);
+    expect([6, 0.5, 0.25, 0.05, 0, -0.1].map(hintOpacity)).toEqual([1, 1, 0.5, 0.1, 0, 0]);
   });
 
   it("starts none while fast-forwarding, and keeps it queued (TC-38-NO-HINT-DURING-FAST-FORWARD)", () => {

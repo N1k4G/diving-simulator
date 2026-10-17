@@ -5,7 +5,7 @@ import {
   createWreckInitialState,
   type GameFrame,
 } from "../../src/app/game-controller";
-import { HINT_DONE_KEY, createHintStore, type HintId } from "../../src/app/onboarding-hints";
+import { HINT_DONE_KEY, createHintStore, hintOpacity, type HintId } from "../../src/app/onboarding-hints";
 import { freezeDiveState, type DiveState } from "../../src/core/dive-state";
 import { metres, seconds } from "../../src/core/units";
 
@@ -81,7 +81,7 @@ function underWay(): DiveState {
 }
 
 describe("the onboarding hints in the controller (#160)", () => {
-  it("shows the BCD hint on the frame after the one that read 3 m, for 6 real seconds, stopped under the help", async () => {
+  it("shows the BCD hint on the frame after the one that read 3 m, for 6 real seconds, fading over the last half, stopped under the help", async () => {
     const { controller, frames, store, admitted } = await startController(underWay());
     step(1);
     // Queued on this frame, as legacy's triggers run after its pump.
@@ -89,13 +89,22 @@ describe("the onboarding hints in the controller (#160)", () => {
     expect(store.get("diveSim_hint_bcd")).toBe("1");
     expect(frames.at(-1)?.hint).toBeNull();
     step(1);
-    expect(frames.at(-1)?.hint).toEqual({ id: "bcd", serial: 1 });
+    // Started by this frame's pump with its 6 s, as legacy draws it at full alpha then.
+    expect(frames.at(-1)?.hint).toEqual({ id: "bcd", serial: 1, remainingS: 6 });
+    step(1);
+    expect(frames.at(-1)?.hint?.remainingS).toBeCloseTo(5.98, 10);
 
+    // The paused dive hands on its last frame, so the hint's time and fade stand still.
     controller.setPaused(true);
     step(500);
+    expect(frames.at(-1)?.hint?.remainingS).toBeCloseTo(5.98, 10);
     controller.setPaused(false);
-    step(290);
-    expect(frames.at(-1)?.hint?.id).toBe("bcd");
+    // The first frame after the pause runs no time; 288 more of 20 ms leave 0.22 s.
+    step(289);
+    const fading = frames.at(-1)?.hint;
+    expect(fading?.id).toBe("bcd");
+    expect(fading?.remainingS).toBeCloseTo(0.22, 10);
+    expect(hintOpacity(fading?.remainingS ?? 0)).toBeCloseTo(0.44, 10);
     step(20);
     expect(frames.at(-1)?.hint).toBeNull();
     expect(admitted).toEqual(["bcd"]);
