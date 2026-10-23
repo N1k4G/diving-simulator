@@ -181,6 +181,15 @@ test.describe('by touch, in German, on a phone', () => {
     expect(rows).toHaveLength(2);
     for (const r of rows) expect(Math.min(r.w, r.h)).toBeGreaterThanOrEqual(44);
     expect(rows[1].top - rows[0].bottom).toBeGreaterThanOrEqual(8);
+    // Nothing under the modal is pressed (#168's touch presses included): a
+    // tap on the torch and on help lands on the backdrop, and the decision stays.
+    for (const control of ['[data-torch]', '[data-help-open]']) {
+      const under = await page.locator(control).boundingBox();
+      await page.touchscreen.tap(under.x + under.width / 2, under.y + under.height / 2);
+    }
+    await expect(page.locator('[data-torch]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('[data-help-overlay]')).not.toBeVisible();
+    await expect(decision).toBeVisible();
     // Android's back, a close the browser makes itself: the drill stays up, and a tap still answers it.
     await refuseToClose(page, decision);
 
