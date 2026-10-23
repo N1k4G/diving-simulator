@@ -51,6 +51,7 @@ import { siteGameplay } from "../sites/site-resources";
 import { drawDiveSeed } from "./dive-seed";
 import { helpPausesDive, type HelpContext } from "./help-content";
 import { createHelpButton, createHelpOverlay } from "./help-overlay";
+import { createDrillOverlay } from "./drill-overlay";
 import { HINT_MESSAGES, createHintStore, hintOpacity, visibleHint } from "./onboarding-hints";
 import { isTurnBeepDue } from "./thirds-turn-beep";
 import {
@@ -272,7 +273,7 @@ function showSetupScreen(
               // and the debriefing return to it, as legacy's
               // restoreDiveState() leaves it in its gas setup, with the
               // screen's per-mode memory, which it leaves alone.
-              start(setupFromSave(resumed, screen.savedModes), resumed);
+              start(setupFromSave(resumed, screen.savedModes, screen.drillsEnabled), resumed);
             },
             onDiscard: () => {
               pending = null;
@@ -450,6 +451,15 @@ async function startWreckSimulation(
   let ended = false;
   let thirdsTurnWarned: boolean | null = null;
   let helpOpen = false;
+  // A training drill's decision and debriefing (#160). The callbacks run on
+  // the diver's input, once the controller below exists.
+  const drillOverlay = createDrillOverlay({
+    locale,
+    onChoose: (index) => controller.chooseDrillOption(index),
+    onContinue: () => controller.dismissDrillDebrief(),
+    // A direction held on the D-pad is let go, as under the help (#168).
+    onOpen: () => dpad.releaseAll(),
+  });
   const controller = new GameController({
     renderer,
     // The save when the diver chose to resume it, a new dive on the setup
@@ -463,6 +473,7 @@ async function startWreckSimulation(
     // defaults and the GF controls change a number nobody reads (#158 review).
     plannerSettings,
     hintStore,
+    drillsEnabled: setup.drillsEnabled,
     onAuthoritativeState: (state, routePositionM) => {
       if (ended) {
         return;
@@ -503,6 +514,7 @@ async function startWreckSimulation(
         return;
       }
       updateHud(hud, frame, locale);
+      drillOverlay.sync(frame.drill);
       lastPresentation = frame.presentation;
       // A page the dive no longer has closes: legacy leaves infoPageMode
       // behind the game-over screen, where it is not drawn.
@@ -631,6 +643,7 @@ async function startWreckSimulation(
     document.removeEventListener("visibilitychange", handleVisibility);
     window.removeEventListener("keydown", handleGasInfoKey);
     help.destroy();
+    drillOverlay.destroy();
     // Removed here too, not only by its own `once`: after a game over the
     // page stays open, and each ended dive would otherwise keep its
     // destroyed controller, renderer and HUD reachable (#190 pre-review).
@@ -683,6 +696,7 @@ async function startWreckSimulation(
     await controller.start(hud.viewport);
   } catch (error) {
     help.destroy();
+    drillOverlay.destroy();
     controller.destroy();
     audio.destroy();
     throw error;

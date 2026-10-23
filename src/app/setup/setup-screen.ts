@@ -457,6 +457,9 @@ export function renderSetupScreen(
             }),
           ]
         : []),
+      drillsToggle(locale, setup.drillsEnabled, () =>
+        update({ ...setup, drillsEnabled: !setup.drillsEnabled }),
+      ),
       startAction(locale, () => onStart(setup)),
     );
 
@@ -657,6 +660,31 @@ function stepButton(
   return button;
 }
 
+/**
+ * Legacy's Training Drills toggle (#160, src/ui.js), "Training Drills: ON",
+ * with its unused hint as the description. Its name stays as the state
+ * changes; aria-pressed and the visible ON or OFF carry the state.
+ */
+function drillsToggle(locale: SupportedLocale, enabled: boolean, onToggle: () => void): HTMLElement {
+  const group = document.createElement("div");
+  group.className = "setup-group";
+  const button = element(
+    "button",
+    "setup-preset",
+    `${translate(locale, "setup.drills")}: ${translate(locale, enabled ? "setup.drills.on" : "setup.drills.off")}`,
+  );
+  button.type = "button";
+  button.dataset.setupDrills = "true";
+  button.setAttribute("aria-label", translate(locale, "setup.drills"));
+  button.setAttribute("aria-pressed", String(enabled));
+  button.setAttribute("aria-describedby", "setup-drills-hint");
+  button.addEventListener("click", onToggle);
+  const hint = element("p", "setup-drills-hint", translate(locale, "setup.drills.hint"));
+  hint.id = "setup-drills-hint";
+  group.append(button, hint);
+  return group;
+}
+
 function startAction(locale: SupportedLocale, onStart: () => void): HTMLElement {
   const actions = document.createElement("div");
   actions.className = "setup-actions";
@@ -710,6 +738,7 @@ function focusKeyOf(node: Element | null): string | null {
   const { setupOption, setupPreset, setupStep, startDive, backToSetup } =
     node.dataset;
   if (startDive !== undefined) return "[data-start-dive]";
+  if (node.dataset.setupDrills !== undefined) return "[data-setup-drills]";
   if (node.dataset.resumeContinue !== undefined) return "[data-resume-continue]";
   if (node.dataset.resumeDiscard !== undefined) return "[data-resume-discard]";
   if (backToSetup !== undefined) return "[data-back-to-setup]";

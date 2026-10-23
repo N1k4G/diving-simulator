@@ -18,6 +18,8 @@ import {
   visibleDrillOptions,
   type DrillId,
 } from "../../src/core/drills";
+import { DRILL_MESSAGES } from "../../src/app/drill-overlay";
+import { translate, type MessageKey } from "../../src/app/i18n/catalog";
 import { DRILL_FREEFLOW_MULTIPLIER, DiveModel } from "../../src/core/dive-model";
 import {
   createCcrState,
@@ -34,7 +36,7 @@ import gameLoopSource from "../../src/game-loop.js?raw";
 import stateSource from "../../src/state.js?raw";
 
 // The training drills against the legacy client (#45): its catalogue, its
-// gates, its pick, its options and their effects, run from its
+// gates, its pick, its options and their effects, and its words, run from its
 // own source over the states the wreck can meet. No recorded dive has a drill
 // (scripts/baseline-scenarios.cjs turns them off), so the comparison is made
 // here, state by state. Legacy's lightFailure needs the cave (#167).
@@ -297,5 +299,44 @@ describe("the training drills against legacy's own functions (#160)", () => {
       scrubberFailed: legacy.read().ccrState.scrubberFailed,
       co2: legacy.read().ccrState.co2BuildupTime,
     });
+  });
+
+  it.each(["en", "de"] as const)("speaks legacy's words, word for word, in %s", (locale) => {
+    const strings = legacy.STRINGS[locale];
+    const t = (key: MessageKey) => translate(locale, key);
+    expect([
+      t("setup.drills"),
+      t("setup.drills.hint"),
+      t("drill.header"),
+      t("drill.prompt"),
+      t("drill.debrief.header"),
+      t("drill.debrief.correct"),
+      t("drill.debrief.wrong"),
+      t("drill.debrief.why"),
+      t("drill.debrief.realWorld"),
+      t("drill.debrief.dismiss"),
+    ]).toEqual([
+      strings.drillsToggleLabel,
+      strings.drillsToggleHint,
+      strings.drillHeader,
+      strings.drillPromptFooter,
+      strings.drillDebriefHeader,
+      strings.drillDebriefCorrect,
+      strings.drillDebriefWrong,
+      strings.drillDebriefWhyLabel,
+      strings.drillDebriefRealLabel,
+      strings.drillDebriefDismiss,
+    ]);
+    for (const drill of DRILLS) {
+      const keys = DRILL_MESSAGES[drill.id];
+      const theirs = strings.drills[drill.id]!;
+      expect({
+        title: t(keys.titleKey),
+        text: t(keys.textKey),
+        options: keys.optionKeys.map(t),
+        why: t(keys.whyKey),
+        realWorld: t(keys.realWorldKey),
+      }).toEqual(theirs);
+    }
   });
 });
