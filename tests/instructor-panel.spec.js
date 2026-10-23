@@ -222,38 +222,49 @@ for (const mode of ['rec', 'ccr']) {
 }
 
 /**
- * Where the panel meets the diver mid-route, facing either way, at every
- * whole depth from the surface to the route's deepest floor, 34 m. The
- * diver is placed as the wreck camera places it (src/render/camera.ts):
- * 58 m across, the focus 8 m ahead and held within the scene's bounds, x 0
- * to 116 and depth -6 to 40, or at their middle where the view is larger;
- * its body (src/render/pixi-renderer.ts) from 2.15 m behind its centre to
- * 1.2 m ahead, 0.53 m above to 0.62 m below.
+ * Where the panel meets the diver, at each route position given, facing
+ * either way, at every whole depth from the surface to the route's deepest
+ * floor, 34 m. The diver is placed as the wreck camera places it
+ * (src/render/camera.ts): 58 m across, the focus 8 m ahead and held within
+ * the scene's bounds, x 29 to 87 for the 0 to 116 m scene and depth -6 to
+ * 40, or at their middle where the view is larger; its body
+ * (src/render/pixi-renderer.ts) from 2.15 m behind its centre to 1.2 m ahead,
+ * 0.53 m above to 0.62 m below. With `unclampedOnly`, a position and facing
+ * whose focus the bounds hold is left out.
  */
-function panelOverDiver(positionM) {
+function panelOverDiver([positions, unclampedOnly]) {
   const viewport = document.querySelector('[data-wreck-viewport]').getBoundingClientRect();
   const panel = document.querySelector('[data-instructor-panel]').getBoundingClientRect();
   const scale = viewport.width / 58;
   const halfHeightM = viewport.height / scale / 2;
   const clamp = (value, low, high, middle) => (low > high ? middle : Math.min(high, Math.max(low, value)));
   const hits = [];
-  for (const facing of [1, -1]) {
-    const focusX = clamp(positionM + facing * 8, 29, 87, 58);
-    for (let depthM = 0; depthM <= 34; depthM += 1) {
-      const focusY = clamp(depthM, -6 + halfHeightM, 40 - halfHeightM, 17);
-      const x = viewport.left + viewport.width / 2 + (positionM - focusX) * scale;
-      const y = viewport.top + viewport.height / 2 + (depthM - focusY) * scale;
-      const left = x - (facing > 0 ? 2.15 : 1.2) * scale;
-      const right = x + (facing > 0 ? 1.2 : 2.15) * scale;
-      if (left < panel.right && right > panel.left && y - 0.53 * scale < panel.bottom && y + 0.62 * scale > panel.top) {
-        hits.push(`facing ${facing} at ${depthM} m`);
+  let probed = 0;
+  for (const positionM of positions) {
+    for (const facing of [1, -1]) {
+      const wantedX = positionM + facing * 8;
+      const focusX = clamp(wantedX, 29, 87, 58);
+      if (unclampedOnly && focusX !== wantedX) continue;
+      probed += 1;
+      for (let depthM = 0; depthM <= 34; depthM += 1) {
+        const focusY = clamp(depthM, -6 + halfHeightM, 40 - halfHeightM, 17);
+        const x = viewport.left + viewport.width / 2 + (positionM - focusX) * scale;
+        const y = viewport.top + viewport.height / 2 + (depthM - focusY) * scale;
+        const left = x - (facing > 0 ? 2.15 : 1.2) * scale;
+        const right = x + (facing > 0 ? 1.2 : 2.15) * scale;
+        if (left < panel.right && right > panel.left && y - 0.53 * scale < panel.bottom && y + 0.62 * scale > panel.top) {
+          hits.push(`x ${positionM} facing ${facing} at ${depthM} m`);
+        }
       }
     }
   }
-  return hits;
+  return { probed, hits };
 }
 
-test('mid-route the panel stands over no part of the diver, either way it faces, at any depth', async ({ page }) => {
+/** The route's positions, every whole metre from 8 to 106 m (src/sites/wreck-route.ts). */
+const ROUTE_M = Array.from({ length: 99 }, (_, index) => 8 + index);
+
+test('the panel stands over no part of the diver wherever the camera leads it, either way it faces, at any depth', async ({ page }) => {
   test.setTimeout(120_000);
   const saved = await savedDive(page, 'rec');
   // In the cargo hold, where legacy's wreck-thirds recorded x 50 at 32 m (docs/decisions.md, #222).
@@ -263,9 +274,25 @@ test('mid-route the panel stands over no part of the diver, either way it faces,
   await expect(page.locator('.wreck-hud [data-hud-metric="zone"] dd')).toHaveText('Cargo hold');
   await page.keyboard.press('l');
   await expect(panel(page)).toBeVisible();
-  for (const [width, height] of [[1280, 720], [1366, 768], [1440, 900], [1920, 1080], [390, 844], [360, 640]]) {
+  // Wide screens: every position where the camera's focus is free, x 21-79
+  // facing right and x 37-95 facing left. Where the bounds hold it, the
+  // diver drifts towards the stage's edges: at the bow under the HUD, and at
+  // the stern, from x 98-105 depending on the width, under this panel. That
+  // stern range is #271's, so it is not probed here.
+  for (const [width, height] of [[1280, 720], [1366, 768], [1440, 900], [1920, 1080]]) {
     await page.setViewportSize({ width, height });
-    expect(await page.evaluate(panelOverDiver, 50), `${width}x${height}`).toEqual([]);
+    const { probed, hits } = await page.evaluate(panelOverDiver, [ROUTE_M, true]);
+    expect(probed, `${width}x${height}`).toBe(59 + 59);
+    expect(hits, `${width}x${height}`).toEqual([]);
+    expect(await page.evaluate(layoutProblems), `${width}x${height}`).toEqual([]);
+  }
+  // Phones in portrait: the panel is below the diver's deepest line, so the
+  // whole route, wherever the camera holds its focus sideways.
+  for (const [width, height] of [[390, 844], [360, 640]]) {
+    await page.setViewportSize({ width, height });
+    const { probed, hits } = await page.evaluate(panelOverDiver, [ROUTE_M, false]);
+    expect(probed, `${width}x${height}`).toBe(2 * ROUTE_M.length);
+    expect(hits, `${width}x${height}`).toEqual([]);
     expect(await page.evaluate(layoutProblems), `${width}x${height}`).toEqual([]);
   }
 });
