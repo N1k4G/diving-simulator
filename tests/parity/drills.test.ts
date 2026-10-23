@@ -231,11 +231,20 @@ describe("the training drills against legacy's own functions (#160)", () => {
     return [0, 1, 2, 3].map((index) => ({ name: `${name}, ${id} option ${index + 1}`, state, id, index }));
   });
 
-  it.each(RESOLUTIONS)("resolves as legacy: $name", ({ state, id, index }) => {
-    legacy.set(legacyGlobals({ name: "", state, diveTimeMin: 7, enabled: true, ran: false }));
+  it.each(RESOLUTIONS)("resolves as legacy: $name", ({ state: before, id, index }) => {
+    legacy.set(legacyGlobals({ name: "", state: before, diveTimeMin: 7, enabled: true, ran: false }));
     expect(legacy.startDrill(id)).toBe(true);
     const theirs = legacy.read();
     expect(theirs.gameState).toBe("drill");
+    // The co2 drill starts as legacy's does, its scrubber failed, and its CO₂
+    // has built up for 40 s by the choice, so the options' effect on it shows.
+    const starting = new DiveModel(before);
+    starting.failScrubber();
+    const state = starting.snapshot.ccr
+      ? freezeDiveState({ ...starting.snapshot, ccr: { ...starting.snapshot.ccr, co2BuildupS: seconds(40) } })
+      : starting.snapshot;
+    theirs.ccrState.co2BuildupTime = before.ccr ? 40 : 0;
+    expect(state.ccr?.scrubberFailed ?? false).toBe(theirs.ccrState.scrubberFailed);
     const ours = resolveDrillOption(startDrill(NO_DRILL, id), index, state);
     expect(ours !== null).toBe(legacy.resolveDrillOption(index));
     const after = legacy.read();
@@ -259,16 +268,23 @@ describe("the training drills against legacy's own functions (#160)", () => {
       freeflowTankIndex: after.drillState.freeflowDrainTankIdx,
       breathHoldUntilS: after.drillState.breathHoldUntilDiveSec,
     });
-    // Legacy's outcome event, which no legacy screen reads, is the drill's own state here.
+    // The departure (docs/decisions.md): legacy logs the outcome to
+    // diveEvents, where its profile draws it; the model's log does not.
     expect(after.diveEvents.at(-1)).toMatchObject({ kind: "drillOutcome", value: { id, option: index, correct: ours.drill.correct } });
     const model = new DiveModel(state);
     applyDrillEffect(model, ours);
+    expect(model.snapshot.log.entries).toEqual(state.log.entries);
     expect(model.snapshot.activeTankIndex).toBe(after.activeTank);
-    expect(model.snapshot.ccr?.onBailout ?? false).toBe(after.ccrState.onBailout);
+    expect({
+      onBailout: model.snapshot.ccr?.onBailout ?? false,
+      scrubberFailed: model.snapshot.ccr?.scrubberFailed ?? false,
+      co2BuildupS: model.snapshot.ccr?.co2BuildupS ?? 0,
+    }).toEqual({
+      onBailout: after.ccrState.onBailout,
+      scrubberFailed: after.ccrState.scrubberFailed,
+      co2BuildupS: after.ccrState.co2BuildupTime,
+    });
     expect(model.snapshot.ccr?.targetPo2Bar ?? 0.7).toBeCloseTo(after.ccrState.targetSP, 12);
-    if (state.ccr) {
-      expect(model.snapshot.ccr?.co2BuildupS).toBe(after.ccrState.co2BuildupTime);
-    }
   });
 
   it("starts the co2 drill as legacy: the scrubber failed and its CO₂ from zero", () => {
