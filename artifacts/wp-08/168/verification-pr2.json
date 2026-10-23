@@ -1,0 +1,52 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 168,
+  "slice": "PR 2 of 3: the touch context group. Every context control (cylinders, gas information, fast-forward, torch, setpoint -/+, bailout, help, mute) is pressed by click (mouse, keyboard, a lone tap) and by any finger lifted over it (src/app/touch-press.ts), so a second finger works it while a thumb holds the D-pad, as legacy's touchstart binding does; the groups are named; the torch names T; press feedback on the dock and topbar",
+  "measuredCommit": "0188c9a70cafd091357492e68d82c311be2ca18f",
+  "measuredTree": "10d6da90437d5977f3fea404762e4226aa25b3a8",
+  "baseCommit": "f09b3d2 (main, #264)",
+  "workingTree": "the runs in `results` ran on 0188c9a's tree, unchanged; the commit after it changes only docs/decisions.md and this file, neither of which the build or the tests read",
+  "build": {
+    "command": "npm ci, then npm run typecheck and npx vite build",
+    "vite": "8.3.5 (0188c9a's package-lock.json)",
+    "bundle": "dist/assets/index-Dx_PjBvj.js, dist/assets/index-YsGmbuJa.css"
+  },
+  "recordedAt": "2026-10-23T21:40:14Z",
+  "environment": {
+    "os": "Windows 11 Pro 10.0.26200",
+    "node": "v26.12.0",
+    "playwright": "1.63.0",
+    "browser": "chromium headless shell (Playwright 1.63.0)",
+    "load": "machine shared with other agents' Playwright and Vitest runs; one Playwright worker on a private port (8391)"
+  },
+  "results": {
+    "typecheck": { "command": "npm run typecheck", "result": "pass" },
+    "lint": { "command": "npm run lint", "result": "pass" },
+    "build": { "command": "npx vite build", "result": "pass" },
+    "e2e": {
+      "command": "npx playwright test tests/touch-context.spec.js tests/touch-dpad.spec.js tests/in-dive-controls.spec.js --workers=1",
+      "result": "89 passed of 89",
+      "startedAt": "2026-10-23T21:18:04Z",
+      "finishedAt": "2026-10-23T21:40:14Z"
+    }
+  },
+  "superseded": {
+    "note": "the first revision's runs, on a working tree before 0188c9a with vite 8.3.2 installed; the full e2e set ran before the touchstart listener was marked passive, so it is not a measurement of 0188c9a",
+    "unit": "npx vitest run src tests/unit --maxWorkers=2 --testTimeout=60000: 737 passed of 737",
+    "e2eRelated": "touch-context, touch-dpad, in-dive-controls, hud-readouts, help-overlay, onboarding-hints, wreck-slice: 121 passed of 121"
+  },
+  "counterChecks": [
+    {
+      "change": "src/app/wreck-app.ts as on main (presses by click alone), with this PR's spec",
+      "result": "the four 'a second finger, with a thumb on the D-pad' cases fail: torch, cylinder and gas information; fast-forward; setpoint and bailout; help"
+    },
+    {
+      "change": "the touchend's preventDefault() removed from src/app/touch-press.ts",
+      "result": "'a tap presses once; a touch slid off or cancelled presses nothing' fails: the setpoint reads 0.90 bar after one tap (the touch and the lone tap's click both pressed)"
+    }
+  ],
+  "measurements": {
+    "secondFingerOnMain": "Chromium, 390x844, thumb on the D-pad's left, second finger on the torch: pointerdown (isPrimary false), touchstart, pointerup, touchend, no click; the torch stayed on",
+    "geometry": "at 390x844 and 360x640 (phone) and 1280x720 (desktop), technical with six cylinders (11 context controls) and rebreather (8), each at a safety stop: every context control on screen, at least 44x44, and at least 8 px from every other control of the dive screen; no exception"
+  }
+}

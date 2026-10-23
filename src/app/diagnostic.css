@@ -687,6 +687,19 @@ summary:focus-visible {
   background: rgb(3 24 32 / 80%);
   cursor: pointer;
   font-weight: 900;
+  /* A second finger here, with a thumb on the D-pad, is a press and not a
+     pinch (#168), as on the dock's buttons. */
+  touch-action: none;
+}
+
+/* A press shows while the finger is down, as legacy's .t-btn:active (#168),
+   on the context controls that have no pressed state of their own. */
+.audio-control:active,
+.gas-info-control:active,
+.help-control:active,
+.wreck-tank:active,
+.wreck-ccr button:active {
+  filter: brightness(1.6);
 }
 
 .audio-control[aria-pressed="true"] {

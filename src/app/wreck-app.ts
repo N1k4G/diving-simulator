@@ -82,6 +82,7 @@ import {
   type GameFrame,
 } from "./game-controller";
 import { bindDpad, createDpadButtons, prefersArrowGlyphs } from "./touch-dpad";
+import { bindPress } from "./touch-press";
 
 interface HudElements {
   readonly shell: HTMLElement;
@@ -543,10 +544,10 @@ async function startWreckSimulation(
   const dpad = bindDpad(hud.movement, controller);
   bindTankControls(hud.tanks, controller);
   bindLoopControls(hud.ccr, controller);
-  hud.torch.addEventListener("click", () => controller.toggleTorch());
-  hud.fastForward.addEventListener("click", () =>
-    controller.toggleFastForward(),
-  );
+  // Each context control takes a press from any finger, a second one while
+  // a thumb holds the D-pad included, as legacy's touchstart does (#168).
+  bindPress(hud.torch, "button", () => controller.toggleTorch());
+  bindPress(hud.fastForward, "button", () => controller.toggleFastForward());
   // Gas information (#163). UI state only — which page is open changes
   // nothing the model or the save knows about, so it lives here and not in
   // the controller. The key and the button both walk the same cycle.
@@ -563,7 +564,7 @@ async function startWreckSimulation(
       plannerSettings,
     );
   };
-  hud.gasInfo.toggle.addEventListener("click", cycleGasInfo);
+  bindPress(hud.gasInfo.toggle, "button", cycleGasInfo);
   // I walks the pages and Escape closes them, as src/state.js binds both.
   // Each is claimed only when it does something, like every dive key here;
   // a modified I (Ctrl+I and the like) is the browser's.
@@ -611,8 +612,8 @@ async function startWreckSimulation(
     },
     hints: { dismissed: hintStore.dismissed, dismiss: () => controller.dismissHints() },
   });
-  hud.help.addEventListener("click", () => help.open());
-  hud.mute.addEventListener("click", () => {
+  bindPress(hud.help, "button", () => help.open());
+  bindPress(hud.mute, "button", () => {
     audio.setMuted(!audio.muted);
     hud.mute.setAttribute("aria-pressed", String(audio.muted));
   });
@@ -920,10 +921,13 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   tanks.className = "wreck-tanks";
   tanks.dataset.wreckTanks = "true";
   tanks.hidden = true;
+  // A group, so its name is read: a name on a plain div is not (#168).
+  tanks.setAttribute("role", "group");
   tanks.setAttribute("aria-label", translate(locale, "wreck.tanks.heading"));
 
   const controls = document.createElement("div");
   controls.className = "wreck-controls";
+  controls.setAttribute("role", "group");
   controls.setAttribute("aria-label", translate(locale, "wreck.controls.heading"));
   // The D-pad (#168): arrows on a touch screen, W/A/S/D on a desktop.
   const movement = createDpadButtons(locale, prefersArrowGlyphs());
@@ -933,6 +937,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   torch.className = "torch-control";
   torch.dataset.torch = "true";
   torch.setAttribute("aria-label", translate(locale, "wreck.controls.torch"));
+  torch.setAttribute("aria-keyshortcuts", "T");
   torch.setAttribute("aria-pressed", "true");
   torch.textContent = translate(locale, "wreck.symbol.torch");
   controls.append(torch);
@@ -973,6 +978,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   ccr.className = "wreck-ccr";
   ccr.dataset.wreckCcr = "true";
   ccr.hidden = true;
+  ccr.setAttribute("role", "group");
   ccr.setAttribute("aria-label", translate(locale, "wreck.controls.ccr.heading"));
   for (const [direction, labelKey, symbolKey, shortcut] of [
     ["decrease", "wreck.controls.setpoint.decrease", "wreck.symbol.setpointDown", "["],
@@ -1411,18 +1417,14 @@ function bindLoopControls(
   container: HTMLElement,
   controller: GameController,
 ): void {
-  container.addEventListener("click", (event) => {
-    const target = event.target as Element | null;
-    const setpoint = target?.closest<HTMLElement>("[data-setpoint]");
-    if (setpoint) {
+  bindPress(container, "button", (button) => {
+    if (button.dataset.setpoint) {
       controller.adjustSetpoint(
-        setpoint.dataset.setpoint === "increase"
+        button.dataset.setpoint === "increase"
           ? CCR_SETPOINT_STEP_BAR
           : -CCR_SETPOINT_STEP_BAR,
       );
-      return;
-    }
-    if (target?.closest("[data-bailout]")) {
+    } else if (button.dataset.bailout) {
       controller.bailOut();
     }
   });
@@ -1508,15 +1510,11 @@ function bindTankControls(
 ): void {
   // Delegated, because the buttons do not exist when this runs — the first
   // frame builds them. A listener per button would have to be rebound.
-  container.addEventListener("click", (event) => {
-    const button = (event.target as Element | null)?.closest<HTMLElement>(
-      "[data-tank]",
-    );
-    const index = button?.dataset.tank;
-    if (index === undefined) {
-      return;
+  bindPress(container, "[data-tank]", (button) => {
+    const index = button.dataset.tank;
+    if (index !== undefined) {
+      controller.requestTankSwitch(Number.parseInt(index, 10));
     }
-    controller.requestTankSwitch(Number.parseInt(index, 10));
   });
 }
 
