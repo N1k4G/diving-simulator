@@ -1,0 +1,43 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 168,
+  "slice": "PR 2 of 3: the touch context group. Every context control (cylinders, gas information, fast-forward, torch, setpoint -/+, bailout, help, mute) is pressed by click (mouse, keyboard, a lone tap) and by any finger lifted over it (src/app/touch-press.ts), so a second finger works it while a thumb holds the D-pad, as legacy's touchstart binding does; the groups are named; the torch names T; press feedback on the dock and topbar",
+  "baseCommit": "bc6747d (main, #262)",
+  "workingTree": "the runs below ran on the working tree committed as this PR's first commit; dist/ was built from it with `npx vite build` after `npm run typecheck`, with vite 8.3.2 installed (main has since bumped it to 8.3.5 in #263, a dependency-only change)",
+  "recordedAt": "2026-10-23T17:33:16Z",
+  "environment": {
+    "os": "Windows 11 Pro 10.0.26200",
+    "node": "v26.12.0",
+    "playwright": "1.63.0",
+    "browser": "chromium headless shell (Playwright 1.63.0)",
+    "load": "machine shared with other agents' Playwright and Vitest runs; one Playwright worker on a private port (8391)"
+  },
+  "results": {
+    "typecheck": { "command": "npm run typecheck", "result": "pass" },
+    "lint": { "command": "npm run lint", "result": "pass" },
+    "build": { "command": "npx vite build", "result": "pass" },
+    "unit": {
+      "command": "npx vitest run src tests/unit --maxWorkers=2 --testTimeout=60000",
+      "result": "737 passed of 737"
+    },
+    "e2eRelated": {
+      "command": "npx playwright test tests/touch-context.spec.js tests/touch-dpad.spec.js tests/in-dive-controls.spec.js tests/hud-readouts.spec.js tests/help-overlay.spec.js tests/onboarding-hints.spec.js tests/wreck-slice.spec.js --workers=1",
+      "result": "121 passed of 121",
+      "note": "after it, touchstart's listener was marked passive (it never calls preventDefault); on that final tree tests/touch-context.spec.js and tests/touch-dpad.spec.js passed 23 of 23, and the touch and button cases of in-dive-controls, help-overlay and onboarding-hints (-g \"touch|button\") 15 of 15"
+    }
+  },
+  "counterChecks": [
+    {
+      "change": "src/app/wreck-app.ts as on main (presses by click alone), with this PR's spec",
+      "result": "the four 'a second finger, with a thumb on the D-pad' cases fail: torch, cylinder and gas information; fast-forward; setpoint and bailout; help"
+    },
+    {
+      "change": "the touchend's preventDefault() removed from src/app/touch-press.ts",
+      "result": "'a tap presses once; a touch slid off or cancelled presses nothing' fails: the setpoint reads 0.90 bar after one tap (the touch and the lone tap's click both pressed)"
+    }
+  ],
+  "measurements": {
+    "secondFingerOnMain": "Chromium, 390x844, thumb on the D-pad's left, second finger on the torch: pointerdown (isPrimary false), touchstart, pointerup, touchend, no click; the torch stayed on",
+    "geometry": "at 390x844 and 360x640 (phone) and 1280x720 (desktop), technical with six cylinders (11 context controls) and rebreather (8), each at a safety stop: every context control on screen, at least 44x44, and at least 8 px from every other control of the dive screen; no exception"
+  }
+}
