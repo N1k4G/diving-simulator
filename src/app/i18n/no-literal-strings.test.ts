@@ -1,5 +1,5 @@
 import { ESLint } from "eslint";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 // The no-literal-strings rule (#169) run through ESLint's API on snippets, so
 // a selector that over- or under-matches fails here, not in a review.
@@ -15,6 +15,12 @@ async function messages(code: string, filePath = "src/app/fixture-169.ts"): Prom
 }
 
 describe("no-literal-strings rule", () => {
+  // ESLint loads the config and its parser on the first lint, which can take
+  // longer than a test's default 5 s; pay for it here, not in the first case.
+  beforeAll(async () => {
+    await eslint.lintText("", { filePath: `${root}src/app/fixture-169.ts` });
+  }, 60_000);
+
   const mustFail = [
     'el.textContent = "Hi";',
     "el.textContent = `Hi`;",
