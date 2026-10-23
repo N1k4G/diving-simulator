@@ -2,9 +2,16 @@
   "schema": "issue-evidence/1",
   "issue": 168,
   "slice": "PR 2 of 3: the touch context group. Every context control (cylinders, gas information, fast-forward, torch, setpoint -/+, bailout, help, mute) is pressed by click (mouse, keyboard, a lone tap) and by any finger lifted over it (src/app/touch-press.ts), so a second finger works it while a thumb holds the D-pad, as legacy's touchstart binding does; the groups are named; the torch names T; press feedback on the dock and topbar",
-  "baseCommit": "bc6747d (main, #262)",
-  "workingTree": "the runs below ran on the working tree committed as this PR's first commit; dist/ was built from it with `npx vite build` after `npm run typecheck`, with vite 8.3.2 installed (main has since bumped it to 8.3.5 in #263, a dependency-only change)",
-  "recordedAt": "2026-10-23T17:33:16Z",
+  "measuredCommit": "0188c9a70cafd091357492e68d82c311be2ca18f",
+  "measuredTree": "10d6da90437d5977f3fea404762e4226aa25b3a8",
+  "baseCommit": "f09b3d2 (main, #264)",
+  "workingTree": "the runs in `results` ran on 0188c9a's tree, unchanged; the commit after it changes only docs/decisions.md and this file, neither of which the build or the tests read",
+  "build": {
+    "command": "npm ci, then npm run typecheck and npx vite build",
+    "vite": "8.3.5 (0188c9a's package-lock.json)",
+    "bundle": "dist/assets/index-Dx_PjBvj.js, dist/assets/index-YsGmbuJa.css"
+  },
+  "recordedAt": "2026-10-23T21:40:14Z",
   "environment": {
     "os": "Windows 11 Pro 10.0.26200",
     "node": "v26.12.0",
@@ -16,15 +23,17 @@
     "typecheck": { "command": "npm run typecheck", "result": "pass" },
     "lint": { "command": "npm run lint", "result": "pass" },
     "build": { "command": "npx vite build", "result": "pass" },
-    "unit": {
-      "command": "npx vitest run src tests/unit --maxWorkers=2 --testTimeout=60000",
-      "result": "737 passed of 737"
-    },
-    "e2eRelated": {
-      "command": "npx playwright test tests/touch-context.spec.js tests/touch-dpad.spec.js tests/in-dive-controls.spec.js tests/hud-readouts.spec.js tests/help-overlay.spec.js tests/onboarding-hints.spec.js tests/wreck-slice.spec.js --workers=1",
-      "result": "121 passed of 121",
-      "note": "after it, touchstart's listener was marked passive (it never calls preventDefault); on that final tree tests/touch-context.spec.js and tests/touch-dpad.spec.js passed 23 of 23, and the touch and button cases of in-dive-controls, help-overlay and onboarding-hints (-g \"touch|button\") 15 of 15"
+    "e2e": {
+      "command": "npx playwright test tests/touch-context.spec.js tests/touch-dpad.spec.js tests/in-dive-controls.spec.js --workers=1",
+      "result": "89 passed of 89",
+      "startedAt": "2026-10-23T21:18:04Z",
+      "finishedAt": "2026-10-23T21:40:14Z"
     }
+  },
+  "superseded": {
+    "note": "the first revision's runs, on a working tree before 0188c9a with vite 8.3.2 installed; the full e2e set ran before the touchstart listener was marked passive, so it is not a measurement of 0188c9a",
+    "unit": "npx vitest run src tests/unit --maxWorkers=2 --testTimeout=60000: 737 passed of 737",
+    "e2eRelated": "touch-context, touch-dpad, in-dive-controls, hud-readouts, help-overlay, onboarding-hints, wreck-slice: 121 passed of 121"
   },
   "counterChecks": [
     {
