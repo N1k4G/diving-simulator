@@ -20,7 +20,7 @@ your commit will be blocked if lint fails.
 | `npm run lint` | ESLint over `src/*.js` |
 | `npm test` | Runs the in-browser test suite headless via Playwright |
 | `npm run screenshots` | Captures review screenshots to `screenshots/` |
-| `npm run build && npm run screenshots:phone` | Captures the built migration client (setup, dive, help overlay, post-dive) at 390x844 and 844x390, in English and German, to `screenshots-phone/` with an `index.json`. Review evidence, not a gate; CI uploads it as the `phone-screenshots` artifact (#137 A13a) |
+| `npm run build && npm run screenshots:phone` | Captures the built migration client (setup, dive, help overlay, post-dive) at 390x844 and 844x390, in English and German, to `artifacts/wp-09/137/phone-screenshots/` with an `index.json`. Review evidence, not a gate; CI uploads it as the `phone-screenshots` artifact (#137 A13a) |
 | `npm run interior:check` | Fails if a wreck or cave interior has gone flat (issue #124) |
 | `npm run interior:update` | Re-records that guard's reference frames — never its thresholds |
 | `npm run license-check` | Fails if any dependency's license isn't in the allowlist below |

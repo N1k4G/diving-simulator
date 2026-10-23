@@ -13,7 +13,7 @@
 // native WebView; that is A13b's emulator capture.
 //
 // Usage: `npm run build && npm run screenshots:phone`
-//        [--out <dir>]   output directory (default ./screenshots-phone)
+//        [--out <dir>]   output directory (default ./artifacts/wp-09/137/phone-screenshots)
 // Serves dist/ on an ephemeral 127.0.0.1 port, so it never clashes with the
 // Playwright test server on 8080 or with a second run on the same machine.
 // Shots are taken one after the other in one browser.
@@ -33,7 +33,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outFlag = process.argv.indexOf('--out');
-const outDir = path.resolve(root, outFlag > 0 ? process.argv[outFlag + 1] : 'screenshots-phone');
+const outDir = path.resolve(root, outFlag > 0 ? process.argv[outFlag + 1] : 'artifacts/wp-09/137/phone-screenshots');
 const SAVE_KEY = 'diving-simulator.save-game';
 const PINNED_DIVE_SEED = 0x57524543;
 
