@@ -35,7 +35,12 @@ import { bars, metres, seconds } from "../../src/core/units";
 import { calculateCeiling, calculateDecoSchedule, calculateNdl } from "../../src/planner/dive-planner";
 import { createPresentationState } from "../../src/presentation/presentation-state";
 import { selectInstructorPhysics, selectLeadingTissue } from "../../src/presentation/instructor-physics";
-import { instructorAvailable, instructorPanelShown, isInstructorKey } from "../../src/app/instructor-panel";
+import {
+  instructorAvailable,
+  instructorPanelShown,
+  isInstructorKey,
+  leadingTissueValue,
+} from "../../src/app/instructor-panel";
 import { translate, type MessageKey } from "../../src/app/i18n/catalog";
 
 /** A dive held at a depth, on EAN32 at AMV 15 with 8.4 L in the BCD, as TC-46-VALUES-MATCH-COMPUTER. */
@@ -98,11 +103,21 @@ describe("the instructor panel's values (#46)", () => {
     const loop = at(20, { ccr });
     const inert = 1 - 0.7 / 3;
     expect(selectInstructorPhysics(loop).endM).toBe(Math.round(30 * (1 - inert * (0.5 / 0.9)) - 10));
-    // Legacy's activeGas(): the cylinder on the loop, the diluent once bailed out.
-    expect(selectInstructorPhysics(loop).modM).toBe(34);
     const bailedOut = at(20, { ccr: { ...ccr, onBailout: true } });
-    expect(selectInstructorPhysics(bailedOut).modM).toBe(130);
     expect(selectInstructorPhysics(bailedOut).endM).toBe(Math.round(30 * 0.5 - 10));
+  });
+
+  it("shows no MOD and no open-circuit consumption on an active loop, never the setup placeholder's (#183, #192)", () => {
+    // The issue's case: the rec EAN36 cylinder carried into a rebreather dive, at 30 m on the loop.
+    const ccr = createCcrState(createGasMix(0.21, 0), { actualPo2Bar: bars(1.2) });
+    const rec = selectInstructorPhysics(at(30, {}, createGasMix(0.36, 0)));
+    expect([rec.modM, rec.beyondMod, rec.consumptionLpm]).toEqual([29, true, 60]);
+    const loop = selectInstructorPhysics(at(30, { ccr }, createGasMix(0.36, 0)));
+    expect([loop.modM, loop.beyondMod, loop.consumptionLpm]).toEqual([null, false, null]);
+    // Bailed out, the diluent is breathed on open circuit, as legacy's activeGas().
+    const bailedOut = selectInstructorPhysics(at(30, { ccr: { ...ccr, onBailout: true } }, createGasMix(0.36, 0)));
+    expect([bailedOut.modM, bailedOut.beyondMod]).toEqual([Math.round((1.4 / 0.21 - 1) * 10), false]);
+    expect(bailedOut.consumptionLpm).toBeCloseTo(60, 9);
   });
 
   it("TC-46-LEADING-TISSUE-PICKS-HIGHEST: compartment index 3 loaded to 2.5 bar is #4", () => {
@@ -128,6 +143,15 @@ describe("the instructor panel's values (#46)", () => {
     expect(loaded(1 + 0.79 * span)?.severity).toBe("normal");
     expect(loaded(1 + 0.8 * span)?.severity).toBe("caution");
     expect(loaded(1 + span)?.severity).toBe("danger");
+  });
+
+  it("says the tissue's tier in more than colour: a hidden word for caution, the ⚠ for danger, in both languages", () => {
+    const lead = (percent: number, severity: "normal" | "caution" | "danger") => ({ compartment: 1, halfTimeMin: 5, percent, severity });
+    expect(leadingTissueValue(lead(50, "normal"), "en")).toEqual({ text: "50% of M-value", hiddenWord: null });
+    expect(leadingTissueValue(lead(85, "caution"), "en")).toEqual({ text: "85% of M-value", hiddenWord: "(caution)" });
+    expect(leadingTissueValue(lead(85, "caution"), "de")).toEqual({ text: "85 % des M-Werts", hiddenWord: "(Vorsicht)" });
+    expect(leadingTissueValue(lead(110, "danger"), "en")).toEqual({ text: "⚠ 110% of M-value", hiddenWord: null });
+    expect(leadingTissueValue(null, "de")).toEqual({ text: "—", hiddenWord: null });
   });
 
   describe("TC-46-RENDER-NO-EXTRA-CALCS", () => {

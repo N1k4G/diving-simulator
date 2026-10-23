@@ -11,13 +11,17 @@ export function ambientPressureBar(depthM: number): number {
 }
 
 /**
- * src/state.js activeGas(): the diluent once bailed out, otherwise the active
- * cylinder, also on the loop, where legacy keeps `tanks[0]` as this client
- * does (toInitialDiveOptions).
+ * The open-circuit gas being breathed: legacy's activeGas() (src/state.js),
+ * the diluent once bailed out, otherwise the active cylinder. Null on an
+ * active loop, where legacy's answer is `tanks[0]`, the setup placeholder the
+ * diver does not carry (docs/decisions.md, #183 and #192).
  */
-export function activeGas(state: DiveState): GasMix {
+export function openCircuitGas(state: DiveState): GasMix | null {
   if (state.ccr?.onBailout) {
     return state.ccr.diluent;
+  }
+  if (state.ccr) {
+    return null;
   }
   const tank = state.tanks[state.activeTankIndex];
   if (!tank) {

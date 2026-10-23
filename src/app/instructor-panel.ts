@@ -9,9 +9,10 @@
 //   skips it under showHelp and infoPageMode.
 // - Its values change every frame and are no live region: the toggle alone
 //   is announced, once, through a status region of its own (#138).
-// - On a phone it sits under the HUD, in the gas information's place, no
-//   wider than the HUD; where the stage has room, beside it under its button.
-//   No readout and no onboarding hint is ever under it (diagnostic.css).
+// - It stands where the camera never draws the diver mid-route: at the
+//   stage's right on a wide screen, below the diver's deepest line on a phone
+//   in portrait. No readout and no onboarding hint is ever under it
+//   (diagnostic.css).
 import type { GameFrame } from "./game-controller";
 import { translate, type MessageKey, type SupportedLocale } from "./i18n/catalog";
 import { formatDepth, formatFixed, formatPartialPressure, formatPercent } from "./i18n/formatters";
@@ -103,6 +104,22 @@ export function createInstructorPanel(locale: SupportedLocale): InstructorPanelE
   return { panel, toggle, status, rows, bar };
 }
 
+/**
+ * Keeps the HUD's height on the side as `--wreck-hud-height`, so on a phone
+ * the panel stands below the HUD as well as below the diver (diagnostic.css).
+ * Written only when the HUD's size changes; returns the disconnect.
+ */
+export function trackHudHeight(hud: HTMLElement, side: HTMLElement): () => void {
+  if (typeof ResizeObserver === "undefined") {
+    return () => {};
+  }
+  const observer = new ResizeObserver(() => {
+    side.style.setProperty("--wreck-hud-height", `${hud.offsetHeight}px`);
+  });
+  observer.observe(hud);
+  return () => observer.disconnect();
+}
+
 /** Says, once, which way the panel was toggled (#138). */
 export function announceInstructor(elements: InstructorPanelElements, on: boolean, locale: SupportedLocale): void {
   elements.status.textContent = translate(locale, on ? "instructor.shown" : "instructor.hidden");
@@ -151,20 +168,19 @@ export function syncInstructorPanel(
           .replace("{n}", String(lead.compartment))
           .replace("{halfTime}", fixed(lead.halfTimeMin, 0))}`,
   );
-  setText(
-    rows.tissue.value,
-    lead === null
-      ? translate(locale, "wreck.value.unavailable")
-      : warned(t("instructor.tissue.value").replace("{percent}", formatPercent(lead.percent / 100, locale)), lead.severity === "danger", locale),
-  );
+  const tissue = leadingTissueValue(lead, locale);
+  setValue(rows.tissue.value, tissue.text, tissue.hiddenWord);
   setText(rows.tissue.formula, t(lead === null ? "instructor.tissue.none" : "instructor.tissue.formula"));
   setSeverity(rows.tissue.value, lead?.severity ?? "none");
 
+  // On an active loop there is no open circuit to bill (#183, #192).
   setText(
     rows.consumption.value,
-    t("instructor.consumption.value")
-      .replace("{rate}", fixed(physics.consumptionLpm, 1))
-      .replace("{factor}", fixed(physics.ambientPressureBar, 1)),
+    physics.consumptionLpm === null
+      ? translate(locale, "wreck.value.unavailable")
+      : t("instructor.consumption.value")
+          .replace("{rate}", fixed(physics.consumptionLpm, 1))
+          .replace("{factor}", fixed(physics.ambientPressureBar, 1)),
   );
 
   const mod = physics.modM === null ? translate(locale, "wreck.value.unavailable") : formatDepth(physics.modM, locale);
@@ -182,9 +198,42 @@ export function syncInstructorPanel(
   setSeverity(rows.gas.value, physics.beyondMod ? "warning" : "none");
 }
 
+/**
+ * The leading tissue's value, and the word assistive technology hears after
+ * it: its caution tier is a tint and a hidden word, as the gas page's
+ * (src/app/gas-info.ts), its danger tier carries the ⚠, so colour is never
+ * alone.
+ */
+export function leadingTissueValue(
+  lead: InstructorPhysics["leadingTissue"],
+  locale: SupportedLocale,
+): { readonly text: string; readonly hiddenWord: string | null } {
+  if (lead === null) {
+    return { text: translate(locale, "wreck.value.unavailable"), hiddenWord: null };
+  }
+  const text = translate(locale, "instructor.tissue.value").replace("{percent}", formatPercent(lead.percent / 100, locale));
+  return {
+    text: warned(text, lead.severity === "danger", locale),
+    hiddenWord: lead.severity === "caution" ? translate(locale, "instructor.severity.caution") : null,
+  };
+}
+
 /** Legacy's danger and warn tones carry the ⚠ too, so colour is not alone (#39). */
 function warned(text: string, warning: boolean, locale: SupportedLocale): string {
   return warning ? `${translate(locale, "wreck.symbol.warning")} ${text}` : text;
+}
+
+/** The text, and a hidden word after it when there is one, rebuilt only on a change. */
+function setValue(target: HTMLElement, text: string, hiddenWord: string | null): void {
+  const shown = hiddenWord === null ? text : `${text} ${hiddenWord}`;
+  if (target.dataset.shown === shown) {
+    return;
+  }
+  target.dataset.shown = shown;
+  target.textContent = text;
+  if (hiddenWord !== null) {
+    target.append(element("span", "visually-hidden", ` ${hiddenWord}`));
+  }
 }
 
 function setText(target: HTMLElement, text: string): void {

@@ -10,10 +10,10 @@ import { BUOYANCY_PARAMS } from "../core/buoyancy";
 import { ZHL16C_N2 } from "../core/buhlmann-constants";
 import type { DiveState } from "../core/dive-state";
 import {
-  activeGas,
   ambientPressureBar,
   equivalentNarcoticDepthM,
   modAtInstructorPo2M,
+  openCircuitGas,
 } from "../core/gas-physics";
 import { compartmentSaturation } from "../planner/dive-planner";
 
@@ -44,9 +44,15 @@ export interface InstructorPhysics {
   readonly bcdEffectiveShare: number;
   /** Null while no compartment is past legacy's -1 %: "still washing in". */
   readonly leadingTissue: InstructorLeadingTissue | null;
-  /** AMV × P, in surface litres a minute. */
-  readonly consumptionLpm: number;
-  /** MOD at 1.4 bar of legacy's active gas, rounded; null for 0 % O2. */
+  /**
+   * AMV × P, in surface litres a minute: the open-circuit consumption, null
+   * on an active loop, which breathes no open circuit.
+   */
+  readonly consumptionLpm: number | null;
+  /**
+   * MOD at 1.4 bar of the open-circuit gas breathed, rounded. Null for 0 %
+   * O2, and on an active loop, where legacy's is the setup placeholder's.
+   */
   readonly modM: number | null;
   /** Legacy's warn tone: `depth >= mod`, on the unrounded MOD. */
   readonly beyondMod: boolean;
@@ -61,7 +67,8 @@ export function selectInstructorPhysics(state: DiveState): InstructorPhysics {
   const pressureBar = ambientPressureBar(state.depthM);
   const bcdSurfaceLitres = state.bcdGasSurfaceLiters;
   const bcdEffectiveLitres = pressureBar > 0 ? bcdSurfaceLitres / pressureBar : 0;
-  const mod = modAtInstructorPo2M(activeGas(state).oxygenFraction);
+  const gas = openCircuitGas(state);
+  const mod = gas === null ? null : modAtInstructorPo2M(gas.oxygenFraction);
   return Object.freeze({
     ambientPressureBar: pressureBar,
     bcdSurfaceLitres,
@@ -69,7 +76,7 @@ export function selectInstructorPhysics(state: DiveState): InstructorPhysics {
     bcdSurfaceShare: share(bcdSurfaceLitres),
     bcdEffectiveShare: share(bcdEffectiveLitres),
     leadingTissue: selectLeadingTissue(state),
-    consumptionLpm: state.surfaceAirConsumptionLpm * pressureBar,
+    consumptionLpm: gas === null ? null : state.surfaceAirConsumptionLpm * pressureBar,
     modM: mod === null ? null : Math.round(mod),
     beyondMod: mod !== null && state.depthM >= mod,
     endM: Math.round(equivalentNarcoticDepthM(state)),

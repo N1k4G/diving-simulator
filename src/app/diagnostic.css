@@ -713,11 +713,8 @@ summary:focus-visible {
 }
 
 /* Legacy's Learn button (#46): at the HUD's top right, in the stage beside
-   it, so it takes no height from the column or the dock (#160). */
-.wreck-column {
-  position: relative;
-}
-
+   it, so it takes no height from the column or the dock (#160). Placed in
+   the side, whose top left is the column's. */
 .instructor-control {
   position: absolute;
   top: 0;
@@ -1478,12 +1475,22 @@ summary:focus-visible {
   white-space: nowrap;
 }
 
-/* Legacy's instructor panel (#160, #46). On phones it takes the gas page's
-   place under the HUD (the page hides it), no wider than the HUD, so the
-   onboarding hint beside the HUD is never under it; it scrolls where the
-   column is short. Where the stage has the room it stands beside the HUD
-   instead, under the topbar as legacy's under its 12%, and the hint moves
-   over by its width. */
+/* Legacy's instructor panel (#160, #46). Legacy's stands at the left edge
+   with the diver centred; here the HUD holds that edge and the camera leads
+   the diver by 8 m of the 58 it shows (src/render/camera.ts), so mid-route
+   the diver is drawn at 0.362 or 0.638 of the stage's width, 2.2 m of body
+   to either side. The panel stands where that diver never is:
+   - wider than 720 px and taller than 600: at the stage's right, under the
+     topbar and above the D-pad, at most 32.5 % of the side less 1 rem wide,
+     which ends left of 0.638 + 2.2 / 58 of the stage; the hint moves over;
+   - a phone in portrait: the camera shows more than the scene's 46 m of
+     height, so it holds the scene's middle, 17 m, at the stage's middle, and
+     the diver is never lower than 50vh + (34 + 0.62 - 17) / 58 of the width
+     (34 m being the route's deepest floor): the panel stands below that and
+     below the HUD (its height kept by trackHudHeight), across the side,
+     above the D-pad and the dock, and scrolls in what is left;
+   - a short screen (#256): under the two-column HUD, in the gas page's
+     place, which hides it. */
 .instructor-panel {
   box-sizing: border-box;
   width: min(var(--wreck-hud-width), 100%);
@@ -1582,7 +1589,7 @@ summary:focus-visible {
   }
 
   .instructor-control {
-    left: calc(100% + 0.5rem);
+    left: calc(min(var(--wreck-column-short-width), 100%) + 0.5rem);
   }
 }
 
@@ -1594,22 +1601,37 @@ summary:focus-visible {
 }
 
 @media (width > 720px) and (height > 600px) {
-  /* The column fills the side down to the dock, so the panel beside the HUD,
-     under its button, ends above the dock's keyboard hint and buttons
-     whatever their height. */
-  .wreck-column {
-    flex-grow: 1;
-  }
-
   .instructor-panel {
     position: absolute;
-    top: 3.25rem;
-    left: calc(var(--wreck-hud-width) + 0.5rem);
-    max-height: calc(100% - 3.25rem);
+    top: 0.5rem;
+    right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+    width: min(15rem, 32.5% - 1rem);
+    max-height: calc(100% - 7.5rem - var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
   }
 
+  /* The same width, in the shell's terms: the side is 2.5rem narrower. */
   .has-instructor .onboarding-hint {
-    --wreck-hud-extent: calc(2 * var(--wreck-hud-width) + 0.5rem);
+    right: calc(
+      var(--wreck-gutter) + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)) +
+        min(15rem, 32.5% - 1.8125rem) + 0.5rem
+    );
+  }
+}
+
+@media (width <= 720px) and (height > 600px) {
+  .instructor-panel {
+    --instructor-top: max(
+      50vh + 30.38vw + 0.5rem - var(--wreck-side-top),
+      var(--wreck-hud-height, 0px) + 0.5rem
+    );
+
+    position: absolute;
+    z-index: -1;
+    top: var(--instructor-top);
+    right: 0;
+    left: 0;
+    width: auto;
+    max-height: calc(100% - var(--instructor-top) - 7rem - var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
   }
 }
 

@@ -90,6 +90,7 @@ import {
   instructorAvailable,
   instructorPanelShown,
   isInstructorKey,
+  trackHudHeight,
   syncInstructorPanel,
   type InstructorPanelElements,
 } from "./instructor-panel";
@@ -129,6 +130,8 @@ interface HudElements {
   readonly surfacePrompt: HTMLElement;
   readonly onboardingHint: HTMLElement;
   readonly instructor: InstructorPanelElements;
+  /** Stops keeping the HUD's height for the instructor panel's place. */
+  readonly stopHudTracking: () => void;
 }
 
 /** Legacy's hint flags, in the page's storage (#160). */
@@ -693,6 +696,7 @@ async function startWreckSimulation(
     document.removeEventListener("visibilitychange", handleVisibility);
     window.removeEventListener("keydown", handleGasInfoKey);
     window.removeEventListener("keydown", handleInstructorKey);
+    hud.stopHudTracking();
     help.destroy();
     drillOverlay.destroy();
     // Removed here too, not only by its own `once`: after a game over the
@@ -1120,6 +1124,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   const side = document.createElement("div");
   side.className = "wreck-side";
   side.append(column, dock);
+  const stopHudTracking = trackHudHeight(hud, side);
 
   // The onboarding hint (#160), where legacy draws its toast. A status
   // region written only when the hint shown changes, so each is announced
@@ -1162,6 +1167,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     surfacePrompt,
     onboardingHint,
     instructor,
+    stopHudTracking,
   };
 }
 

@@ -204,11 +204,13 @@ for (const mode of ['rec', 'ccr']) {
       await expect(status(page)).toHaveText('Physik live eingeblendet');
       // 1 + 9 / 10; the neutral BCD's 5.34 L at 1.9 bar is 2.81 L; AMV 15 × 1.9;
       // MOD of air at 1.4 bar, (1.4 / 0.21 - 1) × 10; END on air, the depth.
+      // On the loop no open circuit is breathed: no consumption and no MOD,
+      // never the setup cylinder's (#183, #192).
       await expect(row(page, 'pressure')).toHaveText('1,90 bar');
       await expect(row(page, 'bcd').locator('[aria-hidden=true]')).toHaveText('5,3 L / 2,8 L');
       await expect(row(page, 'bcd').locator('.visually-hidden')).toHaveText('Oberflächen-äquiv. 5,3 L, effektiv jetzt 2,8 L');
-      await expect(row(page, 'consumption')).toHaveText('28,5 L/min (×1,9)');
-      await expect(row(page, 'gas')).toHaveText(/^MOD 57\sm \| END 9\sm \| N 0\s%$/);
+      await expect(row(page, 'consumption')).toHaveText(mode === 'ccr' ? '—' : '28,5 L/min (×1,9)');
+      await expect(row(page, 'gas')).toHaveText(mode === 'ccr' ? /^MOD — \| END 9\sm \| N 0\s%$/ : /^MOD 57\sm \| END 9\sm \| N 0\s%$/);
       await expect(panel(page).locator('[data-instructor-row="pressure"] dt')).toHaveText('Umgebungsdruck');
       await expect(page.locator('[data-onboarding-hint]')).toContainText('Sicherheitsstopp');
       for (const [width, height] of [[844, 390], [667, 375], [390, 844], [360, 640], [1280, 720]]) {
@@ -218,6 +220,55 @@ for (const mode of ['rec', 'ccr']) {
     });
   });
 }
+
+/**
+ * Where the panel meets the diver mid-route, facing either way, at every
+ * whole depth from the surface to the route's deepest floor, 34 m. The
+ * diver is placed as the wreck camera places it (src/render/camera.ts):
+ * 58 m across, the focus 8 m ahead and held within the scene's bounds, x 0
+ * to 116 and depth -6 to 40, or at their middle where the view is larger;
+ * its body (src/render/pixi-renderer.ts) from 2.15 m behind its centre to
+ * 1.2 m ahead, 0.53 m above to 0.62 m below.
+ */
+function panelOverDiver(positionM) {
+  const viewport = document.querySelector('[data-wreck-viewport]').getBoundingClientRect();
+  const panel = document.querySelector('[data-instructor-panel]').getBoundingClientRect();
+  const scale = viewport.width / 58;
+  const halfHeightM = viewport.height / scale / 2;
+  const clamp = (value, low, high, middle) => (low > high ? middle : Math.min(high, Math.max(low, value)));
+  const hits = [];
+  for (const facing of [1, -1]) {
+    const focusX = clamp(positionM + facing * 8, 29, 87, 58);
+    for (let depthM = 0; depthM <= 34; depthM += 1) {
+      const focusY = clamp(depthM, -6 + halfHeightM, 40 - halfHeightM, 17);
+      const x = viewport.left + viewport.width / 2 + (positionM - focusX) * scale;
+      const y = viewport.top + viewport.height / 2 + (depthM - focusY) * scale;
+      const left = x - (facing > 0 ? 2.15 : 1.2) * scale;
+      const right = x + (facing > 0 ? 1.2 : 2.15) * scale;
+      if (left < panel.right && right > panel.left && y - 0.53 * scale < panel.bottom && y + 0.62 * scale > panel.top) {
+        hits.push(`facing ${facing} at ${depthM} m`);
+      }
+    }
+  }
+  return hits;
+}
+
+test('mid-route the panel stands over no part of the diver, either way it faces, at any depth', async ({ page }) => {
+  test.setTimeout(120_000);
+  const saved = await savedDive(page, 'rec');
+  // In the cargo hold, where legacy's wreck-thirds recorded x 50 at 32 m (docs/decisions.md, #222).
+  Object.assign(saved, { routePositionM: 50 });
+  Object.assign(saved.state, { depthM: 32, maxDepthM: 32, verticalVelocityMpm: 0 });
+  await resume(page, saved, { hints: false });
+  await expect(page.locator('.wreck-hud [data-hud-metric="zone"] dd')).toHaveText('Cargo hold');
+  await page.keyboard.press('l');
+  await expect(panel(page)).toBeVisible();
+  for (const [width, height] of [[1280, 720], [1366, 768], [1440, 900], [1920, 1080], [390, 844], [360, 640]]) {
+    await page.setViewportSize({ width, height });
+    expect(await page.evaluate(panelOverDiver, 50), `${width}x${height}`).toEqual([]);
+    expect(await page.evaluate(layoutProblems), `${width}x${height}`).toEqual([]);
+  }
+});
 
 test.describe('by touch, in German, on a phone', () => {
   test.use({ locale: 'de-DE', viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
