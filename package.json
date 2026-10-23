@@ -21,6 +21,7 @@
     "test:e2e": "playwright test",
     "test:perf": "node scripts/capture-baseline-performance.mjs",
     "screenshots": "node scripts/screenshots.mjs",
+    "screenshots:phone": "node scripts/phone-screenshots.mjs",
     "baseline:generate": "node scripts/generate-baseline.mjs",
     "baseline:perf": "node scripts/capture-baseline-performance.mjs",
     "wp06:perf": "npm run build && node scripts/capture-wp06-performance.mjs",
