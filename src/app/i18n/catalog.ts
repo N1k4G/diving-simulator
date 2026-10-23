@@ -622,6 +622,9 @@ const catalog: Record<SupportedLocale, Record<MessageKey, string>> = {
   },
 };
 
+/** The per-locale tables, read-only, for the catalogue completeness guard (#169). */
+export const messageCatalog: Readonly<Record<SupportedLocale, Readonly<Record<string, string>>>> = catalog;
+
 export function translate(locale: SupportedLocale, key: MessageKey): string {
   return catalog[locale][key] ?? englishMessages[key];
 }

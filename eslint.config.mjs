@@ -488,16 +488,28 @@ export default [
       "no-restricted-syntax": [
         "error",
         {
-          selector: "AssignmentExpression[left.type='MemberExpression'][left.property.name=/^(textContent|innerText)$/][right.type='Literal'][right.value!='']",
+          selector: "AssignmentExpression[left.type='MemberExpression'][left.property.name=/^(textContent|innerText|innerHTML|title|alt|placeholder|ariaLabel|ariaDescription|ariaValueText|ariaRoleDescription)$/][right.type='Literal'][right.value!='']",
           message: "Put user-facing text in src/app/i18n/catalog.ts and translate it by key.",
         },
         {
-          selector: "Property[key.type='Identifier'][key.name=/^(heading|label|title|message|description|text|placeholder|ariaLabel)$/][value.type='Literal'][value.value!='']",
+          selector: "AssignmentExpression[left.type='MemberExpression'][left.property.name=/^(textContent|innerText|innerHTML|title|alt|placeholder|ariaLabel|ariaDescription|ariaValueText|ariaRoleDescription)$/][right.type='TemplateLiteral'][right.expressions.length=0][right.quasis.0.value.raw!='']",
+          message: "Put user-facing text in src/app/i18n/catalog.ts and translate it by key.",
+        },
+        {
+          selector: "Property[key.type='Identifier'][key.name=/^(heading|label|title|message|description|text|placeholder|ariaLabel|caption|tooltip|hint|summary|alt)$/][value.type='Literal'][value.value!='']",
           message: "Put user-facing copy in src/app/i18n/catalog.ts and store only translated values here.",
         },
         {
-          selector: "CallExpression[callee.type='MemberExpression'][callee.property.name='setAttribute'][arguments.0.value=/^(aria-label|title|placeholder)$/][arguments.1.type='Literal'][arguments.1.value!='']",
+          selector: "Property[key.type='Identifier'][key.name=/^(heading|label|title|message|description|text|placeholder|ariaLabel|caption|tooltip|hint|summary|alt)$/][value.type='TemplateLiteral'][value.expressions.length=0][value.quasis.0.value.raw!='']",
+          message: "Put user-facing copy in src/app/i18n/catalog.ts and store only translated values here.",
+        },
+        {
+          selector: "CallExpression[callee.type='MemberExpression'][callee.property.name='setAttribute'][arguments.0.value=/^(aria-label|aria-description|aria-valuetext|aria-roledescription|title|alt|placeholder)$/][arguments.1.type=/^(Literal|TemplateLiteral)$/][arguments.1.value!='']",
           message: "Translate user-facing attributes through src/app/i18n/catalog.ts.",
+        },
+        {
+          selector: "CallExpression[callee.property.name='createTextNode'][arguments.0.type='Literal'][arguments.0.value!='']",
+          message: "Put user-facing text in src/app/i18n/catalog.ts and translate it by key.",
         },
       ],
     },
