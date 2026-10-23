@@ -108,6 +108,26 @@ jobs:
           path: screenshots/
           retention-days: 14
 
+      # #137 A13a: the client we ship, at a phone viewport. Reuses the dist/
+      # the build step made; evidence for a reviewer, with no reference frames
+      # and no thresholds (it fails only when a frame cannot be taken or is
+      # blank). Does not rebuild.
+      - name: Capture phone screenshots of the migration client
+        env:
+          # HEAD on a pull_request run is the synthetic merge commit; the
+          # evidence index records the PR's own head too.
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: npm run screenshots:phone
+
+      - name: Upload phone screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: phone-screenshots
+          path: artifacts/wp-09/137/phone-screenshots/
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Upload test report
         if: always()
         uses: actions/upload-artifact@v7

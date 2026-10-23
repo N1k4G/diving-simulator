@@ -210,6 +210,7 @@ New TypeScript UI copy is keyed in `src/app/i18n/catalog.ts`; direct user-facing
 | `npm run test:e2e` | Builds and tests the migration Worker plus the full legacy Playwright suite |
 | `npm run test:perf` | Captures the opt-in performance baseline |
 | `npm run screenshots` | Captures review screenshots (phone + desktop, setup + in-dive) to `screenshots/` via `scripts/screenshots.mjs` |
+| `npm run screenshots:phone` | Captures the **built** migration client (`dist/`; run `npm run build` first) at a phone viewport, 390x844 portrait and 844x390 landscape, in English and German: setup, dive, help overlay and post-dive. 16 PNGs plus an `index.json` in `artifacts/wp-09/137/phone-screenshots/`. Review evidence, not a guard: no reference frames, no thresholds. CI uploads it as the `phone-screenshots` artifact (#137 A13a) |
 | `npm run interior:check` | Issue #124 optics guard: measures the legacy client's overhead interiors and fails if one has gone flat (CI-gated) |
 | `npm run interior:update` | Re-records that guard's reference frames. Deliberately does **not** touch its thresholds — see the note below |
 
