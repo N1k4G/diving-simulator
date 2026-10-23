@@ -612,7 +612,9 @@ test.describe('fast-forward', () => {
     // Said in words, not only through the button's state: the diver has to
     // be told the clock is running fast (docs/decisions.md, colour alone).
     await expect(fastForwardIndicator(page)).toBeVisible();
-    await expect(fastForwardIndicator(page)).toHaveText('Fast-forward ×10');
+    // As read, the badge's aria-hidden short form left out (#259): the
+    // paragraph's text holds both forms, one of them for the eye only.
+    await expect(fastForwardIndicator(page)).toMatchAriaSnapshot('- paragraph: Fast-forward ×10');
 
     // The rate, as the clock-rate test above measures it: dive seconds
     // between two saves against the real time between them, each frame

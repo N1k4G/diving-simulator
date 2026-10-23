@@ -820,13 +820,20 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   // screen. There it shows its short form, "» ×10", as a badge on the
   // status chip's top edge (diagnostic.css), out of the row's flow, so the
   // row and every button stand where they stand without it. The short form
-  // is drawn by CSS from data-short and is not read; the words stay in the
-  // paragraph, visually hidden there, so what is read is the same at every
-  // width.
+  // is aria-hidden, shown only there; the words stay in the paragraph,
+  // visually hidden there, so what is read is the same at every width and
+  // on every engine (#269 pre-review: CSS alternative text for generated
+  // content is missing before iOS 17.4, inside the iOS 16 floor).
   const speed = document.createElement("p");
   speed.className = "speed-chip";
-  speed.dataset.short = translate(locale, "wreck.hud.fastForwardShort");
+  const speedShort = createElement(
+    "span",
+    "speed-chip-short",
+    translate(locale, "wreck.hud.fastForwardShort"),
+  );
+  speedShort.setAttribute("aria-hidden", "true");
   speed.append(
+    speedShort,
     createElement("span", "speed-chip-text", translate(locale, "wreck.hud.fastForward")),
   );
   speed.dataset.fastForwardIndicator = "true";

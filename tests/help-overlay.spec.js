@@ -199,7 +199,8 @@ const chipProblems = (page) => page.evaluate(() => {
 
 // The topbar keeps every button on screen, 44 px and 8 px apart, with and
 // without fast-forward, at every phone width, in every mode and both
-// languages. Its chip pushed mute and Help off phones up to 412 px (#259);
+// languages. Its chip pushed mute and Help off phones up to about 423 px
+// (#259);
 // there it is a badge on the status chip now, so no button moves when it
 // shows. Help is open while fast-forward's topbar is measured, to hold the
 // stop still.
@@ -225,7 +226,10 @@ for (const locale of ['en-GB', 'de-DE']) {
 
           await page.keyboard.press('f');
           await expect(speed).toBeVisible();
-          // Read as words, once: the badge's "» ×10" is not read beside them.
+          // The badge shows "» ×10"; what is read is the words, once, with
+          // no short form beside them (#269 pre-review).
+          await expect(speed.locator('.speed-chip-short')).toBeVisible();
+          await expect(speed.locator('.speed-chip-short')).toHaveText('» ×10');
           await expect(speed).toMatchAriaSnapshot(`- paragraph: ${words}`);
           await page.keyboard.press('h');
           await expect(overlay(page)).toBeVisible();

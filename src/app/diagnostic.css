@@ -995,18 +995,21 @@ summary:focus-visible {
   display: none;
 }
 
+/* The badge's short form (below), shown on a phone only. */
+.speed-chip-short {
+  display: none;
+}
+
 /* On a phone the chip is a badge (#259). Beside the status chip it pushed
-   mute, and Help on tec and CCR, off screens up to 412 px wide, and a
-   second line for it would take the HUD column's height, which the dock,
+   mute, and Help on tec and CCR, off screens up to about 423 px wide, and
+   a second line for it would take the HUD column's height, which the dock,
    the D-pad and an open gas page already share to the pixel (#256, #258).
    So it shows its short form, "» ×10", on the status chip's top edge:
    inside the topbar's band, out of the row's flow, over the chip's border
    and padding and clear of its words and of every button. The row is the
    one without fast-forward, so no button moves when it starts or stops.
-   The short form is drawn here from data-short with empty alternative
-   text, so it is not read; the paragraph's words are, visually hidden.
-   A browser without that syntax (Safari before 17.4) takes the first
-   content declaration, and may read the short form before the words.
+   The short form is an aria-hidden span, so it is not read; the
+   paragraph's words are, visually hidden.
    tests/help-overlay.spec.js measures it from 320 to 430 px. */
 @media (width <= 720px) {
   .speed-chip {
@@ -1020,9 +1023,8 @@ summary:focus-visible {
     line-height: 1.2;
   }
 
-  .speed-chip::before {
-    content: attr(data-short);
-    content: attr(data-short) / "";
+  .speed-chip-short {
+    display: inline;
   }
 
   .speed-chip-text {
