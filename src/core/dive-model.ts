@@ -139,6 +139,24 @@ export interface DiveEnvironment {
    * random state, as for a dictated-depth replay or a forecast.
    */
   shark?: SharkFrame;
+  /** A training drill's effects under way (#160); none when absent. */
+  drill?: DrillEffects;
+}
+
+/** src/constants.js DRILL_FREEFLOW_MULT: a free-flowing regulator drains six breaths' gas. */
+export const DRILL_FREEFLOW_MULTIPLIER = 6;
+
+/**
+ * The effects a training drill leaves on the dive (#160), legacy's drillState
+ * fields that its gas use and barotrauma check read (src/game-loop.js #45),
+ * each lasting until a dive second, 0 for none.
+ */
+export interface DrillEffects {
+  /** The regulator of `freeflowTankIndex` drains DRILL_FREEFLOW_MULTIPLIER times the breathing gas. */
+  readonly freeflowUntilS: number;
+  readonly freeflowTankIndex: number;
+  /** A held breath: any ascent at all counts toward barotrauma, not only a fast one. */
+  readonly breathHoldUntilS: number;
 }
 
 /**
@@ -307,6 +325,8 @@ export class DiveModel {
    * `acts` are the cylinder, setpoint and bailout keys read in this frame
    * (#202), applied where legacy's updateDiving() reads them: after the
    * frame's tissues and decompression limits (advanceDiveStep).
+   *
+   * `drill` is a training drill's free-flow or held breath under way (#160).
    */
   advanceWithBuoyancy(
     bounds: Readonly<VerticalBounds>,
@@ -316,6 +336,7 @@ export class DiveModel {
     shark?: SharkFrame,
     realS?: number,
     acts: Readonly<DiveActs> = NO_ACTS,
+    drill?: DrillEffects,
   ): DiveState {
     if (frameS <= 0 || isDiveOver(this.#state)) {
       return this.#state;
@@ -352,10 +373,28 @@ export class DiveModel {
         gradientFactorHighPercent: this.#gradientFactorHighPercent,
         inOverhead,
         ...(shark ? { shark } : {}),
+        ...(drill ? { drill } : {}),
       },
       frameS,
       acts,
     );
+    return this.#state;
+  }
+
+  /**
+   * The co2 drill's onTrigger (#160, src/constants.js DRILLS): the loop's
+   * scrubber fails now, its CO₂ counting from zero, before the frame that
+   * started the drill runs on. Only on a loop still breathed.
+   */
+  failScrubber(): DiveState {
+    const { ccr } = this.#state;
+    if (isDiveOver(this.#state) || !ccr || ccr.onBailout) {
+      return this.#state;
+    }
+    this.#state = freezeDiveState({
+      ...this.#state,
+      ccr: { ...ccr, scrubberFailed: true, co2BuildupS: seconds(0) },
+    });
     return this.#state;
   }
 
@@ -590,6 +629,7 @@ export function advanceDiveStep(
     ? sharkStepOnRandomState(nextState, environment.shark, elapsedS)
     : null;
 
+  const holdUntilS = environment.drill?.breathHoldUntilS ?? 0;
   const settled = updateFailureState(
     nextState,
     elapsedS,
@@ -598,6 +638,7 @@ export function advanceDiveStep(
     stepAscentRateMpm(nextState, previousDepthM, elapsedS),
     narcosis,
     shark,
+    holdUntilS > 0 && nextState.elapsedTimeS < holdUntilS,
   );
   // Legacy's rebreather checks run in updateCCR() and return from
   // updateDiving() before the debriefing capture; its other dive-ending
@@ -1322,11 +1363,18 @@ function consumeOpenCircuitGas(
     ambientPressureBar(environment.depthM) *
     secondsToMinutes(elapsedS) *
     exertionMultiplier;
-  const tanks = state.tanks.map((tank, index) =>
-    index === state.activeTankIndex
-      ? { ...tank, gasRemainingL: litres(Math.max(0, tank.gasRemainingL - consumedL)) }
-      : tank,
-  );
+  // A drill's free-flow (#160): the breathed cylinder's regulator drains six
+  // times the breath, or the one left for the backup drains that alongside it.
+  const drill = environment.drill;
+  const freeflowIndex =
+    drill && drill.freeflowUntilS > 0 && state.elapsedTimeS < drill.freeflowUntilS ? drill.freeflowTankIndex : -1;
+  const tanks = state.tanks.map((tank, index) => {
+    const drainL =
+      index === freeflowIndex ? consumedL * DRILL_FREEFLOW_MULTIPLIER : index === state.activeTankIndex ? consumedL : 0;
+    return index === state.activeTankIndex || drainL > 0
+      ? { ...tank, gasRemainingL: litres(Math.max(0, tank.gasRemainingL - drainL)) }
+      : tank;
+  });
   let nextState = freezeDiveState({ ...state, tanks });
 
   if ((nextState.tanks[nextState.activeTankIndex]?.gasRemainingL ?? 0) <= 0) {
@@ -1475,6 +1523,7 @@ function updateFailureState(
   ascentRateMpm: number,
   narcosis: NarcosisStep,
   shark: SharkOutcome | null,
+  breathHolding = false,
 ): DiveState {
   const ccrActive = Boolean(state.ccr && !state.ccr.onBailout);
   const inspiredPo2Bar =
@@ -1531,11 +1580,10 @@ function updateFailureState(
       ? seconds(state.failure.dcsViolationS + elapsedS)
       : seconds(Math.max(0, state.failure.dcsViolationS - elapsedS));
   // Legacy's barotrauma check (#189): the step's ascent at 18 m/min or faster
-  // counts up, anything slower counts down twice as fast, to zero. Legacy
-  // also counts any ascent while a drill's held breath lasts; the drills are
-  // not migrated, so no breath is ever held here.
+  // counts up, anything slower counts down twice as fast, to zero. While a
+  // drill's held breath lasts (#160), any ascent at all counts up.
   const barotraumaS =
-    ascentRateMpm >= BAROTRAUMA_ASCENT_RATE_MPM
+    ascentRateMpm >= BAROTRAUMA_ASCENT_RATE_MPM || (breathHolding && ascentRateMpm > 0)
       ? seconds(state.failure.barotraumaS + elapsedS)
       : seconds(Math.max(0, state.failure.barotraumaS - elapsedS * 2));
 
