@@ -814,13 +814,26 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   // Hidden rather than empty when it is not, so the topbar does not reserve
   // a blank pill; and not a live region — a change of clock speed is the
   // diver's own doing, not a warning to announce over their action.
-  const speed = createElement(
-    "p",
-    "speed-chip",
-    translate(locale, "wreck.hud.fastForward"),
+  //
+  // On a phone the topbar has no width left for it (#259): beside the
+  // status chip, I, Help and mute it pushed the buttons off a 320-412 px
+  // screen. There it shows its short form, "» ×10", as a badge on the
+  // status chip's top edge (diagnostic.css), out of the row's flow, so the
+  // row and every button stand where they stand without it. The short form
+  // is drawn by CSS from data-short and is not read; the words stay in the
+  // paragraph, visually hidden there, so what is read is the same at every
+  // width.
+  const speed = document.createElement("p");
+  speed.className = "speed-chip";
+  speed.dataset.short = translate(locale, "wreck.hud.fastForwardShort");
+  speed.append(
+    createElement("span", "speed-chip-text", translate(locale, "wreck.hud.fastForward")),
   );
   speed.dataset.fastForwardIndicator = "true";
   speed.hidden = true;
+  const chips = document.createElement("div");
+  chips.className = "topbar-chips";
+  chips.append(speed, status);
   const mute = document.createElement("button");
   mute.type = "button";
   mute.className = "audio-control";
@@ -830,7 +843,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   const gasInfo = createGasInfo(locale);
   // Legacy's touch-dive-help, the H key's button (#160).
   const help = createHelpButton(locale, "help-control", true);
-  topbarActions.append(speed, status, gasInfo.toggle, help, mute);
+  topbarActions.append(chips, gasInfo.toggle, help, mute);
   topbar.append(identity, topbarActions);
 
   const viewport = document.createElement("div");

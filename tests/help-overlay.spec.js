@@ -121,29 +121,123 @@ test('at the surface it leads with S, S pressed behind it does not begin the div
   expect(Number.parseFloat(await hudValue(page, 'depth').textContent())).toBeGreaterThan(3);
 });
 
-// With fast-forward's chip as well, the buttons still run off narrow phones: #259.
+/**
+ * A dive in `mode` resumed holding a decompression stop at 18 m, where
+ * fast-forward is offered: the save of a dive under way, edited as
+ * tests/in-dive-controls.spec.js's DECO_STOPS.midWater (every compartment at
+ * 3.0 bar of nitrogen, neutral at the stop).
+ */
+async function resumeAtDecoStop(page, mode) {
+  await page.goto('/dist/');
+  await page.evaluate(() => window.localStorage.clear());
+  await page.locator('[data-accept-safety]').click();
+  await page.locator(`[data-setup-group=mode] [data-setup-option=${mode}]`).check();
+  await page.locator('[data-start-dive]').click();
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  await descendTo(page, 1);
+  const saved = await page
+    .waitForFunction((key) => {
+      const raw = window.localStorage.getItem(key);
+      const parsed = raw === null ? null : JSON.parse(raw);
+      return parsed !== null && parsed.state.elapsedTimeS > 0 ? parsed : null;
+    }, SAVE_KEY)
+    .then((handle) => handle.jsonValue());
+  Object.assign(saved.state, {
+    depthM: 18,
+    maxDepthM: 34,
+    verticalVelocityMpm: 0,
+    bcdGasSurfaceLiters: 9.990465669399928,
+  });
+  saved.state.tissues.nitrogenBar = saved.state.tissues.nitrogenBar.map(() => 3);
+  await page.goto('/dist/');
+  await page.evaluate(([key, value]) => window.localStorage.setItem(key, value), [SAVE_KEY, JSON.stringify(saved)]);
+  await page.locator('[data-accept-safety]').click();
+  await page.locator('[data-resume-continue]').click();
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  await expect(page.locator('[data-fast-forward]')).toBeVisible();
+}
+
+/** Each topbar button's box, by its name. */
+const topbarButtons = (page) => page.locator('.topbar-actions button').evaluateAll((buttons) => buttons
+  .filter((el) => el.getClientRects().length > 0)
+  .map((el) => {
+    const r = el.getBoundingClientRect();
+    return { label: el.getAttribute('aria-label'), x: r.x, y: r.y };
+  }));
+
+/**
+ * The chips against the screen, the buttons and the HUD column: each on
+ * screen, 8 px from every button, above the column's top; and the speed
+ * badge clear of the status chip's words, over its border and padding only.
+ */
+const chipProblems = (page) => page.evaluate(() => {
+  const problems = [];
+  const sideTop = document.querySelector('.wreck-side').getBoundingClientRect().top;
+  const buttons = [...document.querySelectorAll('.topbar-actions button')]
+    .filter((el) => el.getClientRects().length > 0);
+  const status = document.querySelector('.status-chip');
+  const speed = document.querySelector('[data-fast-forward-indicator]');
+  for (const chip of [speed, status]) {
+    const c = chip.getBoundingClientRect();
+    const name = chip.className;
+    if (c.left < 0 || c.right > window.innerWidth || c.top < 0) problems.push(`${name} is off screen`);
+    if (c.bottom > sideTop) problems.push(`${name} reaches ${Math.round(c.bottom - sideTop)} px into the HUD column`);
+    for (const button of buttons) {
+      const b = button.getBoundingClientRect();
+      const apart = Math.max(b.left - c.right, c.left - b.right, b.top - c.bottom, c.top - b.bottom);
+      if (apart < 8) problems.push(`${name} <-> ${button.getAttribute('aria-label')}`);
+    }
+  }
+  const s = status.getBoundingClientRect();
+  const style = getComputedStyle(status);
+  const wordsTop = s.top + Number.parseFloat(style.borderTopWidth) + Number.parseFloat(style.paddingTop);
+  const b = speed.getBoundingClientRect();
+  const overWords = b.bottom > wordsTop && b.top < s.bottom && b.right > s.left && b.left < s.right;
+  if (overWords) problems.push('the speed chip covers the status chip\'s words');
+  return problems;
+});
+
+// The topbar keeps every button on screen, 44 px and 8 px apart, with and
+// without fast-forward, at every phone width, in every mode and both
+// languages. Its chip pushed mute and Help off phones up to 412 px (#259);
+// there it is a badge on the status chip now, so no button moves when it
+// shows. Help is open while fast-forward's topbar is measured, to hold the
+// stop still.
 for (const locale of ['en-GB', 'de-DE']) {
   test.describe(`in ${locale}, the topbar`, () => {
     test.use({ locale });
 
-    test('fits from 320 to 430 px in every mode', async ({ page }) => {
-      test.setTimeout(120_000);
+    test('fits from 320 to 430 px in every mode, with fast-forward on as well', async ({ page }) => {
+      test.setTimeout(240_000);
+      const speed = page.locator('[data-fast-forward-indicator]');
+      const words = locale === 'en-GB' ? 'Fast-forward ×10' : 'Vorspulen ×10';
       for (const [mode, buttons] of [['rec', 2], ['tec', 3], ['ccr', 3]]) {
         await page.setViewportSize({ width: 390, height: 844 });
-        await page.goto('/dist/');
-        await page.evaluate(() => window.localStorage.clear());
-        await page.locator('[data-accept-safety]').click();
-        await page.locator(`[data-setup-group=mode] [data-setup-option=${mode}]`).check();
-        await page.locator('[data-start-dive]').click();
-        await page.locator('[data-renderer=pixi] canvas').waitFor();
-        // Under water, where tec and CCR show I.
-        await descendTo(page, 1);
+        // Under water, where tec and CCR show I, and at a stop.
+        await resumeAtDecoStop(page, mode);
         for (const width of [320, 340, 360, 375, 390, 393, 402, 412, 430]) {
+          const at = `${mode} at ${width}`;
           await page.setViewportSize({ width, height: 844 });
+          await expect(speed).toBeHidden();
           // The chip, I where the mode has it, Help and mute: on screen, 44 px, 8 px apart.
-          expect(await expectTouchTargets(page, '.topbar-actions'), `${mode} at ${width}`).toBe(buttons);
+          expect(await expectTouchTargets(page, '.topbar-actions'), at).toBe(buttons);
+          const without = await topbarButtons(page);
+
+          await page.keyboard.press('f');
+          await expect(speed).toBeVisible();
+          // Read as words, once: the badge's "» ×10" is not read beside them.
+          await expect(speed).toMatchAriaSnapshot(`- paragraph: ${words}`);
+          await page.keyboard.press('h');
+          await expect(overlay(page)).toBeVisible();
+          expect(await expectTouchTargets(page, '.topbar-actions'), `${at}, fast-forward`).toBe(buttons);
           const actions = await page.locator('.topbar-actions').boundingBox();
-          expect(actions.x + actions.width, `${mode} at ${width}`).toBeLessThanOrEqual(width);
+          expect(actions.x + actions.width, `${at}, fast-forward`).toBeLessThanOrEqual(width);
+          const problems = await chipProblems(page);
+          expect(problems, `${at}, fast-forward:\n${problems.join('\n')}`).toEqual([]);
+          // And no button moved for it.
+          expect(await topbarButtons(page), `${at}, fast-forward`).toEqual(without);
+          await page.keyboard.press('Escape');
+          await page.keyboard.press('f');
         }
       }
     });
