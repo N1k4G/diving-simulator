@@ -226,11 +226,6 @@ for (const locale of ['en-GB', 'de-DE']) {
 
           await page.keyboard.press('f');
           await expect(speed).toBeVisible();
-          // The badge shows "» ×10"; what is read is the words, once, with
-          // no short form beside them (#269 pre-review).
-          await expect(speed.locator('.speed-chip-short')).toBeVisible();
-          await expect(speed.locator('.speed-chip-short')).toHaveText('» ×10');
-          await expect(speed).toMatchAriaSnapshot(`- paragraph: ${words}`);
           await page.keyboard.press('h');
           await expect(overlay(page)).toBeVisible();
           expect(await expectTouchTargets(page, '.topbar-actions'), `${at}, fast-forward`).toBe(buttons);
@@ -241,6 +236,12 @@ for (const locale of ['en-GB', 'de-DE']) {
           // And no button moved for it.
           expect(await topbarButtons(page), `${at}, fast-forward`).toEqual(without);
           await page.keyboard.press('Escape');
+          // The badge shows "» ×10"; what is read is the words, once, with
+          // no short form beside them (#269 pre-review). After the layout
+          // checks, so on main this test still fails on the off-screen buttons.
+          await expect(speed.locator('.speed-chip-short')).toBeVisible();
+          await expect(speed.locator('.speed-chip-short')).toHaveText('» ×10');
+          await expect(speed).toMatchAriaSnapshot(`- paragraph: ${words}`);
           await page.keyboard.press('f');
         }
       }
