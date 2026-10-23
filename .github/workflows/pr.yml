@@ -113,6 +113,10 @@ jobs:
       # and no thresholds (it fails only when a frame cannot be taken or is
       # blank). Does not rebuild.
       - name: Capture phone screenshots of the migration client
+        env:
+          # HEAD on a pull_request run is the synthetic merge commit; the
+          # evidence index records the PR's own head too.
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: npm run screenshots:phone
 
       - name: Upload phone screenshots

@@ -25,8 +25,9 @@
 import { chromium } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { createReadStream, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -162,6 +163,24 @@ async function sdLuma(scratch, png) {
   }, png.toString('base64'));
 }
 
+/** SHA-256 over dist/'s relative paths and bytes, in sorted order: the build that was shot. */
+function hashTree(dir) {
+  const hash = createHash('sha256');
+  const walk = (current) => {
+    const entries = readdirSync(current, { withFileTypes: true }).sort((x, y) => x.name.localeCompare(y.name));
+    for (const entry of entries) {
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+      } else {
+        hash.update(`${path.relative(dir, full).split(path.sep).join('/')}\0`).update(readFileSync(full));
+      }
+    }
+  };
+  walk(dir);
+  return hash.digest('hex');
+}
+
 async function main() {
   if (!existsSync(path.join(root, 'dist', 'index.html'))) {
     throw new Error('dist/ is missing: run `npm run build` first');
@@ -171,6 +190,7 @@ async function main() {
   const server = await serveDist();
   const base = `http://127.0.0.1:${server.port}/dist/`;
   const browser = await chromium.launch();
+  const browserVersion = browser.version();
   const scratch = await (await browser.newContext()).newPage();
   const shots = [];
   const errors = [];
@@ -234,17 +254,32 @@ async function main() {
     await server.close();
   }
 
-  let commit = 'unknown';
+  let checkoutSha = null;
   try {
-    commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+    checkoutSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
   } catch { /* not a git checkout */ }
-  const pkg = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
+  // On a pull_request run HEAD is GitHub's synthetic merge commit; the PR's
+  // own head arrives as PR_HEAD_SHA (pr.yml). Both are recorded.
+  const prHeadSha = process.env.PR_HEAD_SHA || null;
+  const playwrightVersion = JSON.parse(
+    readFileSync(path.join(root, 'node_modules', '@playwright', 'test', 'package.json'), 'utf8'),
+  ).version;
   writeFileSync(path.join(outDir, 'index.json'), `${JSON.stringify({
     purpose: 'review evidence for #137 A13a; not a gate',
-    sourceCommit: commit,
+    sourceCommit: prHeadSha || checkoutSha || 'unknown',
+    checkoutCommit: checkoutSha,
+    prHeadCommit: prHeadSha,
+    buildId: `sha256:${hashTree(path.join(root, 'dist'))}`,
     command: 'npm run screenshots:phone',
-    playwright: pkg.devDependencies['@playwright/test'],
     generatedAt: new Date().toISOString(),
+    environment: {
+      node: process.version,
+      platform: `${os.platform()} ${os.release()}`,
+      arch: os.arch(),
+      ci: process.env.GITHUB_ACTIONS === 'true',
+      playwright: playwrightVersion,
+      browser: `chromium ${browserVersion}`,
+    },
     shots,
   }, null, 2)}\n`);
 
