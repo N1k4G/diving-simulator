@@ -112,8 +112,8 @@
     {
       "id": "PHYSICS-001",
       "classification": "educational formulas and model explanations",
-      "source": ["STRINGS.*.instructor*", "STRINGS.*.gradeNotes.trim*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.trim*"],
-      "ui": ["instructor overlay", "debrief"],
+      "source": ["STRINGS.*.instructor*", "STRINGS.*.gradeNotes.trim*", "src/app/i18n/catalog.ts {en,de}: debrief.grade.note.trim*", "src/app/i18n/catalog.ts {en,de}: instructor.*"],
+      "ui": ["instructor overlay", "debrief", "instructor panel (migration client)"],
       "owner": "model",
       "reviewStatus": "requires re-anchored implementation audit",
       "evidence": ["docs/research/buoyancy-bcd-physics.md", "docs/research/algorithm-realism-current-anchors.md"]

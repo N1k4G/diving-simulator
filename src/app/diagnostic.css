@@ -676,6 +676,7 @@ summary:focus-visible {
 
 .audio-control,
 .gas-info-control,
+.instructor-control,
 .help-control {
   /* #137 §4.4.2: was 2.3rem (~37px), below this project's 44px touch-target
      standard (the same class of defect #121 fixed in the legacy client).
@@ -709,6 +710,27 @@ summary:focus-visible {
 .wreck-tank:active,
 .wreck-ccr button:active {
   filter: brightness(1.6);
+}
+
+/* Legacy's Learn button (#46): at the HUD's top right, in the stage beside
+   it, so it takes no height from the column or the dock (#160). */
+.wreck-column {
+  position: relative;
+}
+
+.instructor-control {
+  position: absolute;
+  top: 0;
+  left: calc(var(--wreck-hud-width) + 0.5rem);
+}
+
+.instructor-control[hidden] {
+  display: none;
+}
+
+.instructor-control[aria-pressed="true"] {
+  color: #061923;
+  background: #83d9e7;
 }
 
 .audio-control[aria-pressed="true"] {
@@ -1454,6 +1476,141 @@ summary:focus-visible {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+/* Legacy's instructor panel (#160, #46). On phones it takes the gas page's
+   place under the HUD (the page hides it), no wider than the HUD, so the
+   onboarding hint beside the HUD is never under it; it scrolls where the
+   column is short. Where the stage has the room it stands beside the HUD
+   instead, under the topbar as legacy's under its 12%, and the hint moves
+   over by its width. */
+.instructor-panel {
+  box-sizing: border-box;
+  width: min(var(--wreck-hud-width), 100%);
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid rgb(52 230 255 / 35%);
+  border-radius: 0.75rem;
+  color: #e0f4fb;
+  background: rgb(10 18 24 / 88%);
+}
+
+.instructor-panel[hidden] {
+  display: none;
+}
+
+.instructor-heading {
+  margin: 0;
+  color: #34e6ff;
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+}
+
+.instructor-toggle-hint {
+  margin: 0 0 0.4rem;
+  color: #8fb2bd;
+  font-size: 0.68rem;
+}
+
+.instructor-panel dl {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.instructor-panel dt {
+  color: #a5cbd2;
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.instructor-panel dd {
+  margin: 0;
+}
+
+.instructor-value {
+  font-family: ui-monospace, monospace;
+  font-weight: 750;
+}
+
+.instructor-value[data-severity="caution"] {
+  color: #f6db72;
+}
+
+.instructor-value[data-severity="warning"] {
+  color: #ffb36b;
+}
+
+.instructor-value[data-severity="danger"] {
+  color: #ff9b9b;
+}
+
+.instructor-formula {
+  color: #8fb2bd;
+  font-size: 0.68rem;
+}
+
+/* The BCD's bar: at depth over the same gas at the surface, of 18 L. */
+.instructor-panel .instructor-bar {
+  position: relative;
+  height: 5px;
+  margin: 0.2rem 0;
+  background: rgb(80 100 110 / 35%);
+}
+
+.instructor-bar span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--share, 0) * 100%);
+}
+
+.instructor-bar-surface {
+  background: rgb(52 230 255 / 35%);
+}
+
+.instructor-bar-effective {
+  background: #34e6ff;
+}
+
+/* Short screens: the two-column HUD fills the column, so the button stands
+   beside the column, and under the HUD where the screen is too narrow for
+   that (320x568). */
+@media (height <= 600px) {
+  .instructor-panel {
+    width: 100%;
+  }
+
+  .instructor-control {
+    left: calc(100% + 0.5rem);
+  }
+}
+
+@media (height <= 600px) and (width < 37.75rem) {
+  .instructor-control {
+    position: static;
+    flex-shrink: 0;
+  }
+}
+
+@media (width > 720px) and (height > 600px) {
+  /* The column fills the side down to the dock, so the panel beside the HUD,
+     under its button, ends above the dock's keyboard hint and buttons
+     whatever their height. */
+  .wreck-column {
+    flex-grow: 1;
+  }
+
+  .instructor-panel {
+    position: absolute;
+    top: 3.25rem;
+    left: calc(var(--wreck-hud-width) + 0.5rem);
+    max-height: calc(100% - 3.25rem);
+  }
+
+  .has-instructor .onboarding-hint {
+    --wreck-hud-extent: calc(2 * var(--wreck-hud-width) + 0.5rem);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
