@@ -49,13 +49,20 @@ async function offerDiveUnderWay(page, mode, tap) {
   await page.locator('.setup-screen').waitFor();
 }
 
-/** Counts the dialog's writes from now on: one per decision or debriefing, none per frame. */
+/**
+ * Counts the dialog's writes from now on, from before the dialog exists, so
+ * a drill that comes at once is counted too: one per decision or
+ * debriefing, none per frame.
+ */
 async function countWrites(page) {
   await page.evaluate(() => {
     window.drillWrites = 0;
     new MutationObserver((records) => {
-      window.drillWrites += records.length;
-    }).observe(document.querySelector('[data-drill-overlay]'), { childList: true, characterData: true, subtree: true });
+      for (const record of records) {
+        const target = record.target.nodeType === Node.ELEMENT_NODE ? record.target : record.target.parentElement;
+        if (target?.closest('[data-drill-overlay]')) window.drillWrites += 1;
+      }
+    }).observe(document.body, { childList: true, characterData: true, subtree: true });
   });
   return () => page.evaluate(() => window.drillWrites);
 }
@@ -70,10 +77,9 @@ test('by keyboard: turned on, the free-flow drill stops the dive, 1 picks, Enter
   await expect(toggle).toHaveText('Training Drills: ON');
   await expect(toggle).toHaveAttribute('aria-pressed', 'true');
   await expect(toggle).toBeFocused();
+  const writes = await countWrites(page);
   await page.locator('[data-resume-continue]').focus();
   await page.keyboard.press('Enter');
-  await drill(page).waitFor({ state: 'attached' });
-  const writes = await countWrites(page);
 
   // Legacy's chance is 3 % a frame once eligible: it comes within seconds.
   const decision = page.getByRole('dialog', { name: '⚠ TRAINING DRILL Regulator Free-Flow' });
