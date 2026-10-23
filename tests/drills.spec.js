@@ -67,6 +67,21 @@ async function countWrites(page) {
   return () => page.evaluate(() => window.drillWrites);
 }
 
+/**
+ * Escape four times, then a close the browser makes on its own, as Chromium
+ * does for a close request without user activation or Android's back: the
+ * drill's dialog is open after each.
+ */
+async function refuseToClose(page, dialog) {
+  for (let i = 0; i < 4; i += 1) {
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeVisible();
+  }
+  await page.evaluate(() => document.querySelector('[data-drill-overlay]').close());
+  await expect(dialog).toBeVisible();
+  expect(await page.evaluate(() => document.querySelector('[data-drill-overlay]').matches(':modal'))).toBe(true);
+}
+
 test('by keyboard: turned on, the free-flow drill stops the dive, 1 picks, Enter ends the debriefing, each announced once', async ({ page }) => {
   await offerDiveUnderWay(page, 'rec', false);
   const toggle = page.locator('[data-setup-drills]');
@@ -97,11 +112,16 @@ test('by keyboard: turned on, the free-flow drill stops the dive, 1 picks, Enter
   await page.waitForTimeout(1500);
   expect(await hudTime(page)).toBe(stopped);
   expect(await writes()).toBe(1);
-  // Escape does not close it, nor H open the help behind it.
-  await page.keyboard.press('Escape');
+  // Escape does not close it, however often (pre-review pass 1 of #272:
+  // Chromium honours a cancelled close request only with user activation),
+  // nor does a close the browser makes itself; nor H open the help behind it.
+  await refuseToClose(page, decision);
+  await expect(decision).toBeFocused();
   await page.keyboard.press('h');
   await expect(decision).toBeVisible();
   await expect(page.locator('[data-help-overlay]')).not.toBeVisible();
+  expect(await hudTime(page)).toBe(stopped);
+  expect(await writes()).toBe(1);
 
   await page.keyboard.press('1');
   const debrief = page.getByRole('dialog', { name: 'DEBRIEFING — Regulator Free-Flow Correct choice' });
@@ -113,6 +133,9 @@ test('by keyboard: turned on, the free-flow drill stops the dive, 1 picks, Enter
   await page.waitForTimeout(1000);
   expect(await writes()).toBe(2);
   expect(await hudTime(page)).toBe(stopped);
+  await refuseToClose(page, debrief);
+  await expect(page.locator('[data-drill-continue]')).toBeFocused();
+  expect(await writes()).toBe(2);
 
   await page.keyboard.press('Enter');
   await expect(drill(page)).not.toBeVisible();
@@ -158,6 +181,8 @@ test.describe('by touch, in German, on a phone', () => {
     expect(rows).toHaveLength(2);
     for (const r of rows) expect(Math.min(r.w, r.h)).toBeGreaterThanOrEqual(44);
     expect(rows[1].top - rows[0].bottom).toBeGreaterThanOrEqual(8);
+    // Android's back, a close the browser makes itself: the drill stays up, and a tap still answers it.
+    await refuseToClose(page, decision);
 
     await decision.locator('[data-drill-option="1"]').tap();
     const debrief = page.getByRole('dialog', { name: 'AUSWERTUNG — Vereister Automat Suboptimale Entscheidung' });
@@ -166,6 +191,7 @@ test.describe('by touch, in German, on a phone', () => {
     await expect(proceed).toHaveText('Weiter');
     const continueBox = await proceed.boundingBox();
     expect(Math.min(continueBox.width, continueBox.height)).toBeGreaterThanOrEqual(44);
+    await refuseToClose(page, debrief);
     // Outside the card, on the backdrop beside it: legacy's tap anywhere.
     const card = await debrief.boundingBox();
     expect(card.x).toBeGreaterThan(8);

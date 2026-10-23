@@ -4,7 +4,8 @@
 //
 // - The decision: the drill's title and situation, and its options as
 //   buttons numbered by the keys that pick them, 1 / 2 / 3, as legacy's rows.
-//   A tap on one picks it, as a tap on legacy's row. Nothing else closes it.
+//   A tap on one picks it, as a tap on legacy's row. Nothing else closes it,
+//   Escape and Android's back included.
 // - The debriefing: right or not, why, and in the real world. Enter, its
 //   Continue or a tap outside it ends it, as legacy's Enter and any tap do;
 //   so does its time, which the controller runs down.
@@ -74,6 +75,11 @@ export function createDrillOverlay(options: Readonly<DrillOverlayOptions>): Dril
       return;
     }
     event.stopPropagation();
+    // Escape's default is the dialog's close request: none is made.
+    if (event.key === "Escape") {
+      event.preventDefault();
+      return;
+    }
     if (!current || event.repeat || event.ctrlKey || event.metaKey || event.altKey) {
       return;
     }
@@ -104,7 +110,19 @@ export function createDrillOverlay(options: Readonly<DrillOverlayOptions>): Dril
     }
   });
   // Escape, or Android's back gesture, closes neither: a drill is answered.
+  // closedby="none" asks the browser for no close request at all; a cancelled
+  // cancel holds only with recent user activation, and Chromium closes the
+  // dialog on the next request without one. If it is closed by anything but
+  // close() while the drill is still up, it opens again at once, so the
+  // dialog, its keys and the stopped dive cannot part.
+  dialog.setAttribute("closedby", "none");
   dialog.addEventListener("cancel", (event) => event.preventDefault());
+  dialog.addEventListener("close", () => {
+    if (current && !dialog.open && dialog.isConnected) {
+      dialog.showModal();
+      (dialog.querySelector<HTMLElement>("[data-drill-continue]") ?? dialog).focus();
+    }
+  });
 
   return {
     sync(drill) {
@@ -140,6 +158,7 @@ export function createDrillOverlay(options: Readonly<DrillOverlayOptions>): Dril
       (dialog.querySelector<HTMLElement>("[data-drill-continue]") ?? dialog).focus();
     },
     destroy() {
+      current = null;
       close();
       dialog.remove();
     },
