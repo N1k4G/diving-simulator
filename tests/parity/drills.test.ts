@@ -10,14 +10,18 @@ import {
   DRILL_MIN_DIVE_TIME_S,
   NO_DRILL,
   applyDrillEffect,
+  dismissDrillDebrief,
   drillTriggerChance,
   isDrillEligible,
   pickDrill,
   resolveDrillOption,
   startDrill,
+  tickDrillDebrief,
   visibleDrillOptions,
   type DrillId,
+  type DrillState,
 } from "../../src/core/drills";
+import { createSaveGame, decodeSaveGame, encodeSaveGame } from "../../src/save/save-game";
 import { DRILL_MESSAGES } from "../../src/app/drill-overlay";
 import { translate, type MessageKey } from "../../src/app/i18n/catalog";
 import { DRILL_FREEFLOW_MULTIPLIER, DiveModel } from "../../src/core/dive-model";
@@ -47,6 +51,26 @@ function legacyFunction(source: string, name: string): string {
   return match[0];
 }
 
+/** Legacy's own lines from `start` to the end of `end`, in one function. */
+function legacyLines(name: string, start: string, end: RegExp): string {
+  const body = legacyFunction(gameLoopSource, name);
+  const from = body.indexOf(start);
+  const match = from < 0 ? null : end.exec(body.slice(from));
+  if (!match) throw new Error(`could not read ${name}()'s drill lines from the legacy source`);
+  return body.slice(from, from + match.index + match[0].length);
+}
+
+// Legacy's save and restore of a drill under way (#160, TC-45-66): the drill's
+// lines of saveDiveState(), restoreDiveState() and _isValidSaveState(). The
+// rest of the save is the dive's, which the save-game tests compare.
+const LEGACY_SAVES_DRILL = legacyLines(
+  "saveDiveState",
+  "drillHasRunThisDive: drillHasRunThisDive,",
+  /breathHoldUntilDiveSec: drillState\.breathHoldUntilDiveSec\s*\}/,
+);
+const LEGACY_RESTORES_DRILL = legacyLines("restoreDiveState", "drillHasRunThisDive = !!state", /drillState\.optionRects = \[\];/);
+const LEGACY_CHECKS_DRILL = legacyLines("_isValidSaveState", "if (!state.drillState ||", /[\s\S]*?(?=\s*return true;\s*\}$)/);
+
 /** Legacy's globals the drills read and write, set from the model's state. */
 const GLOBALS = [
   "drillsEnabled", "drillHasRunThisDive", "diveTime", "depth", "po2ViolationTime", "dcsViolationTime",
@@ -60,9 +84,12 @@ const legacy = new Function(
   `${constantsSource}
 var ${GLOBALS.join(", ")}, drillState, badAirWarning = false, visibility = 1, verticalVelocity = 0,
   gasSwitchNotifyTime = 0, gasSwitchNotifyText = '', gameState, diveEvents = [], _gsBuilt = true;
+// The page's clock, which _drillRealTime() reads; a reloaded page starts its own.
+var realS = 0, performance = { now: function () { return realS * 1000; } };
 ${legacyFunction(stateSource, "ccrAdjustSP")}
 ${["_drillIsAlarmActive", "isDrillEligibleNow", "_pickEligibleDrill", "_drillById", "startDrill", "_drillRealTime",
-  "_openDrillOverlay", "resolveDrillOption", "_visibleDrillOptions", "perSecondToPerFrameProbability"]
+  "_openDrillOverlay", "resolveDrillOption", "_visibleDrillOptions", "perSecondToPerFrameProbability",
+  "dismissDrillDebrief"]
   .map((name) => legacyFunction(gameLoopSource, name))
   .join("\n")}
 return {
@@ -82,7 +109,19 @@ return {
     try { var d = _pickEligibleDrill(); return d && d.id; } finally { Math.random = real; } },
   startDrill: startDrill,
   resolveDrillOption: resolveDrillOption,
-  chance: function (dt) { return perSecondToPerFrameProbability(DRILL_TRIGGER_PROB_PER_SEC, dt); }
+  chance: function (dt) { return perSecondToPerFrameProbability(DRILL_TRIGGER_PROB_PER_SEC, dt); },
+  dismissDrillDebrief: dismissDrillDebrief,
+  clock: function (s) { realS = s; },
+  save: function () { return { ${LEGACY_SAVES_DRILL} }; },
+  // A reloaded page: resetDive()'s drill, then restoreDiveState()'s.
+  restore: function (state) {
+    gameState = state.gameState;
+    drillHasRunThisDive = false;
+    drillState = { phase: 'inactive', id: null, selectedOption: -1, correct: false, freeflowUntilDiveSec: 0,
+      freeflowDrainTankIdx: -1, lightRestoreAt: 0, breathHoldUntilDiveSec: 0, optionRects: [] };
+    ${LEGACY_RESTORES_DRILL}
+  },
+  valid: function (state) { ${LEGACY_CHECKS_DRILL} return true; }
 };`,
 )() as {
   STRINGS: Record<"en" | "de", Record<string, unknown> & { drills: Record<string, Record<string, string | string[]>> }>;
@@ -95,7 +134,17 @@ return {
   startDrill(id: string): boolean;
   resolveDrillOption(index: number): boolean;
   chance(dt: number): number;
+  dismissDrillDebrief(): boolean;
+  clock(realS: number): void;
+  save(): LegacySavedDrill;
+  restore(state: LegacySavedDrill & { gameState: string }): void;
+  valid(state: LegacySavedDrill & { gameState: string; tankCount: number }): boolean;
 };
+
+interface LegacySavedDrill {
+  drillHasRunThisDive: unknown;
+  drillState: Record<string, unknown>;
+}
 
 const AIR = createGasMix(0.21, 0);
 
@@ -338,5 +387,157 @@ describe("the training drills against legacy's own functions (#160)", () => {
         realWorld: t(keys.realWorldKey),
       }).toEqual(theirs);
     }
+  });
+});
+
+/** Legacy's saved drill under the model's names, as the save's migration reads it. */
+function fromLegacy({ drillHasRunThisDive, drillState: drill }: LegacySavedDrill): Record<keyof DrillState, unknown> {
+  return {
+    phase: drill.phase,
+    id: drill.id,
+    ranThisDive: drillHasRunThisDive,
+    selectedOption: drill.selectedOption,
+    correct: drill.correct,
+    debriefRemainingS: drill.debriefRemainingSec,
+    freeflowUntilS: drill.freeflowUntilDiveSec,
+    freeflowTankIndex: drill.freeflowDrainTankIdx,
+    breathHoldUntilS: drill.breathHoldUntilDiveSec,
+  };
+}
+
+/** A legacy save of `state` (src/game-loop.js saveDiveState) with the drill's fields given. */
+function legacySave(state: DiveState, drill: LegacySavedDrill & { gameState: string }): string {
+  return JSON.stringify({
+    saveVersion: 2,
+    savedAt: 1_735_689_600_000,
+    depth: state.depthM,
+    maxDepth: state.maxDepthM,
+    diveTime: state.elapsedTimeS / 60,
+    amvRate: 17,
+    po2ViolationTime: 0,
+    hypoxiaTime: 0,
+    ccrHypoxiaTime: 0,
+    ccrHyperoxiaTime: 0,
+    tissues: [...state.tissues.nitrogenBar],
+    tissuesHe: [...state.tissues.heliumBar],
+    activeTank: state.activeTankIndex,
+    tankCount: state.tanks.length,
+    diveMode: state.ccr ? "ccr" : state.tanks.length > 1 ? "tec" : "rec",
+    tanks: state.tanks.map(() => ({ fO2: 0.21, fHe: 0, fN2: 0.79, pressure: 135, volume: 12, totalGas: 2_400, gasRemaining: 1_620 })),
+    ccrState: {
+      o2CylVolume: 2, o2CylPressure: 175, dilCylVolume: 3, dilCylPressure: 160, dilFO2: 0.21, dilFN2: 0.79, dilFHe: 0,
+      loopVolume: 6, targetSP: 1.3, actualPO2: 1.28, scrubberRemaining: 150, metabolicO2Rate: 0.8, po2ResponseRate: 0.05,
+      onBailout: false, scrubberFailed: state.ccr?.scrubberFailed ?? false, co2BuildupTime: 0,
+    },
+    ...drill,
+  });
+}
+
+const FACTORS = { lowPercent: 30, highPercent: 70 };
+
+describe("a drill under way saved and resumed as legacy's save and restore (#160, TC-45-66)", () => {
+  // Each drill and option, at its decision, two real seconds into its
+  // debriefing, and after it, while its free-flow or held breath runs on.
+  const MOMENTS = STATES.slice(0, 4).flatMap(([name, state]) => {
+    const id: DrillId = state.ccr ? "co2" : "freeflow";
+    const options = visibleDrillOptions(id, state.tanks.length);
+    return [
+      { name: `${name}, ${id} decision`, state, id, index: null, dismissed: false },
+      ...options.flatMap((_, index) => [false, true].map((dismissed) => ({
+        name: `${name}, ${id} option ${index + 1}, ${dismissed ? "after the debriefing" : "debriefing"}`,
+        state, id, index, dismissed,
+      }))),
+    ];
+  });
+
+  it.each(MOMENTS)("TC-45-66-DRILL-OVERLAY-SURVIVES-RESUME, -EFFECT-TIMERS-SURVIVE-RESUME: $name", ({ state, id, index, dismissed }) => {
+    legacy.set(legacyGlobals({ name: "", state, diveTimeMin: 7, enabled: true, ran: false }));
+    legacy.clock(1000);
+    legacy.startDrill(id);
+    let ours: DrillState = startDrill(NO_DRILL, id);
+    if (index !== null) {
+      legacy.resolveDrillOption(index);
+      ours = resolveDrillOption(ours, index, state)!.drill;
+      legacy.clock(1002);
+      ours = tickDrillDebrief(ours, 2);
+      if (dismissed) {
+        legacy.dismissDrillDebrief();
+        ours = dismissDrillDebrief(ours);
+      }
+    }
+    const theirs = legacy.save();
+    const gameState = legacy.read().gameState;
+    expect(legacy.valid({ ...theirs, gameState, tankCount: state.tanks.length })).toBe(true);
+
+    // The migration's save holds what legacy's holds, and so does a legacy save it imports.
+    const saved = decodeSaveGame(encodeSaveGame(createSaveGame(state, FACTORS, 1, undefined, undefined, ours)));
+    const imported = decodeSaveGame(legacySave(state, { ...theirs, gameState }));
+    if (!saved.ok || !imported.ok) throw new Error("the dive was not resumed");
+    expect(saved.saveGame.drill).toEqual(fromLegacy(theirs));
+    expect(imported.saveGame.drill).toEqual(fromLegacy(theirs));
+
+    // Restored on a reloaded page, whose clock starts again: the same drill,
+    // the same seconds of debriefing left, and its decision still answerable.
+    legacy.clock(3);
+    legacy.restore({ ...theirs, gameState });
+    const restored = legacy.read().drillState;
+    const resumed = saved.saveGame.drill;
+    expect(resumed.phase).toBe(restored.phase);
+    expect(resumed.debriefRemainingS).toBe(resumed.phase === "debrief" ? (restored.debriefUntilReal as number) - 3 : 0);
+    expect(resumed.freeflowUntilS).toBe(restored.freeflowUntilDiveSec);
+    const answered = resolveDrillOption(resumed, 0, state);
+    expect(answered !== null).toBe(legacy.resolveDrillOption(0));
+    expect(answered?.drill.phase ?? resumed.phase).toBe(legacy.read().drillState.phase);
+  });
+
+  // Legacy's TC-45-66-VALIDATOR-* payloads, on a two-cylinder dive whose
+  // free-flow drill was breathed through and runs on.
+  const twoCylinders = STATES[1]![1];
+  const base = (): LegacySavedDrill & { gameState: string } => {
+    legacy.set(legacyGlobals({ name: "", state: twoCylinders, diveTimeMin: 7, enabled: true, ran: false }));
+    legacy.startDrill("freeflow");
+    legacy.resolveDrillOption(0);
+    legacy.dismissDrillDebrief();
+    return { ...legacy.save(), gameState: legacy.read().gameState };
+  };
+  const PAYLOADS: [string, string, Record<string, unknown>][] = [
+    ["the genuine drill", "diving", {}],
+    ["an unknown id at the decision", "drill", { phase: "overlay", id: "not-a-real-drill" }],
+    ["no id at the decision", "drill", { phase: "overlay", id: null }],
+    ["an unknown id in the debriefing", "drill", { phase: "debrief", id: "not-a-real-drill" }],
+    ["no id after it", "diving", { id: null }],
+    ["the cave's flicker in 'drill'", "drill", { phase: "flicker", id: "lightFailure" }],
+    ["a flicker of another drill", "diving", { phase: "flicker" }],
+    ["'drill' with none", "drill", { phase: "inactive", id: null, freeflowUntilDiveSec: 0, freeflowDrainTankIdx: -1 }],
+    ["'drill' after it", "drill", {}],
+    ["'diving' at its decision", "diving", { phase: "overlay" }],
+    ["'surface' after it", "surface", {}],
+    ["none with an id", "diving", { phase: "inactive", freeflowUntilDiveSec: 0, freeflowDrainTankIdx: -1 }],
+    ["a free-flow on a cylinder the dive lacks", "diving", { freeflowDrainTankIdx: 5 }],
+    ["a free-flow on none", "diving", { freeflowDrainTankIdx: -1 }],
+    ["a cylinder after the free-flow", "diving", { freeflowUntilDiveSec: 0, freeflowDrainTankIdx: 0 }],
+    ["a free-flow on the second cylinder", "diving", { freeflowDrainTankIdx: 1 }],
+    ["an unknown phase", "diving", { phase: "paused" }],
+    ["a timer that is not a number", "diving", { breathHoldUntilDiveSec: null }],
+    ["a fractional option", "diving", { selectedOption: 0.5 }],
+    ["a verdict that is not one", "diving", { correct: "yes" }],
+  ];
+
+  it.each(PAYLOADS)("TC-45-66-VALIDATOR-*: %s, under %s, resumes what legacy restores, or none", (_, gameState, change) => {
+    const payload = base();
+    const drill = { ...payload, gameState, drillState: { ...payload.drillState, ...change } };
+    const imported = decodeSaveGame(legacySave(twoCylinders, drill));
+    // Where legacy refuses the whole save the dive is kept, the drill dropped (docs/decisions.md).
+    if (!imported.ok) throw new Error("the dive was not resumed");
+    const expected = legacy.valid({ ...drill, tankCount: 2 }) ? fromLegacy(drill) : { ...NO_DRILL, ranThisDive: true };
+    expect(imported.saveGame.drill).toEqual(expected);
+  });
+
+  it("TC-45-66-VALIDATOR-ACCEPTS-GENUINE-FLICKER: legacy's cave drill resumes here with none under way, run", () => {
+    const payload = base();
+    const drill = { ...payload, drillState: { ...payload.drillState, phase: "flicker", id: "lightFailure" } };
+    expect(legacy.valid({ ...drill, tankCount: 2 })).toBe(true);
+    const imported = decodeSaveGame(legacySave(twoCylinders, drill));
+    expect(imported.ok && imported.saveGame.drill).toEqual({ ...NO_DRILL, ranThisDive: true });
   });
 });

@@ -9,6 +9,7 @@ import {
   type SavedGradientFactors,
 } from "./save-game";
 import type { DiveState } from "../core/dive-state";
+import type { DrillState } from "../core/drills";
 
 export const SAVE_GAME_STORAGE_KEY = "diving-simulator.save-game";
 export const LEGACY_SAVE_STORAGE_KEY = "diveSim_savedState";
@@ -65,7 +66,7 @@ export class LocalSaveRepository {
    * refused the write, so a caller can surface degraded persistence instead of
    * assuming the dive is recoverable. `routePositionM` is where on the
    * wreck's route the diver is (#222); without it the dive resumes at the
-   * route's start.
+   * route's start. `drill` is the training drill under way (#160).
    */
   save(
     state: DiveState,
@@ -73,6 +74,7 @@ export class LocalSaveRepository {
     savedAtEpochMs = Date.now(),
     diveMode?: SavedDiveMode,
     routePositionM?: number,
+    drill?: Readonly<DrillState>,
   ): { readonly saveGame: SaveGame; readonly persisted: boolean } {
     const saveGame = createSaveGame(
       state,
@@ -80,6 +82,7 @@ export class LocalSaveRepository {
       savedAtEpochMs,
       diveMode,
       routePositionM,
+      drill,
     );
     const persisted = tryWrite(
       this.#store,

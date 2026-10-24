@@ -41,6 +41,7 @@ import {
   isInSafetyStopBand,
 } from "../core/dive-model";
 import { ROUTE_START_POSITION_M, resumedRoutePosition } from "../sites/wreck-route";
+import { NO_DRILL, resumedDrill, type DrillState } from "../core/drills";
 import {
   DEFAULT_GF_HIGH_PERCENT,
   DEFAULT_GF_LOW_PERCENT,
@@ -148,7 +149,21 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // start, as before v18. A dive resumed under the
 // overhead keeps the rule-of-thirds plan it saved, which legacy's reload
 // drops (it saves only thirdsReserveHitThisDive).
-export const CURRENT_SAVE_GAME_VERSION = 18;
+//
+// v19 adds drill, the training drill under way (#160): its phase, the run
+// once a dive, the debriefing's seconds left and the free-flow's and held
+// breath's ends. Older saves resume with none under way and none run, as they
+// did: the clients that wrote v1 to v17 had no drills, so that is exact for
+// them, and a v18 save from the drills' client (#272) never recorded one, so
+// it resumes as that client resumed it, a drill able to come again, as
+// legacy's v1 saves, which had none of the drill's fields either, restored.
+// A co2 drill's failed scrubber is the model's and was saved before. Legacy
+// saves carry drillState and drillHasRunThisDive and keep them, but for its
+// cave drill, lightFailure (#167). A drill record that is not one the
+// controller writes drops the drill, not the dive (resumedDrill,
+// docs/decisions.md).
+export const CURRENT_SAVE_GAME_VERSION = 19;
+export const EIGHTEENTH_SAVE_GAME_VERSION = 18;
 export const SEVENTEENTH_SAVE_GAME_VERSION = 17;
 export const SIXTEENTH_SAVE_GAME_VERSION = 16;
 export const FIFTEENTH_SAVE_GAME_VERSION = 15;
@@ -214,6 +229,8 @@ export interface SaveGame {
    * with its rule of thirds, instead of picking up at the route's start.
    */
   readonly routePositionM: number;
+  /** The training drill under way (#160): a dive reloaded during one resumes it. */
+  readonly drill: DrillState;
 }
 
 export type SaveGameMigration =
@@ -235,6 +252,7 @@ export type SaveGameMigration =
   | "save-game-v15"
   | "save-game-v16"
   | "save-game-v17"
+  | "save-game-v18"
   | null;
 
 /**
@@ -281,6 +299,7 @@ export function createSaveGame(
   savedAtEpochMs = Date.now(),
   diveMode: SavedDiveMode = inferDiveMode(state),
   routePositionM: number = ROUTE_START_POSITION_M,
+  drill: Readonly<DrillState> = NO_DRILL,
 ): SaveGame {
   if (!isPositiveFinite(savedAtEpochMs)) {
     throw new RangeError("save timestamp must be a positive finite number");
@@ -313,6 +332,8 @@ export function createSaveGame(
     // the diver could not be at costs only the place, and resumes at the
     // start, as every save before v18 does.
     routePositionM: resumedRoutePosition(routePositionM, frozenState.depthM),
+    // Likewise a drill the dive could not be in costs only the drill.
+    drill: resumedDrill(drill, frozenState),
   });
 }
 
@@ -521,9 +542,11 @@ export function decodeSaveGame(
         diveMode,
         // Before v18 no position was recorded: the route's start, whatever
         // the payload carries.
-        v === CURRENT_SAVE_GAME_VERSION
+        v >= EIGHTEENTH_SAVE_GAME_VERSION
           ? (candidate.routePositionM as number)
           : ROUTE_START_POSITION_M,
+        // Before v19 no drill was recorded: none under way, none run.
+        v === CURRENT_SAVE_GAME_VERSION ? (candidate.drill as DrillState) : NO_DRILL,
       ),
       migratedFrom:
         v === CURRENT_SAVE_GAME_VERSION
@@ -684,10 +707,40 @@ function migrateLegacyV2(
       candidate.savedAt,
       candidate.diveMode as SavedDiveMode,
       ROUTE_START_POSITION_M,
+      migrateLegacyDrill(candidate),
     );
   } catch {
     return null;
   }
+}
+
+/**
+ * Legacy's drillHasRunThisDive and drillState (#160), as its
+ * restoreDiveState() reads them back, under the model's names. A drill up
+ * goes with gameState 'drill', and only then, and 'surface' with none, as
+ * legacy's drillPhasesByGameState requires; the rest resumedDrill checks. Its cave
+ * drill, lightFailure, and the flicker before it are not this client's
+ * (#167), so they resume with none under way, the drill run.
+ */
+function migrateLegacyDrill(candidate: Record<string, unknown>): DrillState {
+  const drill = candidate.drillState;
+  if (!isRecord(drill)) {
+    return NO_DRILL;
+  }
+  const up = drill.phase === "overlay" || drill.phase === "debrief";
+  const allowed =
+    candidate.gameState === "drill" ? up : candidate.gameState === "surface" ? drill.phase === "inactive" : !up;
+  return {
+    phase: allowed ? drill.phase : null,
+    id: drill.id,
+    ranThisDive: candidate.drillHasRunThisDive,
+    selectedOption: drill.selectedOption,
+    correct: drill.correct,
+    debriefRemainingS: drill.debriefRemainingSec,
+    freeflowUntilS: drill.freeflowUntilDiveSec,
+    freeflowTankIndex: drill.freeflowDrainTankIdx,
+    breathHoldUntilS: drill.breathHoldUntilDiveSec,
+  } as unknown as DrillState;
 }
 
 function readLegacyGradientFactors(
@@ -1116,8 +1169,8 @@ function isDiveLog(candidate: unknown, context: DiveLogContext): candidate is Di
  * diveEvents in minutes, minNdlSeen (null for none), ndlDroppedBelow5 and
  * ascentRate. Of the event kinds, the two this log records are kept;
  * safetyStopSkipped is only ever pushed at the surface, after legacy has
- * stopped saving, and drillOutcome belongs to drills, which the migration
- * client does not have. The debounce accumulators are not saved by legacy
+ * stopped saving, and drillOutcome is a drill's, whose outcome this client
+ * keeps in the drill, not the log (docs/decisions.md, #270). The debounce accumulators are not saved by legacy
  * either, so a resumed window starts over, as it does there.
  */
 /** The lowest NDL a legacy ndlDroppedBelow5 without minNdlSeen implies. */

@@ -344,7 +344,8 @@ test('a dive resumed in the cargo hold stays there, under the overhead with the 
         : null;
     }, SAVE_KEY, { timeout: 15_000 })
     .then((handle) => handle.jsonValue());
-  expect(inHold.version).toBe(18);
+  // v18 added the position; every later version keeps it.
+  expect(inHold.version).toBeGreaterThanOrEqual(18);
 
   // A real reload, and Resume on the banner. Leaving the page saved once
   // more, still in the hold.

@@ -6,6 +6,7 @@ import type {
 import { FAST_ASCENT_RATE_MPM } from "../core/dive-model";
 import { WebAudioService } from "../audio/audio-service";
 import type { DiveState } from "../core/dive-state";
+import type { DrillState } from "../core/drills";
 import { LocalSaveRepository } from "../save/save-repository";
 import type { SaveGame } from "../save/save-game";
 import {
@@ -503,12 +504,14 @@ async function startWreckSimulation(
     // Where on the route the saved dive was (#222): a dive resumed inside
     // the wreck stays there.
     initialRoutePositionM: resumed?.routePositionM,
+    // The drill under way when it was saved (#160).
+    initialDrill: resumed?.drill,
     // The configured gradient factors, or the planner keeps using its
     // defaults and the GF controls change a number nobody reads (#158 review).
     plannerSettings,
     hintStore,
     drillsEnabled: setup.drillsEnabled,
-    onAuthoritativeState: (state, routePositionM) => {
+    onAuthoritativeState: (state, routePositionM, drill) => {
       if (ended) {
         return;
       }
@@ -530,7 +533,7 @@ async function startWreckSimulation(
       }
       const nowMs = performance.now();
       if (nowMs - lastSaveMs > SAVE_INTERVAL_MS) {
-        saveState(repository, state, routePositionM, plannerSettings, diveMode);
+        saveState(repository, state, routePositionM, drill, plannerSettings, diveMode);
         lastSaveMs = nowMs;
       }
     },
@@ -740,6 +743,7 @@ async function startWreckSimulation(
         repository,
         controller.authoritativeState,
         controller.routePositionM,
+        controller.drill,
         plannerSettings,
         diveMode,
       );
@@ -781,6 +785,7 @@ function saveState(
   repository: LocalSaveRepository,
   state: DiveState,
   routePositionM: number,
+  drill: Readonly<DrillState>,
   settings: Readonly<PlannerSettings>,
   diveMode: DiveMode,
 ): void {
@@ -794,6 +799,7 @@ function saveState(
       Date.now(),
       diveMode,
       routePositionM,
+      drill,
     );
   } catch (error) {
     console.error(error);
