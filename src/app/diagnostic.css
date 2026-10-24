@@ -818,7 +818,7 @@ summary:focus-visible {
   gap: 0.5rem;
   width: min(20rem, 100%);
   min-height: 0;
-  max-height: calc(100% - 8.25rem - var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+  max-height: calc(100% - 8.25rem);
   pointer-events: none;
 }
 
@@ -941,7 +941,7 @@ summary:focus-visible {
 .wreck-warning {
   position: absolute;
   z-index: 5;
-  top: 1rem;
+  top: calc(1rem + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
   left: 50%;
   max-width: min(34rem, calc(100% - 2rem));
   margin: 0;
@@ -976,7 +976,7 @@ summary:focus-visible {
   z-index: 3;
   top: max(36%, var(--wreck-side-top));
   right: calc(var(--wreck-gutter) + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
-  left: calc(var(--wreck-gutter) + var(--wreck-hud-extent) + 0.5rem);
+  left: calc(var(--wreck-gutter) + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)) + var(--wreck-hud-extent) + 0.5rem);
   width: fit-content;
   max-width: 34rem;
   margin: 0 auto;
@@ -1135,7 +1135,7 @@ summary:focus-visible {
   flex: none;
   flex-direction: column;
   gap: 0.5rem;
-  max-width: calc(100% - 9.5rem - var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
+  max-width: calc(100% - 9.5rem);
   pointer-events: auto;
 }
 
@@ -1370,7 +1370,7 @@ summary:focus-visible {
 
   /* The two-column HUD fills the column, measured here from the shell. */
   .onboarding-hint {
-    --wreck-hud-extent: min(var(--wreck-column-short-width), 100% - 2 * var(--wreck-gutter));
+    --wreck-hud-extent: min(var(--wreck-column-short-width), 100% - 2 * var(--wreck-gutter) - var(--safe-area-inset-left, env(safe-area-inset-left, 0px)) - var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
   }
 
   .wreck-hud {
@@ -1647,9 +1647,9 @@ summary:focus-visible {
   .instructor-panel {
     position: absolute;
     top: 0.5rem;
-    right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+    right: 0;
     width: min(15rem, 32.5% - 1rem);
-    max-height: calc(100% - 7.5rem - var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+    max-height: calc(100% - 7.5rem);
   }
 
   /* The same width, in the shell's terms: the side is 2.5rem narrower. */
@@ -1664,7 +1664,7 @@ summary:focus-visible {
 @media (width <= 720px) and (height > 600px) {
   .instructor-panel {
     --instructor-top: max(
-      50vh + 30.38vw + 0.5rem - var(--wreck-side-top),
+      50vh + 30.38vw + 0.5rem - var(--wreck-side-top) - var(--safe-area-inset-top, env(safe-area-inset-top, 0px)),
       var(--wreck-hud-height, 0px) + 0.5rem
     );
 
@@ -1674,7 +1674,7 @@ summary:focus-visible {
     right: 0;
     left: 0;
     width: auto;
-    max-height: calc(100% - var(--instructor-top) - 7rem - var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+    max-height: calc(100% - var(--instructor-top) - 7rem);
   }
 }
 

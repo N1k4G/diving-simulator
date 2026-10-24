@@ -22,19 +22,21 @@ const VIEWPORTS = [
   { name: 'landscape', width: 844, height: 390 },
 ];
 
-async function startDive(page) {
+async function startDive(page, mode) {
   await page.goto('/dist/');
   await page.evaluate(() => window.localStorage.clear());
-  await startDiveAndWaitForCanvas(page);
-  await descendTo(page, 1);
+  await startDiveAndWaitForCanvas(page, mode === undefined ? undefined : async (p) => {
+    await p.locator(`[data-setup-group=mode] [data-setup-option=${mode}]`).check();
+  });
+  await descendTo(page, 2);
 }
 
-async function setInsets(page) {
-  await page.evaluate((inset) => {
-    for (const [edge, px] of Object.entries(inset)) {
+async function setInsets(page, inset = INSET) {
+  await page.evaluate((edges) => {
+    for (const [edge, px] of Object.entries(edges)) {
       document.documentElement.style.setProperty(`--safe-area-inset-${edge}`, `${px}px`);
     }
-  }, INSET);
+  }, inset);
 }
 
 /** The boxes of every visible match, as edges. */
@@ -103,3 +105,60 @@ test.describe('the dive screen on a phone in portrait', () => {
     expect(size.scroll).toBeLessThanOrEqual(size.inner);
   });
 });
+
+// The shell's side carries the insets itself (#137 A7), so what stands inside
+// it must not subtract them a second time: with an inset the gas page and the
+// instructor panel may lose the room the inset takes, no more.
+const SIZED = [
+  { width: 360, height: 640, inset: { top: 0, right: 0, bottom: 24, left: 0 } },
+  { width: 375, height: 667, inset: { top: 0, right: 0, bottom: 24, left: 0 } },
+  { width: 390, height: 844, inset: { top: 47, right: 0, bottom: 34, left: 0 } },
+];
+
+async function clearInsets(page) {
+  await page.evaluate(() => {
+    for (const edge of ['top', 'right', 'bottom', 'left']) {
+      document.documentElement.style.removeProperty(`--safe-area-inset-${edge}`);
+    }
+  });
+}
+
+const heightOf = (page, selector) => page.locator(selector).evaluate((el) => el.getBoundingClientRect().height);
+
+for (const { width, height, inset } of SIZED) {
+  test.describe(`room with insets, ${width}x${height}`, () => {
+    test.use({ ...PHONE, viewport: { width, height } });
+
+    test('the gas page and the instructor panel lose only what the insets take', async ({ page }) => {
+      // The gas pages are a rebreather's or a technical dive's.
+      await startDive(page, 'ccr');
+      const lost = inset.top + inset.bottom;
+      for (const [key, selector] of [['i', '[data-gas-info]'], ['l', '[data-instructor-panel]']]) {
+        await page.keyboard.press(key);
+        await expect(page.locator(selector)).toBeVisible();
+        await clearInsets(page);
+        const open = await heightOf(page, selector);
+        await setInsets(page, inset);
+        const inside = await heightOf(page, selector);
+        expect(inside, `${selector} with the insets, from ${open}`).toBeGreaterThanOrEqual(open - lost - 1);
+        const shell = await page.locator('.wreck-shell').boundingBox();
+        const box = await page.locator(selector).boundingBox();
+        expect(box.y + box.height, `${selector} ends above the bottom inset`)
+          .toBeLessThanOrEqual(shell.y + shell.height - inset.bottom + 0.5);
+        await page.keyboard.press(key);
+        await clearInsets(page);
+      }
+    });
+
+    test('the warning banner stands below the top inset', async ({ page }) => {
+      await startDive(page);
+      await setInsets(page, inset);
+      const top = await page.locator('.wreck-warning').evaluate((el) => {
+        el.hidden = false;
+        el.textContent = '!';
+        return el.getBoundingClientRect().top;
+      });
+      expect(top).toBeGreaterThanOrEqual(inset.top);
+    });
+  });
+}
