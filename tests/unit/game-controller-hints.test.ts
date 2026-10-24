@@ -95,10 +95,10 @@ describe("the onboarding hints in the controller (#160)", () => {
     expect(frames.at(-1)?.hint?.remainingS).toBeCloseTo(5.98, 10);
 
     // The paused dive hands on its last frame, so the hint's time and fade stand still.
-    controller.setPaused(true);
+    controller.setPaused("help", true);
     step(500);
     expect(frames.at(-1)?.hint?.remainingS).toBeCloseTo(5.98, 10);
-    controller.setPaused(false);
+    controller.setPaused("help", false);
     // The first frame after the pause runs no time; 288 more of 20 ms leave 0.22 s.
     step(289);
     const fading = frames.at(-1)?.hint;
