@@ -83,10 +83,19 @@ async function nextSave(page) {
  * src/core/buoyancy.ts neutralBcdSurfaceLitres at 5 m: 7 + 2 - 3 less 5 litres
  * of the wetsuit's gas at that pressure), so depth stays where it is and a
  * jump is not hidden by a drift. 5 m is above the hull, so the diver can swim
- * the route's length. Returns the BCD's gas at the start (3.4 L, which a vent
- * empties in about a second).
+ * the route's length. Returns the BCD's gas at the start.
+ *
+ * `pinned` is for the case that vents: the diver is put under the deck of the
+ * wreck at 23.9 m, 0.1 m below its underside at x 50 (src/sites/wreck-route.ts
+ * WRECK_DECK_UNDERSIDE, 24.5 m at x 22 to 23 m at x 82: 23.8 m at x 50), with
+ * 18 L of gas in the BCD at that depth's 3.39 bar (61 surface litres; the save
+ * codec takes any non-negative value). Positively buoyant, the diver rises to
+ * the deck and stays there, the model clamping depth and ascent rate at the
+ * ceiling, so a vent has gas to take for the seven seconds or so that a
+ * hold of any plausible length needs, whatever the machine's speed, and the
+ * diver does not run away upward.
  */
-async function resumeStill(page, mode, routePositionM) {
+async function resumeStill(page, mode, routePositionM, pinned = false) {
   await page.goto('/dist/');
   await page.evaluate(() => window.localStorage.clear());
   await acceptSafetyGate(page);
@@ -95,14 +104,19 @@ async function resumeStill(page, mode, routePositionM) {
   await page.locator('[data-renderer=pixi] canvas').waitFor();
   await descendTo(page, 1);
   const saved = await persistedSave(page);
-  const pressureBar = 1 + 5 / 10;
-  const bcdGasSurfaceLiters = (7 + 2 - 3 - 5 * Math.pow(1 / pressureBar, 0.7)) * pressureBar;
+  const depthM = pinned ? 23.9 : 5;
+  const pressureBar = 1 + depthM / 10;
+  const bcdGasSurfaceLiters = pinned
+    ? 18 * pressureBar
+    : (7 + 2 - 3 - 5 * Math.pow(1 / pressureBar, 0.7)) * pressureBar;
   Object.assign(saved.state, {
-    depthM: 5,
-    maxDepthM: 20,
+    depthM,
+    maxDepthM: pinned ? 24 : 20,
     verticalVelocityMpm: 0,
     bcdGasSurfaceLiters,
-    safetyStop: { needed: true, countdownStarted: true, remainingS: 172, paused: false, complete: false },
+    // The stop of the save as it stands for the pinned dive: the codec ties a
+    // stop to the depth it was made at, and refuses this one at 23.9 m.
+    ...(pinned ? {} : { safetyStop: { needed: true, countdownStarted: true, remainingS: 172, paused: false, complete: false } }),
   });
   saved.routePositionM = routePositionM;
   await page.goto('/dist/');
@@ -310,11 +324,14 @@ async function finger(page) {
   const send = (type, touchPoints) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints });
   let point = null;
   return {
+    /** Puts the finger down; resolves to the time just before the touch is sent. */
     async down(locator) {
       const box = await locator.boundingBox();
       expect(box, 'the control has a box to touch').not.toBeNull();
       point = { x: box.x + box.width / 2, y: box.y + box.height / 2, id: 1 };
+      const sentAt = Date.now();
       await send('touchStart', [point]);
+      return sentAt;
     },
     async lift() {
       await send('touchEnd', []);
@@ -328,9 +345,10 @@ async function finger(page) {
 // What each direction changes in the model, read from the autosave: the
 // route position for A and D, the BCD's gas for descend (the BCD's gas
 // changes only with inflate and vent, as tests/page-lifecycle.spec.js reads
-// it). Ascend has no autosave reading: a diver who has inflated at 5 m rises
-// on and ends the dive on a rapid ascent within seconds, after which nothing
-// is saved, so its effect is read from the HUD's depth while it is held.
+// it). Ascend has no reading of its effect, and is checked at its button
+// alone: a diver who has inflated rises on without any input, and ends the
+// dive on a rapid ascent within seconds, after which nothing is saved, so no
+// reading after the turns could tell a held inflate from a let-go one.
 //
 // A reading that has hit its bound proves nothing: a diver stopped by the
 // route's end or a hull holds still whether or not the direction is let go,
@@ -340,22 +358,22 @@ async function finger(page) {
 const ROUTE_MIN_POSITION_M = 8;
 const ROUTE_MAX_POSITION_M = 106;
 const offTheEnds = (position) => position > ROUTE_MIN_POSITION_M + 1 && position < ROUTE_MAX_POSITION_M - 1;
-// A vent takes src/core/buoyancy.ts ventRate 0.75 x ambient pressure 1.5 bar
-// litres per dive second, and the dive runs three real-time (src/constants.js
-// TIME_ACCELERATION = 3): 3.375 L per real second against 3.4 L of neutral
-// gas at 5 m. So the descend hold is short, under a second in all, and its
-// gas is read after the release (measured: about 2.7 L per second in practice,
-// the vent starting a frame in). More gas to hold longer is not an option: a
-// diver started with 5 L above neutral rises into a rapid ascent and the dive
-// ends (25 L too), after which nothing is saved. The reading must be above
-// `saturated`'s bound, and above what the hold would have vented had the first
-// turn let go of it.
-const VENT_L_PER_REAL_S = 0.75 * 1.5 * 3;
+// A vent takes src/core/buoyancy.ts ventRate 0.75 x ambient pressure litres
+// per dive second, and the dive runs three times real time (src/constants.js
+// TIME_ACCELERATION = 3): 7.6 L per real second at the descend case's 3.39 bar
+// (3.4 L at 5 m, which a hold of a second empties; hence the pinned start, see
+// resumeStill). Its gas is read after the release. The hold afterwards is a
+// fixed 1.2 s, and the reading must be well above `saturated`'s bound and
+// above what the hold would have vented had the first turn let go of it.
+const VENT_L_PER_REAL_S = 0.75 * 3.39 * 3;
+const HOLD_AFTER_TURNS_MS = 1200;
 const PAD = [
-  { control: 'left', read: (save) => save.routePositionM, saturated: (value) => !offTheEnds(value) },
-  { control: 'right', read: (save) => save.routePositionM, saturated: (value) => !offTheEnds(value) },
-  { control: 'ascend', vertical: -1, read: null, saturated: null },
-  { control: 'descend', vents: true, read: (save) => save.state.bcdGasSurfaceLiters, saturated: (value) => value <= 0.5 },
+  // The left case starts aft, so that its 35 m or so of swimming ends far
+  // from the route's min end; the right case starts at the middle.
+  { control: 'left', startM: 80, read: (save) => save.routePositionM, saturated: (value) => !offTheEnds(value) },
+  { control: 'right', startM: 50, read: (save) => save.routePositionM, saturated: (value) => !offTheEnds(value) },
+  { control: 'ascend', startM: 50, read: null, saturated: null },
+  { control: 'descend', startM: 50, vents: true, read: (save) => save.state.bcdGasSurfaceLiters, saturated: (value) => value <= 0.5 },
 ];
 
 // Every direction on the larger pair; one horizontal and one vertical on the
@@ -365,18 +383,17 @@ const HELD_CASES = [
   ...PAD.filter((entry) => entry.control === 'right' || entry.control === 'ascend').map((entry) => ({ pair: PAIRS[1], ...entry })),
 ];
 
-for (const { pair: { portrait, landscape }, control, vertical, vents, read, saturated } of HELD_CASES) {
+for (const { pair: { portrait, landscape }, control, startM, vents, read, saturated } of HELD_CASES) {
   for (const ending of ['lifted', 'cancelled']) {
     test.describe(`a ${control} held across a turn, ${portrait.width}x${portrait.height} and back`, () => {
       test.use({ ...PHONE, viewport: portrait });
 
       test(`should stay held through two turns and be let go when the touch is ${ending}`, async ({ page }) => {
-        const startGas = await resumeStill(page, 'rec', 50);
+        const startGas = await resumeStill(page, 'rec', startM, vents === true);
         const watched = await watchDocument(page);
         const touch = await finger(page);
 
-        const downAt = Date.now();
-        await touch.down(pad(page, control));
+        const downAt = await touch.down(pad(page, control));
         await expect(pad(page, control)).toHaveAttribute('data-held', 'true');
         await rotateTo(page, landscape);
         const firstTurnS = (Date.now() - downAt) / 1000;
@@ -387,16 +404,9 @@ for (const { pair: { portrait, landscape }, control, vertical, vents, read, satu
         // button's flag is the D-pad's own bookkeeping, which a turn that
         // cleared the controller's held set would leave showing.
         if (vents) {
-          // Held on a moment after the turns, no more (see VENT_L_PER_REAL_S).
-          await page.waitForTimeout(150);
-        } else if (vertical !== undefined) {
-          const depthNow = () => hudValue(page, 'depth').textContent()
-            .then((text) => Number.parseFloat(text.replace(',', '.')));
-          const atTurn = await depthNow();
-          await expect.poll(async () => vertical * ((await depthNow()) - atTurn), {
-            message: `${control} moves the diver, held after the turns`,
-          }).toBeGreaterThan(0.1);
-        } else {
+          // Held on after the turns; the gas it vents is read after the release.
+          await page.waitForTimeout(HOLD_AFTER_TURNS_MS);
+        } else if (read !== null) {
           const mid1 = await nextSave(page);
           const mid2 = await nextSave(page);
           expect(saturated(read(mid1)) || saturated(read(mid2)), `${control} is not at a bound while held`).toBe(false);
@@ -428,11 +438,15 @@ for (const { pair: { portrait, landscape }, control, vertical, vents, read, satu
         expect(saturated(read(first)), `${control} is not at a bound at the release`).toBe(false);
         if (vents) {
           // It vented through the turns, not only up to the first: more than
-          // the first turn's hold could have (at the vent's measured rate,
-          // three quarters of the nominal one, and 0.3 L over).
+          // the first turn's hold could have at the nominal rate, and a frame
+          // (the model's 0.1 s cap) over. Timestamps are measured, not assumed.
           const vented = startGas - read(first);
+          test.info().annotations.push({
+            type: 'vent',
+            description: `vented ${vented.toFixed(2)} L, hold ${heldS.toFixed(2)} s, first turn at ${firstTurnS.toFixed(2)} s, gas left ${read(first).toFixed(1)} L`,
+          });
           expect(vented, `gas vented over a ${heldS} s hold, first turn done at ${firstTurnS} s`)
-            .toBeGreaterThan(0.75 * VENT_L_PER_REAL_S * firstTurnS + 0.3);
+            .toBeGreaterThan(VENT_L_PER_REAL_S * (firstTurnS + 0.1));
         }
         expect(read(second), `${control} acts no more`).toBeCloseTo(read(first), 6);
         // And a rotation after the release does not hold it again.
