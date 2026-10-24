@@ -73,6 +73,8 @@ function diveRows(context: Readonly<HelpContext>): HelpRow[] {
       row("help.keys.bailout", "wreck.controls.bailout.label", "wreck.controls.bailout"),
     );
   }
+  // L, legacy's Learn button: the instructor panel (#46), while diving.
+  rows.push(row("instructor.symbol", "instructor.symbol", "instructor.open"));
   // The audio button has no key, here or in legacy.
   rows.push(row("wreck.value.unavailable", "wreck.symbol.audio", "wreck.controls.mute"));
   return rows;

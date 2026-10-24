@@ -33,7 +33,7 @@ describe("the help overlay's controls", () => {
   it("lists a recreational dive's controls, with no cylinder keys, I or loop", () => {
     expect(actions(rec)).toEqual([[
       "wreck.controls.ascend", "wreck.controls.descend", "wreck.controls.left", "wreck.controls.right",
-      "wreck.controls.torch", "wreck.controls.fastForward", "wreck.controls.mute",
+      "wreck.controls.torch", "wreck.controls.fastForward", "instructor.open", "wreck.controls.mute",
       "help.action.help", "help.action.close",
     ]]);
   });

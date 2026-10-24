@@ -676,6 +676,7 @@ summary:focus-visible {
 
 .audio-control,
 .gas-info-control,
+.instructor-control,
 .help-control {
   /* #137 §4.4.2: was 2.3rem (~37px), below this project's 44px touch-target
      standard (the same class of defect #121 fixed in the legacy client).
@@ -709,6 +710,24 @@ summary:focus-visible {
 .wreck-tank:active,
 .wreck-ccr button:active {
   filter: brightness(1.6);
+}
+
+/* Legacy's Learn button (#46): at the HUD's top right, in the stage beside
+   it, so it takes no height from the column or the dock (#160). Placed in
+   the side, whose top left is the column's. */
+.instructor-control {
+  position: absolute;
+  top: 0;
+  left: calc(var(--wreck-hud-width) + 0.5rem);
+}
+
+.instructor-control[hidden] {
+  display: none;
+}
+
+.instructor-control[aria-pressed="true"] {
+  color: #061923;
+  background: #83d9e7;
 }
 
 .audio-control[aria-pressed="true"] {
@@ -1454,6 +1473,166 @@ summary:focus-visible {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+/* Legacy's instructor panel (#160, #46). Legacy's stands at the left edge
+   with the diver centred; here the HUD holds that edge and the camera leads
+   the diver by 8 m of the 58 it shows (src/render/camera.ts), so mid-route
+   the diver is drawn at 0.362 or 0.638 of the stage's width, 2.2 m of body
+   to either side. The panel stands where that diver never is:
+   - wider than 720 px and taller than 600: at the stage's right, under the
+     topbar and above the D-pad, at most 32.5 % of the side less 1 rem wide,
+     which ends left of 0.638 + 2.2 / 58 of the stage; the hint moves over;
+   - a phone in portrait: the camera shows more than the scene's 46 m of
+     height, so it holds the scene's middle, 17 m, at the stage's middle, and
+     the diver is never lower than 50vh + (34 + 0.62 - 17) / 58 of the width
+     (34 m being the route's deepest floor): the panel stands below that and
+     below the HUD (its height kept by trackHudHeight), across the side,
+     above the D-pad and the dock, and scrolls in what is left;
+   - a short screen (#256): under the two-column HUD, in the gas page's
+     place, which hides it. */
+.instructor-panel {
+  box-sizing: border-box;
+  width: min(var(--wreck-hud-width), 100%);
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid rgb(52 230 255 / 35%);
+  border-radius: 0.75rem;
+  color: #e0f4fb;
+  background: rgb(10 18 24 / 88%);
+}
+
+.instructor-panel[hidden] {
+  display: none;
+}
+
+.instructor-heading {
+  margin: 0;
+  color: #34e6ff;
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+}
+
+.instructor-toggle-hint {
+  margin: 0 0 0.4rem;
+  color: #8fb2bd;
+  font-size: 0.68rem;
+}
+
+.instructor-panel dl {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.instructor-panel dt {
+  color: #a5cbd2;
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.instructor-panel dd {
+  margin: 0;
+}
+
+.instructor-value {
+  font-family: ui-monospace, monospace;
+  font-weight: 750;
+}
+
+.instructor-value[data-severity="caution"] {
+  color: #f6db72;
+}
+
+.instructor-value[data-severity="warning"] {
+  color: #ffb36b;
+}
+
+.instructor-value[data-severity="danger"] {
+  color: #ff9b9b;
+}
+
+.instructor-formula {
+  color: #8fb2bd;
+  font-size: 0.68rem;
+}
+
+/* The BCD's bar: at depth over the same gas at the surface, of 18 L. */
+.instructor-panel .instructor-bar {
+  position: relative;
+  height: 5px;
+  margin: 0.2rem 0;
+  background: rgb(80 100 110 / 35%);
+}
+
+.instructor-bar span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--share, 0) * 100%);
+}
+
+.instructor-bar-surface {
+  background: rgb(52 230 255 / 35%);
+}
+
+.instructor-bar-effective {
+  background: #34e6ff;
+}
+
+/* Short screens: the two-column HUD fills the column, so the button stands
+   beside the column, and under the HUD where the screen is too narrow for
+   that (320x568). */
+@media (height <= 600px) {
+  .instructor-panel {
+    width: 100%;
+  }
+
+  .instructor-control {
+    left: calc(min(var(--wreck-column-short-width), 100%) + 0.5rem);
+  }
+}
+
+@media (height <= 600px) and (width < 37.75rem) {
+  .instructor-control {
+    position: static;
+    flex-shrink: 0;
+  }
+}
+
+@media (width > 720px) and (height > 600px) {
+  .instructor-panel {
+    position: absolute;
+    top: 0.5rem;
+    right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+    width: min(15rem, 32.5% - 1rem);
+    max-height: calc(100% - 7.5rem - var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+  }
+
+  /* The same width, in the shell's terms: the side is 2.5rem narrower. */
+  .has-instructor .onboarding-hint {
+    right: calc(
+      var(--wreck-gutter) + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)) +
+        min(15rem, 32.5% - 1.8125rem) + 0.5rem
+    );
+  }
+}
+
+@media (width <= 720px) and (height > 600px) {
+  .instructor-panel {
+    --instructor-top: max(
+      50vh + 30.38vw + 0.5rem - var(--wreck-side-top),
+      var(--wreck-hud-height, 0px) + 0.5rem
+    );
+
+    position: absolute;
+    z-index: -1;
+    top: var(--instructor-top);
+    right: 0;
+    left: 0;
+    width: auto;
+    max-height: calc(100% - var(--instructor-top) - 7rem - var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

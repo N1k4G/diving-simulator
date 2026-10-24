@@ -84,6 +84,17 @@ import {
 } from "./game-controller";
 import { bindDpad, createDpadButtons, prefersArrowGlyphs } from "./touch-dpad";
 import { bindPress } from "./touch-press";
+import {
+  announceInstructor,
+  createInstructorPanel,
+  instructorAvailable,
+  instructorPanelShown,
+  isInstructorKey,
+  trackHudHeight,
+  syncInstructorPanel,
+  type InstructorPanelElements,
+} from "./instructor-panel";
+import { selectInstructorPhysics } from "../presentation/instructor-physics";
 
 interface HudElements {
   readonly shell: HTMLElement;
@@ -118,10 +129,19 @@ interface HudElements {
   readonly gasInfo: GasInfoElements;
   readonly surfacePrompt: HTMLElement;
   readonly onboardingHint: HTMLElement;
+  readonly instructor: InstructorPanelElements;
+  /** Stops keeping the HUD's height for the instructor panel's place. */
+  readonly stopHudTracking: () => void;
 }
 
 /** Legacy's hint flags, in the page's storage (#160). */
 const hintStore = createHintStore(() => window.localStorage);
+
+/**
+ * The instructor panel is on (#160, legacy's instructorMode): off on load,
+ * and kept from one dive to the next, as legacy's resetDive() keeps it.
+ */
+let instructorOn = false;
 
 const zoneMessageKeys: Record<WreckZone, MessageKey> = {
   exterior: "wreck.zone.exterior",
@@ -460,6 +480,20 @@ async function startWreckSimulation(
     // A direction held on the D-pad is let go, as under the help (#168).
     onOpen: () => dpad.releaseAll(),
   });
+  let lastFrame: Readonly<GameFrame> | null = null;
+  // The instructor panel (#160): its toggle, its place under the help and the
+  // gas page, and its values, from the state the frame was drawn from.
+  const syncInstructor = (frame: Readonly<GameFrame>) => {
+    const available = instructorAvailable(frame);
+    const shown = instructorPanelShown(instructorOn, available, { help: helpOpen, gasInfo: gasInfoPage !== null });
+    syncInstructorPanel(
+      hud.instructor,
+      { on: instructorOn, available, physics: shown ? selectInstructorPhysics(controller.authoritativeState) : null },
+      locale,
+    );
+    // Where it stands beside the HUD, the onboarding hint moves over (diagnostic.css).
+    hud.shell.classList.toggle("has-instructor", shown);
+  };
   const controller = new GameController({
     renderer,
     // The save when the diver chose to resume it, a new dive on the setup
@@ -516,6 +550,7 @@ async function startWreckSimulation(
       updateHud(hud, frame, locale);
       drillOverlay.sync(frame.drill);
       lastPresentation = frame.presentation;
+      lastFrame = frame;
       // A page the dive no longer has closes: legacy leaves infoPageMode
       // behind the game-over screen, where it is not drawn.
       if (!gasInfoPageStillValid(gasInfoPage, frame.presentation, diveMode)) {
@@ -537,6 +572,7 @@ async function startWreckSimulation(
         }),
         locale,
       );
+      syncInstructor(frame);
       audio.update({
         elapsedRealS: frame.scene.elapsedRealS,
         warningActive: isWarningBeepActive(frame.presentation),
@@ -604,6 +640,24 @@ async function startWreckSimulation(
     }
   };
   window.addEventListener("keydown", handleGasInfoKey);
+  // L and its button (#160): only while diving, as legacy's.
+  const toggleInstructor = () => {
+    if (!lastFrame || !instructorAvailable(lastFrame)) {
+      return;
+    }
+    instructorOn = !instructorOn;
+    announceInstructor(hud.instructor, instructorOn, locale);
+    syncInstructor(lastFrame);
+  };
+  // Pressed by any finger, as the other context controls (#168).
+  bindPress(hud.instructor.toggle, "button", toggleInstructor);
+  const handleInstructorKey = (event: KeyboardEvent) => {
+    if (isInstructorKey(event) && !event.repeat && lastFrame && instructorAvailable(lastFrame)) {
+      event.preventDefault();
+      toggleInstructor();
+    }
+  };
+  window.addEventListener("keydown", handleInstructorKey);
   // The help overlay (#160): H, ? or the topbar's button. Under water it
   // stops the dive while it is open, as legacy's showHelp skips
   // updateDiving().
@@ -642,6 +696,8 @@ async function startWreckSimulation(
     dpad.dispose();
     document.removeEventListener("visibilitychange", handleVisibility);
     window.removeEventListener("keydown", handleGasInfoKey);
+    window.removeEventListener("keydown", handleInstructorKey);
+    hud.stopHudTracking();
     help.destroy();
     drillOverlay.destroy();
     // Removed here too, not only by its own `once`: after a game over the
@@ -1057,13 +1113,19 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   // page sits below the readouts rather than over them (#163).
   const column = document.createElement("div");
   column.className = "wreck-column";
-  column.append(hud, gasInfo.panel);
+  // The instructor panel takes the gas page's place, which hides it (#160).
+  // Legacy's Learn button (#46, touch-dive-learn) stands at the HUD's top
+  // right (diagnostic.css): the topbar has no room left on a narrow phone
+  // (#259), and the dock none on a rebreather's.
+  const instructor = createInstructorPanel(locale);
+  column.append(hud, instructor.toggle, gasInfo.panel, instructor.panel);
 
   // The column above and the dock below share one flex column, so an open
   // page shrinks above the dock however many rows it wraps to (#168).
   const side = document.createElement("div");
   side.className = "wreck-side";
   side.append(column, dock);
+  const stopHudTracking = trackHudHeight(hud, side);
 
   // The onboarding hint (#160), where legacy draws its toast. A status
   // region written only when the hint shown changes, so each is announced
@@ -1072,7 +1134,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   onboardingHint.dataset.onboardingHint = "true";
   onboardingHint.setAttribute("role", "status");
 
-  shell.append(topbar, viewport, side, warning, onboardingHint, controls);
+  shell.append(topbar, viewport, side, warning, onboardingHint, instructor.status, controls);
   return {
     shell,
     viewport,
@@ -1105,6 +1167,8 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     gasInfo,
     surfacePrompt,
     onboardingHint,
+    instructor,
+    stopHudTracking,
   };
 }
 

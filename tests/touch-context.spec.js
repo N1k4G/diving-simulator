@@ -182,6 +182,17 @@ test.describe('a second finger, with a thumb on the D-pad', () => {
     await pressWithThumbOnPad(page, page.locator('[data-help-open]'));
     await expect(page.locator('[data-help-overlay]')).toHaveAttribute('open', '');
   });
+
+  test('toggles the instructor panel once per tap (#160)', async ({ page }) => {
+    await setUpDive(page, 'rec');
+    const learn = page.locator('[data-instructor-toggle]');
+    await pressWithThumbOnPad(page, learn);
+    await expect(learn).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('[data-instructor-panel]')).toBeVisible();
+    await pressWithThumbOnPad(page, learn);
+    await expect(learn).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('[data-instructor-panel]')).toBeHidden();
+  });
 });
 
 test.describe('one finger', () => {
@@ -256,7 +267,7 @@ async function measureGroup(page) {
   return page.evaluate(() => {
     const context = (element) =>
       element.closest('.wreck-dock, .topbar-actions') !== null ||
-      element.matches('[data-torch], [data-fast-forward]');
+      element.matches('[data-torch], [data-fast-forward], [data-instructor-toggle]');
     const all = [...document.querySelectorAll('.wreck-shell button')]
       .filter((element) => element.getClientRects().length > 0)
       .map((element) => {
@@ -297,10 +308,11 @@ async function measureGroup(page) {
 // where fast-forward joins them. Portrait phones and a desktop. Landscape is
 // #256; 320 px is #258.
 const MODES = [
-  // Six cylinders, torch, fast-forward, gas information, help, mute.
-  { mode: 'tec', tanksToAdd: 5, count: 11 },
-  // Setpoint down and up, bailout, torch, fast-forward, gas information, help, mute.
-  { mode: 'ccr', tanksToAdd: 0, count: 8 },
+  // Six cylinders, torch, fast-forward, gas information, the instructor
+  // panel's L (legacy's touch-dive-learn, #160), help, mute.
+  { mode: 'tec', tanksToAdd: 5, count: 12 },
+  // Setpoint down and up, bailout, torch, fast-forward, gas information, L, help, mute.
+  { mode: 'ccr', tanksToAdd: 0, count: 9 },
 ];
 for (const [width, height, device] of [
   [390, 844, PHONE],

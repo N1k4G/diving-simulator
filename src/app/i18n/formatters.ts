@@ -85,6 +85,21 @@ export function formatPercent(
   }).format(value);
 }
 
+/**
+ * A number to a fixed count of decimals, as legacy's toFixed() draws it, in
+ * the locale's digits: 2.0 stays "2.0" (#160, the instructor panel).
+ */
+export function formatFixed(
+  value: number,
+  digits: number,
+  locale: SupportedLocale,
+): string {
+  return new Intl.NumberFormat(localeTags[locale], {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(assertNonNegative(value, "value"));
+}
+
 /** A vertical speed in m/min, to a tenth, as legacy's fast-ascent note. */
 export function formatAscentRate(
   rateMpm: number,
