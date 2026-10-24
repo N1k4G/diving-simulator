@@ -3,6 +3,7 @@ import {
   type PlannerForecast,
 } from "../planner/dive-planner";
 import { createInitialDiveState } from "../core/dive-state";
+import { createBrowserPlatformServices } from "../platform/browser-platform";
 import "./diagnostic.css";
 import { PlannerWorkerClient } from "./planner-worker-client";
 import { renderWreckApplication } from "./wreck-app";
@@ -44,7 +45,9 @@ if (typeof document !== "undefined") {
     throw new Error("Bootstrap root #app was not found");
   }
 
-  renderWreckApplication(root);
+  // The platform's services are assembled here and nowhere else (#137 A0):
+  // a native shell assembles its own in their place.
+  renderWreckApplication(root, createBrowserPlatformServices());
 
   if (import.meta.env.DEV) {
     window.plannerWorkerDiagnostic = verifyPlannerWorker();
