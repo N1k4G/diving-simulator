@@ -1,0 +1,41 @@
+{
+  "schema": "issue-evidence/1",
+  "issue": 168,
+  "slice": "PR 3 of 3: the visibility rules per dive state and mode. Every control of the dive screen walked through the setup, the surface, under water, back at 0 m, a stop, fast-forward running, the gas page, the help, a drill's decision and debriefing, bailed out, the game over and the debriefing, in rec, tec and ccr, on a phone and a desktop, against legacy's src/touch.js; the Info button is offered at every depth of a dive under way, as legacy's 'diving' state",
+  "measuredCommit": "ed5e5093b02a351ca8d5d53af5f9a03454616a42",
+  "measuredTree": "39f03713a5484df90159c5fc39187c2368ee7c65",
+  "baseCommit": "6a61b33 (main, #267)",
+  "workingTree": "the runs in `results` ran on ed5e509's tree, unchanged; the commit after it adds only this file, which neither the build nor the tests read",
+  "build": {
+    "command": "npm ci, then npm run build (typecheck and vite build)",
+    "vite": "8.3.5",
+    "bundle": "dist/assets/index-DEDlFRpw.js, dist/assets/index-CIk597YM.css"
+  },
+  "recordedAt": "2026-10-24T09:22:44Z",
+  "environment": {
+    "os": "Windows 11 Pro 10.0.26200",
+    "node": "v26.12.0",
+    "playwright": "1.63.0",
+    "browser": "chromium headless shell (Playwright 1.63.0)",
+    "load": "machine shared with another agent's runs; one Playwright worker on a private port (8473)"
+  },
+  "results": {
+    "typecheck": { "command": "npm run typecheck", "result": "pass" },
+    "lint": { "command": "npm run lint", "result": "pass" },
+    "unit": { "command": "npx vitest run src tests/unit --maxWorkers=2 --testTimeout=60000", "result": "813 passed of 813" },
+    "build": { "command": "npm run build", "result": "pass" },
+    "e2e": {
+      "command": "npx playwright test tests/control-visibility.spec.js tests/touch-dpad.spec.js tests/touch-context.spec.js tests/in-dive-controls.spec.js tests/help-overlay.spec.js tests/drills.spec.js tests/instructor-panel.spec.js --workers=1",
+      "result": "127 passed of 127",
+      "startedAt": "2026-10-24T09:06:51Z",
+      "finishedAt": "2026-10-24T09:22:44Z"
+    }
+  },
+  "counterChecks": [
+    {
+      "change": "gasInfoAvailable() with main's condition (presentation.status !== 'diving'), rebuilt, with this PR's spec",
+      "result": "'tec: a dive under way back at 0 m keeps every control, the gas information included' and its ccr twin fail on the phone: gasInfo expected 'shown', received 'hidden'"
+    }
+  ],
+  "notRun": "the full e2e suite and pixi:visual-check; this PR draws nothing new. tests/smoke.spec.js drives the legacy client, which this PR does not touch"
+}
