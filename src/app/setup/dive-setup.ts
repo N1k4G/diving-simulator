@@ -147,6 +147,11 @@ export interface DiveSetup {
   readonly ccr: CcrSetup;
   /** Per-mode memory; see ModeSnapshot. Empty until a mode is left. */
   readonly savedModes: Readonly<Partial<Record<DiveMode, ModeSnapshot>>>;
+  /**
+   * Legacy's drillsEnabled (#160): the Training Drills toggle, off until
+   * turned on, and kept for the dives after, in every mode.
+   */
+  readonly drillsEnabled: boolean;
 }
 
 // src/constants.js: tankVolume 12, amvRate 15, gfLow 35, gfHigh 75.
@@ -165,6 +170,7 @@ export function createDefaultSetup(): DiveSetup {
     gradientFactorHigh: 75,
     ccr: createDefaultCcrSetup(),
     savedModes: Object.freeze({}),
+    drillsEnabled: false,
   });
 }
 

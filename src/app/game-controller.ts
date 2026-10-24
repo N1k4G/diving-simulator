@@ -58,6 +58,23 @@ import {
   type HintStore,
   type HintsState,
 } from "./onboarding-hints";
+import {
+  NO_DRILL,
+  applyDrillEffect,
+  dismissDrillDebrief,
+  drillFailsScrubber,
+  drillPausesDive,
+  drillTriggerChance,
+  expireDrillEffects,
+  isDrillEligible,
+  pickDrill,
+  resolveDrillOption,
+  startDrill,
+  tickDrillDebrief,
+  visibleDrillOptions,
+  type DrillId,
+  type DrillState,
+} from "../core/drills";
 
 const FIN_SPEED_MPS = 5;
 /** src/game-loop.js gameLoop(): `dtReal = Math.min(dtReal, 0.1)`. */
@@ -134,6 +151,19 @@ export interface GameFrame {
   readonly awaitingDescent: boolean;
   /** The onboarding hint showing (#160), with its real seconds left; null between them. */
   readonly hint: Readonly<{ id: HintId; serial: number; remainingS: number }> | null;
+  /** The training drill stopping the dive (#160), null while none does. */
+  readonly drill: Readonly<DrillFrame> | null;
+}
+
+/**
+ * A drill's decision or its debriefing (#160): which drill, the options
+ * offered by their place in the catalogue, and whether the one picked was right.
+ */
+export interface DrillFrame {
+  readonly id: DrillId;
+  readonly phase: "overlay" | "debrief";
+  readonly options: readonly number[];
+  readonly correct: boolean;
 }
 
 export interface GameControllerOptions {
@@ -158,6 +188,10 @@ export interface GameControllerOptions {
   readonly onAuthoritativeState?: (state: DiveState, routePositionM: number) => void;
   /** Which onboarding hints are seen or dismissed (#160); none show without it. */
   readonly hintStore?: HintStore;
+  /** The setup screen's Training Drills (#160); none fire without it. */
+  readonly drillsEnabled?: boolean;
+  /** The drills' rolls, Math.random as legacy's, which the dive's seed does not drive. */
+  readonly random?: () => number;
 }
 
 export class GameController {
@@ -222,6 +256,9 @@ export class GameController {
   #hints: HintsState = NO_HINTS;
   /** The previous frame's overhead, which legacy's hint triggers read (#160). */
   #inOverhead = false;
+  readonly #drillsEnabled: boolean;
+  readonly #random: () => number;
+  #drill: DrillState = NO_DRILL;
   #lastFrame: Readonly<GameFrame> | null = null;
   #lastFrameMs: number | null = null;
   #animationFrame = 0;
@@ -236,6 +273,8 @@ export class GameController {
     this.#plannerClient = options.plannerClient ?? new PlannerWorkerClient();
     this.#plannerSettings = options.plannerSettings ?? DEFAULT_PLANNER_SETTINGS;
     this.#hintStore = options.hintStore ?? NO_HINT_STORE;
+    this.#drillsEnabled = options.drillsEnabled ?? false;
+    this.#random = options.random ?? Math.random;
     const initialState = options.initialState ?? createWreckInitialState();
     // A dive resumed inside the wreck stays there (#222), and with it the
     // overhead and its rule of thirds, which follow from the position.
@@ -316,7 +355,7 @@ export class GameController {
   }
 
   setControl(control: ContinuousControl, active: boolean): void {
-    if (active && this.#paused) {
+    if (active && this.#halted()) {
       return;
     }
     if (active) {
@@ -349,7 +388,7 @@ export class GameController {
    * once it has ended (#223 Codex round 1).
    */
   toggleTorch(): void {
-    if (this.#paused || !this.#torchAvailable()) {
+    if (this.#halted() || !this.#torchAvailable()) {
       return;
     }
     this.#torchOn = !this.#torchOn;
@@ -371,7 +410,7 @@ export class GameController {
    * or approximated.
    */
   toggleFastForward(): void {
-    if (this.#paused || !this.#fastForwardAvailable()) {
+    if (this.#halted() || !this.#fastForwardAvailable()) {
       return;
     }
     this.#fastForwardActive = !this.#fastForwardActive;
@@ -396,7 +435,7 @@ export class GameController {
   requestTankSwitch(index: number): void {
     // Legacy reads the digit keys only in updateDiving(), never at the
     // surface (#223 pre-review).
-    if (!Number.isInteger(index) || index < 0 || this.#awaitingDescent || this.#paused) {
+    if (!Number.isInteger(index) || index < 0 || this.#awaitingDescent || this.#halted()) {
       return;
     }
     this.#pendingGasSwitches.add(index);
@@ -411,7 +450,7 @@ export class GameController {
    */
   adjustSetpoint(deltaBar: number): void {
     // Only in updateDiving(), as the cylinder keys (#223 pre-review).
-    if (this.#awaitingDescent || this.#paused) {
+    if (this.#awaitingDescent || this.#halted()) {
       return;
     }
     if (deltaBar < 0) {
@@ -431,7 +470,7 @@ export class GameController {
   bailOut(): void {
     // Only in updateDiving(): at the surface an irreversible bailout would
     // otherwise begin the dive on open circuit (#223 pre-review).
-    if (this.#awaitingDescent || this.#paused) {
+    if (this.#awaitingDescent || this.#halted()) {
       return;
     }
     this.#pendingBailout = true;
@@ -447,6 +486,38 @@ export class GameController {
     if (this.#lastFrame && !this.#disposed) {
       this.#publishFrame();
     }
+  }
+
+  /**
+   * Picks a drill's option (#160), by its place among those offered: legacy's
+   * 1 / 2 / 3 or a tap on its row (resolveDrillOption). Its effect is applied
+   * at once, with the dive still stopped, and the debriefing goes up. A
+   * cylinder, a setpoint or a bailout is the model's own act, refused where
+   * the model refuses it.
+   */
+  chooseDrillOption(index: number): void {
+    const before = this.#model.snapshot;
+    const resolved = resolveDrillOption(this.#drill, index, before);
+    if (this.#paused || !resolved) {
+      return;
+    }
+    this.#drill = resolved.drill;
+    applyDrillEffect(this.#model, resolved);
+    if (this.#model.snapshot !== before) {
+      this.#onAuthoritativeState?.(this.#model.snapshot, this.#routePositionM);
+      this.#invalidateForecast();
+    }
+    this.#publishFrame();
+  }
+
+  /** Ends a drill's debriefing (#160): legacy's Enter or a tap, and the dive runs on. */
+  dismissDrillDebrief(): void {
+    const next = dismissDrillDebrief(this.#drill);
+    if (this.#paused || next === this.#drill) {
+      return;
+    }
+    this.#drill = next;
+    this.#publishFrame();
   }
 
   destroy(): void {
@@ -481,6 +552,22 @@ export class GameController {
         ? 0
         : Math.min(MAX_FRAME_SECONDS, (nowMs - this.#lastFrameMs) / 1000);
     this.#lastFrameMs = nowMs;
+    if (drillPausesDive(this.#drill)) {
+      // Legacy's 'drill' state (#160): no physics and no clock, but real time
+      // runs the debriefing down, and the dive computer is still drawn, so a
+      // warning goes on beeping: the last frame again, until the drill's
+      // phase changes.
+      const next = tickDrillDebrief(this.#drill, elapsedS);
+      const changed = next.phase !== this.#drill.phase;
+      this.#drill = next;
+      if (changed || !this.#lastFrame) {
+        this.#publishFrame();
+      } else {
+        this.#onFrame(this.#lastFrame);
+      }
+      this.#animationFrame = requestAnimationFrame(this.#tick);
+      return;
+    }
     const fromPositionM = this.#routePositionM;
     const controls = this.#frameControls(elapsedS);
     this.#advanceView(elapsedS, controls);
@@ -506,9 +593,29 @@ export class GameController {
       );
       const acts = this.#takeActs();
       const before = this.#model.snapshot;
-      // Legacy's hint pump and triggers run at the top of updateDiving(), on
-      // the state the previous frame left, its overhead included (#160).
       if (!isDiveOver(before)) {
+        // Legacy's drills at the top of updateDiving(), before its hints
+        // (#160): a free-flow past its end stops, and an eligible dive rolls
+        // for a drill on the dive time the frame has reached. The frame that
+        // starts one still runs, as legacy's does; the next stops for it.
+        const diveTimeS = before.elapsedTimeS + frameDiveS;
+        this.#drill = expireDrillEffects(this.#drill, diveTimeS);
+        if (
+          isDrillEligible(this.#drill, this.#drillsEnabled, before, diveTimeS) &&
+          this.#random() < drillTriggerChance(elapsedS)
+        ) {
+          const id = pickDrill(before, this.#random);
+          if (id) {
+            this.#drill = startDrill(this.#drill, id);
+            if (drillFailsScrubber(id)) {
+              this.#model.failScrubber();
+            }
+            // Its decision takes the keys, as the help does.
+            this.#pressed.clear();
+          }
+        }
+        // Legacy's hint pump and triggers run at the top of updateDiving(), on
+        // the state the previous frame left, its overhead included (#160).
         this.#hints = stepHints(
           this.#hints,
           {
@@ -539,6 +646,7 @@ export class GameController {
         ),
         elapsedS,
         acts,
+        this.#drill,
       );
       this.#inOverhead = space.inOverhead;
       const after = this.#model.snapshot;
@@ -792,8 +900,23 @@ export class GameController {
       hint: this.#hints.shown
         ? Object.freeze({ ...this.#hints.shown })
         : null,
+      drill: this.#drillFrame(),
     });
     this.#onFrame(this.#lastFrame);
+  }
+
+  #drillFrame(): DrillFrame | null {
+    const { id, phase, correct } = this.#drill;
+    if (id === null || (phase !== "overlay" && phase !== "debrief")) {
+      return null;
+    }
+    const options = visibleDrillOptions(id, this.#model.snapshot.tanks.length);
+    return Object.freeze({ id, phase, options, correct });
+  }
+
+  /** The help overlay or a drill has stopped the dive, and takes its intents. */
+  #halted(): boolean {
+    return this.#paused || drillPausesDive(this.#drill);
   }
 
   /**
@@ -877,7 +1000,7 @@ export class GameController {
     // movement keys and T are left to whatever else wants them, as every
     // other dive key is (#223 pre-review). Nor does a paused one, whose
     // keys belong to the help overlay (#160).
-    if (this.#paused || isDiveOver(this.#model.snapshot)) {
+    if (this.#halted() || isDiveOver(this.#model.snapshot)) {
       return;
     }
     const control = controlForKey(event.key);

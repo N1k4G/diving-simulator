@@ -31,6 +31,7 @@ import type { CcrState, DiveState, TankState } from "../../core/dive-state";
 export function setupFromSave(
   save: Readonly<SaveGame>,
   savedModes: DiveSetup["savedModes"] = Object.freeze({}),
+  drillsEnabled = false,
 ): DiveSetup {
   const { state } = save;
   const mode = save.diveMode;
@@ -52,6 +53,8 @@ export function setupFromSave(
     gradientFactorHigh: save.gradientFactors.highPercent,
     ccr: state.ccr ? ccrSetupFromSave(state.ccr) : createDefaultCcrSetup(),
     savedModes,
+    // Legacy saves no drillsEnabled: the toggle as the screen shows it.
+    drillsEnabled,
   });
 }
 

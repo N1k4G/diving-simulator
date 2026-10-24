@@ -85,8 +85,8 @@
     {
       "id": "CCR-001",
       "classification": "equipment behavior, failure, and bailout advice",
-      "source": ["STRINGS.*.helpCcr", "STRINGS.*.ccrCO2", "STRINGS.*.drills.co2.*", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.ccrCo2", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.alert.co2", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.status.co2", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.alert.scrubberLow", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.status.scrubberLow", "src/app/i18n/catalog.ts {en,de}: wreck.controls.bailout"],
-      "ui": ["help", "CCR HUD", "training drill", "game over (migration client)", "CCR HUD (migration client)"],
+      "source": ["STRINGS.*.helpCcr", "STRINGS.*.ccrCO2", "STRINGS.*.drills.co2.*", "src/app/i18n/catalog.ts {en,de}: gameOver.reason.ccrCo2", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.alert.co2", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.status.co2", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.alert.scrubberLow", "src/app/i18n/catalog.ts {diveComputer, #232}: diveComputer.status.scrubberLow", "src/app/i18n/catalog.ts {en,de}: wreck.controls.bailout", "src/app/i18n/catalog.ts {en,de}: drill.co2.*"],
+      "ui": ["help", "CCR HUD", "training drill", "game over (migration client)", "CCR HUD (migration client)", "training drill (migration client)"],
       "owner": "domain-reviewer",
       "reviewStatus": "unreviewed",
       "evidence": ["docs/research/ccr-rebreather-operations.md"]
@@ -103,8 +103,8 @@
     {
       "id": "DRILL-FREEFLOW-001",
       "classification": "regulator emergency training advice",
-      "source": ["STRINGS.*.drills.freeflow.*"],
-      "ui": ["training drill"],
+      "source": ["STRINGS.*.drills.freeflow.*", "src/app/i18n/catalog.ts {en,de}: drill.freeflow.*"],
+      "ui": ["training drill", "training drill (migration client)"],
       "owner": "domain-reviewer",
       "reviewStatus": "unreviewed",
       "evidence": []
