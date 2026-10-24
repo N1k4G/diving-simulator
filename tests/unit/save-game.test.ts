@@ -1750,6 +1750,80 @@ describe("SaveGame gradient factors", () => {
     });
   });
 
+  describe("the drill's outcome in the log (#160, v20)", () => {
+    type Encoded = { version: number; state: { log: { entries: Record<string, unknown>[] } } };
+    /** Seven minutes in at 20 m on one cylinder, with the free-flow drill answered by holding the breath. */
+    const answered = () => {
+      const model = new DiveModel(
+        freezeDiveState({ ...createInitialDiveState(181), elapsedTimeS: seconds(420), depthM: metres(20), maxDepthM: metres(20) }),
+      );
+      model.recordDrillOutcome("freeflow", 1, false);
+      return model.snapshot;
+    };
+    const encode = (state: DiveState = answered()) =>
+      JSON.parse(encodeSaveGame(createSaveGame(state, CONSERVATIVE_FACTORS, 1_735_689_600_000))) as Encoded;
+    const OUTCOME = { kind: "drill-outcome", elapsedTimeS: 420, drillId: "freeflow", option: 1, correct: false };
+
+    it("round-trips the entry the model logs", () => {
+      const encoded = encode();
+      expect(encoded.version).toBe(CURRENT_SAVE_GAME_VERSION);
+      expect(encoded.state.log.entries).toEqual([OUTCOME]);
+      const result = decodeSaveGame(JSON.stringify(encoded));
+      expect(result.ok && result.saveGame.state).toEqual(answered());
+    });
+
+    it("drops one from a v19 save, which never logged one, and keeps the dive", () => {
+      const v19 = encode();
+      v19.version = 19;
+      const result = decodeSaveGame(JSON.stringify(v19));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.migratedFrom).toBe("save-game-v19");
+      expect(result.saveGame.state.log.entries).toEqual([]);
+    });
+
+    it("refuses a log with an entry the model could not have logged", () => {
+      for (const change of [
+        { drillId: "lightFailure" },
+        // The co2 drill is a rebreather's.
+        { drillId: "co2" },
+        // One cylinder offers two options: breathe through and hold the breath.
+        { option: 2 },
+        { option: -1 },
+        { option: 0.5 },
+        // Holding the breath is wrong, breathing through right.
+        { correct: true },
+        { option: 0, correct: false },
+        { correct: "false" },
+        { elapsedTimeS: 421 },
+      ]) {
+        const save = encode();
+        save.state.log.entries[0] = { ...OUTCOME, ...change };
+        expect(decodeSaveGame(JSON.stringify(save)).ok, JSON.stringify(change)).toBe(false);
+      }
+      // One drill a dive.
+      const twice = encode();
+      twice.state.log.entries.push({ ...OUTCOME });
+      expect(decodeSaveGame(JSON.stringify(twice)).ok).toBe(false);
+      // A right answer on a dive with a backup cylinder.
+      const backup = encode(freezeDiveState({ ...answered(), tanks: [...answered().tanks, createTankState(createGasMix(0.21, 0))], log: createEmptyDiveLog() }));
+      backup.state.log.entries[0] = { ...OUTCOME, option: 1, correct: true };
+      expect(decodeSaveGame(JSON.stringify(backup)).ok).toBe(true);
+    });
+
+    it("keeps a legacy save's drillOutcome as the model logs it, but the cave's", () => {
+      const openCircuit = { ...legacyV2Save(), diveMode: "rec", ccrState: undefined };
+      const decoded = (value: unknown) => {
+        const result = decodeSaveGame(JSON.stringify({ ...openCircuit, diveEvents: [{ t: 7, kind: "drillOutcome", value }] }));
+        expect(result.ok).toBe(true);
+        return result.ok ? result.saveGame.state.log.entries : null;
+      };
+      expect(decoded({ id: "freeflow", option: 1, correct: false })).toEqual([OUTCOME]);
+      expect(decoded({ id: "lightFailure", option: 0, correct: true })).toEqual([]);
+      expect(decoded({ id: "freeflow", option: 1, correct: true })).toEqual([]);
+    });
+  });
+
   describe("the dive mode", () => {
     const singleCylinder = () =>
       createInitialDiveState(81, {

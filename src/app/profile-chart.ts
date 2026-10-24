@@ -8,8 +8,12 @@
 // the phone. The plot is one image to assistive technology, named by a
 // sentence that says what it shows; the markers carry the numbers of the
 // violations list beside it, so the list is the chart's text equivalent.
-import type { DiveLogEntry } from "../core/dive-state";
+// A training drill's dot (#160) is not a violation and has no number: the
+// sentence names the drill, its time and its verdict.
+import type { DiveProfileSample, DiveViolationEntry } from "../core/dive-state";
+import type { DrillId } from "../core/drills";
 import type { PostDiveSummary } from "../presentation/post-dive-summary";
+import { DRILL_MESSAGES } from "./drill-overlay";
 import { element, section } from "./game-over";
 import { translate, type MessageKey, type SupportedLocale } from "./i18n/catalog";
 import { formatDepth, formatDuration } from "./i18n/formatters";
@@ -25,8 +29,17 @@ const VIEW_H = 400;
 export interface ProfileMarker {
   /** The entry's place in the violations list, from 1. */
   readonly number: number;
-  readonly kind: DiveLogEntry["kind"];
+  readonly kind: DiveViolationEntry["kind"];
   /** Position in the plot, as fractions of its width and height. */
+  readonly x: number;
+  readonly y: number;
+}
+
+/** A training drill's outcome (#160), legacy's red dot for drillOutcome. */
+export interface DrillMarker {
+  readonly drillId: DrillId;
+  readonly elapsedTimeS: number;
+  readonly correct: boolean;
   readonly x: number;
   readonly y: number;
 }
@@ -42,6 +55,18 @@ export interface ProfileChartGeometry {
   readonly ceiling: readonly (readonly (readonly [number, number])[])[];
   readonly deepestCeilingM: number;
   readonly markers: readonly ProfileMarker[];
+  readonly drillMarkers: readonly DrillMarker[];
+}
+
+/** Legacy's depth for an event: the profile sample nearest its time, the earlier on a tie. */
+function nearestSample(profile: readonly Readonly<DiveProfileSample>[], timeS: number): Readonly<DiveProfileSample> {
+  let nearest = profile[0]!;
+  for (const sample of profile) {
+    if (Math.abs(sample.elapsedTimeS - timeS) < Math.abs(nearest.elapsedTimeS - timeS)) {
+      nearest = sample;
+    }
+  }
+  return nearest;
 }
 
 /**
@@ -85,14 +110,14 @@ export function profileChartGeometry(summary: PostDiveSummary): ProfileChartGeom
       const [x, y] = at(last.elapsedTimeS, SKIPPED_STOP_MARKER_DEPTH_M);
       return { number: index + 1, kind: entry.kind, x, y };
     }
-    let nearest = profile[0]!;
-    for (const sample of profile) {
-      if (Math.abs(sample.elapsedTimeS - entry.elapsedTimeS) < Math.abs(nearest.elapsedTimeS - entry.elapsedTimeS)) {
-        nearest = sample;
-      }
-    }
-    const [x, y] = at(entry.elapsedTimeS, nearest.depthM);
+    const [x, y] = at(entry.elapsedTimeS, nearestSample(profile, entry.elapsedTimeS).depthM);
     return { number: index + 1, kind: entry.kind, x, y };
+  });
+  // Legacy draws a drill's outcome as it draws every event: a red dot at its
+  // time, at the depth of the nearest sample.
+  const drillMarkers = summary.drillOutcomes.map((entry) => {
+    const [x, y] = at(entry.elapsedTimeS, nearestSample(profile, entry.elapsedTimeS).depthM);
+    return { drillId: entry.drillId, elapsedTimeS: entry.elapsedTimeS, correct: entry.correct, x, y };
   });
 
   return {
@@ -103,6 +128,7 @@ export function profileChartGeometry(summary: PostDiveSummary): ProfileChartGeom
     ceiling,
     deepestCeilingM,
     markers,
+    drillMarkers,
   };
 }
 
@@ -156,15 +182,27 @@ export function renderProfileChart(summary: PostDiveSummary, locale: SupportedLo
     dot.style.top = `${(marker.y * 100).toFixed(2)}%`;
     area.append(dot);
   }
+  for (const marker of geometry.drillMarkers) {
+    const dot = element("span", "profile-marker profile-marker-drill", "");
+    dot.dataset.marker = "drill-outcome";
+    dot.style.left = `${(marker.x * 100).toFixed(2)}%`;
+    dot.style.top = `${(marker.y * 100).toFixed(2)}%`;
+    area.append(dot);
+  }
 
   const legend = document.createElement("ul");
   legend.className = "profile-legend";
   legend.setAttribute("aria-hidden", "true");
-  for (const [className, key] of [
+  const keys: [string, MessageKey][] = [
     ["profile-key-depth", "postDive.profile.key.depth"],
     ["profile-key-ceiling", "postDive.profile.key.ceiling"],
     ["profile-key-marker", "postDive.profile.key.marker"],
-  ] as const) {
+  ];
+  // The drill's key only on a dive that ran one.
+  if (geometry.drillMarkers.length > 0) {
+    keys.push(["profile-key-drill", "postDive.profile.key.drill"]);
+  }
+  for (const [className, key] of keys) {
     legend.append(element("li", className, t(key)));
   }
 
@@ -188,7 +226,13 @@ function altText(geometry: ProfileChartGeometry, summary: PostDiveSummary, local
     : count === 1
       ? translate(locale, "postDive.profile.alt.marker")
       : translate(locale, "postDive.profile.alt.markers").replace("{count}", String(count));
-  return [text, ceiling, markers].filter(Boolean).join(" ");
+  const drills = geometry.drillMarkers.map((marker) =>
+    translate(locale, "postDive.profile.alt.drill")
+      .replace("{time}", formatDuration(marker.elapsedTimeS, locale))
+      .replace("{title}", translate(locale, DRILL_MESSAGES[marker.drillId].titleKey))
+      .replace("{verdict}", translate(locale, marker.correct ? "drill.debrief.correct" : "drill.debrief.wrong")),
+  );
+  return [text, ceiling, markers, ...drills].filter(Boolean).join(" ");
 }
 
 function svgElement(

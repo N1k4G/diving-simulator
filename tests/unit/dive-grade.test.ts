@@ -9,6 +9,7 @@ import {
   createTankState,
   freezeDiveState,
   type DiveLogEntry,
+  type DiveViolationEntry,
   type DiveProfileSample,
   type DiveState,
 } from "../../src/core/dive-state";
@@ -28,7 +29,7 @@ function withLog(entries: DiveLogEntry[], minNdlMin: number | null = null, profi
   return freezeDiveState({ ...base, log: { ...base.log, entries, minNdlMin, profile } });
 }
 
-const entry = (kind: DiveLogEntry["kind"], value: number, at = 60): DiveLogEntry => ({ kind, elapsedTimeS: seconds(at), value });
+const entry = (kind: DiveViolationEntry["kind"], value: number, at = 60): DiveViolationEntry => ({ kind, elapsedTimeS: seconds(at), value });
 
 /** A profile sampled every 2 s at the given depths. */
 const profileOf = (depths: number[]): DiveProfileSample[] =>

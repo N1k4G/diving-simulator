@@ -7,7 +7,7 @@ import {
   freezeDiveState,
   type DiveLog,
   type DiveFailureReason,
-  type DiveLogEntry,
+  type DiveViolationEntry,
   type DiveState,
   type SharkState,
   type TissueState,
@@ -350,7 +350,7 @@ function failureReasonFromLegacy(gameOverReason: string | null | undefined): Div
   throw new Error(`Unsupported legacy game over: ${gameOverReason}`);
 }
 
-const LEGACY_ENTRY_KINDS: Readonly<Record<string, DiveLogEntry["kind"]>> = {
+const LEGACY_ENTRY_KINDS: Readonly<Record<string, DiveViolationEntry["kind"]>> = {
   fastAscent: "fast-ascent",
   ceilingViolation: "ceiling-violation",
   safetyStopSkipped: "safety-stop-skipped",
@@ -363,8 +363,8 @@ const LEGACY_ENTRY_KINDS: Readonly<Record<string, DiveLogEntry["kind"]>> = {
 
 export function logEntriesFromLegacyEvents(
   events: readonly { t: number; kind: string; value: unknown }[],
-): DiveLogEntry[] {
-  const entries: DiveLogEntry[] = [];
+): DiveViolationEntry[] {
+  const entries: DiveViolationEntry[] = [];
   for (const event of events) {
     const kind = LEGACY_ENTRY_KINDS[event.kind];
     if (kind === undefined) {

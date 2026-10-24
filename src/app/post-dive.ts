@@ -11,7 +11,7 @@
 // screen does not mark those categories: no shipped writer produces such a
 // save, since the migration client is unreachable until #170.
 import type { GradeScore } from "../core/dive-grade";
-import type { DiveLogEntry, GasMix } from "../core/dive-state";
+import type { DiveViolationEntry, GasMix } from "../core/dive-state";
 import type { PostDiveSummary } from "../presentation/post-dive-summary";
 import { formatGradeNote, gradeLabel } from "./debrief-grade";
 import { element, section } from "./game-over";
@@ -279,7 +279,7 @@ function mixLabel(gas: Readonly<GasMix>, locale: SupportedLocale): string {
  * and they say what each dot is.
  */
 function violationSection(
-  violations: readonly Readonly<DiveLogEntry>[],
+  violations: readonly Readonly<DiveViolationEntry>[],
   locale: SupportedLocale,
 ): HTMLElement {
   const t = (key: MessageKey) => translate(locale, key);
@@ -308,7 +308,7 @@ function violationSection(
   return wrapper;
 }
 
-function violationText(entry: Readonly<DiveLogEntry>, locale: SupportedLocale): string {
+function violationText(entry: Readonly<DiveViolationEntry>, locale: SupportedLocale): string {
   switch (entry.kind) {
     case "fast-ascent":
       return translate(locale, "postDive.violation.fastAscent")

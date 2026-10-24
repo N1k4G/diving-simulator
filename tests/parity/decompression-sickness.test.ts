@@ -7,7 +7,7 @@ import {
   type LegacyTissueCheckpoint,
 } from "../../src/app/legacy-dive-adapter";
 import { DCS_VIOLATION_FAILURE_SECONDS, advanceDiveStep } from "../../src/core/dive-model";
-import type { DiveState } from "../../src/core/dive-state";
+import { isViolationEntry, type DiveState } from "../../src/core/dive-state";
 import { metres, seconds } from "../../src/core/units";
 
 // Decompression sickness (#199) against the legacy client: its DCS timer,
@@ -64,7 +64,7 @@ function replayFrom(scenarioId: string, startId: string): DiveState {
     expect(state.log.entries.map((entry) => entry.kind), `entry kinds at ${where}`).toEqual(
       expected.map((entry) => entry.kind),
     );
-    state.log.entries.forEach((entry, index) => {
+    state.log.entries.filter(isViolationEntry).forEach((entry, index) => {
       expect(Math.abs(entry.elapsedTimeS - expected[index]!.elapsedTimeS) / 60, `entry ${index} time at ${where}`)
         .toBeLessThanOrEqual(eps.default);
       expect(Math.abs(entry.value - expected[index]!.value), `entry ${index} value at ${where}`)

@@ -18,12 +18,14 @@ import {
   type DiveEvent,
   type DiveFailureReason,
   type DiveProfileSample,
+  type DrillOutcomeEntry,
   type RuleOfThirdsState,
   type SafetyStopState,
   type DiveState,
   type GasMix,
 } from "./dive-state";
 import { NO_ACTS, NO_INPUT, hasActs, type DiveActs, type InputIntent } from "./inputs";
+import type { DrillId } from "./drills";
 import { nextRandom } from "./rng";
 import {
   narcosisDriftStep,
@@ -395,6 +397,22 @@ export class DiveModel {
       ...this.#state,
       ccr: { ...ccr, scrubberFailed: true, co2BuildupS: seconds(0) },
     });
+    return this.#state;
+  }
+
+  /**
+   * Logs a training drill's outcome (#160), as legacy's resolveDrillOption()
+   * pushes its drillOutcome event to diveEvents after the option's effect:
+   * at the dive time the drill stopped the dive at, with the drill, the
+   * option's place among those offered and its verdict.
+   */
+  recordDrillOutcome(drillId: DrillId, option: number, correct: boolean): DiveState {
+    const state = this.#state;
+    if (isDiveOver(state)) {
+      return state;
+    }
+    const entry: DrillOutcomeEntry = { kind: "drill-outcome", elapsedTimeS: state.elapsedTimeS, drillId, option, correct };
+    this.#state = freezeDiveState({ ...state, log: { ...state.log, entries: [...state.log.entries, entry] } });
     return this.#state;
   }
 

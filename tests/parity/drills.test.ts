@@ -297,10 +297,12 @@ describe("the training drills against legacy's own functions (#160)", () => {
     theirs.ccrState.co2BuildupTime = before.ccr ? 40 : 0;
     expect(state.ccr?.scrubberFailed ?? false).toBe(theirs.ccrState.scrubberFailed);
     const ours = resolveDrillOption(startDrill(NO_DRILL, id), index, state);
+    const eventsBefore = theirs.diveEvents.length;
     expect(ours !== null).toBe(legacy.resolveDrillOption(index));
     const after = legacy.read();
     if (!ours) {
       expect(after.drillState.phase).toBe("overlay");
+      expect(after.diveEvents).toHaveLength(eventsBefore);
       return;
     }
     expect(index).toBeLessThan(visibleDrillOptions(id, state.tanks.length).length);
@@ -319,12 +321,18 @@ describe("the training drills against legacy's own functions (#160)", () => {
       freeflowTankIndex: after.drillState.freeflowDrainTankIdx,
       breathHoldUntilS: after.drillState.breathHoldUntilDiveSec,
     });
-    // The departure (docs/decisions.md): legacy logs the outcome to
-    // diveEvents, where its profile draws it; the model's log does not.
-    expect(after.diveEvents.at(-1)).toMatchObject({ kind: "drillOutcome", value: { id, option: index, correct: ours.drill.correct } });
+    // TC-45-DIVE-EVENT-LOGGED: legacy logs exactly one drillOutcome event to
+    // diveEvents, where its profile draws it, and the model logs the same
+    // outcome to its dive log, at the same dive time.
+    expect(after.diveEvents).toHaveLength(eventsBefore + 1);
+    const event = after.diveEvents.at(-1) as { t: number; kind: string; value: { id: string; option: number; correct: boolean } };
+    expect(event).toMatchObject({ kind: "drillOutcome", value: { id, option: index, correct: ours.drill.correct } });
     const model = new DiveModel(state);
     applyDrillEffect(model, ours);
-    expect(model.snapshot.log.entries).toEqual(state.log.entries);
+    expect(model.snapshot.log.entries).toEqual([
+      ...state.log.entries,
+      { kind: "drill-outcome", elapsedTimeS: event.t * 60, drillId: event.value.id, option: event.value.option, correct: event.value.correct },
+    ]);
     expect(model.snapshot.activeTankIndex).toBe(after.activeTank);
     expect({
       onBailout: model.snapshot.ccr?.onBailout ?? false,

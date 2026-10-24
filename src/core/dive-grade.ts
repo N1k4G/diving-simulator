@@ -3,7 +3,7 @@
 // sub-scores, each with a note, an overall score and stars. The notes are
 // keys with their numbers; the text is the app's (src/app/debrief-grade.ts),
 // so this module holds no user-facing strings.
-import type { DiveState } from "./dive-state";
+import { isViolationEntry, type DiveState } from "./dive-state";
 
 /** src/constants.js GRADE_* */
 export const GRADE_STAR_1_MIN = 50;
@@ -64,7 +64,9 @@ export interface GradeContext {
 const clamp = (value: number) => Math.max(0, Math.min(100, value));
 
 export function gradeDive(state: DiveState, context: Readonly<GradeContext>): DiveGrade {
-  const entries = state.log.entries;
+  // Legacy's gradeDive() reads fast ascents and ceiling violations only; a
+  // drill's outcome (#160) is not graded.
+  const entries = state.log.entries.filter(isViolationEntry);
 
   // 1. Ascent discipline: points off per fast ascent, the note with the peak.
   const fastAscents = entries.filter((entry) => entry.kind === "fast-ascent");

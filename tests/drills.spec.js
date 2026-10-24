@@ -187,6 +187,95 @@ test('reloaded at its decision, the dive resumes the drill, which is answered an
   expect(saved).toMatchObject({ id: 'freeflow', ranThisDive: true, correct: true, freeflowTankIndex: 0 });
 });
 
+test('the drill\'s outcome is legacy\'s dot on the post-dive profile at its time, out of the violations and the grade', async ({ page }) => {
+  await offerDiveUnderWay(page, 'rec', false);
+  await page.locator('[data-setup-drills]').click();
+  await page.locator('[data-resume-continue]').click();
+  const decision = page.getByRole('dialog', { name: '⚠ TRAINING DRILL Regulator Free-Flow' });
+  await expect(decision).toBeVisible({ timeout: 20_000 });
+  await page.keyboard.press('2');
+  await expect(page.getByRole('dialog', { name: 'DEBRIEFING — Regulator Free-Flow Suboptimal choice' })).toBeVisible();
+  await page.keyboard.press('Enter');
+  // The model logged the outcome, and the autosave carries it.
+  const saved = await page
+    .waitForFunction((key) => {
+      const parsed = JSON.parse(window.localStorage.getItem(key) ?? 'null');
+      return parsed?.state.log.entries.some((entry) => entry.kind === 'drill-outcome') ? parsed : null;
+    }, SAVE_KEY, { timeout: 10_000 })
+    .then((handle) => handle.jsonValue());
+  const outcome = saved.state.log.entries.find((entry) => entry.kind === 'drill-outcome');
+  expect(outcome).toMatchObject({ drillId: 'freeflow', option: 1, correct: false });
+  expect(outcome.elapsedTimeS).toBeGreaterThanOrEqual(240);
+
+  // The dive then ends at the surface, as tests/post-dive.spec.js ends one:
+  // 25.5 minutes at 20 m, a fast ascent 90 s before the end and the safety
+  // stop skipped, the drill's entry kept where the model logged it.
+  const endS = 1530;
+  const profile = [];
+  for (let t = 0; t <= endS; t += 2) {
+    profile.push({ elapsedTimeS: t, depthM: t < 120 ? (20 * t) / 120 : t < endS - 150 ? 20 : (20 * (endS - t)) / 150, ceilingM: 0 });
+  }
+  Object.assign(saved.state, {
+    elapsedTimeS: endS,
+    depthM: 0.1,
+    verticalVelocityMpm: 0,
+    completed: true,
+    thirds: { startingGasL: 0, turnWarned: false, reserveHit: false },
+    safetyStop: { needed: true, countdownStarted: true, remainingS: 150, paused: true, complete: false },
+  });
+  Object.assign(saved.state.log, {
+    entries: [outcome, { kind: 'fast-ascent', elapsedTimeS: endS - 90, value: 14.2 }, { kind: 'safety-stop-skipped', elapsedTimeS: endS, value: 0 }],
+    ascentRateMpm: 0,
+    fastAscentS: 0,
+    fastAscentPeakMpm: 0,
+    fastAscentLatched: false,
+    ceilingViolationS: 0,
+    ceilingViolationLatched: false,
+    depthTimeMS: 16 * (endS - 60),
+    submergedS: endS - 60,
+    profile,
+    profileTimerS: 0,
+    lastCeilingM: 0,
+  });
+  saved.drill = { ...saved.drill, freeflowUntilS: 0, freeflowTankIndex: -1, breathHoldUntilS: 0 };
+  await page.goto('/dist/');
+  await page.evaluate(([key, value]) => window.localStorage.setItem(key, value), [SAVE_KEY, JSON.stringify(saved)]);
+  await page.locator('[data-accept-safety]').click();
+  await page.locator('[data-resume-continue]').click();
+  const screen = page.locator('[data-post-dive]');
+  await screen.waitFor();
+
+  // The violations and the grade are as without a drill: legacy's gradeDive()
+  // reads fast ascents and ceilings only. One fast ascent (85), the stop
+  // skipped (30), the thirds (100), no ceiling (100), the depth (100): 83.
+  await expect(screen.locator('.post-dive-violation-list li')).toHaveText([
+    /^24 min,? 0 sec Fast ascent, peak 14\.2 m\/min$/,
+    /^25 min,? 30 sec Safety stop skipped$/,
+  ]);
+  await expect(screen.locator('.post-dive-grade [data-overall]')).toHaveText('83');
+  await expect(screen.locator('[data-grade-category] .post-dive-score-value')).toHaveText(['85', '30', '100', '100', '100']);
+
+  // On the profile, legacy's red dot at the drill's time and the nearest
+  // sample's depth, 20 m, unnumbered beside the two numbered violations; the
+  // chart's text alternative names it, and the legend keys it.
+  const minutes = Math.floor(Math.round(outcome.elapsedTimeS) / 60);
+  const secs = Math.round(outcome.elapsedTimeS) % 60;
+  const plot = screen.getByRole('img', {
+    name: new RegExp(
+      `2 marks, numbered as in the violations list\\. An unnumbered dot marks the training drill at ${minutes} min,? ${secs} sec: Regulator Free-Flow\\. Suboptimal choice\\.$`,
+    ),
+  });
+  await expect(plot.locator('.profile-marker:not(.profile-marker-drill)')).toHaveText(['1', '2']);
+  const dot = plot.locator('[data-marker=drill-outcome]');
+  await expect(dot).toHaveCount(1);
+  await expect(dot).toHaveText('');
+  await expect(dot).toHaveCSS('background-color', 'rgb(255, 59, 59)');
+  const [x, y] = await dot.evaluate((el) => [parseFloat(el.style.left), parseFloat(el.style.top)]);
+  expect(x).toBeCloseTo((outcome.elapsedTimeS / endS) * 100, 2);
+  expect(y).toBeCloseTo(100, 2);
+  await expect(screen.locator('.profile-legend li')).toHaveText(['Depth', 'Deco ceiling', 'Violation, numbered as listed', 'Training drill']);
+});
+
 test('by keyboard, on a rebreather: the co2 drill fails the scrubber, bailing out is right, and the debriefing ends by itself after 5 s', async ({ page }) => {
   await offerDiveUnderWay(page, 'ccr', false);
   await page.locator('[data-setup-drills]').click();

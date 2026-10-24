@@ -7,7 +7,7 @@ import {
   type LegacyTissueCheckpoint,
 } from "../../src/app/legacy-dive-adapter";
 import { advanceDiveStep } from "../../src/core/dive-model";
-import type { DiveState } from "../../src/core/dive-state";
+import { isViolationEntry, type DiveLogEntry, type DiveState } from "../../src/core/dive-state";
 import { metres, seconds } from "../../src/core/units";
 
 // The end of a dive at the surface (#199) against the legacy client: the air
@@ -33,8 +33,8 @@ function checkpoints(scenarioId: string): Checkpoint[] {
   return scenario.checkpoints;
 }
 
-const skippedStops = (entries: readonly { kind: string; elapsedTimeS: number; value: number }[]) =>
-  entries.filter((entry) => entry.kind === "safety-stop-skipped");
+const skippedStops = (entries: readonly DiveLogEntry[]) =>
+  entries.filter(isViolationEntry).filter((entry) => entry.kind === "safety-stop-skipped");
 
 describe("the end of a dive against the recorded legacy dives", () => {
   it("ends the air dive at the surface on legacy's tick, logging the skipped safety stop", () => {

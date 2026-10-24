@@ -7,6 +7,7 @@ import {
   freezeDiveState,
   type DiveLog,
   type DiveLogEntry,
+  type DrillOutcomeEntry,
   type DiveProfileSample,
   type SafetyStopState,
   type CcrState,
@@ -41,7 +42,7 @@ import {
   isInSafetyStopBand,
 } from "../core/dive-model";
 import { ROUTE_START_POSITION_M, resumedRoutePosition } from "../sites/wreck-route";
-import { NO_DRILL, resumedDrill, type DrillState } from "../core/drills";
+import { NO_DRILL, isLoggableDrillOutcome, resumedDrill, type DrillState } from "../core/drills";
 import {
   DEFAULT_GF_HIGH_PERCENT,
   DEFAULT_GF_LOW_PERCENT,
@@ -162,7 +163,15 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // cave drill, lightFailure (#167). A drill record that is not one the
 // controller writes drops the drill, not the dive (resumedDrill,
 // docs/decisions.md).
-export const CURRENT_SAVE_GAME_VERSION = 19;
+//
+// v20 adds the drill-outcome entry to state.log (#160), legacy's drillOutcome
+// event, which its profile draws as a dot. Older saves never logged one: an
+// entry of that kind in one is not a record of a drill, and is dropped
+// unconditionally, as the CNS of a pre-v4 payload. Legacy saves keep their
+// drillOutcome events, but for the cave's lightFailure (#167). An entry is
+// kept only as the model logs it, for a drill and option this dive offers.
+export const CURRENT_SAVE_GAME_VERSION = 20;
+export const NINETEENTH_SAVE_GAME_VERSION = 19;
 export const EIGHTEENTH_SAVE_GAME_VERSION = 18;
 export const SEVENTEENTH_SAVE_GAME_VERSION = 17;
 export const SIXTEENTH_SAVE_GAME_VERSION = 16;
@@ -253,6 +262,7 @@ export type SaveGameMigration =
   | "save-game-v16"
   | "save-game-v17"
   | "save-game-v18"
+  | "save-game-v19"
   | null;
 
 /**
@@ -505,6 +515,23 @@ export function decodeSaveGame(
     if (v < SEVENTEENTH_SAVE_GAME_VERSION && isRecord(candidate.state)) {
       candidate.state = { ...candidate.state, narcosisDrift: 0 };
     }
+    // Before v20 no drill outcome was logged.
+    if (
+      v < CURRENT_SAVE_GAME_VERSION &&
+      isRecord(candidate.state) &&
+      isRecord(candidate.state.log) &&
+      Array.isArray(candidate.state.log.entries)
+    ) {
+      candidate.state = {
+        ...candidate.state,
+        log: {
+          ...candidate.state.log,
+          entries: (candidate.state.log.entries as unknown[]).filter(
+            (entry) => !isRecord(entry) || entry.kind !== "drill-outcome",
+          ),
+        },
+      };
+    }
     // A v1 payload has no gradientFactors and is filled with the defaults; a
     // v2 payload must carry a valid pair rather than fall back to them, or a
     // corrupted field would silently re-plan the dive on 35/75 — the very
@@ -546,7 +573,7 @@ export function decodeSaveGame(
           ? (candidate.routePositionM as number)
           : ROUTE_START_POSITION_M,
         // Before v19 no drill was recorded: none under way, none run.
-        v === CURRENT_SAVE_GAME_VERSION ? (candidate.drill as DrillState) : NO_DRILL,
+        v >= NINETEENTH_SAVE_GAME_VERSION ? (candidate.drill as DrillState) : NO_DRILL,
       ),
       migratedFrom:
         v === CURRENT_SAVE_GAME_VERSION
@@ -611,7 +638,7 @@ function migrateLegacyV2(
   }
 
   // The safety stop is checked against the log's below-five latch.
-  const log = migrateLegacyLog(candidate);
+  const log = migrateLegacyLog(candidate, { ccr, tanks: tanks as readonly TankState[] });
   const state: DiveState = {
     elapsedTimeS:
       ((candidate.diveTime as number) * 60) as DiveState["elapsedTimeS"],
@@ -951,6 +978,7 @@ function isDiveState(
         | DiveFailureReason
         | null,
       completed: candidate.completed === true,
+      dive: candidate as unknown as Pick<DiveState, "ccr" | "tanks">,
     }) &&
     isCompletion(candidate, ceilingM)
   );
@@ -1053,6 +1081,8 @@ interface DiveLogContext {
   readonly failureReason: DiveFailureReason | null;
   /** The dive ended at the surface, which a skipped safety stop needs. */
   readonly completed: boolean;
+  /** The breathing and cylinders, which decide the drill outcomes it can log. */
+  readonly dive: Pick<DiveState, "ccr" | "tanks">;
 }
 
 function isDiveLog(candidate: unknown, context: DiveLogContext): candidate is DiveLog {
@@ -1072,14 +1102,26 @@ function isDiveLog(candidate: unknown, context: DiveLogContext): candidate is Di
     return false;
   }
   let previousS = 0;
+  let drillOutcomes = 0;
   for (const entry of candidate.entries as unknown[]) {
     if (
       !isRecord(entry) ||
       !isNonNegativeFinite(entry.elapsedTimeS) ||
       (entry.elapsedTimeS as number) < previousS ||
-      (entry.elapsedTimeS as number) > elapsedTimeS ||
-      !Number.isFinite(entry.value)
+      (entry.elapsedTimeS as number) > elapsedTimeS
     ) {
+      return false;
+    }
+    previousS = entry.elapsedTimeS as number;
+    // A drill's outcome (v20): one drill a dive, as the model logs it.
+    if (entry.kind === "drill-outcome") {
+      drillOutcomes += 1;
+      if (drillOutcomes > 1 || !isLoggableDrillOutcome(entry.drillId, entry.option, entry.correct, context.dive)) {
+        return false;
+      }
+      continue;
+    }
+    if (!Number.isFinite(entry.value)) {
       return false;
     }
     const value = entry.value as number;
@@ -1093,7 +1135,6 @@ function isDiveLog(candidate: unknown, context: DiveLogContext): candidate is Di
       : true) {
       return false;
     }
-    previousS = entry.elapsedTimeS as number;
   }
   const fastAscentS = candidate.fastAscentS as number;
   const peakMpm = candidate.fastAscentPeakMpm as number;
@@ -1167,19 +1208,37 @@ function isDiveLog(candidate: unknown, context: DiveLogContext): candidate is Di
 /**
  * The log a legacy save carries (src/game-loop.js saveDiveState): its
  * diveEvents in minutes, minNdlSeen (null for none), ndlDroppedBelow5 and
- * ascentRate. Of the event kinds, the two this log records are kept;
+ * ascentRate. Of the event kinds, the three this log records are kept;
  * safetyStopSkipped is only ever pushed at the surface, after legacy has
- * stopped saving, and drillOutcome is a drill's, whose outcome this client
- * keeps in the drill, not the log (docs/decisions.md, #270). The debounce accumulators are not saved by legacy
+ * stopped saving. A drillOutcome is kept as the model logs it (v20), but the
+ * cave's lightFailure (#167). The debounce accumulators are not saved by legacy
  * either, so a resumed window starts over, as it does there.
  */
 /** The lowest NDL a legacy ndlDroppedBelow5 without minNdlSeen implies. */
 const LEGACY_FLAG_ONLY_MIN_NDL = 4;
 
-function migrateLegacyLog(candidate: Record<string, unknown>): DiveLog {
+function migrateLegacyLog(candidate: Record<string, unknown>, dive: Pick<DiveState, "ccr" | "tanks">): DiveLog {
   const events = Array.isArray(candidate.diveEvents) ? candidate.diveEvents : [];
   const entries: DiveLogEntry[] = [];
   for (const event of events as unknown[]) {
+    const drillEvent = isRecord(event) && event.kind === "drillOutcome" ? event : null;
+    const outcome = drillEvent && isRecord(drillEvent.value) ? drillEvent.value : null;
+    if (
+      drillEvent &&
+      outcome &&
+      isNonNegativeFinite(drillEvent.t) &&
+      !entries.some((entry) => entry.kind === "drill-outcome") &&
+      isLoggableDrillOutcome(outcome.id, outcome.option, outcome.correct, dive)
+    ) {
+      entries.push({
+        kind: "drill-outcome",
+        elapsedTimeS: ((drillEvent.t as number) * 60) as DiveLogEntry["elapsedTimeS"],
+        drillId: outcome.id as DrillOutcomeEntry["drillId"],
+        option: outcome.option as number,
+        correct: outcome.correct as boolean,
+      });
+      continue;
+    }
     if (
       isRecord(event) &&
       (event.kind === "fastAscent" || event.kind === "ceilingViolation") &&

@@ -9,6 +9,7 @@ import {
   createInitialDiveState,
   createTankState,
   freezeDiveState,
+  isViolationEntry,
   type DiveState,
 } from "../../src/core/dive-state";
 import { bars, metres, seconds } from "../../src/core/units";
@@ -37,7 +38,7 @@ describe("fast ascents", () => {
     expect(model.snapshot.log.ascentRateMpm).toBeCloseTo(12, 9);
     expect(model.snapshot.log.entries).toEqual([]);
     stepThrough(model, [29.55]);
-    const entries = model.snapshot.log.entries;
+    const entries = model.snapshot.log.entries.filter(isViolationEntry);
     expect(entries).toHaveLength(1);
     expect(entries[0]?.kind).toBe("fast-ascent");
     expect(entries[0]?.elapsedTimeS).toBe(2);
@@ -87,7 +88,7 @@ describe("ceiling violations", () => {
     stepThrough(model, [10]);
     expect(model.snapshot.log.entries.filter((entry) => entry.kind === "ceiling-violation")).toEqual([]);
     stepThrough(model, [10]);
-    const violations = model.snapshot.log.entries.filter((entry) => entry.kind === "ceiling-violation");
+    const violations = model.snapshot.log.entries.filter(isViolationEntry).filter((entry) => entry.kind === "ceiling-violation");
     expect(violations).toHaveLength(1);
     expect(violations[0]?.elapsedTimeS).toBe(2);
     // Legacy logs the ceiling of the step it fires on, less the depth.
