@@ -42,14 +42,19 @@ export type GasInfoPage =
  * 'diving'` — a failed dive is legacy's game-over state. The mode is the one
  * the dive was set up with, carried in the save since v3; a first cut counted
  * cylinders instead, and a technical dive starts with one (#185 review).
+ *
+ * `awaitingDescent` is legacy's 'surface' state, before S. Once the dive has
+ * begun legacy is in 'diving' at every depth until the dive ends, and so is
+ * its Info button (src/touch.js touchUpdateUI). This gate read the depth
+ * instead, counting under 0.5 m as the surface, so a dive under way that came
+ * up that far lost its pages (#168 PR 3).
  */
 export function gasInfoAvailable(
   presentation: Readonly<PresentationState>,
   diveMode: DiveMode,
+  awaitingDescent: boolean,
 ): boolean {
-  // "diving" and nothing else: legacy's gate is gameState === 'diving', so
-  // neither a failed dive nor one at the surface has the pages (#185 review).
-  if (presentation.status !== "diving") {
+  if (awaitingDescent || presentation.status === "failed" || presentation.completed) {
     return false;
   }
   return diveMode === "tec" || diveMode === "ccr";
@@ -139,8 +144,9 @@ export function displayedTtsMinutes(ttsMin: number): number | null {
 export function gasInfoPages(
   presentation: Readonly<PresentationState>,
   diveMode: DiveMode,
+  awaitingDescent: boolean,
 ): readonly GasInfoPage[] {
-  if (!gasInfoAvailable(presentation, diveMode)) {
+  if (!gasInfoAvailable(presentation, diveMode, awaitingDescent)) {
     return [];
   }
   if (presentation.ccr !== null) {
@@ -160,8 +166,9 @@ export function nextGasInfoPage(
   current: GasInfoPage | null,
   presentation: Readonly<PresentationState>,
   diveMode: DiveMode,
+  awaitingDescent: boolean,
 ): GasInfoPage | null {
-  const pages = gasInfoPages(presentation, diveMode);
+  const pages = gasInfoPages(presentation, diveMode, awaitingDescent);
   if (pages.length === 0) {
     return null;
   }
@@ -180,9 +187,11 @@ export function gasInfoPageStillValid(
   current: GasInfoPage | null,
   presentation: Readonly<PresentationState>,
   diveMode: DiveMode,
+  awaitingDescent: boolean,
 ): boolean {
   return (
-    current !== null && gasInfoPages(presentation, diveMode).includes(current)
+    current !== null &&
+    gasInfoPages(presentation, diveMode, awaitingDescent).includes(current)
   );
 }
 

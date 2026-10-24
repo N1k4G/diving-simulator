@@ -70,16 +70,16 @@ describe("which dives have gas information", () => {
   it("is offered on technical and rebreather dives, not recreational", () => {
     // Legacy: `isAdvanced() || diveMode === 'ccr'`, by the mode the dive
     // was set up with.
-    expect(gasInfoAvailable(view(ocDive(1)), "rec")).toBe(false);
-    expect(gasInfoAvailable(view(ocDive(2)), "tec")).toBe(true);
-    expect(gasInfoAvailable(view(ccrDive()), "ccr")).toBe(true);
+    expect(gasInfoAvailable(view(ocDive(1)), "rec", false)).toBe(false);
+    expect(gasInfoAvailable(view(ocDive(2)), "tec", false)).toBe(true);
+    expect(gasInfoAvailable(view(ccrDive()), "ccr", false)).toBe(true);
   });
 
   it("a technical dive with a single cylinder has it too", () => {
     // The default technical setup has one cylinder. Counting cylinders read
     // it as recreational and hid the pages (#185 review).
-    expect(gasInfoAvailable(view(ocDive(1)), "tec")).toBe(true);
-    expect(gasInfoPages(view(ocDive(1)), "tec")).toEqual([
+    expect(gasInfoAvailable(view(ocDive(1)), "tec", false)).toBe(true);
+    expect(gasInfoPages(view(ocDive(1)), "tec", false)).toEqual([
       "cylinders-1",
       "tissues",
       "deco",
@@ -91,8 +91,8 @@ describe("which dives have gas information", () => {
       ...ocDive(2),
       failure: { ...ocDive(2).failure, reason: "out-of-gas" },
     });
-    expect(gasInfoAvailable(view(failed), "tec")).toBe(false);
-    expect(nextGasInfoPage(null, view(failed), "tec")).toBeNull();
+    expect(gasInfoAvailable(view(failed), "tec", false)).toBe(false);
+    expect(nextGasInfoPage(null, view(failed), "tec", false)).toBeNull();
   });
 });
 
@@ -102,18 +102,18 @@ describe("the order I walks the pages in", () => {
     // its cap drops to 3. Offering page 4 anyway is a recorded departure
     // (owner decision on #188, docs/decisions.md).
     const presentation = view(ocDive(3));
-    expect(gasInfoPages(presentation, "tec")).toEqual(["cylinders-1", "tissues", "deco"]);
+    expect(gasInfoPages(presentation, "tec", false)).toEqual(["cylinders-1", "tissues", "deco"]);
     const walk: (string | null)[] = [];
-    let page = nextGasInfoPage(null, presentation, "tec");
+    let page = nextGasInfoPage(null, presentation, "tec", false);
     while (page !== null) {
       walk.push(page);
-      page = nextGasInfoPage(page, presentation, "tec");
+      page = nextGasInfoPage(page, presentation, "tec", false);
     }
     expect(walk).toEqual(["cylinders-1", "tissues", "deco"]);
   });
 
   it("four cylinders or more: both cylinder pages", () => {
-    expect(gasInfoPages(view(ocDive(4)), "tec")).toEqual([
+    expect(gasInfoPages(view(ocDive(4)), "tec", false)).toEqual([
       "cylinders-1",
       "cylinders-2",
       "tissues",
@@ -124,15 +124,15 @@ describe("the order I walks the pages in", () => {
   it("a rebreather toggles its one page", () => {
     // Legacy: `infoPageMode = (infoPageMode === 5) ? 0 : 5`.
     const presentation = view(ccrDive());
-    expect(nextGasInfoPage(null, presentation, "ccr")).toBe("loop");
-    expect(nextGasInfoPage("loop", presentation, "ccr")).toBeNull();
+    expect(nextGasInfoPage(null, presentation, "ccr", false)).toBe("loop");
+    expect(nextGasInfoPage("loop", presentation, "ccr", false)).toBeNull();
   });
 
   it("a page the dive no longer has closes rather than jumping", () => {
     const presentation = view(ocDive(2));
-    expect(gasInfoPageStillValid("cylinders-2", presentation, "tec")).toBe(false);
-    expect(nextGasInfoPage("cylinders-2", presentation, "tec")).toBeNull();
-    expect(gasInfoPageStillValid("tissues", presentation, "tec")).toBe(true);
+    expect(gasInfoPageStillValid("cylinders-2", presentation, "tec", false)).toBe(false);
+    expect(nextGasInfoPage("cylinders-2", presentation, "tec", false)).toBeNull();
+    expect(gasInfoPageStillValid("tissues", presentation, "tec", false)).toBe(true);
   });
 
   it("shows three cylinders per page", () => {
@@ -173,10 +173,27 @@ describe("the loop's danger limits, page and HUD", () => {
 });
 
 describe("legacy's colour tiers and display rules (#185 review round 2)", () => {
-  it("no pages at the surface: legacy's gate is gameState === 'diving'", () => {
+  it("no pages before the descent or after the dive: legacy's gate is gameState === 'diving'", () => {
     const atSurface = freezeDiveState({ ...ocDive(2), depthM: metres(0) });
     expect(view(atSurface).status).toBe("surface");
-    expect(gasInfoAvailable(view(atSurface), "tec")).toBe(false);
+    // Legacy's 'surface' state, waiting for S.
+    expect(gasInfoAvailable(view(atSurface), "tec", true)).toBe(false);
+    // Legacy's 'post-dive' state.
+    const completed = freezeDiveState({ ...atSurface, completed: true });
+    expect(gasInfoAvailable(view(completed), "tec", false)).toBe(false);
+  });
+
+  it("a dive under way has them at any depth, as legacy's 'diving' (#168 PR 3)", () => {
+    // Begun and back at 0 m without ending: legacy stays in 'diving' until
+    // the dive ends (src/game-loop.js 1022: under 0.3 m, ceiling clear, max
+    // depth over 2 m), and shows its Info button there (src/touch.js 284).
+    // The status reads "surface" under 0.5 m, which this gate read until
+    // #168 PR 3 and so took the pages away.
+    const floating = freezeDiveState({ ...ocDive(2), depthM: metres(0), maxDepthM: metres(1) });
+    expect(view(floating).status).toBe("surface");
+    expect(gasInfoAvailable(view(floating), "tec", false)).toBe(true);
+    expect(nextGasInfoPage(null, view(floating), "tec", false)).toBe("cylinders-1");
+    expect(gasInfoPageStillValid("tissues", view(floating), "tec", false)).toBe(true);
   });
 
   it("PO2 follows po2Color: caution above 1.0, warning above 1.4, danger outside 0.16..1.6", () => {
