@@ -212,6 +212,39 @@ for (const mode of ['rec', 'ccr']) {
       // No frame ran while it was measured: the same hint is still up.
       await expect(toast(page)).toHaveText(SAFETY_STOP_DE);
     });
+
+    // The shell's side carries the safe-area insets (#137 A7), so the hint,
+    // which stands beside the HUD in the shell's terms, must carry them too.
+    test('the same holds with the safe-area insets a cutout and a gesture bar inject', async ({ page }) => {
+      test.setTimeout(120_000);
+      await resumeAtPausedStop(page, mode);
+      await expect(toast(page)).toHaveText(SAFETY_STOP_DE);
+      // Real phones: 844×390 with 47 px (iPhone 12–14), 812×375 with 44 px
+      // (iPhone X–11 Pro). On these short screens the shell is held at its
+      // 34rem minimum (#256), so a hint squeezed beside the HUD can run its
+      // last line off the bottom of the screen (on linux CI at 812×375 with
+      // 44 px, and at 844×390 with 59 px). That overflow, reported as "under
+      // nothing", is #256's; everything else, the HUD or a control over the
+      // hint in particular, must still not happen.
+      const offScreen = (problem) => problem.startsWith("the hint's line") && problem.endsWith(' under nothing');
+      const cases = [
+        [844, 390, { top: 0, right: 47, bottom: 21, left: 47 }],
+        [812, 375, { top: 0, right: 44, bottom: 21, left: 44 }],
+        [390, 844, { top: 47, right: 0, bottom: 34, left: 0 }],
+        [360, 640, { top: 0, right: 0, bottom: 24, left: 0 }],
+      ];
+      for (const [width, height, inset] of cases) {
+        await page.setViewportSize({ width, height });
+        await page.evaluate((edges) => {
+          for (const [edge, px] of Object.entries(edges)) {
+            document.documentElement.style.setProperty(`--safe-area-inset-${edge}`, `${px}px`);
+          }
+        }, inset);
+        const problems = await page.evaluate(layoutProblems);
+        const short = height <= 600;
+        expect(short ? problems.filter((p) => !offScreen(p)) : problems, `${width}x${height} ${JSON.stringify(inset)}`).toEqual([]);
+      }
+    });
   });
 }
 
