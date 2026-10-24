@@ -199,13 +199,13 @@ describe("the training drills in the controller (#160)", () => {
 
   it("is not rolled under the help, nor chosen while it is open", async () => {
     const { controller, frames, last } = await startController(underWay());
-    controller.setPaused(true);
+    controller.setPaused("help", true);
     step(50);
     expect(frames.every((frame) => frame.drill === null)).toBe(true);
-    controller.setPaused(false);
+    controller.setPaused("help", false);
     step(2);
     expect(last().drill?.phase).toBe("overlay");
-    controller.setPaused(true);
+    controller.setPaused("help", true);
     controller.chooseDrillOption(0);
     expect(last().drill?.phase).toBe("overlay");
     controller.destroy();
