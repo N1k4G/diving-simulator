@@ -83,9 +83,10 @@ async function nextSave(page) {
  * src/core/buoyancy.ts neutralBcdSurfaceLitres at 5 m: 7 + 2 - 3 less 5 litres
  * of the wetsuit's gas at that pressure), so depth stays where it is and a
  * jump is not hidden by a drift. 5 m is above the hull, so the diver can swim
- * the route's length.
+ * the route's length. Returns the BCD's gas at the start (3.4 L, which a vent
+ * empties in about a second).
  */
-async function resumeStillAt5m(page, mode, routePositionM) {
+async function resumeStill(page, mode, routePositionM) {
   await page.goto('/dist/');
   await page.evaluate(() => window.localStorage.clear());
   await acceptSafetyGate(page);
@@ -95,11 +96,12 @@ async function resumeStillAt5m(page, mode, routePositionM) {
   await descendTo(page, 1);
   const saved = await persistedSave(page);
   const pressureBar = 1 + 5 / 10;
+  const bcdGasSurfaceLiters = (7 + 2 - 3 - 5 * Math.pow(1 / pressureBar, 0.7)) * pressureBar;
   Object.assign(saved.state, {
     depthM: 5,
     maxDepthM: 20,
     verticalVelocityMpm: 0,
-    bcdGasSurfaceLiters: (7 + 2 - 3 - 5 * Math.pow(1 / pressureBar, 0.7)) * pressureBar,
+    bcdGasSurfaceLiters,
     safetyStop: { needed: true, countdownStarted: true, remainingS: 172, paused: false, complete: false },
   });
   saved.routePositionM = routePositionM;
@@ -110,6 +112,7 @@ async function resumeStillAt5m(page, mode, routePositionM) {
   await page.locator('[data-resume-continue]').click();
   await page.locator('[data-renderer=pixi] canvas').waitFor();
   await expect(pad(page, 'right')).toBeVisible();
+  return bcdGasSurfaceLiters;
 }
 
 /**
@@ -157,7 +160,8 @@ async function rotateTo(page, size) {
 /** The boxes of every visible in-dive control, as edges. */
 function controlBoxes(page) {
   const selector = [
-    '.wreck-topbar > *',
+    '.wreck-topbar button',
+    '[data-instructor-toggle]',
     '.wreck-controls button',
     '.wreck-dock button',
     '[data-torch]',
@@ -181,9 +185,7 @@ async function expectControlsInside(page, size) {
   const bottomLimit = size.height > size.width ? size.height + 0.5 : Infinity;
   const outside = found.filter((box) => box.l < -0.5 || box.t < -0.5 || box.r > size.width + 0.5 || box.b > bottomLimit);
   expect(outside, `controls inside the ${size.width}x${size.height} viewport`).toEqual([]);
-  // A topbar child may be a wrapper or a text; the buttons are the targets.
-  const small = found.filter((box) => (box.w < MIN_TARGET_PX - 0.5 || box.h < MIN_TARGET_PX - 0.5)
-    && !/^wreck-identity$/.test(box.label));
+  const small = found.filter((box) => box.w < MIN_TARGET_PX - 0.5 || box.h < MIN_TARGET_PX - 0.5);
   expect(small, 'every control is at least 44 px').toEqual([]);
 }
 
@@ -209,7 +211,7 @@ for (const { portrait, landscape } of PAIRS) {
     test.use({ ...PHONE, viewport: portrait });
 
     test('should keep the document, the clock, depth, torch and position when the phone turns four times', async ({ page }) => {
-      await resumeStillAt5m(page, 'rec', 50);
+      await resumeStill(page, 'rec', 50);
       await expectControlsInside(page, portrait);
       // Torch off, so a reset to its default (on) would show.
       await page.keyboard.press('t');
@@ -243,7 +245,7 @@ for (const { portrait, landscape } of PAIRS) {
     });
 
     test('should leave the dive paused and its dialog open when the help is open across a turn', async ({ page }) => {
-      await resumeStillAt5m(page, 'rec', 50);
+      await resumeStill(page, 'rec', 50);
       const watched = await watchDocument(page);
       await page.keyboard.press('h');
       await expect(page.locator('[data-help-overlay]')).toBeVisible();
@@ -266,7 +268,7 @@ for (const { portrait, landscape } of PAIRS) {
 
     test('should keep the gas page and the instructor panel as they are across turns, open or closed', async ({ page }) => {
       // The gas pages are a rebreather's or a technical dive's.
-      await resumeStillAt5m(page, 'ccr', 50);
+      await resumeStill(page, 'ccr', 50);
       const pages = [['i', '[data-gas-info]'], ['l', '[data-instructor-panel]']];
       const all = pages.map(([, selector]) => selector);
 
@@ -283,6 +285,8 @@ for (const { portrait, landscape } of PAIRS) {
         for (const size of [landscape, portrait, landscape, portrait]) {
           await rotateTo(page, size);
           await expect(page.locator(selector)).toBeVisible();
+          // The rebreather's own buttons and Learn are on screen with it open.
+          await expectControlsInside(page, size);
           // Only the page that was opened.
           for (const other of others) await expect(page.locator(other)).toBeHidden();
         }
@@ -324,14 +328,34 @@ async function finger(page) {
 // What each direction changes in the model, read from the autosave: the
 // route position for A and D, the BCD's gas for descend (the BCD's gas
 // changes only with inflate and vent, as tests/page-lifecycle.spec.js reads
-// it). Ascend has no model reading: a diver who has inflated at 5 m rises on
-// and ends the dive on a rapid ascent within seconds, after which nothing
-// is saved, so it is checked at its button alone.
+// it). Ascend has no autosave reading: a diver who has inflated at 5 m rises
+// on and ends the dive on a rapid ascent within seconds, after which nothing
+// is saved, so its effect is read from the HUD's depth while it is held.
+//
+// A reading that has hit its bound proves nothing: a diver stopped by the
+// route's end or a hull holds still whether or not the direction is let go,
+// and an empty BCD stops venting. `saturated` says so for a reading, and the
+// case asserts it is not, while held and after the release.
+// src/sites/wreck-route.ts ROUTE_MIN_POSITION_M and ROUTE_MAX_POSITION_M.
+const ROUTE_MIN_POSITION_M = 8;
+const ROUTE_MAX_POSITION_M = 106;
+const offTheEnds = (position) => position > ROUTE_MIN_POSITION_M + 1 && position < ROUTE_MAX_POSITION_M - 1;
+// A vent takes src/core/buoyancy.ts ventRate 0.75 x ambient pressure 1.5 bar
+// litres per dive second, and the dive runs three real-time (src/constants.js
+// TIME_ACCELERATION = 3): 3.375 L per real second against 3.4 L of neutral
+// gas at 5 m. So the descend hold is short, under a second in all, and its
+// gas is read after the release (measured: about 2.7 L per second in practice,
+// the vent starting a frame in). More gas to hold longer is not an option: a
+// diver started with 5 L above neutral rises into a rapid ascent and the dive
+// ends (25 L too), after which nothing is saved. The reading must be above
+// `saturated`'s bound, and above what the hold would have vented had the first
+// turn let go of it.
+const VENT_L_PER_REAL_S = 0.75 * 1.5 * 3;
 const PAD = [
-  { control: 'left', read: (save) => save.routePositionM },
-  { control: 'right', read: (save) => save.routePositionM },
-  { control: 'ascend', read: null },
-  { control: 'descend', read: (save) => save.state.bcdGasSurfaceLiters },
+  { control: 'left', read: (save) => save.routePositionM, saturated: (value) => !offTheEnds(value) },
+  { control: 'right', read: (save) => save.routePositionM, saturated: (value) => !offTheEnds(value) },
+  { control: 'ascend', vertical: -1, read: null, saturated: null },
+  { control: 'descend', vents: true, read: (save) => save.state.bcdGasSurfaceLiters, saturated: (value) => value <= 0.5 },
 ];
 
 // Every direction on the larger pair; one horizontal and one vertical on the
@@ -341,26 +365,52 @@ const HELD_CASES = [
   ...PAD.filter((entry) => entry.control === 'right' || entry.control === 'ascend').map((entry) => ({ pair: PAIRS[1], ...entry })),
 ];
 
-for (const { pair: { portrait, landscape }, control, read } of HELD_CASES) {
+for (const { pair: { portrait, landscape }, control, vertical, vents, read, saturated } of HELD_CASES) {
   for (const ending of ['lifted', 'cancelled']) {
     test.describe(`a ${control} held across a turn, ${portrait.width}x${portrait.height} and back`, () => {
       test.use({ ...PHONE, viewport: portrait });
 
       test(`should stay held through two turns and be let go when the touch is ${ending}`, async ({ page }) => {
-        await resumeStillAt5m(page, 'rec', 50);
+        const startGas = await resumeStill(page, 'rec', 50);
         const watched = await watchDocument(page);
         const touch = await finger(page);
-        const start = read === null ? null : await nextSave(page);
 
+        const downAt = Date.now();
         await touch.down(pad(page, control));
         await expect(pad(page, control)).toHaveAttribute('data-held', 'true');
         await rotateTo(page, landscape);
+        const firstTurnS = (Date.now() - downAt) / 1000;
         await rotateTo(page, portrait);
-        // Held a moment longer, and read after the release.
-        await page.waitForTimeout(400);
         await watched.sameDocument();
+
+        // Still down after both turns: the model goes on acting on it. The
+        // button's flag is the D-pad's own bookkeeping, which a turn that
+        // cleared the controller's held set would leave showing.
+        if (vents) {
+          // Held on a moment after the turns, no more (see VENT_L_PER_REAL_S).
+          await page.waitForTimeout(150);
+        } else if (vertical !== undefined) {
+          const depthNow = () => hudValue(page, 'depth').textContent()
+            .then((text) => Number.parseFloat(text.replace(',', '.')));
+          const atTurn = await depthNow();
+          await expect.poll(async () => vertical * ((await depthNow()) - atTurn), {
+            message: `${control} moves the diver, held after the turns`,
+          }).toBeGreaterThan(0.1);
+        } else {
+          const mid1 = await nextSave(page);
+          const mid2 = await nextSave(page);
+          expect(saturated(read(mid1)) || saturated(read(mid2)), `${control} is not at a bound while held`).toBe(false);
+          expect(Math.abs(read(mid2) - read(mid1)), `${control} acts between two autosaves, finger down`)
+            .toBeGreaterThan(0.01);
+          // And no faster than the diver can swim.
+          if (control === 'left' || control === 'right') {
+            const wallS = (mid2.savedAtEpochMs - mid1.savedAtEpochMs) / 1000;
+            expect(Math.abs(read(mid2) - read(mid1))).toBeLessThanOrEqual(FIN_SPEED_MPS * wallS + 1);
+          }
+        }
         await expect(pad(page, control)).toHaveAttribute('data-held', 'true');
 
+        const heldS = (Date.now() - downAt) / 1000;
         if (ending === 'lifted') await touch.lift();
         else await touch.cancel();
         await expect(pad(page, control)).not.toHaveAttribute('data-held', /.*/);
@@ -371,15 +421,18 @@ for (const { pair: { portrait, landscape }, control, read } of HELD_CASES) {
           await expect(pad(page, control)).not.toHaveAttribute('data-held', /.*/);
           return;
         }
-        // Let go: two autosaves agree, the first of them after the release.
+        // Let go: two autosaves agree, the first of them after the release,
+        // and neither reading has run out, which would agree without it.
         const first = await nextSave(page);
         const second = await nextSave(page);
-        // Held through the turns it acted: the model moved off its start.
-        expect(read(first), `${control} acted while held`).not.toBeCloseTo(read(start), 3);
-        // And no faster than the diver can swim.
-        if (control === 'left' || control === 'right') {
-          const wallS = (first.savedAtEpochMs - start.savedAtEpochMs) / 1000;
-          expect(Math.abs(read(first) - read(start))).toBeLessThanOrEqual(FIN_SPEED_MPS * wallS + 1);
+        expect(saturated(read(first)), `${control} is not at a bound at the release`).toBe(false);
+        if (vents) {
+          // It vented through the turns, not only up to the first: more than
+          // the first turn's hold could have (at the vent's measured rate,
+          // three quarters of the nominal one, and 0.3 L over).
+          const vented = startGas - read(first);
+          expect(vented, `gas vented over a ${heldS} s hold, first turn done at ${firstTurnS} s`)
+            .toBeGreaterThan(0.75 * VENT_L_PER_REAL_S * firstTurnS + 0.3);
         }
         expect(read(second), `${control} acts no more`).toBeCloseTo(read(first), 6);
         // And a rotation after the release does not hold it again.
@@ -387,6 +440,7 @@ for (const { pair: { portrait, landscape }, control, read } of HELD_CASES) {
         await expect(pad(page, control)).not.toHaveAttribute('data-held', /.*/);
         const third = await nextSave(page);
         const fourth = await nextSave(page);
+        expect(saturated(read(third))).toBe(false);
         expect(read(fourth)).toBeCloseTo(read(third), 6);
         await rotateTo(page, portrait);
         await expect(pad(page, control)).not.toHaveAttribute('data-held', /.*/);
