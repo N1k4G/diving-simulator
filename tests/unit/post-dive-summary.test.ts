@@ -62,6 +62,25 @@ describe("the post-dive summary", () => {
     expect(second!.gas.oxygenFraction).toBe(0.5);
   });
 
+  it("keeps a drill's outcome out of the violations and the grade, as legacy's gradeDive() (#160)", () => {
+    const run = (drill: boolean) => {
+      const model = new DiveModel(createInitialDiveState(7));
+      model.advance({ depthM: metres(12) }, seconds(240));
+      if (drill) model.recordDrillOutcome("freeflow", 1, false);
+      model.advance({ depthM: metres(0) }, seconds(1));
+      return model.snapshot;
+    };
+    const plain = createPostDiveSummary(run(false), OPEN_WATER);
+    const drilled = createPostDiveSummary(run(true), OPEN_WATER);
+    expect(run(true).log.entries.map((entry) => entry.kind)).toEqual(["drill-outcome", "safety-stop-skipped"]);
+    expect(drilled.violations).toEqual(plain.violations);
+    expect(drilled.grade).toEqual(plain.grade);
+    expect(drilled.drillOutcomes).toEqual([
+      { kind: "drill-outcome", elapsedTimeS: 240, drillId: "freeflow", option: 1, correct: false },
+    ]);
+    expect(plain.drillOutcomes).toEqual([]);
+  });
+
   it("says when the stop was done, and when it was not needed", () => {
     const stopped = dive(createInitialDiveState(9), [[12, 60], [5, 200], [0, 1]]);
     expect(stopped.completed).toBe(true);
@@ -156,6 +175,18 @@ describe("the post-dive summary", () => {
     expect(Object.isFrozen(summary.grade)).toBe(true);
     expect(Object.isFrozen(summary.grade.scores)).toBe(true);
     expect(summary.grade.scores.every((entry) => Object.isFrozen(entry) && Object.isFrozen(entry.note))).toBe(true);
+    // A dive that ran a drill (#160 pre-review): both lists and their entries.
+    const model = new DiveModel(createInitialDiveState(3));
+    model.advance({ depthM: metres(12) }, seconds(240));
+    model.recordDrillOutcome("freeflow", 1, false);
+    model.advance({ depthM: metres(0) }, seconds(1));
+    const drilled = createPostDiveSummary(model.snapshot, OPEN_WATER);
+    expect(drilled.violations).toHaveLength(1);
+    expect(drilled.drillOutcomes).toHaveLength(1);
+    for (const list of [drilled.violations, drilled.drillOutcomes, summary.violations, summary.drillOutcomes]) {
+      expect(Object.isFrozen(list)).toBe(true);
+      expect(list.every((entry) => Object.isFrozen(entry))).toBe(true);
+    }
   });
 
   it("is what the presentation snapshot's completion flag announces", () => {

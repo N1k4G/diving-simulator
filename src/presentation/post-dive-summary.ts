@@ -2,11 +2,13 @@
 // ended in: legacy's drawPostDive() reads these off its globals, here they
 // are computed once from the model's state, so the view only formats them.
 import { gradeDive, type DiveGrade, type GradeContext } from "../core/dive-grade";
-import type {
-  DiveLogEntry,
-  DiveProfileSample,
-  DiveState,
-  GasMix,
+import {
+  isViolationEntry,
+  type DiveViolationEntry,
+  type DrillOutcomeEntry,
+  type DiveProfileSample,
+  type DiveState,
+  type GasMix,
 } from "../core/dive-state";
 import { compartmentSaturation } from "../planner/dive-planner";
 
@@ -65,8 +67,10 @@ export interface PostDiveSummary {
   /** Legacy's avgDepthAccum / avgDepthSamples: time-weighted, deeper than 0.5 m. */
   readonly averageDepthM: number;
   readonly grade: DiveGrade;
-  /** Legacy's diveEvents, in the order they happened. */
-  readonly violations: readonly Readonly<DiveLogEntry>[];
+  /** Legacy's diveEvents that are violations, in the order they happened. */
+  readonly violations: readonly Readonly<DiveViolationEntry>[];
+  /** Legacy's drillOutcome events (#160), which its profile draws but its grade does not read. */
+  readonly drillOutcomes: readonly Readonly<DrillOutcomeEntry>[];
   /** Empty on a rebreather dive. */
   readonly cylinders: readonly PostDiveCylinder[];
   readonly rebreather: PostDiveRebreather | null;
@@ -119,7 +123,12 @@ export function createPostDiveSummary(
     maxDepthM: state.maxDepthM,
     averageDepthM: log.submergedS > 0 ? log.depthTimeMS / log.submergedS : 0,
     grade: gradeDive(state, context),
-    violations: log.entries,
+    // The log's own frozen list where it holds no drill, as on most dives.
+    // Its entries are frozen with the state (freezeDiveState).
+    violations: log.entries.every(isViolationEntry)
+      ? log.entries
+      : Object.freeze(log.entries.filter(isViolationEntry)),
+    drillOutcomes: Object.freeze(log.entries.filter((entry) => entry.kind === "drill-outcome")),
     cylinders: Object.freeze(cylinders),
     rebreather,
     safetyStop: !safetyStop.needed

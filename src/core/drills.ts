@@ -223,11 +223,12 @@ export function resolveDrillOption(
   return { drill: Object.freeze(next), effect: option.effect, switchTo };
 }
 
-/** The model's acts an option's effect takes. */
+/** The model's acts an option's effect takes, and its log of the outcome. */
 export interface DrillActs {
   switchGas(index: number): DiveState;
   bailOut(): DiveState;
   adjustSetpoint(deltaBar: number): DiveState;
+  recordDrillOutcome(drillId: DrillId, option: number, correct: boolean): DiveState;
 }
 
 /**
@@ -235,6 +236,8 @@ export interface DrillActs {
  * where it refuses them: the cylinder of legacy's switch to the backup, the
  * co2 drill's bailout (`onBailout = true; co2BuildupTime = 0`) and its
  * `ccrAdjustSP(0.1)`. The free-flow and the held breath are the drill's own.
+ * Then the outcome goes to the dive log, as legacy pushes its drillOutcome
+ * event after the effect, whether or not the model took the act.
  */
 export function applyDrillEffect(model: DrillActs, resolution: Readonly<DrillResolution>): void {
   if (resolution.effect === "switchToBackup" && resolution.switchTo !== null) {
@@ -244,6 +247,30 @@ export function applyDrillEffect(model: DrillActs, resolution: Readonly<DrillRes
   } else if (resolution.effect === "raiseSetpoint") {
     model.adjustSetpoint(CCR_SETPOINT_STEP_BAR);
   }
+  const { id, selectedOption, correct } = resolution.drill;
+  if (id !== null) {
+    model.recordDrillOutcome(id, selectedOption, correct);
+  }
+}
+
+/**
+ * A drill outcome the model could have logged on this dive (#160): a drill
+ * of the dive's breathing (the free-flow on open circuit, the co2 drill on a
+ * loop), an option offered with the dive's cylinders, and that option's
+ * verdict. A save's log is checked against it.
+ */
+export function isLoggableDrillOutcome(
+  drillId: unknown,
+  option: unknown,
+  correct: unknown,
+  state: Pick<DiveState, "ccr" | "tanks">,
+): boolean {
+  const drill = drillById(drillId);
+  if (!drill || drill.id !== (state.ccr === null ? "freeflow" : "co2") || !Number.isInteger(option)) {
+    return false;
+  }
+  const offered = visibleDrillOptions(drill.id, state.tanks.length)[option as number];
+  return offered !== undefined && drill.options[offered]?.correct === correct;
 }
 
 /** Legacy's dismissDrillDebrief(): Enter, a tap, or the debriefing's time. */

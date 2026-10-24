@@ -181,6 +181,22 @@ describe("the training drills in the controller (#160)", () => {
     controller.destroy();
   });
 
+  it("TC-45-DIVE-EVENT-LOGGED: the outcome goes to the dive log once, at the time the dive stopped, and to the save", async () => {
+    const { controller, saved, last } = await startController(underWay());
+    step(1);
+    const stoppedS = last().presentation.elapsedTimeS;
+    // One cylinder: the second option offered is holding the breath, the wrong one.
+    controller.chooseDrillOption(1);
+    controller.chooseDrillOption(0);
+    const outcome = { kind: "drill-outcome", elapsedTimeS: stoppedS, drillId: "freeflow", option: 1, correct: false };
+    expect(controller.authoritativeState.log.entries).toEqual([outcome]);
+    expect(saved.at(-1)?.log.entries).toEqual([outcome]);
+    controller.dismissDrillDebrief();
+    step(20);
+    expect(controller.authoritativeState.log.entries).toEqual([outcome]);
+    controller.destroy();
+  });
+
   it("is not rolled under the help, nor chosen while it is open", async () => {
     const { controller, frames, last } = await startController(underWay());
     controller.setPaused(true);

@@ -12,6 +12,7 @@ import {
   DiveModel,
   advanceDiveStep,
 } from "../../src/core/dive-model";
+import { isViolationEntry } from "../../src/core/dive-state";
 import { metres, seconds } from "../../src/core/units";
 
 // Pulmonary barotrauma (#189) against the legacy client: its timer counts
@@ -95,7 +96,7 @@ function replayFrom(startId: string): DiveModel {
     expect(state.log.entries.map((entry) => entry.kind), `entry kinds at ${id}`).toEqual(
       expected.map((entry) => entry.kind),
     );
-    state.log.entries.forEach((entry, index) => {
+    state.log.entries.filter(isViolationEntry).forEach((entry, index) => {
       expect(Math.abs(entry.elapsedTimeS - expected[index]!.elapsedTimeS) / 60, `entry ${index} time at ${id}`)
         .toBeLessThanOrEqual(eps.default);
       expect(Math.abs(entry.value - expected[index]!.value), `entry ${index} value at ${id}`)

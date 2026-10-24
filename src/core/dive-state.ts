@@ -2,6 +2,7 @@ import {
   SURFACE_N2_LOADING_BAR,
   TISSUE_COMPARTMENT_COUNT,
 } from "./buhlmann-constants";
+import type { DrillId } from "./drills";
 import { normalizeSeed } from "./rng";
 import {
   bars,
@@ -129,10 +130,32 @@ export interface DiveEvent {
  * A dive that surfaces with its safety stop needed and not done ends with a
  * safety-stop-skipped entry, value 0.
  */
-export interface DiveLogEntry {
+export interface DiveViolationEntry {
   kind: "fast-ascent" | "ceiling-violation" | "safety-stop-skipped";
   elapsedTimeS: Seconds;
   value: number;
+}
+
+/**
+ * A training drill's outcome (#160): legacy's resolveDrillOption() pushes
+ * `{ t, kind: 'drillOutcome', value: { id, option, correct } }` to
+ * diveEvents, which its profile draws as a red dot. `option` is the place
+ * of the option picked among those offered, as legacy's. Not a violation:
+ * neither the grade nor the violations list reads it, as legacy's
+ * gradeDive() does not.
+ */
+export interface DrillOutcomeEntry {
+  kind: "drill-outcome";
+  elapsedTimeS: Seconds;
+  drillId: DrillId;
+  option: number;
+  correct: boolean;
+}
+
+export type DiveLogEntry = DiveViolationEntry | DrillOutcomeEntry;
+
+export function isViolationEntry(entry: Readonly<DiveLogEntry>): entry is DiveViolationEntry {
+  return entry.kind !== "drill-outcome";
 }
 
 /**

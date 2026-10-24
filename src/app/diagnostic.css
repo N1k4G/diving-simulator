@@ -491,6 +491,15 @@ summary:focus-visible {
   background: #ffb84d;
 }
 
+/* A training drill's outcome (#160): legacy's red dot, unnumbered, ringed
+   so it does not read as a violation that lost its number. */
+.profile-marker-drill {
+  width: 0.8rem;
+  height: 0.8rem;
+  margin: -0.4rem 0 0 -0.4rem;
+  border: 2px solid #fff;
+}
+
 .profile-legend {
   display: flex;
   flex-wrap: wrap;
@@ -515,12 +524,17 @@ summary:focus-visible {
   border-top: 2px dashed #ff5f5f;
 }
 
-.profile-legend .profile-key-marker::before {
+.profile-legend .profile-key-marker::before,
+.profile-legend .profile-key-drill::before {
   width: 0.6rem;
   height: 0.6rem;
   border: 0;
   border-radius: 50%;
   background: #ff3b3b;
+}
+
+.profile-legend .profile-key-drill::before {
+  border: 2px solid #fff;
 }
 
 /* Legacy's tissue bars in drawPostDive(): 16 columns, 100 px tall, a 4 px

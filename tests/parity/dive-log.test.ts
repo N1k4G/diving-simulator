@@ -9,7 +9,7 @@ import {
 } from "../../src/app/legacy-dive-adapter";
 import { MAX_DEPTH_M, type BuoyancyControls } from "../../src/core/buoyancy";
 import { DiveModel, advanceDiveStep, closedCircuit, openCircuit } from "../../src/core/dive-model";
-import { createGasMix, type BreathingSource } from "../../src/core/dive-state";
+import { createGasMix, isViolationEntry, type BreathingSource } from "../../src/core/dive-state";
 import { metres, seconds } from "../../src/core/units";
 
 // The dive log (#199) against the legacy client.
@@ -72,7 +72,7 @@ function expectLogToMatch(model: DiveModel, recorded: Checkpoint): void {
   const expected = logEntriesFromLegacyEvents(recorded.events);
   const actual = model.snapshot.log.entries;
   expect(actual.map((entry) => entry.kind), `entry kinds at ${where}`).toEqual(expected.map((entry) => entry.kind));
-  actual.forEach((entry, index) => {
+  actual.filter(isViolationEntry).forEach((entry, index) => {
     const legacy = expected[index];
     expect(Math.abs(entry.elapsedTimeS / 60 - (legacy?.elapsedTimeS ?? Number.NaN) / 60), `entry ${index} time at ${where}`)
       .toBeLessThanOrEqual(eps.default);
