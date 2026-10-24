@@ -1,4 +1,7 @@
 :root {
+  /* A pull or a bounce at the edge of the page never reloads or moves a dive
+     (#137 A7); the shell below says it again for the element a finger is on. */
+  overscroll-behavior: none;
   color: #e9fbff;
   background: #061923;
   font-family: Inter, system-ui, sans-serif;
@@ -12,6 +15,8 @@
 body {
   min-width: 320px;
   min-height: 100vh;
+  min-height: 100dvh;
+  overscroll-behavior: none;
   margin: 0;
   background:
     radial-gradient(circle at 50% 0%, rgb(24 107 128 / 45%), transparent 48%),
@@ -21,8 +26,20 @@ body {
 #app {
   display: grid;
   min-height: 100vh;
+  min-height: 100dvh;
   place-items: center;
   padding: 2rem;
+}
+
+/* The pre-dive and result screens keep clear of a cutout and the gesture bar
+   (#137 A7); the dive's shell pads its own controls instead, so its stage
+   still reaches the screen's edges. */
+#app:not(:has(.wreck-shell)) {
+  padding:
+    calc(2rem + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)))
+    calc(2rem + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)))
+    calc(2rem + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))
+    calc(2rem + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
 }
 
 h1 {
@@ -634,8 +651,10 @@ summary:focus-visible {
   display: grid;
   width: min(100%, 96rem);
   height: calc(100vh - 4rem);
+  height: calc(100dvh - 4rem);
   min-height: 34rem;
   overflow: hidden;
+  overscroll-behavior: none;
   border: 1px solid rgb(129 226 241 / 28%);
   border-radius: 1rem;
   background: #061923;
@@ -651,7 +670,7 @@ summary:focus-visible {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 1rem 1.25rem;
+  padding: calc(1rem + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) calc(1.25rem + var(--safe-area-inset-right, env(safe-area-inset-right, 0px))) 1rem calc(1.25rem + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
   pointer-events: none;
   background: linear-gradient(180deg, rgb(2 13 18 / 88%), transparent);
 }
@@ -772,10 +791,10 @@ summary:focus-visible {
 .wreck-side {
   position: absolute;
   z-index: 4;
-  top: var(--wreck-side-top);
-  right: var(--wreck-gutter);
-  bottom: var(--wreck-gutter);
-  left: var(--wreck-gutter);
+  top: calc(var(--wreck-side-top) + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
+  right: calc(var(--wreck-gutter) + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
+  bottom: calc(var(--wreck-gutter) + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+  left: calc(var(--wreck-gutter) + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -799,7 +818,7 @@ summary:focus-visible {
   gap: 0.5rem;
   width: min(20rem, 100%);
   min-height: 0;
-  max-height: calc(100% - 8.25rem - var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+  max-height: calc(100% - 8.25rem);
   pointer-events: none;
 }
 
@@ -922,7 +941,7 @@ summary:focus-visible {
 .wreck-warning {
   position: absolute;
   z-index: 5;
-  top: 1rem;
+  top: calc(1rem + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
   left: 50%;
   max-width: min(34rem, calc(100% - 2rem));
   margin: 0;
@@ -957,7 +976,7 @@ summary:focus-visible {
   z-index: 3;
   top: max(36%, var(--wreck-side-top));
   right: calc(var(--wreck-gutter) + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
-  left: calc(var(--wreck-gutter) + var(--wreck-hud-extent) + 0.5rem);
+  left: calc(var(--wreck-gutter) + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)) + var(--wreck-hud-extent) + 0.5rem);
   width: fit-content;
   max-width: 34rem;
   margin: 0 auto;
@@ -1116,7 +1135,7 @@ summary:focus-visible {
   flex: none;
   flex-direction: column;
   gap: 0.5rem;
-  max-width: calc(100% - 9.5rem - var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
+  max-width: calc(100% - 9.5rem);
   pointer-events: auto;
 }
 
@@ -1289,9 +1308,18 @@ summary:focus-visible {
     padding: 0;
   }
 
+  #app:not(:has(.wreck-shell)) {
+    padding:
+      var(--safe-area-inset-top, env(safe-area-inset-top, 0px))
+      var(--safe-area-inset-right, env(safe-area-inset-right, 0px))
+      var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))
+      var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+  }
+
   .safety-gate,
   .start-error {
     min-height: 100vh;
+    min-height: calc(100dvh - var(--safe-area-inset-top, env(safe-area-inset-top, 0px)) - var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
     border: 0;
     border-radius: 0;
   }
@@ -1299,6 +1327,7 @@ summary:focus-visible {
   .wreck-shell {
     width: 100%;
     height: 100vh;
+    height: 100dvh;
     min-height: 30rem;
     border: 0;
     border-radius: 0;
@@ -1341,7 +1370,7 @@ summary:focus-visible {
 
   /* The two-column HUD fills the column, measured here from the shell. */
   .onboarding-hint {
-    --wreck-hud-extent: min(var(--wreck-column-short-width), 100% - 2 * var(--wreck-gutter));
+    --wreck-hud-extent: min(var(--wreck-column-short-width), 100% - 2 * var(--wreck-gutter) - var(--safe-area-inset-left, env(safe-area-inset-left, 0px)) - var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
   }
 
   .wreck-hud {
@@ -1618,9 +1647,9 @@ summary:focus-visible {
   .instructor-panel {
     position: absolute;
     top: 0.5rem;
-    right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+    right: 0;
     width: min(15rem, 32.5% - 1rem);
-    max-height: calc(100% - 7.5rem - var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+    max-height: calc(100% - 7.5rem);
   }
 
   /* The same width, in the shell's terms: the side is 2.5rem narrower. */
@@ -1635,7 +1664,7 @@ summary:focus-visible {
 @media (width <= 720px) and (height > 600px) {
   .instructor-panel {
     --instructor-top: max(
-      50vh + 30.38vw + 0.5rem - var(--wreck-side-top),
+      50vh + 30.38vw + 0.5rem - var(--wreck-side-top) - var(--safe-area-inset-top, env(safe-area-inset-top, 0px)),
       var(--wreck-hud-height, 0px) + 0.5rem
     );
 
@@ -1645,7 +1674,7 @@ summary:focus-visible {
     right: 0;
     left: 0;
     width: auto;
-    max-height: calc(100% - var(--instructor-top) - 7rem - var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+    max-height: calc(100% - var(--instructor-top) - 7rem);
   }
 }
 
@@ -1660,6 +1689,7 @@ summary:focus-visible {
 .setup-screen {
   width: min(100%, 44rem);
   max-height: calc(100vh - 4rem);
+  max-height: calc(100dvh - 4rem - var(--safe-area-inset-top, env(safe-area-inset-top, 0px)) - var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
   overflow-y: auto;
   padding: clamp(1.25rem, 4vw, 2.5rem);
   border: 1px solid rgb(129 226 241 / 35%);
@@ -1864,9 +1894,11 @@ summary:focus-visible {
    reaches its end from scrolling the screen behind it (#120); the margin
    leaves backdrop around it to tap, which closes it. */
 .help-overlay {
-  width: min(44rem, calc(100% - 2rem));
+  /* Centred inside the safe area, not the whole screen (#137 A7). */
+  inset: var(--safe-area-inset-top, env(safe-area-inset-top, 0px)) var(--safe-area-inset-right, env(safe-area-inset-right, 0px)) var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)) var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+  width: min(44rem, calc(100% - 2rem - var(--safe-area-inset-left, env(safe-area-inset-left, 0px)) - var(--safe-area-inset-right, env(safe-area-inset-right, 0px))));
   max-width: none;
-  max-height: calc(100% - 2rem);
+  max-height: calc(100% - 2rem - var(--safe-area-inset-top, env(safe-area-inset-top, 0px)) - var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
   padding: 0 1.25rem 1.25rem;
   overflow-y: auto;
   overscroll-behavior: contain;
