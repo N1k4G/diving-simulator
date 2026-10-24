@@ -71,7 +71,7 @@ async function beginDescent(page) {
 /**
  * Holds S, venting the BCD, until the HUD reads at least `depthM`, then lets
  * go. Below 0.5 m the dive counts as under water (presentation status
- * "diving"), which is what gates the gas-information pages.
+ * "diving").
  */
 async function descendTo(page, depthM) {
   await page.keyboard.down('s');

@@ -464,7 +464,16 @@ async function startWreckSimulation(
   // pre-review).
   let lastSaveMs = performance.now();
   let gasInfoPage: GasInfoPage | null = null;
-  let lastPresentation: PresentationState | null = null;
+  // The Info button and the open page, as of `frame`: offered while the dive
+  // is under way, at any depth, as legacy's 'diving' state (#168 PR 3).
+  const syncGasInfoPage = (frame: Readonly<GameFrame>) =>
+    syncGasInfo(
+      hud.gasInfo,
+      gasInfoPage,
+      gasInfoAvailable(frame.presentation, diveMode, frame.awaitingDescent),
+      frame.presentation,
+      plannerSettings,
+    );
   // Set when the dive ends, in a failure or at the surface. From then on
   // nothing is saved: legacy clears the save once it has left 'diving'
   // (game-loop.js maybeSaveDiveState() saves only in 'diving', 'surface' and
@@ -552,20 +561,13 @@ async function startWreckSimulation(
       }
       updateHud(hud, frame, locale);
       drillOverlay.sync(frame.drill);
-      lastPresentation = frame.presentation;
       lastFrame = frame;
       // A page the dive no longer has closes: legacy leaves infoPageMode
       // behind the game-over screen, where it is not drawn.
-      if (!gasInfoPageStillValid(gasInfoPage, frame.presentation, diveMode)) {
+      if (!gasInfoPageStillValid(gasInfoPage, frame.presentation, diveMode, frame.awaitingDescent)) {
         gasInfoPage = null;
       }
-      syncGasInfo(
-        hud.gasInfo,
-        gasInfoPage,
-        gasInfoAvailable(frame.presentation, diveMode),
-        frame.presentation,
-        plannerSettings,
-      );
+      syncGasInfoPage(frame);
       syncOnboardingHint(
         hud.onboardingHint,
         visibleHint(frame.hint, {
@@ -603,43 +605,31 @@ async function startWreckSimulation(
   // nothing the model or the save knows about, so it lives here and not in
   // the controller. The key and the button both walk the same cycle.
   const cycleGasInfo = () => {
-    if (!lastPresentation) {
+    if (!lastFrame) {
       return;
     }
-    gasInfoPage = nextGasInfoPage(gasInfoPage, lastPresentation, diveMode);
-    syncGasInfo(
-      hud.gasInfo,
-      gasInfoPage,
-      gasInfoAvailable(lastPresentation, diveMode),
-      lastPresentation,
-      plannerSettings,
-    );
+    gasInfoPage = nextGasInfoPage(gasInfoPage, lastFrame.presentation, diveMode, lastFrame.awaitingDescent);
+    syncGasInfoPage(lastFrame);
   };
   bindPress(hud.gasInfo.toggle, "button", cycleGasInfo);
   // I walks the pages and Escape closes them, as src/state.js binds both.
   // Each is claimed only when it does something, like every dive key here;
   // a modified I (Ctrl+I and the like) is the browser's.
   const handleGasInfoKey = (event: KeyboardEvent) => {
-    if (!lastPresentation || event.ctrlKey || event.metaKey || event.altKey) {
+    if (!lastFrame || event.ctrlKey || event.metaKey || event.altKey) {
       return;
     }
     if (
       event.key.toLowerCase() === "i" &&
       !event.repeat &&
-      gasInfoAvailable(lastPresentation, diveMode)
+      gasInfoAvailable(lastFrame.presentation, diveMode, lastFrame.awaitingDescent)
     ) {
       event.preventDefault();
       cycleGasInfo();
     } else if (event.key === "Escape" && gasInfoPage !== null) {
       event.preventDefault();
       gasInfoPage = null;
-      syncGasInfo(
-        hud.gasInfo,
-        null,
-        gasInfoAvailable(lastPresentation, diveMode),
-        lastPresentation,
-        plannerSettings,
-      );
+      syncGasInfoPage(lastFrame);
     }
   };
   window.addEventListener("keydown", handleGasInfoKey);
