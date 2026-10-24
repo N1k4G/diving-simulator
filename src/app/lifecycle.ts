@@ -25,13 +25,16 @@ export type LifecycleDocument = Pick<
  * sends `freeze`, and `foreground` when it is visible again, each once per
  * change. On a phone a page in the background may be discarded with no
  * `pagehide`, so this is the last moment the dive is sure to be saved.
- * Returns the function that stops watching.
+ * A page already hidden when the watch starts is reported as in the
+ * background at once (#276 Codex round 1): a dive can finish loading behind
+ * another tab, and it is saved, paused and silenced as if it had gone there
+ * after. Returns the function that stops watching.
  */
 export function watchPageLifecycle(
   listener: LifecycleListener,
   doc: LifecycleDocument = document,
 ): () => void {
-  let inForeground = doc.visibilityState !== "hidden";
+  let inForeground = true;
   const toBackground = () => {
     if (inForeground) {
       inForeground = false;
@@ -50,6 +53,9 @@ export function watchPageLifecycle(
   // Page Lifecycle API (Chromium): a frozen page runs nothing until `resume`.
   doc.addEventListener("freeze", toBackground);
   doc.addEventListener("resume", update);
+  if (doc.visibilityState === "hidden") {
+    toBackground();
+  }
   return () => {
     doc.removeEventListener("visibilitychange", update);
     doc.removeEventListener("freeze", toBackground);

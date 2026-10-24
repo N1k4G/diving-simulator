@@ -681,7 +681,8 @@ async function startWreckSimulation(
   // with no pagehide, so the dive is saved now, as on pagehide, and stands
   // still until the diver is back, with the controls held as it went let go.
   // The help's pause is its own: coming back does not lift it. The screen is
-  // kept on while the dive is on screen and the page visible (A9).
+  // kept on while the dive is on screen and the page visible (A9). A page
+  // hidden while the renderer loaded goes to the background here, at once.
   const wakeLock = new ScreenWakeLock();
   const stopWatchingLifecycle = watchPageLifecycle({
     background: () => {

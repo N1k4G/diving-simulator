@@ -81,13 +81,26 @@ describe("watchPageLifecycle (#137 A5)", () => {
     expect(events).toEqual(["background", "foreground", "background", "foreground"]);
   });
 
-  it("starting hidden, the first visible is a foreground", () => {
+  it("starting hidden, reports the background at once, a freeze then adds nothing, and the first visible is a foreground (#276 Codex round 1)", () => {
     const doc = new FakeDocument();
     doc.visibilityState = "hidden";
     const { events } = watch(doc);
+    expect(events).toEqual(["background"]);
     doc.hide();
+    doc.dispatch("freeze");
+    doc.dispatch("resume");
+    expect(events).toEqual(["background"]);
     doc.show();
-    expect(events).toEqual(["foreground"]);
+    expect(events).toEqual(["background", "foreground"]);
+  });
+
+  it("starting visible, reports nothing until the page changes", () => {
+    const doc = new FakeDocument();
+    const { events } = watch(doc);
+    doc.dispatch("resume");
+    expect(events).toEqual([]);
+    doc.dispatch("freeze");
+    expect(events).toEqual(["background"]);
   });
 
   it("stops watching", () => {
