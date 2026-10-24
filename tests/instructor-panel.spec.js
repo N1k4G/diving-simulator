@@ -133,6 +133,26 @@ async function resume(page, saved, { live = false, hints = true } = {}) {
 }
 
 /**
+ * Waits until the HUD's height on the side, which places the panel on a
+ * phone (trackHudHeight), is the HUD's height now: a ResizeObserver writes
+ * it after the layout a resize starts. Polled on a timer, as some cases step
+ * the page's animation frames by hand.
+ */
+async function hudHeightSettled(page) {
+  await page.waitForFunction(() => {
+    const side = document.querySelector('.wreck-side');
+    const hud = document.querySelector('.wreck-hud');
+    return getComputedStyle(side).getPropertyValue('--wreck-hud-height').trim() === `${hud.offsetHeight}px`;
+  }, undefined, { polling: 50 });
+}
+
+/** Resizes the page and waits for the panel's place to follow. */
+async function resizeTo(page, width, height) {
+  await page.setViewportSize({ width, height });
+  await hudHeightSettled(page);
+}
+
+/**
  * What the panel hides or crowds, or what hides it: every HUD row topmost at
  * its left, middle and right; the onboarding hint's lines topmost; the
  * panel's heading topmost; the panel 8 px from every control; and its button
@@ -214,7 +234,7 @@ for (const mode of ['rec', 'ccr']) {
       await expect(panel(page).locator('[data-instructor-row="pressure"] dt')).toHaveText('Umgebungsdruck');
       await expect(page.locator('[data-onboarding-hint]')).toContainText('Sicherheitsstopp');
       for (const [width, height] of [[844, 390], [667, 375], [390, 844], [360, 640], [1280, 720]]) {
-        await page.setViewportSize({ width, height });
+        await resizeTo(page, width, height);
         expect(await page.evaluate(layoutProblems), `${width}x${height}`).toEqual([]);
       }
     });
@@ -280,7 +300,7 @@ test('the panel stands over no part of the diver wherever the camera leads it, e
   // the stern, from x 98-105 depending on the width, under this panel. That
   // stern range is #271's, so it is not probed here.
   for (const [width, height] of [[1280, 720], [1366, 768], [1440, 900], [1920, 1080]]) {
-    await page.setViewportSize({ width, height });
+    await resizeTo(page, width, height);
     const { probed, hits } = await page.evaluate(panelOverDiver, [ROUTE_M, true]);
     expect(probed, `${width}x${height}`).toBe(59 + 59);
     expect(hits, `${width}x${height}`).toEqual([]);
@@ -289,7 +309,7 @@ test('the panel stands over no part of the diver wherever the camera leads it, e
   // Phones in portrait: the panel is below the diver's deepest line, so the
   // whole route, wherever the camera holds its focus sideways.
   for (const [width, height] of [[390, 844], [360, 640]]) {
-    await page.setViewportSize({ width, height });
+    await resizeTo(page, width, height);
     const { probed, hits } = await page.evaluate(panelOverDiver, [ROUTE_M, false]);
     expect(probed, `${width}x${height}`).toBe(2 * ROUTE_M.length);
     expect(hits, `${width}x${height}`).toEqual([]);
@@ -361,6 +381,7 @@ test.describe('by touch, in German, on a phone', () => {
     await expect(page.getByRole('region', { name: 'PHYSIK LIVE' })).toBeVisible();
     await expect(toggle(page)).toHaveAttribute('aria-pressed', 'true');
     await expect(status(page)).toHaveText('Physik live eingeblendet');
+    await hudHeightSettled(page);
     expect(await page.evaluate(layoutProblems)).toEqual([]);
     await toggle(page).tap();
     await expect(panel(page)).toBeHidden();
