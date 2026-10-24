@@ -193,6 +193,11 @@ const englishMessages = {
   "setup.drills.hint": "Occasional scripted incidents with a decision point",
   "setup.drills.on": "ON",
   "setup.drills.off": "OFF",
+  // The language switch (#169), legacy's (src/ui.js 568): on each screen it
+  // names the OTHER language in that language, so the English table holds
+  // German and the German table English, by design. The button carries the
+  // other language's lang.
+  "setup.language.switch": "Sprache",
   "drill.header": "TRAINING DRILL",
   "drill.prompt": "Press 1 / 2 / 3 to choose",
   "drill.debrief.header": "DEBRIEFING",
@@ -553,6 +558,7 @@ const catalog: Record<SupportedLocale, Record<MessageKey, string>> = {
     "setup.drills.hint": "Vereinzelte Zwischenfälle mit Entscheidungsmoment",
     "setup.drills.on": "ON",
     "setup.drills.off": "OFF",
+    "setup.language.switch": "Language",
     "drill.header": "TRAININGS-DRILL",
     "drill.prompt": "1 / 2 / 3 drücken zum Wählen",
     "drill.debrief.header": "AUSWERTUNG",

@@ -34,6 +34,7 @@ import {
   type SupportedLocale,
 } from "../i18n/catalog";
 import { formatGasFraction, formatPressure } from "../i18n/formatters";
+import { nextLocale } from "../i18n/locale-preference";
 import { DEFAULT_DILUENT_CYLINDER_PRESSURE_BAR } from "../../core/dive-state";
 import {
   AMV_STEP_LPM,
@@ -119,6 +120,12 @@ export interface SetupScreenOptions {
    * banner until it is continued or discarded.
    */
   readonly resume?: SetupResumeOffer;
+  /**
+   * The language switch was pressed (#169): the screen has redrawn itself in
+   * `locale`, keeping its settings, and the caller keeps the choice for the
+   * screens that follow and the next load.
+   */
+  readonly onLocaleChange?: (locale: SupportedLocale) => void;
 }
 
 /**
@@ -139,26 +146,39 @@ export function renderSetupScreen(
   root: HTMLElement,
   options: Readonly<SetupScreenOptions>,
 ): () => void {
-  const { locale, onStart } = options;
+  const { onStart } = options;
+  let locale = options.locale;
   let setup = options.initialSetup ?? createDefaultSetup();
   const offer = options.resume;
-  // Built once and placed again by every draw, as the controls are.
-  // Discarding drops it and moves focus to the first control after it, the
-  // mode the screen is on, where Tab would have gone next; legacy hides its
-  // strip the same way.
-  let banner: HTMLElement | null = offer
-    ? createResumeBanner(locale, {
-        onContinue: () => offer.onContinue(setup),
-        onDiscard: () => {
-          banner = null;
-          offer.onDiscard();
-          draw();
-          shell
-            .querySelector<HTMLElement>("[data-setup-group=mode] input:checked")
-            ?.focus();
-        },
-      })
-    : null;
+  // Built once and placed again by every draw, as the controls are, and built
+  // again in the new language by the language switch. Discarding drops it and
+  // moves focus to the first control after it, the mode the screen is on,
+  // where Tab would have gone next; legacy hides its strip the same way.
+  const buildBanner = (): HTMLElement | null =>
+    offer
+      ? createResumeBanner(locale, {
+          onContinue: () => offer.onContinue(setup),
+          onDiscard: () => {
+            banner = null;
+            offer.onDiscard();
+            draw();
+            shell
+              .querySelector<HTMLElement>("[data-setup-group=mode] input:checked")
+              ?.focus();
+          },
+        })
+      : null;
+  let banner: HTMLElement | null = buildBanner();
+
+  // Legacy's Language button (src/ui.js 403-417): it flips en and de and
+  // redraws the gas setup with the settings it holds. A banner still on
+  // screen is redrawn too; one already discarded stays gone.
+  const switchLocale = (): void => {
+    locale = nextLocale(locale);
+    if (banner) banner = buildBanner();
+    draw();
+    options.onLocaleChange?.(locale);
+  };
 
   const shell = document.createElement("section");
   shell.className = "setup-screen";
@@ -460,6 +480,7 @@ export function renderSetupScreen(
       drillsToggle(locale, setup.drillsEnabled, () =>
         update({ ...setup, drillsEnabled: !setup.drillsEnabled }),
       ),
+      languageSwitch(locale, switchLocale),
       startAction(locale, () => onStart(setup)),
     );
 
@@ -685,6 +706,24 @@ function drillsToggle(locale: SupportedLocale, enabled: boolean, onToggle: () =>
   return group;
 }
 
+/**
+ * Legacy's Language button (#169, src/ui.js 403-417 and 568): it names the
+ * other language in that language, "Sprache" on an English screen and
+ * "Language" on a German one, so a player who cannot read the screen finds
+ * it. The words are in that language, and lang says so.
+ */
+function languageSwitch(locale: SupportedLocale, onSwitch: () => void): HTMLElement {
+  const group = document.createElement("div");
+  group.className = "setup-group";
+  const button = element("button", "setup-preset", translate(locale, "setup.language.switch"));
+  button.type = "button";
+  button.lang = nextLocale(locale);
+  button.dataset.setupLocale = "true";
+  button.addEventListener("click", onSwitch);
+  group.append(button);
+  return group;
+}
+
 function startAction(locale: SupportedLocale, onStart: () => void): HTMLElement {
   const actions = document.createElement("div");
   actions.className = "setup-actions";
@@ -739,6 +778,7 @@ function focusKeyOf(node: Element | null): string | null {
     node.dataset;
   if (startDive !== undefined) return "[data-start-dive]";
   if (node.dataset.setupDrills !== undefined) return "[data-setup-drills]";
+  if (node.dataset.setupLocale !== undefined) return "[data-setup-locale]";
   if (node.dataset.resumeContinue !== undefined) return "[data-resume-continue]";
   if (node.dataset.resumeDiscard !== undefined) return "[data-resume-discard]";
   if (backToSetup !== undefined) return "[data-back-to-setup]";

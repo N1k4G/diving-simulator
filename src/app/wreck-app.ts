@@ -19,7 +19,6 @@ import {
 } from "../render/renderer";
 import {
   DIVE_COMPUTER_LOCALE,
-  detectPreferredLocale,
   diveComputerText,
   translate,
   type DiveComputerKey,
@@ -54,6 +53,7 @@ import { helpPausesDive, type HelpContext } from "./help-content";
 import { createHelpButton, createHelpOverlay } from "./help-overlay";
 import { createDrillOverlay } from "./drill-overlay";
 import { HINT_MESSAGES, createHintStore, hintOpacity, visibleHint } from "./onboarding-hints";
+import { createLocalePreference, initialLocale } from "./i18n/locale-preference";
 import { isTurnBeepDue } from "./thirds-turn-beep";
 import {
   isWarningBeepActive,
@@ -139,6 +139,9 @@ interface HudElements {
 /** Legacy's hint flags, in the page's storage (#160). */
 const hintStore = createHintStore(() => window.localStorage);
 
+/** The language switch's choice, in the page's storage (#169). */
+const localePreference = createLocalePreference(() => window.localStorage);
+
 /**
  * The instructor panel is on (#160, legacy's instructorMode): off on load,
  * and kept from one dive to the next, as legacy's resetDive() keeps it.
@@ -210,10 +213,9 @@ const safetyStopPhaseKeys: Record<PresentationSafetyStop["phase"], DiveComputerK
 
 export function renderWreckApplication(
   root: HTMLElement,
-  locale: SupportedLocale = detectPreferredLocale(),
+  locale: SupportedLocale = initialLocale(localePreference),
 ): void {
-  document.documentElement.lang = locale;
-  document.title = translate(locale, "wreck.brand");
+  applyDocumentLocale(locale);
 
   const gate = createSafetyGate(locale);
   root.replaceChildren(gate);
@@ -226,6 +228,12 @@ export function renderWreckApplication(
     accept.disabled = true;
     showSetupScreen(root, locale, undefined, loadSavedDive());
   });
+}
+
+/** The page's language and title follow the player's locale (#169). */
+function applyDocumentLocale(locale: SupportedLocale): void {
+  document.documentElement.lang = locale;
+  document.title = translate(locale, "wreck.brand");
 }
 
 /**
@@ -268,10 +276,13 @@ function saveRepository(
 // the screen's settings discarded.
 function showSetupScreen(
   root: HTMLElement,
-  locale: SupportedLocale,
+  startLocale: SupportedLocale,
   initialSetup?: DiveSetup,
   savedDive: SaveGame | null = null,
 ): void {
+  // The language switch (#169) changes it here; the dive, its screens and
+  // the next setup screen take it from here.
+  let locale = startLocale;
   let pending = savedDive;
   const start = (setup: DiveSetup, resumed: SaveGame | null) => {
     void startWreckSimulation(root, locale, setup, resumed).catch(
@@ -305,6 +316,11 @@ function showSetupScreen(
           },
         }
       : {}),
+    onLocaleChange: (next) => {
+      locale = next;
+      localePreference.save(next);
+      applyDocumentLocale(next);
+    },
     onStart: (setup) => {
       dispose();
       if (!isRenderableSite(setup.siteId)) {
