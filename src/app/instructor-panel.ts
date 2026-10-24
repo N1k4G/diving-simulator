@@ -3,7 +3,8 @@
 //
 // - L or its button toggles it, only while diving, legacy's `gameState ===
 //   'diving'` (src/state.js keydown, src/touch.js touch-dive-learn): not at the
-//   surface before the dive, nor once it has ended. Off by default, and a new
+//   surface before the dive, nor while a drill's decision or debriefing stops
+//   it (legacy's 'drill' state), nor once it has ended. Off by default, and a new
 //   dive keeps the choice, as legacy's resetDive() keeps instructorMode.
 // - Hidden under the help and the gas information, as legacy's drawScene()
 //   skips it under showHelp and infoPageMode.
@@ -38,9 +39,11 @@ export function isInstructorKey(event: KeyboardEvent): boolean {
 }
 
 /** Legacy's `gameState === 'diving'`: begun, not failed, not surfaced at the end. */
-export function instructorAvailable(frame: Pick<GameFrame, "awaitingDescent" | "presentation">): boolean {
+export function instructorAvailable(frame: Pick<GameFrame, "awaitingDescent" | "presentation" | "drill">): boolean {
   const { status, completed } = frame.presentation;
-  return !frame.awaitingDescent && status !== "failed" && !completed;
+  // A drill's decision and debriefing are legacy's 'drill' state, not
+  // 'diving' (src/game-loop.js _openDrillOverlay, dismissDrillDebrief).
+  return !frame.awaitingDescent && frame.drill === null && status !== "failed" && !completed;
 }
 
 /** Legacy's guard in drawScene(): on, diving, and no help or gas page over it. */

@@ -297,6 +297,58 @@ test('the panel stands over no part of the diver wherever the camera leads it, e
   }
 });
 
+// Legacy's drill decision and debriefing are its 'drill' state, not
+// 'diving' (src/game-loop.js _openDrillOverlay, dismissDrillDebrief), so
+// its L does nothing and drawScene() draws no panel there.
+test('a training drill hides the panel and its button and takes no L, and the panel is back after it', async ({ page }) => {
+  test.setTimeout(120_000);
+  const saved = await savedDive(page, 'rec');
+  const pressureBar = 1 + 20 / 10;
+  // Where a drill may fire (tests/drills.spec.js): 4 dive minutes in, neutral at 20 m.
+  Object.assign(saved.state, {
+    depthM: 20,
+    maxDepthM: 20,
+    elapsedTimeS: 240,
+    verticalVelocityMpm: 0,
+    bcdGasSurfaceLiters: (7 + 2 - 3 - 5 * Math.pow(1 / pressureBar, 0.7)) * pressureBar,
+  });
+  await page.addInitScript(PIN_FRAMES);
+  await page.goto('/dist/');
+  await page.evaluate(([key, value]) => {
+    window.localStorage.setItem(key, value);
+    window.localStorage.setItem('diveSim_hintsDone', '1');
+  }, [SAVE_KEY, JSON.stringify(saved)]);
+  await page.locator('[data-accept-safety]').click();
+  await page.locator('[data-setup-drills]').click();
+  await page.locator('[data-resume-continue]').click();
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  await page.evaluate(() => window.__stepFrames(1));
+  await page.keyboard.press('l');
+  await expect(panel(page)).toBeVisible();
+
+  const decision = page.locator('[data-drill-overlay]');
+  await page.waitForFunction(() => {
+    window.__stepFrames(5);
+    return document.querySelector('[data-drill-overlay]')?.open === true;
+    // Polled on a timer: the page's animation frames are the test's.
+  }, undefined, { polling: 50, timeout: 60_000 });
+  await expect(decision).toBeVisible();
+  await expect(panel(page)).toBeHidden();
+  await expect(toggle(page)).toBeHidden();
+  await page.keyboard.press('l');
+  await page.keyboard.press('1');
+  await page.evaluate(() => window.__stepFrames(2));
+  await expect(panel(page)).toBeHidden();
+  await page.keyboard.press('l');
+  await page.keyboard.press('Enter');
+  await page.evaluate(() => window.__stepFrames(2));
+  await expect(decision).not.toBeVisible();
+  // Still on: neither L under the drill toggled it.
+  await expect(panel(page)).toBeVisible();
+  await expect(toggle(page)).toHaveAttribute('aria-pressed', 'true');
+  await expect(status(page)).toHaveText('Physics live shown');
+});
+
 test.describe('by touch, in German, on a phone', () => {
   test.use({ locale: 'de-DE', viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 

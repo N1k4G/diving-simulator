@@ -649,7 +649,8 @@ async function startWreckSimulation(
     announceInstructor(hud.instructor, instructorOn, locale);
     syncInstructor(lastFrame);
   };
-  hud.instructor.toggle.addEventListener("click", toggleInstructor);
+  // Pressed by any finger, as the other context controls (#168).
+  bindPress(hud.instructor.toggle, "button", toggleInstructor);
   const handleInstructorKey = (event: KeyboardEvent) => {
     if (isInstructorKey(event) && !event.repeat && lastFrame && instructorAvailable(lastFrame)) {
       event.preventDefault();

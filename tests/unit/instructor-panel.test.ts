@@ -35,6 +35,7 @@ import { bars, metres, seconds } from "../../src/core/units";
 import { calculateCeiling, calculateDecoSchedule, calculateNdl } from "../../src/planner/dive-planner";
 import { createPresentationState } from "../../src/presentation/presentation-state";
 import { selectInstructorPhysics, selectLeadingTissue } from "../../src/presentation/instructor-physics";
+import type { DrillFrame } from "../../src/app/game-controller";
 import {
   instructorAvailable,
   instructorPanelShown,
@@ -176,9 +177,10 @@ describe("the instructor panel's values (#46)", () => {
 });
 
 describe("when the instructor panel is offered and shown (#46)", () => {
-  const frame = (state: DiveState, awaitingDescent = false) => ({
+  const frame = (state: DiveState, awaitingDescent = false, drill: DrillFrame | null = null) => ({
     awaitingDescent,
     presentation: createPresentationState(state, null),
+    drill,
   });
 
   it("TC-46-L-KEY-DIVING-ONLY: offered while diving, not at the surface, after a failure or once surfaced", () => {
@@ -187,6 +189,13 @@ describe("when the instructor panel is offered and shown (#46)", () => {
     expect(instructorAvailable(frame(createInitialDiveState(0), true))).toBe(false);
     expect(instructorAvailable(frame(freezeDiveState({ ...diving, failure: { ...diving.failure, reason: "out-of-gas" } })))).toBe(false);
     expect(instructorAvailable(frame(freezeDiveState({ ...diving, completed: true })))).toBe(false);
+  });
+
+  it("is not offered while a drill's decision or debriefing stops the dive, legacy's 'drill' state", () => {
+    const diving = at(10);
+    for (const phase of ["overlay", "debrief"] as const) {
+      expect(instructorAvailable(frame(diving, false, { id: "freeflow", phase, options: [0, 1, 2], correct: false }))).toBe(false);
+    }
   });
 
   it("TC-46-HIDES-UNDER-HELP: shown only on, diving, and under neither the help nor the gas information", () => {
