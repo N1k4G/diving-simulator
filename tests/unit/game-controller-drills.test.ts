@@ -13,6 +13,8 @@ import {
   type InitialDiveOptions,
 } from "../../src/core/dive-state";
 import { metres, seconds } from "../../src/core/units";
+import { NO_DRILL, type DrillState } from "../../src/core/drills";
+import { createSaveGame, decodeSaveGame, encodeSaveGame } from "../../src/save/save-game";
 
 // The training drills in the controller (#160): legacy's roll at the top of
 // updateDiving(), its 'drill' state, which stops the clock and the physics
@@ -60,9 +62,10 @@ function underWay(options: InitialDiveOptions = {}): DiveState {
   });
 }
 
-async function startController(initialState: DiveState, drillsEnabled = true) {
+async function startController(initialState: DiveState, drillsEnabled = true, initialDrill?: DrillState) {
   const frames: GameFrame[] = [];
   const saved: DiveState[] = [];
+  const savedDrills: DrillState[] = [];
   const controller = new GameController({
     renderer: {
       kind: "pixi",
@@ -74,10 +77,12 @@ async function startController(initialState: DiveState, drillsEnabled = true) {
     onFrame: (frame) => {
       frames.push(frame);
     },
-    onAuthoritativeState: (state) => {
+    onAuthoritativeState: (state, _, drill) => {
       saved.push(state);
+      savedDrills.push(drill);
     },
     initialState,
+    initialDrill,
     drillsEnabled,
     // Every roll fires, and picks the first drill that applies.
     random: () => 0,
@@ -88,7 +93,7 @@ async function startController(initialState: DiveState, drillsEnabled = true) {
   });
   await controller.start({} as HTMLElement);
   step(1);
-  return { controller, frames, saved, last: () => frames.at(-1)! };
+  return { controller, frames, saved, savedDrills, last: () => frames.at(-1)! };
 }
 
 describe("the training drills in the controller (#160)", () => {
@@ -186,6 +191,88 @@ describe("the training drills in the controller (#160)", () => {
     expect(last().drill?.phase).toBe("overlay");
     controller.setPaused(true);
     controller.chooseDrillOption(0);
+    expect(last().drill?.phase).toBe("overlay");
+    controller.destroy();
+  });
+});
+
+// A dive reloaded during a drill resumes it (#160), as legacy's
+// restoreDiveState() does; legacy's lines are compared in
+// tests/parity/drills.test.ts (TC-45-66).
+describe("a drill under way, saved and resumed (#160)", () => {
+  /** The controller's save, encoded and read back, as a reload does. */
+  function reloaded(controller: GameController) {
+    const result = decodeSaveGame(
+      encodeSaveGame(
+        createSaveGame(controller.authoritativeState, { lowPercent: 30, highPercent: 70 }, 1, undefined, undefined, controller.drill),
+      ),
+    );
+    if (!result.ok) throw new Error("the dive was not resumed");
+    return result.saveGame;
+  }
+
+  it("TC-45-66-DRILL-OVERLAY-SURVIVES-RESUME: saved while its decision is up, it is up again and answerable", async () => {
+    const first = await startController(underWay());
+    step(1);
+    expect(first.last().drill?.phase).toBe("overlay");
+    // Legacy's autosave runs while the drill stops the dive, with the drill.
+    const count = first.savedDrills.length;
+    step(5);
+    expect(first.savedDrills.length).toBe(count + 5);
+    expect(first.savedDrills.at(-1)).toMatchObject({ phase: "overlay", id: "freeflow", ranThisDive: true });
+    const save = reloaded(first.controller);
+    first.controller.destroy();
+
+    const { controller, last } = await startController(save.state, true, save.drill);
+    expect(last().drill).toEqual({ id: "freeflow", phase: "overlay", options: [0, 2], correct: false });
+    const stopped = last().presentation.elapsedTimeS;
+    expect(stopped).toBe(save.state.elapsedTimeS);
+    step(50);
+    expect(last().presentation.elapsedTimeS).toBe(stopped);
+    controller.chooseDrillOption(0);
+    expect(last().drill).toMatchObject({ phase: "debrief", correct: true });
+    controller.dismissDrillDebrief();
+    step(50);
+    // The dive runs on, with no second drill, though every roll would fire.
+    expect(last().presentation.elapsedTimeS).toBeGreaterThan(stopped);
+    expect(last().drill).toBeNull();
+    expect(controller.drill).toMatchObject({ phase: "effect", ranThisDive: true });
+    controller.destroy();
+  });
+
+  it("saved in its debriefing, the debriefing comes back with the real seconds it had left", async () => {
+    const debriefing: DrillState = {
+      ...NO_DRILL, phase: "debrief", id: "freeflow", ranThisDive: true, selectedOption: 1, correct: false,
+      debriefRemainingS: 1, breathHoldUntilS: 330,
+    };
+    const { controller, last } = await startController(underWay(), true, debriefing);
+    expect(last().drill).toMatchObject({ phase: "debrief", correct: false });
+    step(48);
+    expect(last().drill?.phase).toBe("debrief");
+    step(3);
+    expect(last().drill).toBeNull();
+    controller.destroy();
+  });
+
+  it("TC-45-66-DRILL-EFFECT-TIMERS-SURVIVE-RESUME: a free-flow under way runs on after the reload", async () => {
+    const used = async (drill: DrillState | undefined) => {
+      const { controller, last } = await startController(underWay(), false, drill);
+      const before = last().presentation.tanks[0]!.gasRemainingL;
+      step(50);
+      const usedL = before - last().presentation.tanks[0]!.gasRemainingL;
+      controller.destroy();
+      return usedL;
+    };
+    const freeflowing: DrillState = {
+      ...NO_DRILL, phase: "effect", id: "freeflow", ranThisDive: true, selectedOption: 0, correct: true,
+      freeflowUntilS: 330, freeflowTankIndex: 0,
+    };
+    expect((await used(freeflowing)) / (await used(undefined))).toBeCloseTo(6, 1);
+  });
+
+  it("a save without the drill resumes with none run, so one may come again, as before v19", async () => {
+    const { controller, last } = await startController(underWay(), true, NO_DRILL);
+    step(1);
     expect(last().drill?.phase).toBe("overlay");
     controller.destroy();
   });

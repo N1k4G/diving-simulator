@@ -110,7 +110,7 @@ export const NO_DRILL: DrillState = Object.freeze({
   breathHoldUntilS: 0,
 });
 
-function drillById(id: DrillId | null): Drill | null {
+function drillById(id: unknown): Drill | null {
   return DRILLS.find((drill) => drill.id === id) ?? null;
 }
 
@@ -258,6 +258,65 @@ export function tickDrillDebrief(drill: Readonly<DrillState>, realS: number): Dr
   }
   const remainingS = drill.debriefRemainingS - realS;
   return remainingS <= 0 ? dismissDrillDebrief(drill) : Object.freeze({ ...drill, debriefRemainingS: remainingS });
+}
+
+const DRILL_PHASES: readonly unknown[] = ["inactive", "overlay", "debrief", "effect"];
+
+function isNonNegativeFinite(candidate: unknown): candidate is number {
+  return typeof candidate === "number" && Number.isFinite(candidate) && candidate >= 0;
+}
+
+/**
+ * The drill a resumed dive picks up (#160): legacy's restoreDiveState() of
+ * drillState and drillHasRunThisDive, checked as its _isValidSaveState()
+ * checks them. A phase and its drill, an id only once one has started, and
+ * a free-flowing cylinder exactly while the free-flow lasts, one the dive
+ * has. Legacy's 'surface' holds no drill; here a drill under way needs the
+ * dive time one can start at. The debriefing's real seconds are saved as
+ * those left, as legacy's debriefRemainingSec.
+ *
+ * Where legacy refuses the whole save, a record the controller could not have
+ * written drops only the drill: the dive resumes with none under way, and
+ * with the drill run if the record says so (docs/decisions.md).
+ */
+export function resumedDrill(candidate: unknown, state: DiveState): DrillState {
+  if (typeof candidate !== "object" || candidate === null) {
+    return NO_DRILL;
+  }
+  const record = candidate as Record<keyof DrillState, unknown>;
+  const { phase, id, ranThisDive, selectedOption, correct, debriefRemainingS } = record;
+  const { freeflowUntilS, freeflowTankIndex, breathHoldUntilS } = record;
+  const valid =
+    typeof ranThisDive === "boolean" &&
+    DRILL_PHASES.includes(phase) &&
+    (phase === "inactive"
+      ? id === null
+      : drillById(id) !== null && state.elapsedTimeS >= DRILL_MIN_DIVE_TIME_S) &&
+    Number.isInteger(selectedOption) &&
+    (selectedOption as number) >= -1 &&
+    typeof correct === "boolean" &&
+    isNonNegativeFinite(debriefRemainingS) &&
+    debriefRemainingS <= DRILL_DEBRIEF_S &&
+    isNonNegativeFinite(breathHoldUntilS) &&
+    isNonNegativeFinite(freeflowUntilS) &&
+    Number.isInteger(freeflowTankIndex) &&
+    (freeflowUntilS > 0
+      ? (freeflowTankIndex as number) >= 0 && (freeflowTankIndex as number) < state.tanks.length
+      : freeflowTankIndex === -1);
+  if (!valid) {
+    return ranThisDive === true ? Object.freeze({ ...NO_DRILL, ranThisDive: true }) : NO_DRILL;
+  }
+  return Object.freeze({
+    phase: phase as DrillState["phase"],
+    id: id as DrillId | null,
+    ranThisDive: ranThisDive as boolean,
+    selectedOption: selectedOption as number,
+    correct: correct as boolean,
+    debriefRemainingS: debriefRemainingS as number,
+    freeflowUntilS: freeflowUntilS as number,
+    freeflowTankIndex: freeflowTankIndex as number,
+    breathHoldUntilS: breathHoldUntilS as number,
+  });
 }
 
 /** Legacy's updateDiving(): a free-flow past its end stops, on the frame's dive time. */

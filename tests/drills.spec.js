@@ -146,6 +146,47 @@ test('by keyboard: turned on, the free-flow drill stops the dive, 1 picks, Enter
   expect(await writes()).toBe(2);
 });
 
+test('reloaded at its decision, the dive resumes the drill, which is answered and runs no second (TC-45-66)', async ({ page }) => {
+  await offerDiveUnderWay(page, 'rec', false);
+  await page.locator('[data-setup-drills]').click();
+  await page.locator('[data-resume-continue]').click();
+  const decision = page.getByRole('dialog', { name: '⚠ TRAINING DRILL Regulator Free-Flow' });
+  await expect(decision).toBeVisible({ timeout: 20_000 });
+  const stopped = await hudTime(page);
+  // The autosave goes on while the drill stops the dive, and holds it.
+  await page.waitForFunction((key) => {
+    const parsed = JSON.parse(window.localStorage.getItem(key) ?? 'null');
+    return parsed?.drill?.phase === 'overlay';
+  }, SAVE_KEY, { timeout: 10_000 });
+
+  await page.goto('/dist/');
+  await page.locator('[data-accept-safety]').click();
+  await page.locator('.setup-screen').waitFor();
+  // Training Drills stays off: the drill comes from the save, not a new roll.
+  await expect(page.locator('[data-setup-drills]')).toHaveText('Training Drills: OFF');
+  await page.locator('[data-resume-continue]').click();
+  await expect(decision).toBeVisible();
+  await expect(decision).toBeFocused();
+  await expect(decision.locator('[data-drill-option]')).toHaveCount(2);
+  expect(await hudTime(page)).toBe(stopped);
+  await page.waitForTimeout(1000);
+  expect(await hudTime(page)).toBe(stopped);
+
+  await page.keyboard.press('1');
+  await expect(page.getByRole('dialog', { name: 'DEBRIEFING — Regulator Free-Flow Correct choice' })).toBeVisible();
+  await page.keyboard.press('Enter');
+  await expect(drill(page)).not.toBeVisible();
+  await expect.poll(() => hudTime(page)).not.toBe(stopped);
+  // Its free-flow and the drill's run are saved as the dive goes on.
+  const saved = await page
+    .waitForFunction((key) => {
+      const parsed = JSON.parse(window.localStorage.getItem(key) ?? 'null');
+      return parsed?.drill?.phase === 'effect' ? parsed.drill : null;
+    }, SAVE_KEY, { timeout: 10_000 })
+    .then((handle) => handle.jsonValue());
+  expect(saved).toMatchObject({ id: 'freeflow', ranThisDive: true, correct: true, freeflowTankIndex: 0 });
+});
+
 test('by keyboard, on a rebreather: the co2 drill fails the scrubber, bailing out is right, and the debriefing ends by itself after 5 s', async ({ page }) => {
   await offerDiveUnderWay(page, 'ccr', false);
   await page.locator('[data-setup-drills]').click();

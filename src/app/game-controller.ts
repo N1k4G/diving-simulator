@@ -184,8 +184,17 @@ export interface GameControllerOptions {
    * can be (resumedRoutePosition).
    */
   readonly initialRoutePositionM?: number;
-  /** Each new state, with the route position it was reached at, for the save. */
-  readonly onAuthoritativeState?: (state: DiveState, routePositionM: number) => void;
+  /** The training drill under way in the save (#160), checked by it (resumedDrill). */
+  readonly initialDrill?: Readonly<DrillState>;
+  /**
+   * Each new state, with the route position it was reached at and the drill
+   * under way, for the save.
+   */
+  readonly onAuthoritativeState?: (
+    state: DiveState,
+    routePositionM: number,
+    drill: Readonly<DrillState>,
+  ) => void;
   /** Which onboarding hints are seen or dismissed (#160); none show without it. */
   readonly hintStore?: HintStore;
   /** The setup screen's Training Drills (#160); none fire without it. */
@@ -199,7 +208,7 @@ export class GameController {
   readonly #onFrame: (frame: Readonly<GameFrame>) => void;
   readonly #plannerClient: PlannerWorkerClient;
   readonly #onAuthoritativeState:
-    | ((state: DiveState, routePositionM: number) => void)
+    | ((state: DiveState, routePositionM: number, drill: Readonly<DrillState>) => void)
     | null;
   readonly #plannerSettings: Readonly<PlannerSettings>;
   readonly #forecastScheduler = new ForecastScheduler();
@@ -258,7 +267,7 @@ export class GameController {
   #inOverhead = false;
   readonly #drillsEnabled: boolean;
   readonly #random: () => number;
-  #drill: DrillState = NO_DRILL;
+  #drill: DrillState;
   #lastFrame: Readonly<GameFrame> | null = null;
   #lastFrameMs: number | null = null;
   #animationFrame = 0;
@@ -275,6 +284,10 @@ export class GameController {
     this.#hintStore = options.hintStore ?? NO_HINT_STORE;
     this.#drillsEnabled = options.drillsEnabled ?? false;
     this.#random = options.random ?? Math.random;
+    // A dive reloaded during a drill resumes it (#160): its decision or
+    // debriefing up again, its free-flow or held breath running on, and no
+    // second one rolled, as legacy's restoreDiveState().
+    this.#drill = options.initialDrill ?? NO_DRILL;
     const initialState = options.initialState ?? createWreckInitialState();
     // A dive resumed inside the wreck stays there (#222), and with it the
     // overhead and its rule of thirds, which follow from the position.
@@ -307,6 +320,11 @@ export class GameController {
   /** Where on the route the diver is, for the save (#222). */
   get routePositionM(): number {
     return this.#routePositionM;
+  }
+
+  /** The training drill under way, for the save (#160). */
+  get drill(): Readonly<DrillState> {
+    return this.#drill;
   }
 
   async start(host: HTMLElement): Promise<void> {
@@ -503,8 +521,10 @@ export class GameController {
     }
     this.#drill = resolved.drill;
     applyDrillEffect(this.#model, resolved);
+    // The drill's choice and its effects' ends are for the save even where
+    // the model refused the act.
+    this.#onAuthoritativeState?.(this.#model.snapshot, this.#routePositionM, this.#drill);
     if (this.#model.snapshot !== before) {
-      this.#onAuthoritativeState?.(this.#model.snapshot, this.#routePositionM);
       this.#invalidateForecast();
     }
     this.#publishFrame();
@@ -560,6 +580,9 @@ export class GameController {
       const next = tickDrillDebrief(this.#drill, elapsedS);
       const changed = next.phase !== this.#drill.phase;
       this.#drill = next;
+      // Legacy's autosave runs in its 'drill' state as in 'diving'
+      // (maybeSaveDiveState), so a reload resumes the drill (#160).
+      this.#onAuthoritativeState?.(this.#model.snapshot, this.#routePositionM, this.#drill);
       if (changed || !this.#lastFrame) {
         this.#publishFrame();
       } else {
@@ -657,7 +680,7 @@ export class GameController {
       if (switching) {
         this.#fastForwardActive = false;
       }
-      this.#onAuthoritativeState?.(after, this.#routePositionM);
+      this.#onAuthoritativeState?.(after, this.#routePositionM, this.#drill);
       // The forecast describes the breathed gas, so an act that changed it
       // drops the forecast on screen at once.
       if (
@@ -673,7 +696,7 @@ export class GameController {
       // Waiting at the surface the state does not change, but legacy's
       // autosave runs in its 'surface' state as in 'diving' (gameLoop), so a
       // dive left before its descent resumes there too.
-      this.#onAuthoritativeState?.(this.#model.snapshot, this.#routePositionM);
+      this.#onAuthoritativeState?.(this.#model.snapshot, this.#routePositionM, this.#drill);
     }
 
     this.#publishFrame();

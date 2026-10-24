@@ -21,6 +21,7 @@ import {
 import { neutralBcdSurfaceLitres } from "../../src/core/buoyancy";
 import { DiveModel, advanceDiveStep } from "../../src/core/dive-model";
 import { nextRandom } from "../../src/core/rng";
+import { NO_DRILL, type DrillState } from "../../src/core/drills";
 
 describe("SaveGame", () => {
   it("round-trips every authoritative DiveState field", () => {
@@ -1544,7 +1545,7 @@ describe("SaveGame gradient factors", () => {
 
     it("round-trips in a current save", () => {
       const encoded = encode(inTheHold(), 50);
-      expect(encoded.version).toBe(18);
+      expect(encoded.version).toBe(CURRENT_SAVE_GAME_VERSION);
       expect(encoded.routePositionM).toBe(50);
       const decoded = decodeSaveGame(JSON.stringify(encoded));
       expect(decoded.ok).toBe(true);
@@ -1627,6 +1628,125 @@ describe("SaveGame gradient factors", () => {
         expect(result.migratedFrom).toBe("legacy-v2");
         expect(result.saveGame.routePositionM, JSON.stringify(carried)).toBe(10);
       }
+    });
+  });
+
+  // v19 adds the drill under way (#160). Legacy's save and restore of it are
+  // compared in tests/parity/drills.test.ts (TC-45-66).
+  describe("the drill under way", () => {
+    type Encoded = { version: number; drill?: unknown; state: Record<string, unknown> };
+    /** Seven minutes in at 20 m on two cylinders, breathing through a free-flow on the first. */
+    const twoCylinders = () =>
+      freezeDiveState({
+        ...createInitialDiveState(181, { tanks: [createTankState(createGasMix(0.21, 0)), createTankState(createGasMix(0.21, 0))] }),
+        elapsedTimeS: seconds(420),
+        depthM: metres(20),
+        maxDepthM: metres(20),
+      });
+    const breathingThrough = (): DrillState => ({
+      ...NO_DRILL,
+      phase: "effect",
+      id: "freeflow",
+      ranThisDive: true,
+      selectedOption: 0,
+      correct: true,
+      freeflowUntilS: 465,
+      freeflowTankIndex: 0,
+    });
+    const encode = (drill: unknown, state = twoCylinders()) =>
+      JSON.parse(
+        encodeSaveGame(
+          createSaveGame(state, CONSERVATIVE_FACTORS, 1_735_689_600_000, undefined, undefined, drill as DrillState),
+        ),
+      ) as Encoded;
+    const decodedDrill = (save: Encoded) => {
+      const result = decodeSaveGame(JSON.stringify(save));
+      // The dive is kept whatever the drill.
+      expect(result.ok).toBe(true);
+      return result.ok ? result.saveGame.drill : null;
+    };
+
+    it("round-trips its decision, its debriefing's seconds left and its effects' ends", () => {
+      for (const drill of [
+        { ...NO_DRILL, phase: "overlay", id: "freeflow", ranThisDive: true },
+        { ...breathingThrough(), phase: "debrief", debriefRemainingS: 3.25 },
+        breathingThrough(),
+        { ...NO_DRILL, phase: "effect", id: "freeflow", ranThisDive: true, selectedOption: 1, breathHoldUntilS: 450 },
+      ] as DrillState[]) {
+        const encoded = encode(drill);
+        expect(encoded.version).toBe(CURRENT_SAVE_GAME_VERSION);
+        expect(encoded.drill).toEqual(drill);
+        expect(decodedDrill(encoded)).toEqual(drill);
+      }
+    });
+
+    it("is none in a save built without one", () => {
+      expect(createSaveGame(twoCylinders(), CONSERVATIVE_FACTORS).drill).toEqual(NO_DRILL);
+    });
+
+    it("resumes a v18 save with none under way and none run, whatever the payload carries", () => {
+      for (const carried of [false, true]) {
+        const v18 = encode(breathingThrough());
+        v18.version = 18;
+        if (!carried) delete v18.drill;
+        const result = decodeSaveGame(JSON.stringify(v18));
+        expect(result.ok, String(carried)).toBe(true);
+        if (!result.ok) return;
+        expect(result.migratedFrom).toBe("save-game-v18");
+        expect(result.saveGame.drill, String(carried)).toEqual(NO_DRILL);
+        expect(result.saveGame.state).toEqual(twoCylinders());
+      }
+    });
+
+    it("drops a drill the dive could not be in, keeping the dive and the drill run", () => {
+      for (const change of [
+        { id: "lightFailure" },
+        { id: null },
+        { phase: "flicker" },
+        { phase: "inactive" },
+        { selectedOption: 0.5 },
+        { correct: 1 },
+        { debriefRemainingS: Number.NaN },
+        { debriefRemainingS: 5.5 },
+        { breathHoldUntilS: Infinity },
+        { breathHoldUntilS: -1 },
+        { freeflowUntilS: "465" },
+        { freeflowTankIndex: 2 },
+        { freeflowTankIndex: -1 },
+        { freeflowUntilS: 0 },
+      ]) {
+        const save = encode(breathingThrough());
+        save.drill = { ...breathingThrough(), ...change };
+        expect(decodedDrill(save), JSON.stringify(change)).toEqual({ ...NO_DRILL, ranThisDive: true });
+      }
+      // Before the first three minutes no drill can have started.
+      const early = encode(breathingThrough(), freezeDiveState({ ...twoCylinders(), elapsedTimeS: seconds(179) }));
+      early.drill = breathingThrough();
+      expect(decodedDrill(early)).toEqual({ ...NO_DRILL, ranThisDive: true });
+      // Without a run that is a boolean, nor that.
+      for (const drill of [null, "freeflow", { ...breathingThrough(), ranThisDive: "yes" }]) {
+        const save = encode(breathingThrough());
+        save.drill = drill;
+        expect(decodedDrill(save), JSON.stringify(drill)).toEqual(NO_DRILL);
+      }
+    });
+
+    it("resumes a legacy save's drill, or none and none run without one", () => {
+      const result = decodeSaveGame(JSON.stringify(legacyV2Save()));
+      expect(result.ok && result.saveGame.drill).toEqual(NO_DRILL);
+      const decision = decodeSaveGame(
+        JSON.stringify({
+          ...legacyV2Save(),
+          gameState: "drill",
+          drillHasRunThisDive: true,
+          drillState: {
+            phase: "overlay", id: "co2", startedAt: 12.5, selectedOption: -1, correct: false, flickerRemainingSec: 0,
+            debriefRemainingSec: 0, freeflowUntilDiveSec: 0, freeflowDrainTankIdx: -1, lightRestoreAt: 0,
+            breathHoldUntilDiveSec: 0,
+          },
+        }),
+      );
+      expect(decision.ok && decision.saveGame.drill).toEqual({ ...NO_DRILL, phase: "overlay", id: "co2", ranThisDive: true });
     });
   });
 
