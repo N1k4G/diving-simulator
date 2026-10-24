@@ -1,18 +1,16 @@
 /**
  * The page's lifecycle and the screen wake lock (#137 A5, A9), the browser's
- * half of the platform seam. The dive screen asks these two things of the
- * platform and nothing else here, so the Capacitor lifecycle service of A0
- * can stand in for `watchPageLifecycle` and a native wake lock for
- * `ScreenWakeLock` without the dive screen changing.
+ * implementations of `AppLifecycle` and `WakeLockService`
+ * (src/platform/platform-services.ts). `createBrowserPlatformServices`
+ * assembles them; a native shell's services stand in for them without the
+ * dive screen changing.
  */
+import type {
+  LifecycleListener,
+  WakeLockService,
+} from "../platform/platform-services";
 
-/** What the dive screen does as the app leaves and comes back to the foreground. */
-export interface LifecycleListener {
-  /** The app is hidden or frozen: it may be reclaimed without another event. */
-  background(): void;
-  /** The app is visible again. */
-  foreground(): void;
-}
+export type { LifecycleListener };
 
 /** The part of `document` the browser lifecycle reads, for tests to stand in for. */
 export type LifecycleDocument = Pick<
@@ -86,7 +84,7 @@ export interface WakeLockLike {
  * policy), nothing happens and nothing is logged: the dive does not need the
  * lock, and a refusal is not an error of the client's.
  */
-export class ScreenWakeLock {
+export class ScreenWakeLock implements WakeLockService {
   readonly #wakeLock: WakeLockLike | null;
   #wanted = false;
   #sentinel: WakeLockSentinelLike | null = null;

@@ -8,6 +8,7 @@ import { WebAudioService } from "../audio/audio-service";
 import type { DiveState } from "../core/dive-state";
 import type { DrillState } from "../core/drills";
 import { LocalSaveRepository } from "../save/save-repository";
+import type { PlatformServices } from "../platform/platform-services";
 import type { SaveGame } from "../save/save-game";
 import {
   plannerSettingsWithGradientFactors,
@@ -52,8 +53,18 @@ import { drawDiveSeed } from "./dive-seed";
 import { helpPausesDive, type HelpContext } from "./help-content";
 import { createHelpButton, createHelpOverlay } from "./help-overlay";
 import { createDrillOverlay } from "./drill-overlay";
-import { HINT_MESSAGES, createHintStore, hintOpacity, visibleHint } from "./onboarding-hints";
-import { createLocalePreference, initialLocale } from "./i18n/locale-preference";
+import {
+  HINT_MESSAGES,
+  createHintStore,
+  hintOpacity,
+  visibleHint,
+  type HintStore,
+} from "./onboarding-hints";
+import {
+  createLocalePreference,
+  initialLocale,
+  type LocalePreference,
+} from "./i18n/locale-preference";
 import { isTurnBeepDue } from "./thirds-turn-beep";
 import {
   isWarningBeepActive,
@@ -84,7 +95,6 @@ import {
   type GameFrame,
 } from "./game-controller";
 import { bindDpad, createDpadButtons, prefersArrowGlyphs } from "./touch-dpad";
-import { ScreenWakeLock, watchPageLifecycle } from "./lifecycle";
 import { bindPress } from "./touch-press";
 import {
   announceInstructor,
@@ -136,11 +146,16 @@ interface HudElements {
   readonly stopHudTracking: () => void;
 }
 
-/** Legacy's hint flags, in the page's storage (#160). */
-const hintStore = createHintStore(() => window.localStorage);
-
-/** The language switch's choice, in the page's storage (#169). */
-const localePreference = createLocalePreference(() => window.localStorage);
+/**
+ * What the app runs on (#137 A0), from bootstrap.ts, and what it keeps in
+ * its store: legacy's hint flags (#160) and the language switch's choice
+ * (#169).
+ */
+interface AppServices {
+  readonly platform: PlatformServices;
+  readonly hintStore: HintStore;
+  readonly localePreference: LocalePreference;
+}
 
 /**
  * The instructor panel is on (#160, legacy's instructorMode): off on load,
@@ -213,8 +228,16 @@ const safetyStopPhaseKeys: Record<PresentationSafetyStop["phase"], DiveComputerK
 
 export function renderWreckApplication(
   root: HTMLElement,
-  locale: SupportedLocale = initialLocale(localePreference),
+  platform: PlatformServices,
+  requestedLocale?: SupportedLocale,
 ): void {
+  const services: AppServices = {
+    platform,
+    hintStore: createHintStore(platform.syncStorage),
+    localePreference: createLocalePreference(platform.syncStorage),
+  };
+  // The stored choice, else the browser's, unless the caller names one.
+  const locale = requestedLocale ?? initialLocale(services.localePreference);
   applyDocumentLocale(locale);
 
   const gate = createSafetyGate(locale);
@@ -226,7 +249,7 @@ export function renderWreckApplication(
 
   accept.addEventListener("click", () => {
     accept.disabled = true;
-    showSetupScreen(root, locale, undefined, loadSavedDive());
+    showSetupScreen(services, root, locale, undefined, loadSavedDive(platform));
   });
 }
 
@@ -241,10 +264,10 @@ function applyDocumentLocale(locale: SupportedLocale): void {
  * once at load into _pendingResumeDive (#191). Storage that cannot be read,
  * and a save more than an hour old, offer no dive to resume.
  */
-function loadSavedDive(): SaveGame | null {
+function loadSavedDive(platform: PlatformServices): SaveGame | null {
   try {
     // A dive resumed from a legacy save gets its own seed too (#219).
-    const repository = saveRepository({ legacySeed: drawDiveSeed });
+    const repository = saveRepository(platform, { legacySeed: drawDiveSeed });
     const result = repository.load();
     if (result.status !== "loaded") return null;
     // Legacy's loadSavedDive() clears a save older than an hour.
@@ -260,9 +283,10 @@ function loadSavedDive(): SaveGame | null {
 }
 
 function saveRepository(
+  platform: PlatformServices,
   options: ConstructorParameters<typeof LocalSaveRepository>[1] = {},
 ): LocalSaveRepository {
-  return new LocalSaveRepository(window.localStorage, options);
+  return new LocalSaveRepository(platform.syncStorage(), options);
 }
 
 // Gate -> setup -> dive. The setup screen owns a keyboard listener, so its
@@ -275,6 +299,7 @@ function saveRepository(
 // whose saves replace it. It used to be resumed by Start, silently, with
 // the screen's settings discarded.
 function showSetupScreen(
+  services: AppServices,
   root: HTMLElement,
   startLocale: SupportedLocale,
   initialSetup?: DiveSetup,
@@ -285,7 +310,7 @@ function showSetupScreen(
   let locale = startLocale;
   let pending = savedDive;
   const start = (setup: DiveSetup, resumed: SaveGame | null) => {
-    void startWreckSimulation(root, locale, setup, resumed).catch(
+    void startWreckSimulation(services, root, locale, setup, resumed).catch(
       (error: unknown) => {
         console.error(error);
         renderStartError(root, locale);
@@ -311,20 +336,20 @@ function showSetupScreen(
             onDiscard: () => {
               pending = null;
               // Legacy's discardSavedDive(): clearSavedDive().
-              clearSave(saveRepository());
+              clearSave(saveRepository(services.platform));
             },
           },
         }
       : {}),
     onLocaleChange: (next) => {
       locale = next;
-      localePreference.save(next);
+      services.localePreference.save(next);
       applyDocumentLocale(next);
     },
     onStart: (setup) => {
       dispose();
       if (!isRenderableSite(setup.siteId)) {
-        renderUnavailableSite(root, locale, pending);
+        renderUnavailableSite(services, root, locale, pending);
         return;
       }
       start(setup, null);
@@ -343,6 +368,7 @@ function isRenderableSite(siteId: SiteId): boolean {
 }
 
 function renderUnavailableSite(
+  services: AppServices,
   root: HTMLElement,
   locale: SupportedLocale,
   savedDive: SaveGame | null,
@@ -367,7 +393,7 @@ function renderUnavailableSite(
   back.textContent = translate(locale, "setup.unavailableSite.back");
   // No dive was started, so a saved one is still on offer.
   back.addEventListener("click", () =>
-    showSetupScreen(root, locale, undefined, savedDive),
+    showSetupScreen(services, root, locale, undefined, savedDive),
   );
 
   panel.append(heading, body, back);
@@ -442,19 +468,21 @@ function createSafetyGate(locale: SupportedLocale): HTMLElement {
  * setup rebuilt from it (#191); a new dive has no save and its own setup.
  */
 async function startWreckSimulation(
+  services: AppServices,
   root: HTMLElement,
   locale: SupportedLocale,
   setup: DiveSetup,
   resumed: SaveGame | null,
 ): Promise<void> {
-  const repository = saveRepository();
+  const { platform, hintStore } = services;
+  const repository = saveRepository(platform);
   // A save of a dive that has already ended at the surface is not resumed
   // into a dive the model would move no further: it shows its debriefing, as
   // the dive would have on that tick. No client writes one now, since a
   // completed dive clears its save on that tick (#223), but the codec accepts
   // one from v12 on.
   if (resumed?.state.completed) {
-    endInPostDive(root, locale, setup, repository, resumed.state);
+    endInPostDive(services, root, locale, setup, repository, resumed.state);
     return;
   }
   const hud = createWreckShell(locale);
@@ -553,7 +581,7 @@ async function startWreckSimulation(
         clearSave(repository);
         queueMicrotask(() => {
           teardown();
-          endInPostDive(root, locale, setup, repository, state);
+          endInPostDive(services, root, locale, setup, repository, state);
         });
         return;
       }
@@ -699,8 +727,8 @@ async function startWreckSimulation(
   // The help's pause is its own: coming back does not lift it. The screen is
   // kept on while the dive is on screen and the page visible (A9). A page
   // hidden while the renderer loaded goes to the background here, at once.
-  const wakeLock = new ScreenWakeLock();
-  const stopWatchingLifecycle = watchPageLifecycle({
+  const { wakeLock } = platform;
+  const stopWatchingLifecycle = platform.lifecycle.watch({
     background: () => {
       saveOnLeaving();
       dpad.releaseAll();
@@ -714,7 +742,7 @@ async function startWreckSimulation(
       void audio.resume().catch((error: unknown) => console.error(error));
     },
   });
-  if (document.visibilityState !== "hidden") {
+  if (platform.lifecycle.inForeground) {
     wakeLock.hold();
   }
   // Legacy is silent after the dive: its only beep is drawn with the dive
@@ -757,7 +785,7 @@ async function startWreckSimulation(
       // cylinders stay as the dive left them (setupForNextDive).
       onRetry: () => {
         disposeGameOver();
-        showSetupScreen(root, locale, next);
+        showSetupScreen(services, root, locale, next);
       },
     });
   };
@@ -857,6 +885,7 @@ function clearSave(repository: LocalSaveRepository): void {
  * its gas setup with the same settings.
  */
 function endInPostDive(
+  services: AppServices,
   root: HTMLElement,
   locale: SupportedLocale,
   setup: DiveSetup,
@@ -872,7 +901,7 @@ function endInPostDive(
       ...diveHelpContext(state, false, setup.mode),
       state: "post-dive",
     }),
-    hints: hintStore,
+    hints: services.hintStore,
   });
   const dispose = renderPostDiveScreen(root, {
     locale,
@@ -883,7 +912,7 @@ function endInPostDive(
     onDiveAgain: () => {
       help.destroy();
       dispose();
-      showSetupScreen(root, locale, setupForNextDive(setup, state));
+      showSetupScreen(services, root, locale, setupForNextDive(setup, state));
     },
     onHelp: () => help.open(),
   });
