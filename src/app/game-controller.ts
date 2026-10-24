@@ -203,6 +203,9 @@ export interface GameControllerOptions {
   readonly random?: () => number;
 }
 
+/** What holds the dive paused (GameController.setPaused). */
+export type PauseReason = "help" | "background";
+
 export class GameController {
   readonly #renderer: SceneRenderer;
   readonly #onFrame: (frame: Readonly<GameFrame>) => void;
@@ -259,8 +262,11 @@ export class GameController {
   #facing: -1 | 1 = 1;
   #torchOn = true;
   #fastForwardActive = false;
-  /** The help overlay is open over the dive (#160); see setPaused. */
-  #paused = false;
+  /**
+   * Who holds the dive paused (#160, #137 A5): the help overlay, the page in
+   * the background. Each releases only its own hold; see setPaused.
+   */
+  readonly #pauseHolders = new Set<PauseReason>();
   readonly #hintStore: HintStore;
   #hints: HintsState = NO_HINTS;
   /** The previous frame's overhead, which legacy's hint triggers read (#160). */
@@ -356,20 +362,34 @@ export class GameController {
   }
 
   /**
-   * Stops the dive under the help overlay (#160), as legacy's gameLoop()
-   * skips updateDiving() while showHelp: nothing advances and no intent is
-   * taken. Held controls are let go, a touch held under the modal included,
-   * and the first frame after it runs no time.
+   * Stops the dive for `reason` (#160, #137 A5): under the help overlay, as
+   * legacy's gameLoop() skips updateDiving() while showHelp, and while the
+   * page is in the background. Nothing advances and no intent is taken. Held
+   * controls are let go, a touch held under the modal or a key whose keyup
+   * the hidden page never receives included, and the first frame after it
+   * runs no time.
+   *
+   * The dive runs again only once every reason has let go: closing the help
+   * does not resume a dive the background still holds, nor coming back to
+   * the page one the help still holds. A drill's stop is the drill's own
+   * state (#halted) and outlasts both.
    */
-  setPaused(paused: boolean): void {
-    if (this.#paused === paused) {
-      return;
-    }
-    this.#paused = paused;
-    this.#lastFrameMs = null;
+  setPaused(reason: PauseReason, paused: boolean): void {
+    const wasPaused = this.paused;
     if (paused) {
+      this.#pauseHolders.add(reason);
       this.#pressed.clear();
+    } else {
+      this.#pauseHolders.delete(reason);
     }
+    if (this.paused !== wasPaused) {
+      this.#lastFrameMs = null;
+    }
+  }
+
+  /** Some reason holds the dive paused (setPaused). */
+  get paused(): boolean {
+    return this.#pauseHolders.size > 0;
   }
 
   setControl(control: ContinuousControl, active: boolean): void {
@@ -516,7 +536,7 @@ export class GameController {
   chooseDrillOption(index: number): void {
     const before = this.#model.snapshot;
     const resolved = resolveDrillOption(this.#drill, index, before);
-    if (this.#paused || !resolved) {
+    if (this.paused || !resolved) {
       return;
     }
     this.#drill = resolved.drill;
@@ -533,7 +553,7 @@ export class GameController {
   /** Ends a drill's debriefing (#160): legacy's Enter or a tap, and the dive runs on. */
   dismissDrillDebrief(): void {
     const next = dismissDrillDebrief(this.#drill);
-    if (this.#paused || next === this.#drill) {
+    if (this.paused || next === this.#drill) {
       return;
     }
     this.#drill = next;
@@ -558,7 +578,7 @@ export class GameController {
     if (this.#disposed) {
       return;
     }
-    if (this.#paused) {
+    if (this.paused) {
       // Legacy still draws its dive computer under the help, so a warning
       // goes on beeping (#160): the last frame again, with nothing advanced.
       if (this.#lastFrame) {
@@ -937,9 +957,9 @@ export class GameController {
     return Object.freeze({ id, phase, options, correct });
   }
 
-  /** The help overlay or a drill has stopped the dive, and takes its intents. */
+  /** A pause (setPaused) or a drill has stopped the dive, and takes its intents. */
   #halted(): boolean {
-    return this.#paused || drillPausesDive(this.#drill);
+    return this.paused || drillPausesDive(this.#drill);
   }
 
   /**

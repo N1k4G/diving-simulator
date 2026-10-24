@@ -53,8 +53,14 @@ export class WebAudioService implements AudioService {
     }
   }
 
+  /**
+   * Also while the context is still starting: a resume asked for before
+   * (the dive's start, its sound unlocked by the Start press) would
+   * otherwise run it after the page went to the background (#276 Codex
+   * round 1). The context applies the two in the order asked.
+   */
   async suspend(): Promise<void> {
-    if (this.#context?.state === "running") {
+    if (this.#context && this.#context.state !== "closed") {
       await this.#context.suspend();
     }
   }

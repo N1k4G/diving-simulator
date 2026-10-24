@@ -84,6 +84,7 @@ import {
   type GameFrame,
 } from "./game-controller";
 import { bindDpad, createDpadButtons, prefersArrowGlyphs } from "./touch-dpad";
+import { ScreenWakeLock, watchPageLifecycle } from "./lifecycle";
 import { bindPress } from "./touch-press";
 import {
   announceInstructor,
@@ -663,11 +664,11 @@ async function startWreckSimulation(
     onOpen: (context) => {
       dpad.releaseAll();
       helpOpen = true;
-      controller.setPaused(helpPausesDive(context.state));
+      controller.setPaused("help", helpPausesDive(context.state));
     },
     onClose: () => {
       helpOpen = false;
-      controller.setPaused(false);
+      controller.setPaused("help", false);
     },
     hints: { dismissed: hintStore.dismissed, dismiss: () => controller.dismissHints() },
   });
@@ -676,18 +677,38 @@ async function startWreckSimulation(
     audio.setMuted(!audio.muted);
     hud.mute.setAttribute("aria-pressed", String(audio.muted));
   });
-  const handleVisibility = () => {
-    const action = document.hidden ? audio.suspend() : audio.resume();
-    void action.catch((error: unknown) => console.error(error));
-  };
-  document.addEventListener("visibilitychange", handleVisibility);
+  // The page in the background (#137 A5): on a phone it may be reclaimed
+  // with no pagehide, so the dive is saved now, as on pagehide, and stands
+  // still until the diver is back, with the controls held as it went let go.
+  // The help's pause is its own: coming back does not lift it. The screen is
+  // kept on while the dive is on screen and the page visible (A9). A page
+  // hidden while the renderer loaded goes to the background here, at once.
+  const wakeLock = new ScreenWakeLock();
+  const stopWatchingLifecycle = watchPageLifecycle({
+    background: () => {
+      saveOnLeaving();
+      dpad.releaseAll();
+      controller.setPaused("background", true);
+      wakeLock.release();
+      void audio.suspend().catch((error: unknown) => console.error(error));
+    },
+    foreground: () => {
+      controller.setPaused("background", false);
+      wakeLock.hold();
+      void audio.resume().catch((error: unknown) => console.error(error));
+    },
+  });
+  if (document.visibilityState !== "hidden") {
+    wakeLock.hold();
+  }
   // Legacy is silent after the dive: its only beep is drawn with the dive
   // computer, which neither its post-dive nor its game-over state draws. The
   // teardown destroys the sound with the dive, so a dive surfaced on low gas
   // does not go on sounding its alarm (#223 pre-review).
   const teardown = () => {
     dpad.dispose();
-    document.removeEventListener("visibilitychange", handleVisibility);
+    stopWatchingLifecycle();
+    wakeLock.release();
     window.removeEventListener("keydown", handleGasInfoKey);
     window.removeEventListener("keydown", handleInstructorKey);
     hud.stopHudTracking();
@@ -724,20 +745,26 @@ async function startWreckSimulation(
       },
     });
   };
+  /** The save on pagehide and in the background, of a dive not yet over. */
+  function saveOnLeaving(): void {
+    if (ended || controller.authoritativeState.completed) {
+      return;
+    }
+    saveState(
+      repository,
+      controller.authoritativeState,
+      controller.routePositionM,
+      controller.drill,
+      plannerSettings,
+      diveMode,
+    );
+    lastSaveMs = performance.now();
+  }
   function handlePageHide(): void {
     if (ended) {
       return;
     }
-    if (!controller.authoritativeState.completed) {
-      saveState(
-        repository,
-        controller.authoritativeState,
-        controller.routePositionM,
-        controller.drill,
-        plannerSettings,
-        diveMode,
-      );
-    }
+    saveOnLeaving();
     teardown();
   }
   window.addEventListener("pagehide", handlePageHide, { once: true });
@@ -745,6 +772,8 @@ async function startWreckSimulation(
     await audioResume;
     await controller.start(hud.viewport);
   } catch (error) {
+    stopWatchingLifecycle();
+    wakeLock.release();
     help.destroy();
     drillOverlay.destroy();
     controller.destroy();
