@@ -224,7 +224,7 @@ describe("the dive paused under the help overlay (#160), as legacy skips updateD
     step(60);
     controller.setControl("descend", false);
     controller.setControl("ascend", true);
-    controller.setPaused(true);
+    controller.setPaused("help", true);
     const before = controller.authoritativeState;
     const seen = frames.length;
     const last = frames.at(-1);
@@ -239,7 +239,7 @@ describe("the dive paused under the help overlay (#160), as legacy skips updateD
     expect(frames.length).toBe(seen + 120);
     expect(frames.slice(seen).every((frame) => frame === last)).toBe(true);
 
-    controller.setPaused(false);
+    controller.setPaused("help", false);
     step(1);
     expect(controller.authoritativeState.elapsedTimeS).toBe(before.elapsedTimeS);
     step(1);
