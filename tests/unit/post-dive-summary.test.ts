@@ -175,6 +175,18 @@ describe("the post-dive summary", () => {
     expect(Object.isFrozen(summary.grade)).toBe(true);
     expect(Object.isFrozen(summary.grade.scores)).toBe(true);
     expect(summary.grade.scores.every((entry) => Object.isFrozen(entry) && Object.isFrozen(entry.note))).toBe(true);
+    // A dive that ran a drill (#160 pre-review): both lists and their entries.
+    const model = new DiveModel(createInitialDiveState(3));
+    model.advance({ depthM: metres(12) }, seconds(240));
+    model.recordDrillOutcome("freeflow", 1, false);
+    model.advance({ depthM: metres(0) }, seconds(1));
+    const drilled = createPostDiveSummary(model.snapshot, OPEN_WATER);
+    expect(drilled.violations).toHaveLength(1);
+    expect(drilled.drillOutcomes).toHaveLength(1);
+    for (const list of [drilled.violations, drilled.drillOutcomes, summary.violations, summary.drillOutcomes]) {
+      expect(Object.isFrozen(list)).toBe(true);
+      expect(list.every((entry) => Object.isFrozen(entry))).toBe(true);
+    }
   });
 
   it("is what the presentation snapshot's completion flag announces", () => {

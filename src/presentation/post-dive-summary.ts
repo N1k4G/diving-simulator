@@ -123,9 +123,12 @@ export function createPostDiveSummary(
     maxDepthM: state.maxDepthM,
     averageDepthM: log.submergedS > 0 ? log.depthTimeMS / log.submergedS : 0,
     grade: gradeDive(state, context),
-    // The log's own list where it holds no drill, as on most dives.
-    violations: log.entries.every(isViolationEntry) ? log.entries : log.entries.filter(isViolationEntry),
-    drillOutcomes: log.entries.filter((entry) => entry.kind === "drill-outcome"),
+    // The log's own frozen list where it holds no drill, as on most dives.
+    // Its entries are frozen with the state (freezeDiveState).
+    violations: log.entries.every(isViolationEntry)
+      ? log.entries
+      : Object.freeze(log.entries.filter(isViolationEntry)),
+    drillOutcomes: Object.freeze(log.entries.filter((entry) => entry.kind === "drill-outcome")),
     cylinders: Object.freeze(cylinders),
     rebreather,
     safetyStop: !safetyStop.needed
