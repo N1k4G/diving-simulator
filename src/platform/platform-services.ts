@@ -15,8 +15,8 @@ export interface PlatformServices {
   /** The durable key-value store saves and settings are kept in. */
   readonly store: PersistentStore;
   /**
-   * The same store, read and written synchronously, for the save repository
-   * and the hint flags, which are synchronous until #137 A4a makes them
+   * The same store, read and written synchronously, for the save repository,
+   * the hint flags and the locale choice, synchronous until #137 A4a makes them
    * await `store` (docs/decisions.md, the #137 A0 row). Throws where the
    * store cannot be reached at all, as reading `window.localStorage` does
    * where the page's storage is blocked, so each caller meets that where it

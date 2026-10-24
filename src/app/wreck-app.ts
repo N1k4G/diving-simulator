@@ -60,7 +60,11 @@ import {
   visibleHint,
   type HintStore,
 } from "./onboarding-hints";
-import { createLocalePreference, initialLocale } from "./i18n/locale-preference";
+import {
+  createLocalePreference,
+  initialLocale,
+  type LocalePreference,
+} from "./i18n/locale-preference";
 import { isTurnBeepDue } from "./thirds-turn-beep";
 import {
   isWarningBeepActive,
@@ -143,16 +147,15 @@ interface HudElements {
 }
 
 /**
- * What the app runs on (#137 A0), from bootstrap.ts, and legacy's hint
- * flags kept in its store (#160).
+ * What the app runs on (#137 A0), from bootstrap.ts, and what it keeps in
+ * its store: legacy's hint flags (#160) and the language switch's choice
+ * (#169).
  */
 interface AppServices {
   readonly platform: PlatformServices;
   readonly hintStore: HintStore;
+  readonly localePreference: LocalePreference;
 }
-
-/** The language switch's choice, in the page's storage (#169). */
-const localePreference = createLocalePreference(() => window.localStorage);
 
 /**
  * The instructor panel is on (#160, legacy's instructorMode): off on load,
@@ -226,12 +229,15 @@ const safetyStopPhaseKeys: Record<PresentationSafetyStop["phase"], DiveComputerK
 export function renderWreckApplication(
   root: HTMLElement,
   platform: PlatformServices,
-  locale: SupportedLocale = initialLocale(localePreference),
+  requestedLocale?: SupportedLocale,
 ): void {
   const services: AppServices = {
     platform,
     hintStore: createHintStore(platform.syncStorage),
+    localePreference: createLocalePreference(platform.syncStorage),
   };
+  // The stored choice, else the browser's, unless the caller names one.
+  const locale = requestedLocale ?? initialLocale(services.localePreference);
   applyDocumentLocale(locale);
 
   const gate = createSafetyGate(locale);
@@ -337,7 +343,7 @@ function showSetupScreen(
       : {}),
     onLocaleChange: (next) => {
       locale = next;
-      localePreference.save(next);
+      services.localePreference.save(next);
       applyDocumentLocale(next);
     },
     onStart: (setup) => {
