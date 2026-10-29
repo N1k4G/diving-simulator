@@ -1187,6 +1187,98 @@ summary:focus-visible {
   display: none;
 }
 
+/* The dive is not being saved (#282): in the warning's amber, under the
+   HUD and as wide as it, in the column's flow, so an open gas page or a
+   short screen's instructor panel below it makes room, and on a phone the
+   instructor panel's place counts it with the HUD (trackHudHeight). Empty,
+   it is out of the column's flow and takes no gap, but stays in the
+   accessibility tree, so the status region is there when the notice is
+   written into it. */
+.persistence-notice {
+  box-sizing: border-box;
+  flex-shrink: 0;
+  width: min(var(--wreck-hud-width), 100%);
+  margin: 0;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid #ffdc78;
+  border-radius: 0.65rem;
+  color: #ffdc78;
+  background: rgb(3 24 32 / 85%);
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.persistence-notice:empty {
+  position: absolute;
+  padding: 0;
+  border: 0;
+}
+
+.persistence-notice-short {
+  display: none;
+}
+
+/* Under 800px of height the sentence, five to eight lines in the HUD's
+   width, left a rebreather's column no room above the dock and the pad
+   (360x640 to 360x780, 1280x720), so its opening words stand there alone.
+   The sentence stays in the status region, visually hidden, and is what is
+   announced. Kept apart from the HUD's own media rules. */
+@media (height < 800px) {
+  .persistence-notice-full {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .persistence-notice-short {
+    display: inline;
+  }
+}
+
+/* A short screen's HUD fills the column (below); so does the notice. */
+@media (height <= 600px) {
+  .persistence-notice {
+    width: 100%;
+  }
+}
+
+/* An open gas page takes the notice's place, and so does the instructor
+   panel where it stands under the HUD (a phone, a short screen), as
+   legacy's information pages take its dive computer's lower box. There a
+   page shares the column's height with the dock and the D-pad to the
+   pixel, and even the opening words left it nothing (a technical dive's
+   gas page at 320x568: 5px of its 47; a rebreather's loop page at 360x640:
+   none of its 30). The notice leaves the flow, visually hidden and still
+   the status region, so nothing is announced again, and it is back as the
+   page closes. */
+.wreck-column:has(> .gas-info:not([hidden])) > .persistence-notice:not(:empty) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (width <= 720px), (height <= 600px) {
+  .wreck-column:has(> .instructor-panel:not([hidden])) > .persistence-notice:not(:empty) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    padding: 0;
+    border: 0;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
 /* One column in the bottom-left corner: the keyboard hint above, the
    cylinder row below. Both used to be anchored there absolutely with the
    same offsets, so the hint was drawn across the row at desktop widths

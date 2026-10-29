@@ -13,6 +13,7 @@ import {
   type PersistentStore,
 } from "../save/save-repository";
 import type { PlatformServices } from "../platform/platform-services";
+import { PersistenceStatus } from "./persistence-status";
 import type { SaveGame } from "../save/save-game";
 import type { SessionSnapshot } from "../save/session-snapshot";
 import {
@@ -145,6 +146,8 @@ interface HudElements {
   readonly help: HTMLButtonElement;
   readonly gasInfo: GasInfoElements;
   readonly surfacePrompt: HTMLElement;
+  /** Says the dive is not being saved (#282). */
+  readonly persistence: HTMLElement;
   readonly onboardingHint: HTMLElement;
   readonly instructor: InstructorPanelElements;
   /** Stops keeping the HUD's height for the instructor panel's place. */
@@ -166,6 +169,8 @@ interface AppServices {
   readonly store: PersistentStore;
   readonly localePreference: LocalePreference;
   readonly repository: LocalSaveRepository;
+  /** Whether the dive is being saved, shown when it is not (#282). */
+  readonly persistence: PersistenceStatus;
 }
 
 /**
@@ -254,6 +259,7 @@ export async function renderWreckApplication(
     localePreference: await loadLocalePreference(store),
     // A dive resumed from a legacy save gets its own seed too (#219).
     repository: new LocalSaveRepository(store, { legacySeed: drawDiveSeed }),
+    persistence: new PersistenceStatus(),
   };
   // The stored choice, else the browser's, unless the caller names one.
   const locale = requestedLocale ?? initialLocale(services.localePreference);
@@ -268,7 +274,7 @@ export async function renderWreckApplication(
 
   accept.addEventListener("click", () => {
     accept.disabled = true;
-    void loadSavedDive(services.repository).then((saved) =>
+    void loadSavedDive(services).then((saved) =>
       showSetupScreen(services, root, locale, undefined, saved),
     );
   });
@@ -283,9 +289,11 @@ function applyDocumentLocale(locale: SupportedLocale): void {
 /**
  * The save on the first setup screen, as legacy's loadSavedDive() reads it
  * once at load into _pendingResumeDive (#191). Storage that cannot be read,
- * and a save more than an hour old, offer no dive to resume. Never rejects.
+ * and a save more than an hour old, offer no dive to resume; the first marks
+ * persistence degraded (#282). Never rejects.
  */
-async function loadSavedDive(repository: LocalSaveRepository): Promise<SaveGame | null> {
+async function loadSavedDive(services: AppServices): Promise<SaveGame | null> {
+  const { repository } = services;
   try {
     const result = await repository.load();
     if (result.status !== "loaded") return null;
@@ -297,6 +305,7 @@ async function loadSavedDive(repository: LocalSaveRepository): Promise<SaveGame 
     return result.saveGame;
   } catch (error) {
     console.error(error);
+    services.persistence.unreadable();
     return null;
   }
 }
@@ -602,7 +611,7 @@ async function startWreckSimulation(
       }
       const nowMs = performance.now();
       if (nowMs - lastSaveMs > SAVE_INTERVAL_MS) {
-        saveState(repository, state, session, drill, plannerSettings, diveMode);
+        saveState(services, state, session, drill, plannerSettings, diveMode);
         lastSaveMs = nowMs;
       }
     },
@@ -638,6 +647,7 @@ async function startWreckSimulation(
         locale,
       );
       syncInstructor(frame);
+      syncPersistenceNotice(hud.persistence, services.persistence.degraded, locale);
       audio.update({
         elapsedRealS: frame.scene.elapsedRealS,
         warningActive: isWarningBeepActive(frame.presentation),
@@ -810,7 +820,7 @@ async function startWreckSimulation(
       return;
     }
     saveState(
-      repository,
+      services,
       controller.authoritativeState,
       controller.session,
       controller.drill,
@@ -860,18 +870,18 @@ function diveHelpContext(
 }
 
 /**
- * Hands the state to the repository, which writes it in turn (#137 A4a). A
- * refused write resolves `persisted: false`; surfacing it is #282.
+ * Hands the state to the repository, which writes it in turn (#137 A4a), and
+ * records whether the store took it (#282).
  */
 function saveState(
-  repository: LocalSaveRepository,
+  services: AppServices,
   state: DiveState,
   session: Readonly<SessionSnapshot>,
   drill: Readonly<DrillState>,
   settings: Readonly<PlannerSettings>,
   diveMode: DiveMode,
 ): void {
-  void repository
+  void services.repository
     .save(
       state,
       {
@@ -883,7 +893,41 @@ function saveState(
       session,
       drill,
     )
-    .catch((error: unknown) => console.error(error));
+    .then(
+      (outcome) => services.persistence.saveSettled(outcome),
+      (error: unknown) => console.error(error),
+    );
+}
+
+/**
+ * The notice that the dive is not being saved (#282), written when the state
+ * changes, after the region is on the page, so a dive that starts unsaved
+ * announces it too. The whole sentence is what is announced; the short form
+ * is for the eye alone, on screens too small for the sentence
+ * (diagnostic.css).
+ */
+function syncPersistenceNotice(
+  notice: HTMLElement,
+  degraded: boolean,
+  locale: SupportedLocale,
+): void {
+  if (degraded === notice.hasChildNodes()) {
+    return;
+  }
+  if (!degraded) {
+    notice.replaceChildren();
+    return;
+  }
+  const short = createElement(
+    "span",
+    "persistence-notice-short",
+    translate(locale, "wreck.persistence.degradedShort"),
+  );
+  short.setAttribute("aria-hidden", "true");
+  notice.replaceChildren(
+    createElement("span", "persistence-notice-full", translate(locale, "wreck.persistence.degraded")),
+    short,
+  );
 }
 
 /** A clearing the store refuses leaves the save; the dive ends regardless. */
@@ -1188,6 +1232,15 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   surfacePrompt.dataset.surfacePrompt = "true";
   surfacePrompt.hidden = true;
 
+  // The dive is not being saved (#282): a status region, empty while
+  // saves are taken, so the notice is announced once as it is written.
+  // Empty, not hidden, so the region is in the accessibility tree first.
+  // Under the HUD in the column, so an open page makes room for it, and on
+  // a phone the instructor panel's place counts it with the HUD.
+  const persistence = createElement("p", "persistence-notice", "");
+  persistence.dataset.persistenceNotice = "true";
+  persistence.setAttribute("role", "status");
+
   const dock = document.createElement("div");
   dock.className = "wreck-dock";
   dock.append(surfacePrompt, hint, tanks, ccr);
@@ -1201,14 +1254,14 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   // right (diagnostic.css): the topbar has no room left on a narrow phone
   // (#259), and the dock none on a rebreather's.
   const instructor = createInstructorPanel(locale);
-  column.append(hud, instructor.toggle, gasInfo.panel, instructor.panel);
+  column.append(hud, persistence, instructor.toggle, gasInfo.panel, instructor.panel);
 
   // The column above and the dock below share one flex column, so an open
   // page shrinks above the dock however many rows it wraps to (#168).
   const side = document.createElement("div");
   side.className = "wreck-side";
   side.append(column, dock);
-  const stopHudTracking = trackHudHeight(hud, side);
+  const stopHudTracking = trackHudHeight(hud, side, persistence);
 
   // The onboarding hint (#160), where legacy draws its toast. A status
   // region written only when the hint shown changes, so each is announced
@@ -1249,6 +1302,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     help,
     gasInfo,
     surfacePrompt,
+    persistence,
     onboardingHint,
     instructor,
     stopHudTracking,

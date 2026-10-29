@@ -89,10 +89,16 @@ type Write =
   | { readonly kind: "save"; readonly encoded: string }
   | { readonly kind: "clear" };
 
+/** Whether the store took the write that ran, and which kind it was. */
+interface WriteOutcome {
+  readonly taken: boolean;
+  readonly kind: Write["kind"];
+}
+
 interface QueuedWrite {
   write: Write;
   /** The caller whose write this is, and each whose write it replaced. */
-  readonly settle: ((taken: boolean) => void)[];
+  readonly settle: ((outcome: WriteOutcome) => void)[];
 }
 
 export type SaveRepositoryLoadResult =
@@ -140,7 +146,10 @@ export class LocalSaveRepository {
    * Resolves with the save that was built; a refused write does not reject.
    * `persisted` is false when the store refused the write, or the later one
    * that replaced it, so a caller can surface degraded persistence instead
-   * of assuming the dive is recoverable. `routePositionM` is where on the wreck's route the
+   * of assuming the dive is recoverable. `cleared` is true when a clearing
+   * made since replaced it before it reached the store: `persisted` is then
+   * the clearing's outcome and says nothing about whether saves are taken
+   * (#282). `routePositionM` is where on the wreck's route the
    * diver is (#222), in `session` with the facing and torch (#137 A4b);
    * without it the dive resumes at the route's start, facing right, torch on.
    * `drill` is the training drill under way (#160).
@@ -152,7 +161,11 @@ export class LocalSaveRepository {
     diveMode?: SavedDiveMode,
     session?: Readonly<Partial<SessionSnapshot>>,
     drill?: Readonly<DrillState>,
-  ): Promise<{ readonly saveGame: SaveGame; readonly persisted: boolean }> {
+  ): Promise<{
+    readonly saveGame: SaveGame;
+    readonly persisted: boolean;
+    readonly cleared: boolean;
+  }> {
     const saveGame = createSaveGame(
       state,
       gradientFactors,
@@ -161,11 +174,11 @@ export class LocalSaveRepository {
       session,
       drill,
     );
-    const persisted = await this.#enqueue({
+    const { taken, kind } = await this.#enqueue({
       kind: "save",
       encoded: encodeSaveGame(saveGame),
     });
-    return { saveGame, persisted };
+    return { saveGame, persisted: taken, cleared: kind === "clear" };
   }
 
   /**
@@ -193,10 +206,10 @@ export class LocalSaveRepository {
    * since that has not started. Resolves false where the store refused.
    */
   clear(): Promise<boolean> {
-    return this.#enqueue({ kind: "clear" });
+    return this.#enqueue({ kind: "clear" }).then(({ taken }) => taken);
   }
 
-  #enqueue(write: Write): Promise<boolean> {
+  #enqueue(write: Write): Promise<WriteOutcome> {
     return new Promise((resolve) => {
       if (this.#next) {
         // Replaced before it started: the latest state wins.
@@ -229,7 +242,7 @@ export class LocalSaveRepository {
             }
           });
     void done.then((ok) => {
-      for (const settle of queued.settle) settle(ok);
+      for (const settle of queued.settle) settle({ taken: ok, kind: write.kind });
       this.#writing = false;
       const next = this.#next;
       this.#next = null;
