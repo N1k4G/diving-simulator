@@ -33,6 +33,40 @@ export interface PersistentStore {
   remove(key: string): Promise<void>;
 }
 
+/**
+ * `store`, used one operation at a time, in the order they are made: each
+ * waits until every one before it has settled, so none reaches the store
+ * while another is pending and none overtakes another, whoever made them
+ * (the save, its load's repairs, the hint flags, the language choice). One
+ * made while none is pending starts inside the call, so the browser's store
+ * still takes a `pagehide` write before the handler returns.
+ */
+export function serialStore(store: PersistentStore): PersistentStore {
+  let pending = 0;
+  let settled: Promise<void> = Promise.resolve();
+  const run = <T>(operation: () => Promise<T>): Promise<T> => {
+    const start = () => {
+      try {
+        return operation();
+      } catch (error) {
+        return Promise.reject(error as Error);
+      }
+    };
+    const result = pending === 0 ? start() : settled.then(start);
+    pending += 1;
+    const done = () => {
+      pending -= 1;
+    };
+    settled = result.then(done, done);
+    return result;
+  };
+  return {
+    get: (key) => run(() => store.get(key)),
+    set: (key, value) => run(() => store.set(key, value)),
+    remove: (key) => run(() => store.remove(key)),
+  };
+}
+
 export const SAVE_GAME_STORAGE_KEY = "diving-simulator.save-game";
 export const LEGACY_SAVE_STORAGE_KEY = "diveSim_savedState";
 
@@ -134,7 +168,10 @@ export class LocalSaveRepository {
 
   /**
    * Reads the save, once, before any is written: the app awaits it before it
-   * builds a dive. Rejects where the store cannot be read.
+   * builds a dive. Its repairs (a corrupt save removed, a migrated one
+   * written back) are each awaited, so none is pending once it resolves, and
+   * over a `serialStore`, as the app's is, no write made meanwhile could
+   * reach the store before them. Rejects where the store cannot be read.
    */
   async load(): Promise<SaveRepositoryLoadResult> {
     const currentRaw = await this.#store.get(SAVE_GAME_STORAGE_KEY);
@@ -178,12 +215,17 @@ export class LocalSaveRepository {
     const done =
       write.kind === "save"
         ? taken(() => this.#store.set(SAVE_GAME_STORAGE_KEY, write.encoded))
-        : taken(() =>
-            Promise.all([
+        : taken(async () => {
+            // Both settle before the queue moves on, refused or not, so a
+            // removal still pending cannot land on a later save.
+            const removed = await Promise.allSettled([
               this.#store.remove(SAVE_GAME_STORAGE_KEY),
               this.#store.remove(LEGACY_SAVE_STORAGE_KEY),
-            ]),
-          );
+            ]);
+            if (removed.some(({ status }) => status === "rejected")) {
+              throw new Error("the store refused a removal");
+            }
+          });
     void done.then((ok) => {
       for (const settle of queued.settle) settle(ok);
       this.#writing = false;

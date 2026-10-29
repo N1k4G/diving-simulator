@@ -12,6 +12,7 @@ import {
   LEGACY_SAVE_STORAGE_KEY,
   LocalSaveRepository as AsyncSaveRepository,
   SAVE_GAME_STORAGE_KEY,
+  serialStore,
 } from "../../src/save/save-repository";
 import {
   keyValuePersistentStore,
@@ -280,7 +281,7 @@ class ControlledStore implements PersistentStore {
   readonly values = new Map<string, string>();
   /** Each write as the store was handed it. */
   readonly writes: string[] = [];
-  #pending: ((ok: boolean) => void)[] = [];
+  #pending: { label: string; settle: (ok: boolean) => void }[] = [];
   inFlight = 0;
   maxInFlight = 0;
 
@@ -288,15 +289,27 @@ class ControlledStore implements PersistentStore {
     return Promise.resolve(this.values.get(key) ?? null);
   }
   set(key: string, value: string): Promise<void> {
-    const savedAt = (JSON.parse(value) as { savedAtEpochMs: number }).savedAtEpochMs;
-    return this.#write(`set ${savedAt}`, () => void this.values.set(key, value));
+    let label = value;
+    try {
+      label = String((JSON.parse(value) as { savedAtEpochMs?: number }).savedAtEpochMs ?? value);
+    } catch {
+      // Not a save: its value names it.
+    }
+    return this.#write(`set ${label}`, () => void this.values.set(key, value));
   }
   remove(key: string): Promise<void> {
     return this.#write(`remove ${key}`, () => void this.values.delete(key));
   }
   /** Settles every write with the store, then lets the queue move on. */
   async settle(ok = true): Promise<void> {
-    for (const settle of this.#pending.splice(0)) settle(ok);
+    for (const { settle } of this.#pending.splice(0)) settle(ok);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  /** Settles the write named `label` alone, in the order the test chooses. */
+  async settleOne(label: string, ok = true): Promise<void> {
+    const at = this.#pending.findIndex((write) => write.label === label);
+    if (at < 0) throw new Error(`no pending ${label}`);
+    this.#pending.splice(at, 1)[0]!.settle(ok);
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
   #write(label: string, apply: () => void): Promise<void> {
@@ -304,7 +317,7 @@ class ControlledStore implements PersistentStore {
     this.inFlight += 1;
     this.maxInFlight = Math.max(this.maxInFlight, this.inFlight);
     return new Promise((resolve, reject) => {
-      this.#pending.push((ok) => {
+      this.#pending.push({ label, settle: (ok) => {
         this.inFlight -= 1;
         if (ok) {
           apply();
@@ -312,7 +325,7 @@ class ControlledStore implements PersistentStore {
         } else {
           reject(new DOMException("quota exceeded", "QuotaExceededError"));
         }
-      });
+      } });
     });
   }
 }
@@ -414,5 +427,96 @@ describe("LocalSaveRepository over an asynchronous store (#137 A4a)", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     void save(repository, 2);
     expect(stored()).toBe(2);
+  });
+
+  // #284 Codex round 1: the clearing's two removals ran under Promise.all, so
+  // a refused one moved the queue on while the other was still with the
+  // store, and that one then deleted the next dive's save.
+  it("waits for both removals of a clearing, one refused, before the next save, which survives", async () => {
+    const store = new ControlledStore();
+    const repository = new AsyncSaveRepository(store);
+    void save(repository, 1);
+    await store.settle();
+    const cleared = repository.clear();
+    const next = save(repository, 2);
+    await store.settleOne(`remove ${LEGACY_SAVE_STORAGE_KEY}`, false);
+    // The save waits for the removal still pending.
+    expect(store.writes).toEqual([
+      "set 1",
+      `remove ${SAVE_GAME_STORAGE_KEY}`,
+      `remove ${LEGACY_SAVE_STORAGE_KEY}`,
+    ]);
+    await store.settleOne(`remove ${SAVE_GAME_STORAGE_KEY}`);
+    expect(await cleared).toBe(false);
+    await store.settleOne("set 2");
+    expect((await next).persisted).toBe(true);
+    expect(savedAt(store)).toBe(2);
+  });
+
+  it("reports a clearing with a refused removal as not taken, and moves on", async () => {
+    const store = new ControlledStore();
+    const repository = new AsyncSaveRepository(store);
+    const cleared = repository.clear();
+    await store.settleOne(`remove ${SAVE_GAME_STORAGE_KEY}`, false);
+    await store.settleOne(`remove ${LEGACY_SAVE_STORAGE_KEY}`);
+    expect(await cleared).toBe(false);
+    const next = save(repository, 3);
+    await store.settle();
+    expect((await next).persisted).toBe(true);
+  });
+});
+
+describe("serialStore (#137 A4a, #284 Codex round 1)", () => {
+  const save = (repository: AsyncSaveRepository, savedAtEpochMs: number) =>
+    repository.save(createInitialDiveState(1), DEFAULT_SAVED_GRADIENT_FACTORS, savedAtEpochMs);
+  const savedAt = (store: ControlledStore) =>
+    (JSON.parse(store.values.get(SAVE_GAME_STORAGE_KEY) ?? "null") as { savedAtEpochMs: number } | null)
+      ?.savedAtEpochMs ?? null;
+  it("hands the store one operation at a time, in order, whoever makes them, and goes on past a refusal", async () => {
+    const store = new ControlledStore();
+    const serial = serialStore(store);
+    // Started inside the call while none is pending.
+    const flag = serial.set("diveSim_hint_bcd", "1");
+    expect(store.writes).toEqual(["set 1"]);
+    const locale = serial.set("diving-simulator.locale", "de");
+    const removal = serial.remove(SAVE_GAME_STORAGE_KEY);
+    expect(store.writes).toEqual(["set 1"]);
+    await store.settle(false);
+    await expect(flag).rejects.toThrow("quota");
+    expect(store.writes).toEqual(["set 1", "set de"]);
+    await store.settle();
+    expect(store.writes).toEqual(["set 1", "set de", `remove ${SAVE_GAME_STORAGE_KEY}`]);
+    await store.settle();
+    await locale;
+    await removal;
+    expect(store.maxInFlight).toBe(1);
+    // Idle again: the next starts inside the call.
+    void serial.set("diving-simulator.locale", "en");
+    expect(store.writes.at(-1)).toBe("set en");
+  });
+
+  it("keeps a save made during the load behind the load's own repair", async () => {
+    const store = new ControlledStore();
+    store.values.set(LEGACY_SAVE_STORAGE_KEY, JSON.stringify(minimalLegacyV2Save()));
+    const repository = new AsyncSaveRepository(serialStore(store));
+    const loaded = repository.load();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // The migrated save is being written back; a save made now waits for it.
+    expect(store.writes).toHaveLength(1);
+    const next = save(repository, 9);
+    await store.settle();
+    await store.settle();
+    await store.settle();
+    expect((await loaded).status).toBe("loaded");
+    expect((await next).persisted).toBe(true);
+    // The rewrite first, then the save; the legacy key's retirement, on
+    // another key, after both.
+    expect(store.writes).toEqual([
+      "set 1735689600000",
+      "set 9",
+      `remove ${LEGACY_SAVE_STORAGE_KEY}`,
+    ]);
+    expect(savedAt(store)).toBe(9);
+    expect(store.maxInFlight).toBe(1);
   });
 });

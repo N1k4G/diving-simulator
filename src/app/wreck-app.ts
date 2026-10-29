@@ -7,7 +7,11 @@ import { FAST_ASCENT_RATE_MPM } from "../core/dive-model";
 import { WebAudioService } from "../audio/audio-service";
 import type { DiveState } from "../core/dive-state";
 import type { DrillState } from "../core/drills";
-import { LocalSaveRepository } from "../save/save-repository";
+import {
+  LocalSaveRepository,
+  serialStore,
+  type PersistentStore,
+} from "../save/save-repository";
 import type { PlatformServices } from "../platform/platform-services";
 import type { SaveGame } from "../save/save-game";
 import {
@@ -154,6 +158,11 @@ interface HudElements {
  */
 interface AppServices {
   readonly platform: PlatformServices;
+  /**
+   * The platform's store, one operation at a time, for everything the app
+   * keeps (#137 A4a): no write overtakes another, whoever made it.
+   */
+  readonly store: PersistentStore;
   readonly localePreference: LocalePreference;
   readonly repository: LocalSaveRepository;
 }
@@ -237,11 +246,13 @@ export async function renderWreckApplication(
   platform: PlatformServices,
   requestedLocale?: SupportedLocale,
 ): Promise<void> {
+  const store = serialStore(platform.store);
   const services: AppServices = {
     platform,
-    localePreference: await loadLocalePreference(platform.store),
+    store,
+    localePreference: await loadLocalePreference(store),
     // A dive resumed from a legacy save gets its own seed too (#219).
-    repository: new LocalSaveRepository(platform.store, { legacySeed: drawDiveSeed }),
+    repository: new LocalSaveRepository(store, { legacySeed: drawDiveSeed }),
   };
   // The stored choice, else the browser's, unless the caller names one.
   const locale = requestedLocale ?? initialLocale(services.localePreference);
@@ -475,8 +486,9 @@ async function startWreckSimulation(
   resumed: SaveGame | null,
 ): Promise<void> {
   const { platform, repository } = services;
-  // Read before the controller is built, so a frame asks the store nothing.
-  const hintStore = await loadHintStore(platform.store);
+  // Read before the controller is built, so a frame asks the store nothing,
+  // and after the last dive's flags are written.
+  const hintStore = await loadHintStore(services.store);
   // A save of a dive that has already ended at the surface is not resumed
   // into a dive the model would move no further: it shows its debriefing, as
   // the dive would have on that tick. No client writes one now, since a
