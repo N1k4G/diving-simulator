@@ -47,7 +47,9 @@ if (typeof document !== "undefined") {
 
   // The platform's services are assembled here and nowhere else (#137 A0):
   // a native shell assembles its own in their place.
-  renderWreckApplication(root, createBrowserPlatformServices());
+  void renderWreckApplication(root, createBrowserPlatformServices()).catch(
+    (error: unknown) => console.error(error),
+  );
 
   if (import.meta.env.DEV) {
     window.plannerWorkerDiagnostic = verifyPlannerWorker();

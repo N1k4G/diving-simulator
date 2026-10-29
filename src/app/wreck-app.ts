@@ -7,7 +7,11 @@ import { FAST_ASCENT_RATE_MPM } from "../core/dive-model";
 import { WebAudioService } from "../audio/audio-service";
 import type { DiveState } from "../core/dive-state";
 import type { DrillState } from "../core/drills";
-import { LocalSaveRepository } from "../save/save-repository";
+import {
+  LocalSaveRepository,
+  serialStore,
+  type PersistentStore,
+} from "../save/save-repository";
 import type { PlatformServices } from "../platform/platform-services";
 import type { SaveGame } from "../save/save-game";
 import {
@@ -55,14 +59,14 @@ import { createHelpButton, createHelpOverlay } from "./help-overlay";
 import { createDrillOverlay } from "./drill-overlay";
 import {
   HINT_MESSAGES,
-  createHintStore,
   hintOpacity,
+  loadHintStore,
   visibleHint,
   type HintStore,
 } from "./onboarding-hints";
 import {
-  createLocalePreference,
   initialLocale,
+  loadLocalePreference,
   type LocalePreference,
 } from "./i18n/locale-preference";
 import { isTurnBeepDue } from "./thirds-turn-beep";
@@ -148,13 +152,19 @@ interface HudElements {
 
 /**
  * What the app runs on (#137 A0), from bootstrap.ts, and what it keeps in
- * its store: legacy's hint flags (#160) and the language switch's choice
- * (#169).
+ * its store: the language switch's choice (#169) and the dive's save, whose
+ * writes the one repository puts in order (#137 A4a). Legacy's hint flags
+ * (#160) are read as each dive starts.
  */
 interface AppServices {
   readonly platform: PlatformServices;
-  readonly hintStore: HintStore;
+  /**
+   * The platform's store, one operation at a time, for everything the app
+   * keeps (#137 A4a): no write overtakes another, whoever made it.
+   */
+  readonly store: PersistentStore;
   readonly localePreference: LocalePreference;
+  readonly repository: LocalSaveRepository;
 }
 
 /**
@@ -226,15 +236,23 @@ const safetyStopPhaseKeys: Record<PresentationSafetyStop["phase"], DiveComputerK
   complete: "diveComputer.safetyStop.complete",
 };
 
-export function renderWreckApplication(
+/**
+ * Resolves once the safety gate is up. The stored language choice is read
+ * first, so the gate opens in it; the save is read as the gate is accepted,
+ * and awaited before the setup screen, and so before any dive, is built.
+ */
+export async function renderWreckApplication(
   root: HTMLElement,
   platform: PlatformServices,
   requestedLocale?: SupportedLocale,
-): void {
+): Promise<void> {
+  const store = serialStore(platform.store);
   const services: AppServices = {
     platform,
-    hintStore: createHintStore(platform.syncStorage),
-    localePreference: createLocalePreference(platform.syncStorage),
+    store,
+    localePreference: await loadLocalePreference(store),
+    // A dive resumed from a legacy save gets its own seed too (#219).
+    repository: new LocalSaveRepository(store, { legacySeed: drawDiveSeed }),
   };
   // The stored choice, else the browser's, unless the caller names one.
   const locale = requestedLocale ?? initialLocale(services.localePreference);
@@ -249,7 +267,9 @@ export function renderWreckApplication(
 
   accept.addEventListener("click", () => {
     accept.disabled = true;
-    showSetupScreen(services, root, locale, undefined, loadSavedDive(platform));
+    void loadSavedDive(services.repository).then((saved) =>
+      showSetupScreen(services, root, locale, undefined, saved),
+    );
   });
 }
 
@@ -262,13 +282,11 @@ function applyDocumentLocale(locale: SupportedLocale): void {
 /**
  * The save on the first setup screen, as legacy's loadSavedDive() reads it
  * once at load into _pendingResumeDive (#191). Storage that cannot be read,
- * and a save more than an hour old, offer no dive to resume.
+ * and a save more than an hour old, offer no dive to resume. Never rejects.
  */
-function loadSavedDive(platform: PlatformServices): SaveGame | null {
+async function loadSavedDive(repository: LocalSaveRepository): Promise<SaveGame | null> {
   try {
-    // A dive resumed from a legacy save gets its own seed too (#219).
-    const repository = saveRepository(platform, { legacySeed: drawDiveSeed });
-    const result = repository.load();
+    const result = await repository.load();
     if (result.status !== "loaded") return null;
     // Legacy's loadSavedDive() clears a save older than an hour.
     if (isSavedDiveExpired(result.saveGame, Date.now())) {
@@ -280,13 +298,6 @@ function loadSavedDive(platform: PlatformServices): SaveGame | null {
     console.error(error);
     return null;
   }
-}
-
-function saveRepository(
-  platform: PlatformServices,
-  options: ConstructorParameters<typeof LocalSaveRepository>[1] = {},
-): LocalSaveRepository {
-  return new LocalSaveRepository(platform.syncStorage(), options);
 }
 
 // Gate -> setup -> dive. The setup screen owns a keyboard listener, so its
@@ -336,7 +347,7 @@ function showSetupScreen(
             onDiscard: () => {
               pending = null;
               // Legacy's discardSavedDive(): clearSavedDive().
-              clearSave(saveRepository(services.platform));
+              clearSave(services.repository);
             },
           },
         }
@@ -474,15 +485,17 @@ async function startWreckSimulation(
   setup: DiveSetup,
   resumed: SaveGame | null,
 ): Promise<void> {
-  const { platform, hintStore } = services;
-  const repository = saveRepository(platform);
+  const { platform, repository } = services;
+  // Read before the controller is built, so a frame asks the store nothing,
+  // and after the last dive's flags are written.
+  const hintStore = await loadHintStore(services.store);
   // A save of a dive that has already ended at the surface is not resumed
   // into a dive the model would move no further: it shows its debriefing, as
   // the dive would have on that tick. No client writes one now, since a
   // completed dive clears its save on that tick (#223), but the codec accepts
   // one from v12 on.
   if (resumed?.state.completed) {
-    endInPostDive(services, root, locale, setup, repository, resumed.state);
+    endInPostDive(services, root, locale, setup, hintStore, resumed.state);
     return;
   }
   const hud = createWreckShell(locale);
@@ -581,7 +594,7 @@ async function startWreckSimulation(
         clearSave(repository);
         queueMicrotask(() => {
           teardown();
-          endInPostDive(services, root, locale, setup, repository, state);
+          endInPostDive(services, root, locale, setup, hintStore, state);
         });
         return;
       }
@@ -844,6 +857,10 @@ function diveHelpContext(
   };
 }
 
+/**
+ * Hands the state to the repository, which writes it in turn (#137 A4a). A
+ * refused write resolves `persisted: false`; surfacing it is #282.
+ */
 function saveState(
   repository: LocalSaveRepository,
   state: DiveState,
@@ -852,8 +869,8 @@ function saveState(
   settings: Readonly<PlannerSettings>,
   diveMode: DiveMode,
 ): void {
-  try {
-    repository.save(
+  void repository
+    .save(
       state,
       {
         lowPercent: settings.gfLowPercent,
@@ -863,19 +880,13 @@ function saveState(
       diveMode,
       routePositionM,
       drill,
-    );
-  } catch (error) {
-    console.error(error);
-  }
+    )
+    .catch((error: unknown) => console.error(error));
 }
 
-/** Clearing can throw where storage is blocked; the dive ends regardless. */
+/** A clearing the store refuses leaves the save; the dive ends regardless. */
 function clearSave(repository: LocalSaveRepository): void {
-  try {
-    repository.clear();
-  } catch (error) {
-    console.error(error);
-  }
+  void repository.clear();
 }
 
 /**
@@ -889,10 +900,10 @@ function endInPostDive(
   root: HTMLElement,
   locale: SupportedLocale,
   setup: DiveSetup,
-  repository: LocalSaveRepository,
+  hintStore: HintStore,
   state: DiveState,
 ): void {
-  clearSave(repository);
+  clearSave(services.repository);
   // Legacy's post-dive state shows the help overlay too (#160), the case
   // #120 fixed there; the dive's controls are those of the dive just ended.
   const help = createHelpOverlay({
@@ -901,7 +912,7 @@ function endInPostDive(
       ...diveHelpContext(state, false, setup.mode),
       state: "post-dive",
     }),
-    hints: services.hintStore,
+    hints: hintStore,
   });
   const dispose = renderPostDiveScreen(root, {
     locale,

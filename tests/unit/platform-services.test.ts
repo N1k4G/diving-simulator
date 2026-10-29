@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createInitialDiveState } from "../../src/core/dive-state";
-import { createHintStore } from "../../src/app/onboarding-hints";
+import { loadHintStore } from "../../src/app/onboarding-hints";
 import type {
   LifecycleDocument,
   WakeLockLike,
@@ -11,11 +11,11 @@ import {
   BROWSER_BACK_NAVIGATION,
   createBrowserPlatformServices,
   keyValuePersistentStore,
+  type KeyValueStore,
 } from "../../src/platform/browser-platform";
 import {
   LocalSaveRepository,
   SAVE_GAME_STORAGE_KEY,
-  type KeyValueStore,
 } from "../../src/save/save-repository";
 
 // The platform contracts (#137 A0): bootstrap.ts assembles the browser's
@@ -116,10 +116,22 @@ describe("the persistent store over a synchronous one (#137 A0)", () => {
     };
     await expect(keyValuePersistentStore(() => full).set("k", "v")).rejects.toThrow("quota");
   });
+
+  // The contract's "taken before it returns" (#137 A4a): a page's pagehide
+  // does not wait for a promise, so the browser's store writes inside the
+  // call. A native store need not; that is A5b's.
+  it("writes and removes inside the call, before its promise settles", () => {
+    const memory = new MemoryStore();
+    const store = keyValuePersistentStore(() => memory);
+    void store.set("k", "v");
+    expect(memory.getItem("k")).toBe("v");
+    void store.remove("k");
+    expect(memory.getItem("k")).toBeNull();
+  });
 });
 
 describe("createBrowserPlatformServices (#137 A0)", () => {
-  it("does not touch storage until it is used, so a blocked page fails where it did", () => {
+  it("does not touch storage until it is used, and a blocked page rejects", async () => {
     let reads = 0;
     const { platform } = services({
       storage: () => {
@@ -128,25 +140,28 @@ describe("createBrowserPlatformServices (#137 A0)", () => {
       },
     });
     expect(reads).toBe(0);
-    expect(() => platform.syncStorage()).toThrow("insecure");
-    // The hint flags admit every hint without storage, as before (#160).
-    expect(createHintStore(platform.syncStorage).admit("bcd")).toBe(true);
+    // The save cannot be read; the hint flags admit every hint, as before (#160).
+    await expect(new LocalSaveRepository(platform.store).load()).rejects.toThrow("insecure");
+    expect((await loadHintStore(platform.store)).admit("bcd")).toBe(true);
   });
 
-  it("keeps the save path's synchronous view and the async store on the same bytes", async () => {
+  it("keeps the save in the page's storage, through the store alone (#137 A4a)", async () => {
     const { platform, memory } = services();
-    const { saveGame } = new LocalSaveRepository(platform.syncStorage()).save(
+    expect(platform).not.toHaveProperty("syncStorage");
+    const repository = new LocalSaveRepository(platform.store);
+    const { saveGame, persisted } = await repository.save(
       createInitialDiveState(7),
       { lowPercent: 40, highPercent: 85 },
       1_735_689_600_000,
     );
-    const raw = await platform.store.get(SAVE_GAME_STORAGE_KEY);
-    expect(raw).toBe(memory.getItem(SAVE_GAME_STORAGE_KEY));
+    expect(persisted).toBe(true);
+    const raw = memory.getItem(SAVE_GAME_STORAGE_KEY);
+    expect(await platform.store.get(SAVE_GAME_STORAGE_KEY)).toBe(raw);
 
-    await platform.store.remove(SAVE_GAME_STORAGE_KEY);
-    expect(new LocalSaveRepository(platform.syncStorage()).load()).toEqual({ status: "empty" });
-    await platform.store.set(SAVE_GAME_STORAGE_KEY, raw!);
-    const loaded = new LocalSaveRepository(platform.syncStorage()).load();
+    expect(await repository.clear()).toBe(true);
+    expect(await new LocalSaveRepository(platform.store).load()).toEqual({ status: "empty" });
+    memory.setItem(SAVE_GAME_STORAGE_KEY, raw!);
+    const loaded = await new LocalSaveRepository(platform.store).load();
     expect(loaded.status === "loaded" && loaded.saveGame).toEqual(saveGame);
   });
 

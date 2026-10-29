@@ -11,6 +11,7 @@ import {
 } from "../core/dive-state";
 import { metres, seconds } from "../core/units";
 import { translate } from "./i18n/catalog";
+import { keyValuePersistentStore, type KeyValueStore } from "../platform/browser-platform";
 import {
   HINT_DISPLAY_S,
   HINT_DONE_KEY,
@@ -20,7 +21,7 @@ import {
   HINT_STORAGE_PREFIX,
   NO_HINTS,
   clearHints,
-  createHintStore,
+  loadHintStore,
   hintConditions,
   hintOpacity,
   hintTriggered,
@@ -52,6 +53,9 @@ function storage(): Map<string, string> & { getItem(k: string): string | null; s
     removeItem: (key: string) => void map.delete(key),
   });
 }
+
+/** The flags as a dive reads them, through the browser's store (#137 A4a). */
+const createHintStore = (store: () => KeyValueStore) => loadHintStore(keyValuePersistentStore(store));
 
 /** Pending or shown, as the legacy cases count them. */
 const pending = (state: HintsState) => state.queue.length + (state.shown ? 1 : 0);
@@ -179,9 +183,9 @@ describe("the onboarding hints' pump and store (#38)", () => {
     expect(visibleHint("bcd", { ...none, fastForward: true })).toBeNull();
   });
 
-  it("remembers a hint in legacy's key once queued, so the next dive does not show it (TC-38-LOCALSTORAGE-SUPPRESSES-REPEAT)", () => {
+  it("remembers a hint in legacy's key once queued, so the next dive does not show it (TC-38-LOCALSTORAGE-SUPPRESSES-REPEAT)", async () => {
     const store = storage();
-    const hints = createHintStore(() => store);
+    const hints = await createHintStore(() => store);
     let state = frame(NO_HINTS, { depthM: 3 }, hints.admit);
     expect(store.get(`${HINT_STORAGE_PREFIX}bcd`)).toBe("1");
     expect(pending(state)).toBe(1);
@@ -189,11 +193,14 @@ describe("the onboarding hints' pump and store (#38)", () => {
     state = frame(NO_HINTS, { depthM: 3 }, hints.admit);
     expect(state.fired).toEqual(["bcd"]);
     expect(pending(state)).toBe(0);
+    // Nor in a dive that reads the flags again.
+    state = frame(NO_HINTS, { depthM: 3 }, (await createHintStore(() => store)).admit);
+    expect(pending(state)).toBe(0);
   });
 
-  it("shows none once dismissed, in this dive and the next (TC-38-DISMISS-SURVIVES-RESETDIVE)", () => {
+  it("shows none once dismissed, in this dive and the next (TC-38-DISMISS-SURVIVES-RESETDIVE)", async () => {
     const store = storage();
-    const hints = createHintStore(() => store);
+    const hints = await createHintStore(() => store);
     const shown = frame(frame(NO_HINTS, { depthM: 30, ndlMin: 5 }, hints.admit), { depthM: 30 }, hints.admit);
     expect(pending(shown)).toBe(2);
     hints.dismiss();
@@ -203,17 +210,33 @@ describe("the onboarding hints' pump and store (#38)", () => {
     expect(store.get(HINT_DONE_KEY)).toBe("1");
     expect(hints.dismissed()).toBe(true);
     expect(pending(frame(NO_HINTS, { depthM: 3, inOverhead: true }, hints.admit))).toBe(0);
+    expect((await createHintStore(() => store)).dismissed()).toBe(true);
   });
 
-  it("shows each hint once per dive when storage fails", () => {
-    const hints = createHintStore(() => {
+  it("shows each hint once per dive when storage fails", async () => {
+    const hints = await createHintStore(() => {
       throw new Error("SecurityError");
     });
     expect(hints.dismissed()).toBe(false);
     expect(() => hints.dismiss()).not.toThrow();
+    expect(hints.dismissed()).toBe(false);
     let state = frame(NO_HINTS, { depthM: 3 }, hints.admit);
     state = frame(state, { depthM: 3 }, hints.admit);
     expect(pending(state)).toBe(1);
+    // The next dive shows it again.
+    expect(pending(frame(NO_HINTS, { depthM: 3 }, hints.admit))).toBe(1);
+  });
+
+  it("takes back a flag the store refuses to write, as legacy keeps none", async () => {
+    const store = storage();
+    store.setItem = () => {
+      throw new DOMException("quota exceeded", "QuotaExceededError");
+    };
+    const hints = await createHintStore(() => store);
+    expect(pending(frame(NO_HINTS, { depthM: 3 }, hints.admit))).toBe(1);
+    await Promise.resolve();
+    // The next dive shows it again, as legacy's showHintOnce() would.
+    expect(pending(frame(NO_HINTS, { depthM: 3 }, hints.admit))).toBe(1);
   });
 
   it("words every hint as legacy does, in both languages", () => {

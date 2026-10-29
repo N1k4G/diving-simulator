@@ -5,7 +5,8 @@ import {
   createWreckInitialState,
   type GameFrame,
 } from "../../src/app/game-controller";
-import { HINT_DONE_KEY, createHintStore, hintOpacity, type HintId } from "../../src/app/onboarding-hints";
+import { HINT_DONE_KEY, hintOpacity, loadHintStore, type HintId } from "../../src/app/onboarding-hints";
+import { keyValuePersistentStore } from "../../src/platform/browser-platform";
 import { freezeDiveState, type DiveState } from "../../src/core/dive-state";
 import { metres, seconds } from "../../src/core/units";
 
@@ -42,15 +43,15 @@ function step(frames: number): void {
   }
 }
 
-async function startController(initialState: DiveState) {
+async function startController(initialState: DiveState, flags: Record<string, string> = {}) {
   const frames: GameFrame[] = [];
-  const store = new Map<string, string>();
+  const store = new Map<string, string>(Object.entries(flags));
   const admitted: HintId[] = [];
-  const hints = createHintStore(() => ({
+  const hints = await loadHintStore(keyValuePersistentStore(() => ({
     getItem: (key: string) => store.get(key) ?? null,
     setItem: (key: string, value: string) => void store.set(key, value),
     removeItem: (key: string) => void store.delete(key),
-  }));
+  })));
   const controller = new GameController({
     renderer: {
       kind: "pixi",
@@ -120,8 +121,8 @@ describe("the onboarding hints in the controller (#160)", () => {
     expect(store.get(HINT_DONE_KEY)).toBe("1");
     controller.destroy();
 
-    const next = await startController(underWay());
-    next.store.set(HINT_DONE_KEY, "1");
+    // The next dive reads the flags as it starts (#137 A4a).
+    const next = await startController(underWay(), { [HINT_DONE_KEY]: "1" });
     step(400);
     expect(next.frames.every((frame) => frame.hint === null)).toBe(true);
     next.controller.destroy();
