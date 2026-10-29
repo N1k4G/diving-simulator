@@ -44,10 +44,10 @@ import {
   ROUTE_START_POSITION_M,
   floorUnder,
   moveAlongRoute,
-  resumedRoutePosition,
   routeSpaceNear,
 } from "../sites/wreck-route";
 import { siteGameplay } from "../sites/site-resources";
+import { START_SESSION, resumedSession, type SessionSnapshot } from "../save/session-snapshot";
 import {
   NO_HINTS,
   NO_HINT_STORE,
@@ -179,20 +179,20 @@ export interface GameControllerOptions {
    */
   readonly plannerSettings?: Readonly<PlannerSettings>;
   /**
-   * Where on the route a resumed dive picks up (#222), from its save. The
-   * route's start without it, or where it is not a place the saved depth
-   * can be (resumedRoutePosition).
+   * The session a resumed dive picks up (#137 A4b), from its save: where on
+   * the route (#222), the way the diver faces and the torch, each checked
+   * against the saved state (resumedSession). A new dive's without it.
    */
-  readonly initialRoutePositionM?: number;
+  readonly initialSession?: Readonly<Partial<SessionSnapshot>>;
   /** The training drill under way in the save (#160), checked by it (resumedDrill). */
   readonly initialDrill?: Readonly<DrillState>;
   /**
-   * Each new state, with the route position it was reached at and the drill
-   * under way, for the save.
+   * Each new state, with the session it was reached in and the drill under
+   * way, for the save.
    */
   readonly onAuthoritativeState?: (
     state: DiveState,
-    routePositionM: number,
+    session: Readonly<SessionSnapshot>,
     drill: Readonly<DrillState>,
   ) => void;
   /** Which onboarding hints are seen or dismissed (#160); none show without it. */
@@ -211,7 +211,7 @@ export class GameController {
   readonly #onFrame: (frame: Readonly<GameFrame>) => void;
   readonly #plannerClient: PlannerWorkerClient;
   readonly #onAuthoritativeState:
-    | ((state: DiveState, routePositionM: number, drill: Readonly<DrillState>) => void)
+    | ((state: DiveState, session: Readonly<SessionSnapshot>, drill: Readonly<DrillState>) => void)
     | null;
   readonly #plannerSettings: Readonly<PlannerSettings>;
   readonly #forecastScheduler = new ForecastScheduler();
@@ -258,9 +258,13 @@ export class GameController {
    * before its first second.
    */
   #awaitingDescent: boolean;
+  /**
+   * Real time, for the scene's animation and the forecast's age only, so it
+   * starts at 0 on a resumed dive too (SessionSnapshot).
+   */
   #elapsedRealS = 0;
-  #facing: -1 | 1 = 1;
-  #torchOn = true;
+  #facing: -1 | 1;
+  #torchOn: boolean;
   #fastForwardActive = false;
   /**
    * Who holds the dive paused (#160, #137 A5): the help overlay, the page in
@@ -296,11 +300,13 @@ export class GameController {
     this.#drill = options.initialDrill ?? NO_DRILL;
     const initialState = options.initialState ?? createWreckInitialState();
     // A dive resumed inside the wreck stays there (#222), and with it the
-    // overhead and its rule of thirds, which follow from the position.
-    this.#routePositionM = resumedRoutePosition(
-      options.initialRoutePositionM ?? ROUTE_START_POSITION_M,
-      initialState.depthM,
-    );
+    // overhead and its rule of thirds, which follow from the position; it
+    // faces the way it did, with the torch as it was (#137 A4b). The state's
+    // depth decides the position, never the reverse, and is the depth drawn.
+    const session = resumedSession(options.initialSession ?? START_SESSION, initialState.depthM);
+    this.#routePositionM = session.routePositionM;
+    this.#facing = session.facing;
+    this.#torchOn = session.torchOn;
     this.#model = new DiveModel(
       withinRoute(initialState, this.#routePositionM),
       // The log's ceiling and NDL at the dive's GF high, as the forecast.
@@ -326,6 +332,15 @@ export class GameController {
   /** Where on the route the diver is, for the save (#222). */
   get routePositionM(): number {
     return this.#routePositionM;
+  }
+
+  /** The controller's part of the dive, for the save (#137 A4b). */
+  get session(): SessionSnapshot {
+    return Object.freeze({
+      routePositionM: this.#routePositionM,
+      facing: this.#facing,
+      torchOn: this.#torchOn,
+    });
   }
 
   /** The training drill under way, for the save (#160). */
@@ -543,7 +558,7 @@ export class GameController {
     applyDrillEffect(this.#model, resolved);
     // The drill's choice and its effects' ends are for the save even where
     // the model refused the act.
-    this.#onAuthoritativeState?.(this.#model.snapshot, this.#routePositionM, this.#drill);
+    this.#onAuthoritativeState?.(this.#model.snapshot, this.session, this.#drill);
     if (this.#model.snapshot !== before) {
       this.#invalidateForecast();
     }
@@ -602,7 +617,7 @@ export class GameController {
       this.#drill = next;
       // Legacy's autosave runs in its 'drill' state as in 'diving'
       // (maybeSaveDiveState), so a reload resumes the drill (#160).
-      this.#onAuthoritativeState?.(this.#model.snapshot, this.#routePositionM, this.#drill);
+      this.#onAuthoritativeState?.(this.#model.snapshot, this.session, this.#drill);
       if (changed || !this.#lastFrame) {
         this.#publishFrame();
       } else {
@@ -700,7 +715,7 @@ export class GameController {
       if (switching) {
         this.#fastForwardActive = false;
       }
-      this.#onAuthoritativeState?.(after, this.#routePositionM, this.#drill);
+      this.#onAuthoritativeState?.(after, this.session, this.#drill);
       // The forecast describes the breathed gas, so an act that changed it
       // drops the forecast on screen at once.
       if (
@@ -716,7 +731,7 @@ export class GameController {
       // Waiting at the surface the state does not change, but legacy's
       // autosave runs in its 'surface' state as in 'diving' (gameLoop), so a
       // dive left before its descent resumes there too.
-      this.#onAuthoritativeState?.(this.#model.snapshot, this.#routePositionM, this.#drill);
+      this.#onAuthoritativeState?.(this.#model.snapshot, this.session, this.#drill);
     }
 
     this.#publishFrame();

@@ -339,19 +339,19 @@ test('a dive resumed in the cargo hold stays there, under the overhead with the 
     .waitForFunction((key) => {
       const raw = window.localStorage.getItem(key);
       const parsed = raw === null ? null : JSON.parse(raw);
-      return parsed !== null && parsed.routePositionM >= 22 && parsed.state.thirds.startingGasL > 0
+      return parsed !== null && parsed.session.routePositionM >= 22 && parsed.state.thirds.startingGasL > 0
         ? parsed
         : null;
     }, SAVE_KEY, { timeout: 15_000 })
     .then((handle) => handle.jsonValue());
-  // v18 added the position; every later version keeps it.
+  // v18 added the position, in the session since v21; every later version keeps it.
   expect(inHold.version).toBeGreaterThanOrEqual(18);
 
   // A real reload, and Resume on the banner. Leaving the page saved once
   // more, still in the hold.
   await page.goto('/dist/');
   const reloaded = await page.evaluate((key) => JSON.parse(window.localStorage.getItem(key)), SAVE_KEY);
-  expect(reloaded.routePositionM).toBeGreaterThanOrEqual(22);
+  expect(reloaded.session.routePositionM).toBeGreaterThanOrEqual(22);
   expect(reloaded.state.thirds.startingGasL).toBe(inHold.state.thirds.startingGasL);
   await resumeSavedDive(page);
   await page.locator('[data-renderer=pixi] canvas').waitFor();
@@ -371,6 +371,6 @@ test('a dive resumed in the cargo hold stays there, under the overhead with the 
       { timeout: 15_000 },
     )
     .then((handle) => handle.jsonValue());
-  expect(resumed.routePositionM).toBe(reloaded.routePositionM);
+  expect(resumed.session.routePositionM).toBe(reloaded.session.routePositionM);
   expect(resumed.state.thirds.startingGasL).toBe(reloaded.state.thirds.startingGasL);
 });

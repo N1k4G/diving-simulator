@@ -63,11 +63,11 @@ async function startController(initialState: DiveState, initialRoutePositionM?: 
     onFrame: (frame) => {
       frames.push(frame);
     },
-    onAuthoritativeState: (state, routePositionM) => {
-      saved.push({ state, routePositionM });
+    onAuthoritativeState: (state, session) => {
+      saved.push({ state, routePositionM: session.routePositionM });
     },
     initialState,
-    initialRoutePositionM,
+    initialSession: { routePositionM: initialRoutePositionM },
     plannerClient: {
       forecast: () => new Promise(() => undefined),
       dispose: () => undefined,
