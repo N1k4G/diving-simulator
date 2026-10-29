@@ -938,9 +938,14 @@ summary:focus-visible {
   color: #ff9b9b;
 }
 
+/* The warning banner. It is text alone, with nothing to press, so it takes
+   no touch or click (#287): whatever it stands over stays pressable, as
+   legacy's #touch-ui buttons stand over its canvas banner. On a phone in
+   portrait it also stands clear of the topbar's buttons (below). */
 .wreck-warning {
   position: absolute;
   z-index: 5;
+  pointer-events: none;
   top: calc(1rem + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
   left: 50%;
   max-width: min(34rem, calc(100% - 2rem));
@@ -1023,6 +1028,34 @@ summary:focus-visible {
 
 .wreck-warning[data-tier="caution"] {
   box-shadow: 0 0 0 4px #0d0900;
+}
+
+/* On a phone in portrait the centred banner stood over the topbar's buttons
+   (#287), and at 320-390 px hid the gas pages' I. Taps pass through it
+   (above); here it also starts at the left gutter and is as wide as its
+   text, so a short warning (narcosis, low NDL, the reserve) stands over the
+   site's name and the status chip, which says the same, and leaves I, Help
+   and mute in view. A long one takes the row's full width, in two lines at
+   most, so it does not reach the depth below: there covering the buttons
+   for the eye is the lesser cost, as they stay pressable. While one of them
+   has keyboard focus the banner steps below their row, so the focused
+   button is never hidden (WCAG 2.4.11). Short landscape is #256. */
+@media (width <= 720px) and (orientation: portrait) {
+  .wreck-warning {
+    right: auto;
+    left: calc(1.25rem + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
+    max-width: calc(
+      100% - 2.5rem - var(--safe-area-inset-left, env(safe-area-inset-left, 0px)) -
+        var(--safe-area-inset-right, env(safe-area-inset-right, 0px))
+    );
+    padding: 0.6rem 0.75rem;
+    font-size: 0.9rem;
+    transform: none;
+  }
+
+  .wreck-shell:has(.topbar-actions :focus-visible) .wreck-warning {
+    top: calc(4.25rem + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
+  }
 }
 
 /* The fast-forward indicator (#163). Its own chip rather than a colour on
