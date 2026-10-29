@@ -1371,14 +1371,19 @@ test.describe('gas information', () => {
   // row wraps to two lines. A dock that wrapped to more rows than before ran
   // into an open page at 360 px and into the HUD itself below 344 px.
   //
-  // Every distance is at least 8 px, on any platform's fonts. 320x568 is not
-  // in the list: there an open page, and on a rebreather the HUD itself, do
-  // not fit above the dock on main either (#258), and how far they overlap
-  // depends on the platform's fonts. #258 adds it back with the same check.
-  const NARROW_SIZES = [[340, 640], [360, 640], [375, 667], [390, 844]];
+  // Every distance is at least 8 px, on any platform's fonts. At 320x568 an
+  // open page, and on a rebreather the HUD itself, ran into the dock (#258):
+  // there the HUD is one column as wide as the screen, and below 361 px an
+  // open page takes the place of the HUD's lower rows. A rebreather at a
+  // deco stop is measured too, where on linux fonts the open page reached
+  // 2.2 px into a control at 360x640 (#258); depth and NDL stay on screen.
+  const NARROW_SIZES = [[320, 568], [340, 640], [360, 640], [375, 667], [390, 844]];
 
-  /** A German dive in `mode`, resumed at 9 m, neutral, its safety stop paused. */
-  async function resumeGermanAtPausedStop(page, mode) {
+  /**
+   * A German dive in `mode`, resumed at 9 m, neutral, its safety stop paused,
+   * or with `stop` 'deco' at DECO_STOPS.midWater, under a ceiling.
+   */
+  async function resumeGermanAtPausedStop(page, mode, stop = 'safety') {
     await page.goto('/dist/');
     await page.evaluate(() => window.localStorage.clear());
     await page.locator('[data-accept-safety]').click();
@@ -1395,20 +1400,35 @@ test.describe('gas information', () => {
     // codec's rule); 9 m is, and neutral there (src/core/buoyancy.ts
     // neutralBcdSurfaceLitres) the diver stays.
     const pressureBar = 1 + 9 / 10;
-    Object.assign(saved.state, {
-      depthM: 9,
-      maxDepthM: 20,
-      verticalVelocityMpm: 0,
-      bcdGasSurfaceLiters: (7 + 2 - 3 - 5 * Math.pow(1 / pressureBar, 0.7)) * pressureBar,
-      safetyStop: { needed: true, countdownStarted: true, remainingS: 172, paused: true, complete: false },
-    });
+    if (stop === 'deco') {
+      Object.assign(saved.state, {
+        depthM: DECO_STOPS.midWater.depthM,
+        maxDepthM: 34,
+        verticalVelocityMpm: 0,
+        bcdGasSurfaceLiters: DECO_STOPS.midWater.bcdGasSurfaceLiters,
+      });
+      saved.state.tissues.nitrogenBar = saved.state.tissues.nitrogenBar.map(() => DECO_STOPS.midWater.nitrogenBar);
+    } else {
+      Object.assign(saved.state, {
+        depthM: 9,
+        maxDepthM: 20,
+        verticalVelocityMpm: 0,
+        bcdGasSurfaceLiters: (7 + 2 - 3 - 5 * Math.pow(1 / pressureBar, 0.7)) * pressureBar,
+        safetyStop: { needed: true, countdownStarted: true, remainingS: 172, paused: true, complete: false },
+      });
+    }
     await page.goto('/dist/');
     await page.evaluate(([key, value]) => window.localStorage.setItem(key, value), [SAVE_KEY, JSON.stringify(saved)]);
     await page.locator('[data-accept-safety]').click();
     await page.locator('.setup-screen').waitFor();
     await page.locator('[data-resume-continue]').click();
     await page.locator('[data-renderer=pixi] canvas').waitFor();
-    await expect(hudValue(page, 'safetyStop')).toContainText('paused');
+    if (stop === 'deco') {
+      // The stop's numbers come with the worker's forecast.
+      await expect(hudValue(page, 'safetyStop')).toHaveText(/^\d+ m · \d+ min$/, { timeout: 15_000 });
+    } else {
+      await expect(hudValue(page, 'safetyStop')).toContainText('paused');
+    }
   }
 
   /** The least distance from the HUD or an open page to any visible control. */
@@ -1429,29 +1449,48 @@ test.describe('gas information', () => {
       return Math.round(nearest * 10) / 10;
     });
 
-  for (const mode of ['rec', 'tec', 'ccr']) {
-    test.describe(`${mode} in German at a paused safety stop`, () => {
+  /** Depth and NDL, each shown and topmost at its centre, inside the screen. */
+  const readoutsOnScreen = (page) =>
+    page.evaluate(() =>
+      ['depth', 'ndl'].filter((name) => {
+        const row = document.querySelector(`.wreck-hud [data-hud-metric="${name}"]`);
+        if (row === null || row.getClientRects().length === 0) return false;
+        const r = row.getBoundingClientRect();
+        const y = r.top + r.height / 2;
+        if (r.top < 0 || r.bottom > window.innerHeight) return false;
+        return row.contains(document.elementFromPoint(r.left + r.width / 2, y));
+      }),
+    );
+
+  for (const [mode, stop] of [['rec', 'safety'], ['tec', 'safety'], ['ccr', 'safety'], ['ccr', 'deco']]) {
+    test.describe(`${mode} in German at a ${stop === 'deco' ? 'deco stop' : 'paused safety stop'}`, () => {
       test.use({ viewport: { width: 390, height: 844 }, locale: 'de-DE' });
 
       test('the HUD and every open page stand 8px clear of every control on the narrowest phones', async ({ page }) => {
         test.setTimeout(240_000);
-        await resumeGermanAtPausedStop(page, mode);
+        await resumeGermanAtPausedStop(page, mode, stop);
         const measured = {};
+        const readouts = {};
+        const measure = async (label) => {
+          measured[label] = await nearestControl(page);
+          readouts[label] = await readoutsOnScreen(page);
+        };
         for (const [width, height] of NARROW_SIZES) {
           await page.setViewportSize({ width, height });
           await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-          measured[`${mode} ${width}x${height} closed`] = await nearestControl(page);
+          await measure(`${mode} ${width}x${height} closed`);
           if (await gasInfoToggle(page).isVisible()) {
             for (let step = 1; ; step += 1) {
               await gasInfoToggle(page).click();
               if (!(await gasInfoPanel(page).isVisible())) break;
-              measured[`${mode} ${width}x${height} page ${step}`] = await nearestControl(page);
+              await measure(`${mode} ${width}x${height} page ${step}`);
             }
           }
         }
         for (const [label, apart] of Object.entries(measured)) {
           // Soft, so a failure reports the whole matrix rather than its first case.
           expect.soft(apart, label).toBeGreaterThanOrEqual(8);
+          expect.soft(readouts[label], label).toEqual(['depth', 'ndl']);
         }
       });
     });
