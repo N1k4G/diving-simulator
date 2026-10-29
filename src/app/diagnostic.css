@@ -1383,29 +1383,49 @@ summary:focus-visible {
 /* A short screen held upright (#258): 320x568, where the two columns above
    were 132px each, so most labels wrapped, values ran out of their cell
    and the rebreather's eleven rows stood 353px tall, into the dock on linux
-   fonts. One column as wide as the screen keeps each row on one line but
-   the stop's (about 300px for the eleven), and the tighter row gap keeps
-   them clear of the dock, which wraps the rebreather row to three rows on
-   linux fonts. Learn stands under this HUD here (the instructor rules
-   further down). */
+   fonts. One column as wide as the screen keeps the rows on one line. A
+   value keeps its line and its label wraps instead, as a label wraps to two
+   short lines where a value wrapped to two long ones; up to 70% of the row,
+   so the stop's long value still wraps beside its label. The panel's
+   padding is narrower above and below. Learn stands under this HUD here
+   (the instructor rules further down). */
 @media (height <= 600px) and (orientation: portrait) {
   .wreck-hud {
     grid-template-columns: minmax(0, 1fr);
-    row-gap: 0.25rem;
+    padding-block: 0.6rem;
+  }
+
+  .wreck-hud dd {
+    flex-shrink: 0;
+    max-width: 70%;
   }
 }
 
-/* Narrow phones in portrait (#258): an open gas page takes the place of
-   the HUD's lower rows, as legacy's info pages take the place of its dive
-   computer's lower box, its gas box among them. Depth, the ascent rate,
-   the dive time, NDL and the stop stay above it (#137 §4.4.1); the gas,
-   cylinder, loop and thirds rows go while a page is open, and come back
-   when it closes. The warning banner is not in the HUD and stays. Under the
-   whole HUD a page had its padding's height left on a rebreather, ran into
-   the dock or the D-pad at 320x568, and on linux fonts at 360x640 at a
-   deco stop. tests/in-dive-controls.spec.js measures 320 to 390px. */
-@media (width <= 360px) and (orientation: portrait) {
-  .wreck-column:has(> .gas-info:not([hidden])) .wreck-hud > div:not([data-hud-metric="depth"], [data-hud-metric="ascentRate"], [data-hud-metric="time"], [data-hud-metric="ndl"], [data-hud-metric="safetyStop"]) {
+/* Narrow or short phones in portrait (#258): up to 360px wide, or up to
+   700px tall, which takes in every screen the rule above reaches and a
+   375x667 phone besides.
+
+   The rows stand 4px apart, not 8px: in the wreck a rebreather shows
+   twelve rows, the rule of thirds among them, and at 340x640 and 360x640
+   they reached 4.6px into the D-pad with no page open.
+
+   An open gas page takes the place of the HUD's gas rows, as legacy's info
+   pages take the place of its dive computer's bottom row, its gas box among
+   them. Depth, the ascent rate, the dive time, NDL, the stop and the rule
+   of thirds stay above it (#137 §4.4.1; legacy's thirds gauge is a chip of
+   its own that no page hides); the gas, cylinder and loop rows go while a
+   page is open, and come back when it closes. The warning banner is not in
+   the HUD and stays. Under the whole HUD a page had its padding's height
+   left on a rebreather, and ran into the dock or the D-pad at 320x568, at
+   375x553 (Safari's toolbars on a 375x667 phone), in the wreck at 340x640,
+   360x640 and 375x667, and on linux fonts at 360x640 at a deco stop.
+   tests/in-dive-controls.spec.js measures 320 to 390px. */
+@media (width <= 360px) and (orientation: portrait), (height <= 700px) and (orientation: portrait) {
+  .wreck-hud {
+    row-gap: 0.25rem;
+  }
+
+  .wreck-column:has(> .gas-info:not([hidden])) .wreck-hud > div:not([data-hud-metric="depth"], [data-hud-metric="ascentRate"], [data-hud-metric="time"], [data-hud-metric="ndl"], [data-hud-metric="safetyStop"], [data-hud-metric="thirds"]) {
     display: none;
   }
 }
