@@ -10,6 +10,7 @@ import {
 } from "./save-game";
 import type { DiveState } from "../core/dive-state";
 import type { DrillState } from "../core/drills";
+import type { SessionSnapshot } from "./session-snapshot";
 
 /**
  * Durable string storage, asynchronous because the native store (Capacitor
@@ -140,7 +141,8 @@ export class LocalSaveRepository {
    * `persisted` is false when the store refused the write, or the later one
    * that replaced it, so a caller can surface degraded persistence instead
    * of assuming the dive is recoverable. `routePositionM` is where on the wreck's route the
-   * diver is (#222); without it the dive resumes at the route's start.
+   * diver is (#222), in `session` with the facing and torch (#137 A4b);
+   * without it the dive resumes at the route's start, facing right, torch on.
    * `drill` is the training drill under way (#160).
    */
   async save(
@@ -148,7 +150,7 @@ export class LocalSaveRepository {
     gradientFactors: SavedGradientFactors,
     savedAtEpochMs = Date.now(),
     diveMode?: SavedDiveMode,
-    routePositionM?: number,
+    session?: Readonly<Partial<SessionSnapshot>>,
     drill?: Readonly<DrillState>,
   ): Promise<{ readonly saveGame: SaveGame; readonly persisted: boolean }> {
     const saveGame = createSaveGame(
@@ -156,7 +158,7 @@ export class LocalSaveRepository {
       gradientFactors,
       savedAtEpochMs,
       diveMode,
-      routePositionM,
+      session,
       drill,
     );
     const persisted = await this.#enqueue({

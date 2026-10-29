@@ -149,7 +149,7 @@ test('a D-pad direction and a key held as the page goes are let go, and stay let
   // in two autosaves 3 s apart.
   const saved = () => page.evaluate((key) => {
     const save = JSON.parse(window.localStorage.getItem(key));
-    return { bcd: save.state.bcdGasSurfaceLiters, routePositionM: save.routePositionM };
+    return { bcd: save.state.bcdGasSurfaceLiters, routePositionM: save.session.routePositionM };
   }, SAVE_KEY);
   await page.waitForTimeout(3500);
   const first = await saved();

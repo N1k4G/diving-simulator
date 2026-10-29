@@ -288,7 +288,7 @@ test('the panel stands over no part of the diver wherever the camera leads it, e
   test.setTimeout(120_000);
   const saved = await savedDive(page, 'rec');
   // In the cargo hold, where legacy's wreck-thirds recorded x 50 at 32 m (docs/decisions.md, #222).
-  Object.assign(saved, { routePositionM: 50 });
+  Object.assign(saved.session, { routePositionM: 50 });
   Object.assign(saved.state, { depthM: 32, maxDepthM: 32, verticalVelocityMpm: 0 });
   await resume(page, saved, { hints: false });
   await expect(page.locator('.wreck-hud [data-hud-metric="zone"] dd')).toHaveText('Cargo hold');

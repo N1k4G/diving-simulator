@@ -14,6 +14,7 @@ import {
 } from "../save/save-repository";
 import type { PlatformServices } from "../platform/platform-services";
 import type { SaveGame } from "../save/save-game";
+import type { SessionSnapshot } from "../save/session-snapshot";
 import {
   plannerSettingsWithGradientFactors,
   type PlannerSettings,
@@ -568,9 +569,10 @@ async function startWreckSimulation(
     // otherwise (#191).
     initialState:
       resumed?.state ?? createWreckInitialState(toInitialDiveOptions(setup)),
-    // Where on the route the saved dive was (#222): a dive resumed inside
-    // the wreck stays there.
-    initialRoutePositionM: resumed?.routePositionM,
+    // Where on the route the saved dive was (#222), so a dive resumed inside
+    // the wreck stays there, facing the same way with the torch as it was
+    // (#137 A4b).
+    initialSession: resumed?.session,
     // The drill under way when it was saved (#160).
     initialDrill: resumed?.drill,
     // The configured gradient factors, or the planner keeps using its
@@ -578,7 +580,7 @@ async function startWreckSimulation(
     plannerSettings,
     hintStore,
     drillsEnabled: setup.drillsEnabled,
-    onAuthoritativeState: (state, routePositionM, drill) => {
+    onAuthoritativeState: (state, session, drill) => {
       if (ended) {
         return;
       }
@@ -600,7 +602,7 @@ async function startWreckSimulation(
       }
       const nowMs = performance.now();
       if (nowMs - lastSaveMs > SAVE_INTERVAL_MS) {
-        saveState(repository, state, routePositionM, drill, plannerSettings, diveMode);
+        saveState(repository, state, session, drill, plannerSettings, diveMode);
         lastSaveMs = nowMs;
       }
     },
@@ -810,7 +812,7 @@ async function startWreckSimulation(
     saveState(
       repository,
       controller.authoritativeState,
-      controller.routePositionM,
+      controller.session,
       controller.drill,
       plannerSettings,
       diveMode,
@@ -864,7 +866,7 @@ function diveHelpContext(
 function saveState(
   repository: LocalSaveRepository,
   state: DiveState,
-  routePositionM: number,
+  session: Readonly<SessionSnapshot>,
   drill: Readonly<DrillState>,
   settings: Readonly<PlannerSettings>,
   diveMode: DiveMode,
@@ -878,7 +880,7 @@ function saveState(
       },
       Date.now(),
       diveMode,
-      routePositionM,
+      session,
       drill,
     )
     .catch((error: unknown) => console.error(error));

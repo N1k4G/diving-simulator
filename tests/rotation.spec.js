@@ -26,8 +26,8 @@ const { acceptSafetyGate, descendTo } = require('./helpers/start-dive.cjs');
 // a short landscape screen. Those are #256 (844x390, 667x375; its text puts
 // the D-pad below the fold, about 154 px off screen at 844x390) and, at 320 px,
 // #258. The bottom edge is therefore checked in portrait only, as
-// tests/viewport.spec.js does. The diver's facing is not asserted either:
-// nothing the page shows, saves or exposes carries it but the canvas.
+// tests/viewport.spec.js does. The diver's facing is checked in the save only,
+// which carries it since v21 (#137 A4b): nothing else but the canvas does.
 
 const SAVE_KEY = 'diving-simulator.save-game';
 
@@ -118,7 +118,7 @@ async function resumeStill(page, mode, routePositionM, pinned = false) {
     // stop to the depth it was made at, and refuses this one at 23.9 m.
     ...(pinned ? {} : { safetyStop: { needed: true, countdownStarted: true, remainingS: 172, paused: false, complete: false } }),
   });
-  saved.routePositionM = routePositionM;
+  saved.session.routePositionM = routePositionM;
   await page.goto('/dist/');
   await page.evaluate(([key, value]) => window.localStorage.setItem(key, value), [SAVE_KEY, JSON.stringify(saved)]);
   await page.locator('[data-accept-safety]').click();
@@ -250,7 +250,9 @@ for (const { portrait, landscape } of PAIRS) {
       expect(after.state.elapsedTimeS, 'the dive clock advanced').toBeGreaterThan(before.state.elapsedTimeS);
       expect(after.state.depthM).toBeCloseTo(before.state.depthM, 0);
       expect(after.state.maxDepthM).toBe(before.state.maxDepthM);
-      expect(after.routePositionM).toBeCloseTo(before.routePositionM, 6);
+      expect(after.session.routePositionM).toBeCloseTo(before.session.routePositionM, 6);
+      expect(after.session.facing).toBe(before.session.facing);
+      expect(after.session.torchOn).toBe(false);
       expect(after.state.safetyStop.needed).toBe(true);
       // A neutral diver at 5 m drifts well under a metre in those seconds; a reset
       // is metres. The frame-to-frame record is the tighter check.
@@ -370,8 +372,8 @@ const HOLD_AFTER_TURNS_MS = 1200;
 const PAD = [
   // The left case starts aft, so that its 35 m or so of swimming ends far
   // from the route's min end; the right case starts at the middle.
-  { control: 'left', startM: 80, read: (save) => save.routePositionM, saturated: (value) => !offTheEnds(value) },
-  { control: 'right', startM: 50, read: (save) => save.routePositionM, saturated: (value) => !offTheEnds(value) },
+  { control: 'left', startM: 80, read: (save) => save.session.routePositionM, saturated: (value) => !offTheEnds(value) },
+  { control: 'right', startM: 50, read: (save) => save.session.routePositionM, saturated: (value) => !offTheEnds(value) },
   { control: 'ascend', startM: 50, read: null, saturated: null },
   { control: 'descend', startM: 50, vents: true, read: (save) => save.state.bcdGasSurfaceLiters, saturated: (value) => value <= 0.5 },
 ];

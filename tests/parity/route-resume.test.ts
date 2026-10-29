@@ -125,7 +125,9 @@ const RESUMED_AT_THE_START = [
 function resumedSave(checkpoint: Checkpoint) {
   const state = diveStateFromLegacyCheckpoint(checkpoint, 61);
   const encoded = encodeSaveGame(
-    createSaveGame(state, { lowPercent: 35, highPercent: 75 }, 1_735_689_600_000, undefined, checkpoint.state.diverX_m),
+    createSaveGame(state, { lowPercent: 35, highPercent: 75 }, 1_735_689_600_000, undefined, {
+      routePositionM: checkpoint.state.diverX_m,
+    }),
   );
   const decoded = decodeSaveGame(encoded);
   if (!decoded.ok) {
@@ -180,7 +182,7 @@ describe("a resumed dive's place against legacy's save and restore", () => {
     for (const checkpoint of savable.filter((entry) => RESUMED_IN_PLACE.includes(name(entry)))) {
       const where = name(checkpoint);
       const legacyX = checkpoint.state.diverX_m || 0;
-      expect(resumedSave(checkpoint).routePositionM, where).toBe(legacyX);
+      expect(resumedSave(checkpoint).session.routePositionM, where).toBe(legacyX);
       expect(routeSpaceNear(legacyX, checkpoint.state.depth_m).inOverhead, where).toBe(
         checkpoint.state.debrief.inOverhead,
       );
@@ -192,7 +194,7 @@ describe("a resumed dive's place against legacy's save and restore", () => {
       const where = name(checkpoint);
       const legacyX = checkpoint.state.diverX_m || 0;
       expect(legacyX, where).not.toBe(ROUTE_START_M);
-      expect(resumedSave(checkpoint).routePositionM, where).toBe(ROUTE_START_M);
+      expect(resumedSave(checkpoint).session.routePositionM, where).toBe(ROUTE_START_M);
     }
   });
 
@@ -203,7 +205,7 @@ describe("a resumed dive's place against legacy's save and restore", () => {
       expect(legacyX, where).not.toBe(ROUTE_START_M);
       const imported = decodeSaveGame(JSON.stringify(legacySave(checkpoint)));
       expect(imported.ok, where).toBe(true);
-      expect(imported.ok && imported.saveGame.routePositionM, where).toBe(ROUTE_START_M);
+      expect(imported.ok && imported.saveGame.session.routePositionM, where).toBe(ROUTE_START_M);
     }
   });
 
@@ -222,7 +224,7 @@ describe("a resumed dive's place against legacy's save and restore", () => {
     for (const checkpoint of savable.filter((entry) => RESUMED_UNDER_THE_OVERHEAD.includes(name(entry)))) {
       const where = name(checkpoint);
       const save = resumedSave(checkpoint);
-      const space = routeSpaceNear(save.routePositionM, save.state.depthM);
+      const space = routeSpaceNear(save.session.routePositionM, save.state.depthM);
       expect(space.inOverhead, where).toBe(true);
       const next = advanceDiveStep(
         save.state,

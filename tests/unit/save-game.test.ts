@@ -14,6 +14,7 @@ import {
   DEFAULT_SAVED_GRADIENT_FACTORS,
   FIRST_SAVE_GAME_VERSION,
   SAVE_GAME_SCHEMA,
+  TWENTY_FIRST_SAVE_GAME_VERSION,
   createSaveGame,
   decodeSaveGame,
   encodeSaveGame,
@@ -22,6 +23,7 @@ import { neutralBcdSurfaceLitres } from "../../src/core/buoyancy";
 import { DiveModel, advanceDiveStep } from "../../src/core/dive-model";
 import { nextRandom } from "../../src/core/rng";
 import { NO_DRILL, type DrillState } from "../../src/core/drills";
+import { START_SESSION, resumedSession } from "../../src/save/session-snapshot";
 
 describe("SaveGame", () => {
   it("round-trips every authoritative DiveState field", () => {
@@ -1525,9 +1527,14 @@ describe("SaveGame gradient factors", () => {
     });
   });
 
-  // v18 adds the route position (#222).
+  // v18 adds the route position (#222), in the session since v21 (#137 A4b).
   describe("the route position", () => {
-    type Encoded = { version: number; routePositionM?: unknown; state: Record<string, unknown> };
+    type Encoded = {
+      version: number;
+      routePositionM?: unknown;
+      session: Record<string, unknown>;
+      state: Record<string, unknown>;
+    };
     /** A diver in the cargo hold, under the deck's underside (23.8 m at x 50). */
     const inTheHold = () =>
       freezeDiveState({
@@ -1539,36 +1546,36 @@ describe("SaveGame gradient factors", () => {
     const encode = (state: DiveState, routePositionM?: number) =>
       JSON.parse(
         encodeSaveGame(
-          createSaveGame(state, CONSERVATIVE_FACTORS, 1_735_689_600_000, undefined, routePositionM),
+          createSaveGame(state, CONSERVATIVE_FACTORS, 1_735_689_600_000, undefined, { routePositionM }),
         ),
       ) as Encoded;
 
     it("round-trips in a current save", () => {
       const encoded = encode(inTheHold(), 50);
       expect(encoded.version).toBe(CURRENT_SAVE_GAME_VERSION);
-      expect(encoded.routePositionM).toBe(50);
+      expect(encoded.session.routePositionM).toBe(50);
       const decoded = decodeSaveGame(JSON.stringify(encoded));
       expect(decoded.ok).toBe(true);
       if (!decoded.ok) return;
       expect(decoded.migratedFrom).toBeNull();
-      expect(decoded.saveGame.routePositionM).toBe(50);
+      expect(decoded.saveGame.session.routePositionM).toBe(50);
     });
 
     it("is the route's start in a save built without one", () => {
-      expect(createSaveGame(inTheHold(), CONSERVATIVE_FACTORS).routePositionM).toBe(10);
+      expect(createSaveGame(inTheHold(), CONSERVATIVE_FACTORS).session.routePositionM).toBe(10);
     });
 
     it("resumes a v17 save at the route's start, whatever the payload carries", () => {
       for (const carried of [false, true]) {
-        const v17 = encode(inTheHold(), 50);
+        const { session, ...v17 }: Partial<Encoded> = encode(inTheHold(), 50);
         v17.version = 17;
-        if (!carried) delete v17.routePositionM;
+        if (carried) v17.routePositionM = session?.routePositionM;
         const result = decodeSaveGame(JSON.stringify(v17));
         expect(result.ok, String(carried)).toBe(true);
         if (!result.ok) return;
         expect(result.migratedFrom).toBe("save-game-v17");
         expect(result.saveGame.version).toBe(CURRENT_SAVE_GAME_VERSION);
-        expect(result.saveGame.routePositionM, String(carried)).toBe(10);
+        expect(result.saveGame.session.routePositionM, String(carried)).toBe(10);
         expect(result.saveGame.state).toEqual(inTheHold());
       }
     });
@@ -1579,22 +1586,22 @@ describe("SaveGame gradient factors", () => {
       // the hold's wall.
       for (const value of [undefined, null, "50", Number.NaN, Infinity, 7.9, 106.1, 15, 104]) {
         const save = encode(inTheHold(), 50);
-        save.routePositionM = value;
+        save.session.routePositionM = value;
         const result = decodeSaveGame(JSON.stringify(save));
         expect(result.ok, String(value)).toBe(true);
         if (!result.ok) return;
-        expect(result.saveGame.routePositionM, String(value)).toBe(10);
+        expect(result.saveGame.session.routePositionM, String(value)).toBe(10);
       }
       // Below the hold's floor, 33.5 m, at x 50.
       const deep = encode(
         freezeDiveState({ ...inTheHold(), depthM: metres(33.6), maxDepthM: metres(33.6) }),
         10,
       );
-      deep.routePositionM = 50;
+      deep.session.routePositionM = 50;
       const result = decodeSaveGame(JSON.stringify(deep));
       expect(result.ok).toBe(true);
       if (!result.ok) return;
-      expect(result.saveGame.routePositionM).toBe(10);
+      expect(result.saveGame.session.routePositionM).toBe(10);
     });
 
     it("keeps the route's bounds and the hold's floor and ceiling as places", () => {
@@ -1606,7 +1613,7 @@ describe("SaveGame gradient factors", () => {
         const result = decodeSaveGame(JSON.stringify(save));
         expect(result.ok, `${positionM}, ${depthM}`).toBe(true);
         if (!result.ok) return;
-        expect(result.saveGame.routePositionM, `${positionM}, ${depthM}`).toBe(positionM);
+        expect(result.saveGame.session.routePositionM, `${positionM}, ${depthM}`).toBe(positionM);
       }
     });
 
@@ -1626,7 +1633,7 @@ describe("SaveGame gradient factors", () => {
         expect(result.ok, JSON.stringify(carried)).toBe(true);
         if (!result.ok) return;
         expect(result.migratedFrom).toBe("legacy-v2");
-        expect(result.saveGame.routePositionM, JSON.stringify(carried)).toBe(10);
+        expect(result.saveGame.session.routePositionM, JSON.stringify(carried)).toBe(10);
       }
     });
   });
@@ -1821,6 +1828,161 @@ describe("SaveGame gradient factors", () => {
       expect(decoded({ id: "freeflow", option: 1, correct: false })).toEqual([OUTCOME]);
       expect(decoded({ id: "lightFailure", option: 0, correct: true })).toEqual([]);
       expect(decoded({ id: "freeflow", option: 1, correct: true })).toEqual([]);
+    });
+
+    it("keeps one in a v20 save, which logged it", () => {
+      const { session, ...v20 } = encode() as Encoded & { session: { routePositionM: number } };
+      const result = decodeSaveGame(JSON.stringify({ ...v20, version: 20, routePositionM: session.routePositionM }));
+      expect(result.ok && result.migratedFrom).toBe("save-game-v20");
+      expect(result.ok && result.saveGame.state.log.entries).toEqual([OUTCOME]);
+    });
+  });
+
+  // v21 makes the session explicit (#137 A4b): the route position, the
+  // facing and the torch, the controller's; the depth is the state's alone.
+  describe("the session", () => {
+    type Encoded = Record<string, unknown> & { version: number; session: Record<string, unknown> };
+    /** A diver in the cargo hold, at 30 m under the deck at x 50. */
+    const inTheHold = () =>
+      freezeDiveState({
+        ...createInitialDiveState(181),
+        elapsedTimeS: seconds(600),
+        depthM: metres(30),
+        maxDepthM: metres(30),
+      });
+    const turned = { routePositionM: 50, facing: -1, torchOn: false } as const;
+    const encode = (state: DiveState = inTheHold(), session: object = turned) =>
+      JSON.parse(
+        encodeSaveGame(createSaveGame(state, CONSERVATIVE_FACTORS, 1_735_689_600_000, undefined, session)),
+      ) as Encoded;
+    const decodedSession = (payload: unknown) => {
+      const result = decodeSaveGame(JSON.stringify(payload));
+      expect(result.ok).toBe(true);
+      return result.ok ? result.saveGame.session : null;
+    };
+
+    it("round-trips the position, the facing and the torch, and nothing else", () => {
+      const encoded = encode();
+      expect(encoded.version).toBe(CURRENT_SAVE_GAME_VERSION);
+      expect(encoded.session).toEqual(turned);
+      expect(encoded).not.toHaveProperty("routePositionM");
+      const result = decodeSaveGame(JSON.stringify(encoded));
+      expect(result.ok && result.migratedFrom).toBeNull();
+      expect(result.ok && result.saveGame.session).toEqual(turned);
+    });
+
+    it("is a new dive's in a save built without one: the start, facing right, the torch on", () => {
+      expect(createSaveGame(inTheHold(), CONSERVATIVE_FACTORS).session).toEqual(START_SESSION);
+      expect(START_SESSION).toEqual({ routePositionM: 10, facing: 1, torchOn: true });
+    });
+
+    it("drops a view depth, the real time and held controls, and never moves the state's depth", () => {
+      const save = encode();
+      save.session = { ...save.session, viewDepthM: 12, controlledDepthM: 12, elapsedRealS: 99, held: ["left"] };
+      const result = decodeSaveGame(JSON.stringify(save));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.saveGame.session).toEqual(turned);
+      expect(result.saveGame.state).toEqual(inTheHold());
+      expect(Object.keys(resumedSession(save.session, 30)).sort()).toEqual(["facing", "routePositionM", "torchOn"]);
+    });
+
+    it("costs a facing or a torch that is not one the controller writes only itself", () => {
+      for (const facing of [0, 2, -0.5, "-1", null, undefined, true]) {
+        const save = encode();
+        save.session.facing = facing;
+        expect(decodedSession(save), String(facing)).toEqual({ ...turned, facing: 1 });
+      }
+      for (const torchOn of [0, 1, "false", null, undefined]) {
+        const save = encode();
+        save.session.torchOn = torchOn;
+        expect(decodedSession(save), String(torchOn)).toEqual({ ...turned, torchOn: true });
+      }
+      for (const session of [null, undefined, 5, "session", [], {}]) {
+        const save = encode();
+        save.session = session as Encoded["session"];
+        expect(decodedSession(save), JSON.stringify(session)).toEqual(START_SESSION);
+      }
+    });
+
+    it("lets the state's depth decide the position, never the reverse", () => {
+      // At 33.6 m x 50 is under the hold's floor: the position goes, the depth stays.
+      const deep = freezeDiveState({ ...inTheHold(), depthM: metres(33.6), maxDepthM: metres(33.6) });
+      const save = encode(deep, { ...turned, routePositionM: 10 });
+      save.session.routePositionM = 50;
+      const result = decodeSaveGame(JSON.stringify(save));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.saveGame.session).toEqual({ ...turned, routePositionM: 10 });
+      expect(result.saveGame.state.depthM).toBe(33.6);
+    });
+
+    it("migrates a v18 to v20 save: its position kept, facing right and the torch on, as those clients resumed", () => {
+      const { session, ...old } = encode();
+      for (const version of [18, 19, 20]) {
+        // A session in a payload from before it existed is not one.
+        const payload = { ...old, version, routePositionM: session.routePositionM, session: turned };
+        const result = decodeSaveGame(JSON.stringify(payload));
+        expect(result.ok, String(version)).toBe(true);
+        if (!result.ok) return;
+        expect(result.migratedFrom).toBe(`save-game-v${version}`);
+        expect(result.saveGame.version).toBe(CURRENT_SAVE_GAME_VERSION);
+        expect(result.saveGame.session, String(version)).toEqual({ routePositionM: 50, facing: 1, torchOn: true });
+      }
+      expect(decodedSession({ ...old, version: 17, routePositionM: 50 })).toEqual(START_SESSION);
+    });
+
+    it("restores a v21 save's session by its own number, so a later version keeps it", () => {
+      // Written as version 21, not CURRENT_SAVE_GAME_VERSION: once a later
+      // version is current, a gate on the current version would read this
+      // save as one from before the session and drop it.
+      expect(TWENTY_FIRST_SAVE_GAME_VERSION).toBe(21);
+      expect(decodedSession({ ...encode(), version: 21 })).toEqual(turned);
+    });
+
+    it("keeps a legacy save's torchOn at a site with an overhead and turns the diver to its horizontalVelocity", () => {
+      // src/game-loop.js 1572 and 1578 save both; src/renderer.js 1472-1473
+      // turns the diver past 0.05 m/s on the first frame.
+      for (const [carried, expected] of [
+        [{ torchOn: false, horizontalVelocity: -0.3 }, { facing: -1, torchOn: false }],
+        [{ torchOn: true, horizontalVelocity: 0.3 }, { facing: 1, torchOn: true }],
+        [{ torchOn: false, horizontalVelocity: -0.04 }, { facing: 1, torchOn: false }],
+        [{ torchOn: undefined, horizontalVelocity: undefined }, { facing: 1, torchOn: true }],
+        [{ torchOn: "off", horizontalVelocity: "-1" }, { facing: 1, torchOn: true }],
+        [{ torchOn: false, diveSite: "cave" }, { facing: 1, torchOn: false }],
+      ] as const) {
+        expect(decodedSession({ diveSite: "wreck", ...legacyV2Save(), ...carried }), JSON.stringify(carried)).toEqual({
+          routePositionM: 10,
+          ...expected,
+        });
+      }
+    });
+
+    it("resumes a legacy save's torch on where legacy's off meant its site or the light-failure drill", () => {
+      // Off by default where there is no overhead (src/state.js 1122: 'open',
+      // the default, and shore and reef), and held off by the cave's drill
+      // from its overlay until lightRestoreAt (src/game-loop.js 150, 291-293),
+      // which does not resume here (#167).
+      const dark = { id: "lightFailure", phase: "inactive", lightRestoreAt: 0 };
+      for (const carried of [
+        { diveSite: "open" },
+        { diveSite: "shore" },
+        { diveSite: "reef" },
+        { diveSite: undefined },
+        { diveSite: "cave", drillState: { ...dark, phase: "overlay" } },
+        { diveSite: "cave", drillState: { ...dark, phase: "debrief" } },
+        { diveSite: "cave", drillState: { ...dark, phase: "flicker" } },
+        { diveSite: "cave", drillState: { ...dark, lightRestoreAt: 900 } },
+      ]) {
+        expect(decodedSession({ ...legacyV2Save(), torchOn: false, ...carried }), JSON.stringify(carried)).toEqual(
+          START_SESSION,
+        );
+      }
+      // The drill over and its light back: the diver's own off is kept.
+      expect(decodedSession({ ...legacyV2Save(), torchOn: false, diveSite: "cave", drillState: dark })).toEqual({
+        ...START_SESSION,
+        torchOn: false,
+      });
     });
   });
 
