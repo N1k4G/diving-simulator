@@ -324,12 +324,14 @@ test('persisted safety states produce visible semantic warnings', async ({ page 
   // chip: #app must not reintroduce a live region over the whole HUD.
   await expect(page.locator('#app')).not.toHaveAttribute('aria-live', /.+/);
 
-  // And the shell declares three live regions of its own: the alert, the
-  // onboarding hint (#160), which is written only as a hint starts or ends,
-  // and the instructor panel's status (#160), written only as it is toggled.
+  // And the shell declares four live regions of its own: the persistence
+  // notice (#282), written only as saving starts or stops failing, the alert,
+  // the onboarding hint (#160), which is written only as a hint starts or
+  // ends, and the instructor panel's status (#160), written only as it is
+  // toggled.
   expect(
     await page.locator('.wreck-shell').locator(LIVE).evaluateAll((regions) => regions.map((el) => el.className)),
-  ).toEqual(['wreck-warning', 'onboarding-hint', 'visually-hidden']);
+  ).toEqual(['persistence-notice', 'wreck-warning', 'onboarding-hint', 'visually-hidden']);
 
   // A failed dive ends on the game-over screen (#159), as legacy switches to
   // its game-over screen on the tick the dive fails. Its cause is stated in
