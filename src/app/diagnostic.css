@@ -1383,21 +1383,37 @@ summary:focus-visible {
 /* A short screen held upright (#258): 320x568, where the two columns above
    were 132px each, so most labels wrapped, values ran out of their cell
    and the rebreather's eleven rows stood 353px tall, into the dock on linux
-   fonts. One column as wide as the screen keeps the rows on one line. A
-   value keeps its line and its label wraps instead, as a label wraps to two
-   short lines where a value wrapped to two long ones; up to 70% of the row,
-   so the stop's long value still wraps beside its label. The panel's
-   padding is narrower above and below. Learn stands under this HUD here
-   (the instructor rules further down). */
+   fonts. One column as wide as the screen, and every row on one line on
+   linux fonts too: in the wreck's hold the rebreather's twelve rows, the
+   rule of thirds among them, ended 0.8px from the dock on CI while two
+   labels wrapped. So the values but depth, which stays the largest, are
+   0.875rem, the labels drop their letter-spacing, label and value stand
+   0.5rem apart, and the panel's padding is narrower above and below. A
+   value that still does not fit keeps its line up to 70% of the row and
+   its label wraps; the stop's long value wraps beside its label. Learn
+   stands under this HUD here (the instructor rules further down). */
 @media (height <= 600px) and (orientation: portrait) {
   .wreck-hud {
     grid-template-columns: minmax(0, 1fr);
     padding-block: 0.6rem;
   }
 
+  .wreck-hud div {
+    gap: 0.5rem;
+  }
+
+  .wreck-hud dt {
+    letter-spacing: 0;
+  }
+
   .wreck-hud dd {
     flex-shrink: 0;
     max-width: 70%;
+    font-size: 0.875rem;
+  }
+
+  .wreck-hud [data-hud-metric="depth"] dd {
+    font-size: 1rem;
   }
 }
 
