@@ -1235,13 +1235,15 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   // The dive is not being saved (#282): a status region, empty while
   // saves are taken, so the notice is announced once as it is written.
   // Empty, not hidden, so the region is in the accessibility tree first.
+  // Under the HUD in the column, so an open page makes room for it, and on
+  // a phone the instructor panel's place counts it with the HUD.
   const persistence = createElement("p", "persistence-notice", "");
   persistence.dataset.persistenceNotice = "true";
   persistence.setAttribute("role", "status");
 
   const dock = document.createElement("div");
   dock.className = "wreck-dock";
-  dock.append(persistence, surfacePrompt, hint, tanks, ccr);
+  dock.append(surfacePrompt, hint, tanks, ccr);
 
   // The HUD and the gas-information panel share one column, so an open
   // page sits below the readouts rather than over them (#163).
@@ -1252,14 +1254,14 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   // right (diagnostic.css): the topbar has no room left on a narrow phone
   // (#259), and the dock none on a rebreather's.
   const instructor = createInstructorPanel(locale);
-  column.append(hud, instructor.toggle, gasInfo.panel, instructor.panel);
+  column.append(hud, persistence, instructor.toggle, gasInfo.panel, instructor.panel);
 
   // The column above and the dock below share one flex column, so an open
   // page shrinks above the dock however many rows it wraps to (#168).
   const side = document.createElement("div");
   side.className = "wreck-side";
   side.append(column, dock);
-  const stopHudTracking = trackHudHeight(hud, side);
+  const stopHudTracking = trackHudHeight(hud, side, persistence);
 
   // The onboarding hint (#160), where legacy draws its toast. A status
   // region written only when the hint shown changes, so each is announced
