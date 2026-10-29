@@ -6,9 +6,9 @@ const { descendTo } = require('./helpers/start-dive.cjs');
 // taps meant for the gas pages' I under it, and a long warning hid Help and
 // mute, the alarm's off switch. While a warning shows, every control stays
 // pressable (a tap at its centre reaches it) and in view (it is painted over
-// the banner there), a focused one included (WCAG 2.4.11). The banner stays
-// off the depth, ascent-rate and NDL rows (#137 A15), keeps its alert
-// semantics, and its text fits it.
+// the banner there), a focused one included (WCAG 2.4.11), and so does
+// fast-forward's badge. The banner stays off the depth, ascent-rate and NDL
+// rows (#137 A15), keeps its alert semantics, and its text fits it.
 //
 // A real warning, raised as tests/hud-warnings.spec.js raises it: the dive's
 // own save, changed and resumed. Narcosis is the issue's case and a short
@@ -152,6 +152,50 @@ function check(failures, at, m) {
   if (m.fontPx < 12) failures.push(`${at}: the banner's text is ${m.fontPx}px`);
 }
 
+/**
+ * The fast-forward badge under a warning: the share of 5 points on it (its
+ * centre and near its corners) where it is painted on top, hit-tested as if
+ * the banner took taps, and whether any of the banner's text runs under it.
+ */
+const badgeOnTop = (page) =>
+  page.evaluate(() => {
+    const banner = document.querySelector('.wreck-warning');
+    const badge = document.querySelector('[data-fast-forward-indicator]');
+    const b = badge.getBoundingClientRect();
+    banner.style.pointerEvents = 'auto';
+    const points = [[0.5, 0.5], [0.15, 0.25], [0.85, 0.25], [0.15, 0.75], [0.85, 0.75]];
+    const onTop = points.filter(([x, y]) => badge.contains(
+      document.elementFromPoint(b.left + b.width * x, b.top + b.height * y),
+    )).length / points.length;
+    banner.style.pointerEvents = '';
+    const text = document.createRange();
+    text.selectNodeContents(banner);
+    const textUnder = [...text.getClientRects()].some((t) =>
+      t.left < b.right && b.left < t.right && t.top < b.bottom && b.top < t.bottom);
+    return { onTop, textUnder };
+  });
+
+/**
+ * A dive in `mode` at a deco stop, where F is offered, resumed with the gas
+ * reserve's warning: 45 bar, under legacy's 50 (tests/help-overlay.spec.js
+ * resumeAtDecoStop, and tests/hud-warnings.spec.js for the reserve).
+ */
+async function resumeAtDecoStopOnReserve(page, mode) {
+  await resumeWith(page, mode, (state) => {
+    Object.assign(state, {
+      depthM: 18,
+      maxDepthM: 34,
+      verticalVelocityMpm: 0,
+      bcdGasSurfaceLiters: 9.990465669399928,
+    });
+    state.tissues.nitrogenBar = state.tissues.nitrogenBar.map(() => 3);
+    const tank = state.tanks[state.activeTankIndex];
+    tank.gasRemainingL = tank.volumeL * 45;
+  });
+  await expect(page.getByRole('alert')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[data-fast-forward]')).toBeVisible();
+}
+
 const CASES = [
   ['rec', 'narcosis'],
   ['tec', 'narcosis'],
@@ -200,6 +244,33 @@ for (const locale of ['en-US', 'de-DE']) {
           check(failures, `320x568, ${label} focused, "${ALERT_TEXTS[4]}"`, await measure(page, ALERT_TEXTS[4]));
         }
         // The whole matrix at once, rather than its first failure.
+        expect(failures).toEqual([]);
+      });
+    }
+
+    // Fast-forward's badge says in words that the clock runs ten times
+    // faster, which nothing else in sight does, so a warning must not hide
+    // it (#287 pre-review pass 2). It is switched on for each size alone, so
+    // the gas the stop breathes at ten times the clock lasts the test.
+    for (const mode of ['rec', 'tec']) {
+      test(`${mode}: fast-forward's badge stays on top of the banner at a deco stop on the reserve, 320-390 px portrait`, async ({ page }) => {
+        test.setTimeout(120_000);
+        await resumeAtDecoStopOnReserve(page, mode);
+        const badge = page.locator('[data-fast-forward-indicator]');
+        const failures = [];
+        for (const [width, height] of NARROW_SIZES) {
+          const at = `${width}x${height}`;
+          await page.setViewportSize({ width, height });
+          await page.keyboard.press('f');
+          await expect(badge).toBeVisible();
+          await expect(page.getByRole('alert')).toBeVisible();
+          const { onTop, textUnder } = await badgeOnTop(page);
+          if (onTop < 1) failures.push(`${at}: the badge is under the banner at ${Math.round((1 - onTop) * 100)}% of its points`);
+          if (textUnder) failures.push(`${at}: the banner's text runs under the badge`);
+          check(failures, `${at}, fast-forward`, await measure(page));
+          await page.keyboard.press('f');
+          await expect(badge).toBeHidden();
+        }
         expect(failures).toEqual([]);
       });
     }

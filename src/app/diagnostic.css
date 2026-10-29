@@ -1043,10 +1043,16 @@ summary:focus-visible {
    (above), and a focused button is never under it (WCAG 2.4.11). Short
    landscape is #256. */
 @media (width <= 720px) and (orientation: portrait) {
-  .wreck-warning {
-    /* The buttons' row: Help and mute, and I where a dive offers it. */
+  /* The buttons' row: Help and mute, and I where a dive offers it. */
+  .wreck-shell {
     --wreck-warning-buttons: calc(2 * 2.75rem + 0.6rem);
+  }
 
+  .wreck-shell:has(.gas-info-control:not([hidden])) {
+    --wreck-warning-buttons: calc(3 * 2.75rem + 2 * 0.6rem);
+  }
+
+  .wreck-warning {
     top: calc(0.625rem + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
     right: calc(0.875rem + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
     left: calc(0.875rem + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
@@ -1056,10 +1062,6 @@ summary:focus-visible {
     line-height: 1.2;
     text-align: left;
     transform: none;
-  }
-
-  .wreck-shell:has(.gas-info-control:not([hidden])) .wreck-warning {
-    --wreck-warning-buttons: calc(3 * 2.75rem + 2 * 0.6rem);
   }
 
   /* The buttons' place in the bar, with 0.5rem on their left: from the
@@ -1079,6 +1081,27 @@ summary:focus-visible {
   .wreck-shell.has-warning .topbar-actions > button {
     position: relative;
     z-index: 6;
+  }
+
+  /* The fast-forward badge (below) says the clock runs ten times faster,
+     which nothing else in sight says in words, so it stays on the bar too:
+     painted over it, on its top border, ending 0.5rem left of the buttons.
+     One line high, it ends above the first line of text, so no warning
+     moves for it. Placed against the topbar, as the chips give up their
+     frame. */
+  .wreck-shell.has-warning .topbar-chips {
+    position: static;
+  }
+
+  .wreck-shell.has-warning .speed-chip {
+    z-index: 6;
+    top: calc(0.125rem + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
+    right: calc(
+      1.25rem + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)) +
+        var(--wreck-warning-buttons) + 0.5rem
+    );
+    padding-block: 0;
+    line-height: 1;
   }
 }
 
