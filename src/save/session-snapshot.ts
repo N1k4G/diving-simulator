@@ -19,7 +19,8 @@ import { ROUTE_START_POSITION_M, resumedRoutePosition } from "../sites/wreck-rou
  * - Facing and torch are the controller's, and resumed as saved.
  * - Not in it, on purpose: the controller's real time, `elapsedRealS`,
  *   which only times the scene's animation (waves, bubbles, the boat and
- *   shark bobbing, the alarm's pulse and the chevrons' blink) and the
+ *   shark bobbing, the alarm's pulse and the chevrons' blink), the breath
+ *   and bubble sounds' cadence (src/audio/audio-service.ts) and the
  *   forecast's age, whose forecast a reload does not keep either; the held
  *   controls, so no control is held after a restore; the fast-forward,
  *   which legacy does not save.

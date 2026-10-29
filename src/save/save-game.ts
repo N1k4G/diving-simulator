@@ -179,9 +179,14 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // controls are not saved). A v18 to v20 save keeps its position and resumes
 // facing right with the torch on, as those clients resumed every dive, and an
 // older one resumes at the route's start as well. Legacy saves carry torchOn
-// and keep it, and turn the diver to their horizontalVelocity, as legacy's
-// renderer does on its first frame; they save no facing of their own.
+// and keep it where it means what it means on the wreck: at a site with an
+// overhead, out of the light-failure drill's dark (legacyTorchOn). They turn
+// the diver to their horizontalVelocity, as legacy's renderer does on its
+// first frame; they save no facing of their own.
 export const CURRENT_SAVE_GAME_VERSION = 21;
+// Each version's gate names its own number, not CURRENT_SAVE_GAME_VERSION,
+// so a later version does not move it.
+export const TWENTY_FIRST_SAVE_GAME_VERSION = 21;
 export const TWENTIETH_SAVE_GAME_VERSION = 20;
 export const NINETEENTH_SAVE_GAME_VERSION = 19;
 export const EIGHTEENTH_SAVE_GAME_VERSION = 18;
@@ -207,6 +212,8 @@ export const LEGACY_SAVE_STATE_VERSION = 2;
 const TISSUE_COMPARTMENT_COUNT = 16;
 /** The speed past which legacy's renderer turns the diver (src/renderer.js 1472). */
 const LEGACY_FACING_SPEED_MPS = 0.05;
+/** Legacy's sites with an overhead (`src/sites.js` 284, 619), where its torch starts on. */
+const LEGACY_OVERHEAD_SITES: readonly unknown[] = ["wreck", "cave"];
 const MAX_RANDOM_STATE = 0xffff_ffff;
 
 /**
@@ -585,7 +592,7 @@ export function decodeSaveGame(
         // Before v21 the position was at the top and no facing or torch was
         // recorded: right, and on. Before v18 no position was recorded
         // either: the route's start, whatever the payload carries.
-        v >= CURRENT_SAVE_GAME_VERSION
+        v >= TWENTY_FIRST_SAVE_GAME_VERSION
           ? (candidate.session as Partial<SessionSnapshot>)
           : {
               routePositionM:
@@ -749,9 +756,10 @@ function migrateLegacyV2(
     // than the route's simplified slice (#240), so the same x and depth can be
     // open water in one and under an overhead in the other. A legacy dive
     // resumes at the route's start until the two structures agree. Its
-    // torchOn is kept (#137 A4b); it saves no facing, and its renderer turns
-    // the diver to the saved horizontalVelocity on the first frame
-    // (src/renderer.js 1471-1473), so that is the facing it resumes with.
+    // torchOn is kept where it means the same on the wreck (#137 A4b,
+    // legacyTorchOn); it saves no facing, and its renderer turns the diver to
+    // the saved horizontalVelocity on the first frame (src/renderer.js
+    // 1471-1473), so that is the facing it resumes with.
     return createSaveGame(
       state,
       gradientFactors,
@@ -760,13 +768,32 @@ function migrateLegacyV2(
       {
         routePositionM: ROUTE_START_POSITION_M,
         facing: legacyFacing(candidate.horizontalVelocity),
-        torchOn: candidate.torchOn as boolean,
+        torchOn: legacyTorchOn(candidate),
       },
       migrateLegacyDrill(candidate),
     );
   } catch {
     return null;
   }
+}
+
+/**
+ * A legacy save's torch, where it means the same on the wreck it resumes on;
+ * undefined, the session's default (on), elsewhere. Legacy starts the torch on
+ * only at a site with an overhead, its wreck and cave (`src/state.js` 1122;
+ * `src/sites.js` 284, 619), so an open-water, shore or reef save holds the
+ * torch off by default. Its cave's lightFailure drill holds it off from the
+ * overlay until lightRestoreAt (`src/game-loop.js` 150, 291-293); the drill
+ * does not resume (#167, migrateLegacyDrill), so neither does its dark.
+ */
+function legacyTorchOn(candidate: Record<string, unknown>): boolean | undefined {
+  const drill = isRecord(candidate.drillState) ? candidate.drillState : {};
+  const inTheDark =
+    (typeof drill.lightRestoreAt === "number" && drill.lightRestoreAt > 0) ||
+    (drill.id === "lightFailure" && ["flicker", "overlay", "debrief"].includes(drill.phase as string));
+  return LEGACY_OVERHEAD_SITES.includes(candidate.diveSite) && !inTheDark
+    ? (candidate.torchOn as boolean)
+    : undefined;
 }
 
 /** Legacy's `_diverFacing` after its first frame: left past -0.05 m/s, else right. */

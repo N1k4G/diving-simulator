@@ -14,6 +14,7 @@ import {
   DEFAULT_SAVED_GRADIENT_FACTORS,
   FIRST_SAVE_GAME_VERSION,
   SAVE_GAME_SCHEMA,
+  TWENTY_FIRST_SAVE_GAME_VERSION,
   createSaveGame,
   decodeSaveGame,
   encodeSaveGame,
@@ -1931,7 +1932,15 @@ describe("SaveGame gradient factors", () => {
       expect(decodedSession({ ...old, version: 17, routePositionM: 50 })).toEqual(START_SESSION);
     });
 
-    it("keeps a legacy save's torchOn and turns the diver to its horizontalVelocity", () => {
+    it("restores a v21 save's session by its own number, so a later version keeps it", () => {
+      // Written as version 21, not CURRENT_SAVE_GAME_VERSION: once a later
+      // version is current, a gate on the current version would read this
+      // save as one from before the session and drop it.
+      expect(TWENTY_FIRST_SAVE_GAME_VERSION).toBe(21);
+      expect(decodedSession({ ...encode(), version: 21 })).toEqual(turned);
+    });
+
+    it("keeps a legacy save's torchOn at a site with an overhead and turns the diver to its horizontalVelocity", () => {
       // src/game-loop.js 1572 and 1578 save both; src/renderer.js 1472-1473
       // turns the diver past 0.05 m/s on the first frame.
       for (const [carried, expected] of [
@@ -1940,12 +1949,40 @@ describe("SaveGame gradient factors", () => {
         [{ torchOn: false, horizontalVelocity: -0.04 }, { facing: 1, torchOn: false }],
         [{ torchOn: undefined, horizontalVelocity: undefined }, { facing: 1, torchOn: true }],
         [{ torchOn: "off", horizontalVelocity: "-1" }, { facing: 1, torchOn: true }],
+        [{ torchOn: false, diveSite: "cave" }, { facing: 1, torchOn: false }],
       ] as const) {
-        expect(decodedSession({ ...legacyV2Save(), ...carried }), JSON.stringify(carried)).toEqual({
+        expect(decodedSession({ diveSite: "wreck", ...legacyV2Save(), ...carried }), JSON.stringify(carried)).toEqual({
           routePositionM: 10,
           ...expected,
         });
       }
+    });
+
+    it("resumes a legacy save's torch on where legacy's off meant its site or the light-failure drill", () => {
+      // Off by default where there is no overhead (src/state.js 1122: 'open',
+      // the default, and shore and reef), and held off by the cave's drill
+      // from its overlay until lightRestoreAt (src/game-loop.js 150, 291-293),
+      // which does not resume here (#167).
+      const dark = { id: "lightFailure", phase: "inactive", lightRestoreAt: 0 };
+      for (const carried of [
+        { diveSite: "open" },
+        { diveSite: "shore" },
+        { diveSite: "reef" },
+        { diveSite: undefined },
+        { diveSite: "cave", drillState: { ...dark, phase: "overlay" } },
+        { diveSite: "cave", drillState: { ...dark, phase: "debrief" } },
+        { diveSite: "cave", drillState: { ...dark, phase: "flicker" } },
+        { diveSite: "cave", drillState: { ...dark, lightRestoreAt: 900 } },
+      ]) {
+        expect(decodedSession({ ...legacyV2Save(), torchOn: false, ...carried }), JSON.stringify(carried)).toEqual(
+          START_SESSION,
+        );
+      }
+      // The drill over and its light back: the diver's own off is kept.
+      expect(decodedSession({ ...legacyV2Save(), torchOn: false, diveSite: "cave", drillState: dark })).toEqual({
+        ...START_SESSION,
+        torchOn: false,
+      });
     });
   });
 
