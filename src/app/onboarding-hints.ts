@@ -13,7 +13,7 @@
 import { decoStopDepth } from "../core/decompression";
 import { frameNdlMinutes } from "../core/dive-model";
 import type { DiveState } from "../core/dive-state";
-import type { KeyValueStore } from "../save/save-repository";
+import type { PersistentStore } from "../platform/platform-services";
 import type { MessageKey } from "./i18n/catalog";
 
 /** Legacy's triggers, in the order updateDiving() checks them. */
@@ -178,42 +178,43 @@ export interface HintStore {
 }
 
 /**
- * Legacy's flags in storage. Storage that cannot be read or written admits
- * every hint, which the dive's own record of fired triggers still shows only
- * once per dive, as legacy's does.
+ * Legacy's flags in storage, read once as a dive starts and written through
+ * (#137 A4a), so a frame asks nothing of the asynchronous store. Storage that
+ * cannot be read admits every hint and keeps no flag, which the dive's own
+ * record of fired triggers still shows only once per dive, as legacy's does;
+ * a flag the store refuses to write is taken back, as legacy's write that
+ * throws leaves none.
  */
-export function createHintStore(store: () => KeyValueStore): HintStore {
-  const dismissed = () => {
-    try {
-      return store().getItem(HINT_DONE_KEY) === "1";
-    } catch {
-      return false;
+export async function loadHintStore(store: PersistentStore): Promise<HintStore> {
+  const keys = [HINT_DONE_KEY, ...HINT_IDS.map((id) => HINT_STORAGE_PREFIX + id)];
+  let flags: Set<string> | null;
+  try {
+    const values = await Promise.all(keys.map((key) => store.get(key)));
+    flags = new Set(keys.filter((_, index) => values[index] === "1"));
+  } catch {
+    flags = null;
+  }
+  const raise = (key: string) => {
+    if (!flags) {
+      // As legacy's: without storage, seen for this dive only, and only the
+      // hints queued now go.
+      return;
     }
+    flags.add(key);
+    void store.set(key, "1").catch(() => flags?.delete(key));
   };
+  const dismissed = () => flags?.has(HINT_DONE_KEY) ?? false;
   return {
     admit: (id) => {
-      if (dismissed()) {
+      const key = HINT_STORAGE_PREFIX + id;
+      if (dismissed() || flags?.has(key)) {
         return false;
       }
-      try {
-        const key = HINT_STORAGE_PREFIX + id;
-        if (store().getItem(key) === "1") {
-          return false;
-        }
-        store().setItem(key, "1");
-      } catch {
-        // Seen for this dive only.
-      }
+      raise(key);
       return true;
     },
     dismissed,
-    dismiss: () => {
-      try {
-        store().setItem(HINT_DONE_KEY, "1");
-      } catch {
-        // As legacy's: without storage only the hints queued now go.
-      }
-    },
+    dismiss: () => raise(HINT_DONE_KEY),
   };
 }
 

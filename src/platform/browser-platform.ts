@@ -4,13 +4,19 @@ import {
   type LifecycleDocument,
   type WakeLockLike,
 } from "../app/lifecycle";
-import type { KeyValueStore } from "../save/save-repository";
 import type {
   AppLifecycle,
   BackNavigation,
   PersistentStore,
   PlatformServices,
 } from "./platform-services";
+
+/** The page's synchronous storage, `window.localStorage`'s shape. */
+export interface KeyValueStore {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+}
 
 /**
  * What the browser's services read, for tests to stand in for. Each defaults
@@ -32,7 +38,6 @@ export function createBrowserPlatformServices(
   const doc = environment.document ?? document;
   return {
     store: keyValuePersistentStore(storage),
-    syncStorage: storage,
     lifecycle: pageLifecycle(doc),
     backNavigation: BROWSER_BACK_NAVIGATION,
     // Left out, `navigator.wakeLock` where there is one.
@@ -41,9 +46,11 @@ export function createBrowserPlatformServices(
 }
 
 /**
- * `PersistentStore` over a synchronous store such as `localStorage`: each
- * call settles at once, and a store that throws, on a blocked page or a full
- * quota, rejects instead.
+ * `PersistentStore` over a synchronous store such as `localStorage`. Each
+ * call does its work before it returns, so a `set` made on `pagehide` is
+ * written though nothing awaits it (the contract's "taken before it
+ * returns"), and reports it through a promise settled at once; a store that
+ * throws, on a blocked page or a full quota, rejects instead.
  */
 export function keyValuePersistentStore(
   storage: () => KeyValueStore,

@@ -7,7 +7,7 @@
 // departure recorded in docs/decisions.md. A stored choice wins over the
 // browser's languages; a value this client does not know, or storage that
 // cannot be read, leaves the browser's preference in charge.
-import type { KeyValueStore } from "../../save/save-repository";
+import type { PersistentStore } from "../../platform/platform-services";
 import {
   SUPPORTED_LOCALES,
   detectPreferredLocale,
@@ -28,21 +28,24 @@ export function parseStoredLocale(value: string | null): SupportedLocale | null 
   return SUPPORTED_LOCALES.find((locale) => locale === value) ?? null;
 }
 
-export function createLocalePreference(store: () => KeyValueStore): LocalePreference {
+/**
+ * Reads the choice once, as the page loads, and writes each change through
+ * (#137 A4a), so the screens ask nothing of the asynchronous store. Storage
+ * that cannot be read or written never rejects here.
+ */
+export async function loadLocalePreference(store: PersistentStore): Promise<LocalePreference> {
+  let stored: SupportedLocale | null;
+  try {
+    stored = parseStoredLocale(await store.get(LOCALE_STORAGE_KEY));
+  } catch {
+    stored = null;
+  }
   return {
-    stored: () => {
-      try {
-        return parseStoredLocale(store().getItem(LOCALE_STORAGE_KEY));
-      } catch {
-        return null;
-      }
-    },
+    stored: () => stored,
     save: (locale) => {
-      try {
-        store().setItem(LOCALE_STORAGE_KEY, locale);
-      } catch {
-        // Private browsing or a full quota: the switch still holds until reload.
-      }
+      stored = locale;
+      // Private browsing or a full quota: the switch still holds until reload.
+      void store.set(LOCALE_STORAGE_KEY, locale).catch(() => undefined);
     },
   };
 }

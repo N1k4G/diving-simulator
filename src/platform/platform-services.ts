@@ -1,4 +1,8 @@
-import type { KeyValueStore } from "../save/save-repository";
+import type { PersistentStore } from "../save/save-repository";
+
+// The store's contract is the save repository's port, as the synchronous
+// one was before #137 A4a: the save depends on no platform code.
+export type { PersistentStore };
 
 /**
  * The platform contracts (#137 A0): what the app asks of the browser or of a
@@ -12,34 +16,14 @@ import type { KeyValueStore } from "../save/save-repository";
  * this (docs/decisions.md, "Architecture").
  */
 export interface PlatformServices {
-  /** The durable key-value store saves and settings are kept in. */
-  readonly store: PersistentStore;
   /**
-   * The same store, read and written synchronously, for the save repository,
-   * the hint flags and the locale choice, synchronous until #137 A4a makes them
-   * await `store` (docs/decisions.md, the #137 A0 row). Throws where the
-   * store cannot be reached at all, as reading `window.localStorage` does
-   * where the page's storage is blocked, so each caller meets that where it
-   * did before.
+   * The durable key-value store the save, the hint flags and the language
+   * choice are kept in, and the only way the app reaches it (#137 A4a).
    */
-  readonly syncStorage: () => KeyValueStore;
+  readonly store: PersistentStore;
   readonly lifecycle: AppLifecycle;
   readonly backNavigation: BackNavigation;
   readonly wakeLock: WakeLockService;
-}
-
-/**
- * Durable string storage, asynchronous because the native store (Capacitor
- * Preferences) is: the shape #137 A4a converts the save path to. A write
- * resolves once the store has taken it and rejects where it is refused
- * (quota, private browsing), so a caller can tell degraded persistence from
- * a saved dive.
- */
-export interface PersistentStore {
-  /** The value under `key`, or null when there is none. */
-  get(key: string): Promise<string | null>;
-  set(key: string, value: string): Promise<void>;
-  remove(key: string): Promise<void>;
 }
 
 /** What the dive screen does as the app leaves and comes back to the foreground. */
