@@ -133,6 +133,11 @@ const englishMessages = {
   "wreck.controls.mute": "Mute audio",
   "wreck.controls.fastForward": "Fast-forward at the stop",
   "wreck.controls.surfaceDescend": "At the surface. Press S or ↓ to vent and descend",
+  // The dive is not being saved (#282). Legacy says nothing when its
+  // save fails (src/game-loop.js 1581), so this is new, and factual.
+  "wreck.persistence.degraded": "Not saving: storage is unavailable or full. If you leave, this dive cannot be resumed.",
+  // Its opening words, shown alone where the screen is too small for it.
+  "wreck.persistence.degradedShort": "Not saving",
   "wreck.controls.hint": "W/↑ inflates the BCD, S/↓ vents it, A/D fin. T toggles the torch. F fast-forwards while you hold a stop. On a rebreather, [ and ] move the setpoint and B bails out. I shows gas information on technical and rebreather dives.",
   "wreck.symbol.torch": "◉",
   "wreck.symbol.fastForward": "»",
@@ -505,6 +510,8 @@ const catalog: Record<SupportedLocale, Record<MessageKey, string>> = {
     "wreck.controls.mute": "Audio stummschalten",
     "wreck.controls.fastForward": "Am Stopp vorspulen",
     "wreck.controls.surfaceDescend": "An der Oberfläche. S oder ↓ drücken zum Ablassen und Abtauchen",
+    "wreck.persistence.degraded": "Speichern nicht möglich: Der Speicher ist nicht verfügbar oder voll. Wenn du gehst, lässt sich dieser Tauchgang nicht fortsetzen.",
+    "wreck.persistence.degradedShort": "Speichern nicht möglich",
     "wreck.controls.hint": "W/↑ füllt das BCD, S/↓ lässt es ab, A/D schwimmen. T schaltet die Lampe um. F spult vor, solange du einen Stopp hältst. Am Kreislaufgerät ändern [ und ] den Setpoint, B löst den Bailout aus. I zeigt bei technischen und Kreislauf-Tauchgängen die Gasinformationen.",
     "wreck.symbol.torch": "◉",
     "wreck.symbol.fastForward": "»",

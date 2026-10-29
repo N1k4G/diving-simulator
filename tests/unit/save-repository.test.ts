@@ -19,6 +19,7 @@ import {
   type KeyValueStore,
 } from "../../src/platform/browser-platform";
 import type { PersistentStore } from "../../src/platform/platform-services";
+import { PersistenceStatus } from "../../src/app/persistence-status";
 
 /** The repository over the browser's store, on a synchronous one (#137 A4a). */
 class LocalSaveRepository extends AsyncSaveRepository {
@@ -518,5 +519,88 @@ describe("serialStore (#137 A4a, #284 Codex round 1)", () => {
     ]);
     expect(savedAt(store)).toBe(9);
     expect(store.maxInFlight).toBe(1);
+  });
+});
+
+// #282: the notice shows the state the outcomes leave, read once a frame.
+// The outcomes arrive in the order the writes reached the store, so the last
+// one recorded is the latest. A save a clearing replaced reports the
+// clearing's outcome, which says nothing about saving and moves nothing.
+describe("the degraded-persistence state over the repository's outcomes (#282)", () => {
+  /** A repository whose saves are recorded as wreck-app's saveState() records them. */
+  function tracked(store: ControlledStore) {
+    const repository = new AsyncSaveRepository(store);
+    const status = new PersistenceStatus();
+    /** The state after each outcome, in the order they arrived. */
+    const seen: boolean[] = [];
+    const save = (savedAtEpochMs: number) =>
+      repository
+        .save(createInitialDiveState(1), DEFAULT_SAVED_GRADIENT_FACTORS, savedAtEpochMs)
+        .then((outcome) => {
+          status.saveSettled(outcome);
+          seen.push(status.degraded);
+          return outcome;
+        });
+    return { repository, status, seen, save };
+  }
+
+  it("follows a refused save with a taken one and the other way round, the latest outcome last", async () => {
+    const store = new ControlledStore();
+    const { status, seen, save } = tracked(store);
+    // The save could not be read; the first save taken clears it.
+    status.unreadable();
+    expect(status.degraded).toBe(true);
+    const first = save(1);
+    await store.settle();
+    await first;
+    expect(seen).toEqual([false]);
+
+    // Refused, then taken: shown once, then gone.
+    const refused = save(2);
+    const taken = save(3);
+    await store.settle(false);
+    expect(seen).toEqual([false, true]);
+    await store.settle();
+    await Promise.all([refused, taken]);
+    expect(seen).toEqual([false, true, false]);
+
+    // Taken, then refused, the refused one replacing a save made between:
+    // both report the refusal, and nothing taken arrives after it.
+    const before = save(4);
+    const replaced = save(5);
+    const latest = save(6);
+    await store.settle();
+    await store.settle(false);
+    await Promise.all([before, replaced, latest]);
+    expect(seen).toEqual([false, true, false, false, true, true]);
+    expect(status.degraded).toBe(true);
+  });
+
+  it("is not moved by a save a clearing replaced, taken where saves are refused or refused where they are taken", async () => {
+    // A full quota: the save refused, the clearing that replaced the next one taken.
+    const full = new ControlledStore();
+    const quota = tracked(full);
+    const refused = quota.save(1);
+    const replaced = quota.save(2);
+    const cleared = quota.repository.clear();
+    await full.settle(false);
+    await full.settle();
+    expect(await cleared).toBe(true);
+    expect(await refused).toMatchObject({ persisted: false, cleared: false });
+    expect(await replaced).toMatchObject({ persisted: true, cleared: true });
+    expect(quota.seen).toEqual([true, true]);
+
+    // The other way round: the save taken, the clearing refused.
+    const refusing = new ControlledStore();
+    const removals = tracked(refusing);
+    const taken = removals.save(1);
+    const replacedToo = removals.save(2);
+    const notCleared = removals.repository.clear();
+    await refusing.settle();
+    await refusing.settle(false);
+    expect(await notCleared).toBe(false);
+    expect(await taken).toMatchObject({ persisted: true, cleared: false });
+    expect(await replacedToo).toMatchObject({ persisted: false, cleared: true });
+    expect(removals.seen).toEqual([false, false]);
   });
 });

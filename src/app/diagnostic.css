@@ -1187,6 +1187,66 @@ summary:focus-visible {
   display: none;
 }
 
+/* The dive is not being saved (#282): at the top of the dock, in the
+   warning's amber. Empty, it is out of the dock's flow and takes no gap,
+   but stays in the accessibility tree, so the status region is there when
+   the notice is written into it. The dock's cap lets a row reach 0.5rem
+   under the D-pad's left column; the notice is as wide as the dock, and on
+   a recreational dive it is the dock's only row, beside the pad's left
+   button, so it stops 1rem short. */
+.persistence-notice {
+  margin: 0 1rem 0 0;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid #ffdc78;
+  border-radius: 0.65rem;
+  color: #ffdc78;
+  background: rgb(3 24 32 / 85%);
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.persistence-notice:empty {
+  position: absolute;
+  padding: 0;
+  border: 0;
+}
+
+.persistence-notice-short {
+  display: none;
+}
+
+/* Narrow screens up to 760px tall, and any screen up to 600px tall: there
+   the sentence, five to eight lines in the dock's width, ran under the HUD
+   and over the Learn button at 320x568 and 360x640, and at 320x568 even its
+   opening words took three lines in the dock and covered Learn. They stand
+   alone above the D-pad instead, out of the dock: the side ends where the
+   pad does, and the pad is 6.5rem tall, plus the 0.5rem gap. The sentence
+   stays in the status region, visually hidden, and is what is announced.
+   Kept apart from the HUD's own media rules. */
+@media (width <= 720px) and (height <= 760px), (height <= 600px) {
+  .persistence-notice {
+    position: absolute;
+    right: 0;
+    bottom: 7rem;
+    max-width: 10rem;
+    margin: 0;
+  }
+
+  .persistence-notice-full {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .persistence-notice-short {
+    display: inline;
+  }
+}
+
 /* One column in the bottom-left corner: the keyboard hint above, the
    cylinder row below. Both used to be anchored there absolutely with the
    same offsets, so the hint was drawn across the row at desktop widths
