@@ -1107,6 +1107,28 @@ summary:focus-visible {
   display: none;
 }
 
+/* The dive is not being saved (#137 A4a): at the top of the dock, in the
+   warning's amber. Empty, it is out of the dock's flow and takes no gap,
+   but stays in the accessibility tree, so the status region is there when
+   the notice is written into it. */
+.persistence-notice {
+  margin: 0;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid #ffdc78;
+  border-radius: 0.65rem;
+  color: #ffdc78;
+  background: rgb(3 24 32 / 85%);
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.persistence-notice:empty {
+  position: absolute;
+  padding: 0;
+  border: 0;
+}
+
 /* One column in the bottom-left corner: the keyboard hint above, the
    cylinder row below. Both used to be anchored there absolutely with the
    same offsets, so the hint was drawn across the row at desktop widths

@@ -140,6 +140,8 @@ interface HudElements {
   readonly help: HTMLButtonElement;
   readonly gasInfo: GasInfoElements;
   readonly surfacePrompt: HTMLElement;
+  /** Says the dive is not being saved (#137 A4a). */
+  readonly persistence: HTMLElement;
   readonly onboardingHint: HTMLElement;
   readonly instructor: InstructorPanelElements;
   /** Stops keeping the HUD's height for the instructor panel's place. */
@@ -156,6 +158,12 @@ interface AppServices {
   readonly platform: PlatformServices;
   readonly localePreference: LocalePreference;
   readonly repository: LocalSaveRepository;
+  /**
+   * The store could not be read, or refused the last save (#137 A4a): the
+   * dive shows it is not being saved. Kept from one dive to the next, so a
+   * dive on a page whose storage is blocked says so from its first frame.
+   */
+  readonly persistence: { degraded: boolean };
 }
 
 /**
@@ -242,6 +250,7 @@ export async function renderWreckApplication(
     localePreference: await loadLocalePreference(platform.store),
     // A dive resumed from a legacy save gets its own seed too (#219).
     repository: new LocalSaveRepository(platform.store, { legacySeed: drawDiveSeed }),
+    persistence: { degraded: false },
   };
   // The stored choice, else the browser's, unless the caller names one.
   const locale = requestedLocale ?? initialLocale(services.localePreference);
@@ -256,7 +265,7 @@ export async function renderWreckApplication(
 
   accept.addEventListener("click", () => {
     accept.disabled = true;
-    void loadSavedDive(services.repository).then((saved) =>
+    void loadSavedDive(services).then((saved) =>
       showSetupScreen(services, root, locale, undefined, saved),
     );
   });
@@ -271,9 +280,11 @@ function applyDocumentLocale(locale: SupportedLocale): void {
 /**
  * The save on the first setup screen, as legacy's loadSavedDive() reads it
  * once at load into _pendingResumeDive (#191). Storage that cannot be read,
- * and a save more than an hour old, offer no dive to resume. Never rejects.
+ * and a save more than an hour old, offer no dive to resume; the first marks
+ * persistence degraded (#137 A4a). Never rejects.
  */
-async function loadSavedDive(repository: LocalSaveRepository): Promise<SaveGame | null> {
+async function loadSavedDive(services: AppServices): Promise<SaveGame | null> {
+  const { repository } = services;
   try {
     const result = await repository.load();
     if (result.status !== "loaded") return null;
@@ -285,6 +296,7 @@ async function loadSavedDive(repository: LocalSaveRepository): Promise<SaveGame 
     return result.saveGame;
   } catch (error) {
     console.error(error);
+    services.persistence.degraded = true;
     return null;
   }
 }
@@ -588,7 +600,7 @@ async function startWreckSimulation(
       }
       const nowMs = performance.now();
       if (nowMs - lastSaveMs > SAVE_INTERVAL_MS) {
-        saveState(repository, state, routePositionM, drill, plannerSettings, diveMode);
+        saveState(services, state, routePositionM, drill, plannerSettings, diveMode);
         lastSaveMs = nowMs;
       }
     },
@@ -624,6 +636,14 @@ async function startWreckSimulation(
         locale,
       );
       syncInstructor(frame);
+      // Written when it changes, after the region is on the page, so a dive
+      // that starts unsaved announces it too.
+      const persistenceText = services.persistence.degraded
+        ? translate(locale, "wreck.persistence.degraded")
+        : "";
+      if (hud.persistence.textContent !== persistenceText) {
+        hud.persistence.textContent = persistenceText;
+      }
       audio.update({
         elapsedRealS: frame.scene.elapsedRealS,
         warningActive: isWarningBeepActive(frame.presentation),
@@ -796,7 +816,7 @@ async function startWreckSimulation(
       return;
     }
     saveState(
-      repository,
+      services,
       controller.authoritativeState,
       controller.routePositionM,
       controller.drill,
@@ -846,18 +866,18 @@ function diveHelpContext(
 }
 
 /**
- * Hands the state to the repository, which writes it in turn (#137 A4a). A
- * refused write resolves `persisted: false`; surfacing it is #282.
+ * Hands the state to the repository, which writes it in turn (#137 A4a), and
+ * marks persistence degraded while the store refuses it.
  */
 function saveState(
-  repository: LocalSaveRepository,
+  services: AppServices,
   state: DiveState,
   routePositionM: number,
   drill: Readonly<DrillState>,
   settings: Readonly<PlannerSettings>,
   diveMode: DiveMode,
 ): void {
-  void repository
+  void services.repository
     .save(
       state,
       {
@@ -869,7 +889,12 @@ function saveState(
       routePositionM,
       drill,
     )
-    .catch((error: unknown) => console.error(error));
+    .then(
+      ({ persisted }) => {
+        services.persistence.degraded = !persisted;
+      },
+      (error: unknown) => console.error(error),
+    );
 }
 
 /** A clearing the store refuses leaves the save; the dive ends regardless. */
@@ -1174,9 +1199,15 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   surfacePrompt.dataset.surfacePrompt = "true";
   surfacePrompt.hidden = true;
 
+  // The dive is not being saved (#137 A4a): a status region, empty while
+  // saves are taken, so the notice is announced once as it is written.
+  const persistence = createElement("p", "persistence-notice", "");
+  persistence.dataset.persistenceNotice = "true";
+  persistence.setAttribute("role", "status");
+
   const dock = document.createElement("div");
   dock.className = "wreck-dock";
-  dock.append(surfacePrompt, hint, tanks, ccr);
+  dock.append(persistence, surfacePrompt, hint, tanks, ccr);
 
   // The HUD and the gas-information panel share one column, so an open
   // page sits below the readouts rather than over them (#163).
@@ -1235,6 +1266,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
     help,
     gasInfo,
     surfacePrompt,
+    persistence,
     onboardingHint,
     instructor,
     stopHudTracking,
