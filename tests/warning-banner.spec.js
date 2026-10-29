@@ -3,25 +3,42 @@ const { descendTo } = require('./helpers/start-dive.cjs');
 
 // The warning banner against the in-dive controls on narrow phones in
 // portrait (#287). The banner stood centred over the topbar and took the
-// taps meant for the gas pages' I under it. Every control stays pressable
-// while a warning shows: a tap at its centre reaches it. A short warning
-// also leaves every control in view; a long one may stand over the topbar's
-// buttons, but not over the depth or the NDL row (#137 A15). The banner
-// keeps its alert semantics and its text fits it.
+// taps meant for the gas pages' I under it, and a long warning hid Help and
+// mute, the alarm's off switch. While a warning shows, every control stays
+// pressable (a tap at its centre reaches it) and in view (it is painted over
+// the banner there), a focused one included (WCAG 2.4.11). The banner stays
+// off the depth, ascent-rate and NDL rows (#137 A15), keeps its alert
+// semantics, and its text fits it.
 //
 // A real warning, raised as tests/hud-warnings.spec.js raises it: the dive's
 // own save, changed and resumed. Narcosis is the issue's case and a short
-// text; low gas is one of the longest, which wraps.
+// text; low gas is one of the longest, which wraps. Every other warning's
+// text is measured too, in a copy of the banner that is not an alert, so the
+// rule holds for every length the dive computer shows.
 
 const SAVE_KEY = 'diving-simulator.save-game';
 
 // tests/in-dive-controls.spec.js's narrow sizes, and 320x568.
 const NARROW_SIZES = [[320, 568], [340, 640], [360, 640], [375, 667], [390, 844]];
 
+// Every alert text (src/app/i18n/catalog.ts, diveComputer.alert.*). The dive
+// computer reads English in every locale (#232).
+const ALERT_TEXTS = [
+  'Low gas pressure — begin a controlled exit',
+  'Scrubber nearly spent — end the dive',
+  'Unsafe simulated oxygen pressure',
+  'Ascending too fast — slow down',
+  'Scrubber failed — simulated CO₂ buildup, bail out',
+  'Simulated dive failure — return to the surface',
+  'Above ceiling — descend',
+  'Gas reserve',
+  'Low NDL',
+  'Narcosis',
+];
+
 const WARNINGS = {
   narcosis: {
     text: 'Narcosis',
-    clearOfControls: true,
     // At 35 m, over legacy's 0.20 caution (tests/hud-warnings.spec.js).
     mutate: (state) => {
       Object.assign(state, {
@@ -35,7 +52,6 @@ const WARNINGS = {
   },
   lowGas: {
     text: 'Low gas pressure — begin a controlled exit',
-    clearOfControls: false,
     // 20 bar, under legacy's 30 bar low gas.
     mutate: (state) => {
       const tank = state.tanks[state.activeTankIndex];
@@ -71,44 +87,70 @@ async function resumeWith(page, mode, mutate) {
 }
 
 /**
- * The banner and every shown control: which control a tap at its centre
- * reaches, which the banner's box meets, and whether the banner's text fits.
+ * What the banner does to the controls and the HUD: the controls a tap at
+ * their centre misses, the controls it is painted over (hit-tested as if it
+ * took taps), the HUD rows its box meets, and whether its text fits. With
+ * `text`, a copy of the banner showing that text, not an alert, stands in
+ * for it, with the same rules.
  */
-const measure = (page) =>
-  page.evaluate(() => {
+const measure = (page, text = null) =>
+  page.evaluate((text) => {
     const shown = (element) => element !== null && element.getClientRects().length > 0;
     const meets = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
     const name = (element) =>
       element.getAttribute('aria-label') || element.dataset.direction || element.className || element.textContent;
-    const banner = document.querySelector('.wreck-warning');
-    const box = banner.getBoundingClientRect();
-    const untappable = [];
-    const covered = [];
-    let controls = 0;
-    for (const control of document.querySelectorAll('.wreck-shell button')) {
-      if (!shown(control)) continue;
-      controls += 1;
-      const c = control.getBoundingClientRect();
-      const hit = document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2);
-      if (hit === null || !control.contains(hit)) {
-        untappable.push(`${name(control)} under ${hit === null ? 'nothing' : hit.className}`);
-      }
-      if (meets(box, c)) covered.push(name(control));
+    const alert = document.querySelector('.wreck-warning');
+    let banner = alert;
+    if (text !== null) {
+      banner = alert.cloneNode(false);
+      banner.removeAttribute('role');
+      banner.removeAttribute('aria-live');
+      banner.textContent = text;
+      alert.after(banner);
+      alert.style.visibility = 'hidden';
     }
-    const coveredRows = ['depth', 'ndl'].filter((metric) => {
+    const box = banner.getBoundingClientRect();
+    const controls = [...document.querySelectorAll('.wreck-shell button')].filter(shown);
+    const centre = (control) => {
+      const c = control.getBoundingClientRect();
+      return document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2);
+    };
+    const untappable = controls
+      .filter((control) => !control.contains(centre(control)))
+      .map((control) => `${name(control)} under ${centre(control)?.className ?? 'nothing'}`);
+    banner.style.pointerEvents = 'auto';
+    const hidden = controls.filter((control) => !control.contains(centre(control))).map(name);
+    banner.style.pointerEvents = '';
+    const coveredRows = ['depth', 'ascentRate', 'ndl'].filter((metric) => {
       const row = document.querySelector(`[data-hud-metric="${metric}"]`);
       return shown(row) && meets(box, row.getBoundingClientRect());
     });
-    return {
-      controls,
+    const result = {
+      controls: controls.length,
       untappable,
-      covered,
+      hidden,
       coveredRows,
       inView: box.left >= 0 && box.right <= window.innerWidth && box.top >= 0,
       overflows: banner.scrollWidth > banner.clientWidth,
       fontPx: parseFloat(getComputedStyle(banner).fontSize),
     };
-  });
+    if (banner !== alert) {
+      banner.remove();
+      alert.style.visibility = '';
+    }
+    return result;
+  }, text);
+
+/** `failures` gains what `m`, measured at `at`, breaks. */
+function check(failures, at, m) {
+  if (m.controls === 0) failures.push(`${at}: no control found`);
+  if (m.untappable.length > 0) failures.push(`${at}: a tap misses ${m.untappable.join(', ')}`);
+  if (m.hidden.length > 0) failures.push(`${at}: the banner hides ${m.hidden.join(', ')}`);
+  if (m.coveredRows.length > 0) failures.push(`${at}: the banner covers the HUD's ${m.coveredRows.join(', ')}`);
+  if (!m.inView) failures.push(`${at}: the banner runs out of the screen`);
+  if (m.overflows) failures.push(`${at}: the banner's text overflows it`);
+  if (m.fontPx < 12) failures.push(`${at}: the banner's text is ${m.fontPx}px`);
+}
 
 const CASES = [
   ['rec', 'narcosis'],
@@ -123,7 +165,7 @@ for (const locale of ['en-US', 'de-DE']) {
     test.use({ locale, viewport: { width: 390, height: 844 }, hasTouch: true });
 
     for (const [mode, warningName] of CASES) {
-      test(`${mode}: the ${warningName} banner leaves every control pressable, 320-390 px portrait`, async ({ page }) => {
+      test(`${mode}: the ${warningName} banner leaves every control pressable and in view, 320-390 px portrait`, async ({ page }) => {
         test.setTimeout(120_000);
         const warning = WARNINGS[warningName];
         await resumeWith(page, mode, warning.mutate);
@@ -141,31 +183,21 @@ for (const locale of ['en-US', 'de-DE']) {
           await page.setViewportSize({ width, height });
           await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
           await expect(alert).toBeVisible();
-          const at = `${width}x${height}`;
-          const m = await measure(page);
-          expect(m.controls, `${at}: controls found`).toBeGreaterThan(0);
-          if (m.untappable.length > 0) failures.push(`${at}: a tap misses ${m.untappable.join(', ')}`);
-          if (warning.clearOfControls && m.covered.length > 0) {
-            failures.push(`${at}: the banner covers ${m.covered.join(', ')}`);
+          check(failures, `${width}x${height}`, await measure(page));
+          for (const text of ALERT_TEXTS) {
+            check(failures, `${width}x${height} "${text}"`, await measure(page, text));
           }
-          if (m.coveredRows.length > 0) failures.push(`${at}: the banner covers the HUD's ${m.coveredRows.join(', ')}`);
-          if (!m.inView) failures.push(`${at}: the banner runs out of the screen`);
-          if (m.overflows) failures.push(`${at}: the banner's text overflows it`);
-          if (m.fontPx < 12) failures.push(`${at}: the banner's text is ${m.fontPx}px`);
         }
-        // A topbar button with keyboard focus is in view at the narrowest
-        // size (WCAG 2.4.11), even under a long warning.
+        // A topbar button with keyboard focus stays in view at the narrowest
+        // size (WCAG 2.4.11), and the banner stays where it is, off the HUD.
         await page.setViewportSize({ width: 320, height: 568 });
         await page.keyboard.press('Shift');
         for (const button of await page.locator('.topbar-actions button:visible').all()) {
           await button.focus();
           const label = await button.getAttribute('aria-label');
           expect(await button.evaluate((el) => el.matches(':focus-visible')), `${label} shows its focus`).toBe(true);
-          const focused = await button.boundingBox();
-          const banner = await alert.boundingBox();
-          const meets = banner.x < focused.x + focused.width && focused.x < banner.x + banner.width &&
-            banner.y < focused.y + focused.height && focused.y < banner.y + banner.height;
-          if (meets) failures.push(`320x568: the banner covers ${label}, focused`);
+          check(failures, `320x568, ${label} focused`, await measure(page));
+          check(failures, `320x568, ${label} focused, "${ALERT_TEXTS[4]}"`, await measure(page, ALERT_TEXTS[4]));
         }
         // The whole matrix at once, rather than its first failure.
         expect(failures).toEqual([]);
