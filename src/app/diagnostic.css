@@ -938,9 +938,14 @@ summary:focus-visible {
   color: #ff9b9b;
 }
 
+/* The warning banner. It is text alone, with nothing to press, so it takes
+   no touch or click (#287): whatever it stands over stays pressable, as
+   legacy's #touch-ui buttons stand over its canvas banner. On a phone in
+   portrait it also stands clear of the topbar's buttons (below). */
 .wreck-warning {
   position: absolute;
   z-index: 5;
+  pointer-events: none;
   top: calc(1rem + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
   left: 50%;
   max-width: min(34rem, calc(100% - 2rem));
@@ -1023,6 +1028,81 @@ summary:focus-visible {
 
 .wreck-warning[data-tier="caution"] {
   box-shadow: 0 0 0 4px #0d0900;
+}
+
+/* On a phone in portrait the centred banner stood over the topbar's buttons
+   (#287) and hid the gas pages' I, and a long warning Help and mute, the
+   alarm's off switch. Left of the buttons there is no room for a long
+   warning above the depth row: at 320 px about 117 px. So here the banner
+   is a bar across the whole row that frames the buttons, and the buttons
+   are painted over it: the topbar gives up its stacking context while a
+   warning shows, and each button stands above the banner. The text flows
+   round them, beside them on the left (the float below) and across the row
+   under them, and ends above the depth row. The bar stands over the site's
+   name and the status chip, which says the same. Taps pass through it
+   (above), and a focused button is never under it (WCAG 2.4.11). Short
+   landscape is #256. */
+@media (width <= 720px) and (orientation: portrait) {
+  /* The buttons' row: Help and mute, and I where a dive offers it. */
+  .wreck-shell {
+    --wreck-warning-buttons: calc(2 * 2.75rem + 0.6rem);
+  }
+
+  .wreck-shell:has(.gas-info-control:not([hidden])) {
+    --wreck-warning-buttons: calc(3 * 2.75rem + 2 * 0.6rem);
+  }
+
+  .wreck-warning {
+    top: calc(0.625rem + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
+    right: calc(0.875rem + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
+    left: calc(0.875rem + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
+    max-width: none;
+    padding: 0.375rem 0.6rem;
+    font-size: 0.8rem;
+    line-height: 1.2;
+    text-align: left;
+    transform: none;
+  }
+
+  /* The buttons' place in the bar, with 0.5rem on their left: from the
+     text's right edge back to there, and from the text's top down to the
+     buttons' bottom. */
+  .wreck-warning::before {
+    content: "";
+    float: right;
+    width: calc(var(--wreck-warning-buttons) + 0.275rem - 2px);
+    height: calc(2.75rem - 2px);
+  }
+
+  .wreck-shell.has-warning .wreck-topbar {
+    z-index: auto;
+  }
+
+  .wreck-shell.has-warning .topbar-actions > button {
+    position: relative;
+    z-index: 6;
+  }
+
+  /* The fast-forward badge (below) says the clock runs ten times faster,
+     which nothing else in sight says in words, so it stays on the bar too:
+     painted over it, on its top border, ending 0.5rem left of the buttons.
+     One line high, it ends above the first line of text, so no warning
+     moves for it. Placed against the topbar, as the chips give up their
+     frame. */
+  .wreck-shell.has-warning .topbar-chips {
+    position: static;
+  }
+
+  .wreck-shell.has-warning .speed-chip {
+    z-index: 6;
+    top: calc(0.125rem + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
+    right: calc(
+      1.25rem + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)) +
+        var(--wreck-warning-buttons) + 0.5rem
+    );
+    padding-block: 0;
+    line-height: 1;
+  }
 }
 
 /* The fast-forward indicator (#163). Its own chip rather than a colour on
