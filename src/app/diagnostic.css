@@ -1239,26 +1239,43 @@ summary:focus-visible {
   }
 }
 
-/* An open gas page or instructor panel takes the sentence's room, so the
-   opening words stand alone then too: at 390x844 the sentence left a
-   rebreather's gas page 52px of its 182. */
-.wreck-column:has(> .gas-info:not([hidden]), > .instructor-panel:not([hidden])) .persistence-notice-full {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-.wreck-column:has(> .gas-info:not([hidden]), > .instructor-panel:not([hidden])) .persistence-notice-short {
-  display: inline;
-}
-
 /* A short screen's HUD fills the column (below); so does the notice. */
 @media (height <= 600px) {
   .persistence-notice {
     width: 100%;
+  }
+}
+
+/* An open gas page takes the notice's place, and so does the instructor
+   panel where it stands under the HUD (a phone, a short screen), as
+   legacy's information pages take its dive computer's lower box. There a
+   page shares the column's height with the dock and the D-pad to the
+   pixel, and even the opening words left it nothing (a technical dive's
+   gas page at 320x568: 5px of its 47; a rebreather's loop page at 360x640:
+   none of its 30). The notice leaves the flow, visually hidden and still
+   the status region, so nothing is announced again, and it is back as the
+   page closes. */
+.wreck-column:has(> .gas-info:not([hidden])) > .persistence-notice:not(:empty) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (width <= 720px), (height <= 600px) {
+  .wreck-column:has(> .instructor-panel:not([hidden])) > .persistence-notice:not(:empty) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    padding: 0;
+    border: 0;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }
 
