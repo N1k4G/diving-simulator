@@ -26,9 +26,10 @@
 //
 // THE TREE HASH. SHA-256 over one line per file, "<sha256 of the file>  <path
 // relative to the directory, with forward slashes>\n", sorted by path in byte
-// order. It is what `find . -type f | LC_ALL=C sort | xargs sha256sum |
-// sha256sum` prints from inside the directory, so anyone can reproduce it
-// without this script. Every file counts, empty and dot files included.
+// order. It is what `find . -type f -printf '%P\n' | LC_ALL=C sort | xargs
+// sha256sum | sha256sum` prints from inside the directory with GNU coreutils
+// on Linux, so anyone can reproduce it without this script (`%P` drops the
+// leading "./"; Windows' sha256sum marks binary files with "*" and differs). Every file counts, empty and dot files included.
 //
 // THE CORDOVA STUBS. `cap sync` writes cordova.js and cordova_plugins.js into
 // the native project's copy of dist/ (@capacitor/cli, dist/cordova.js). With no

@@ -30,7 +30,7 @@ Issue states are:
 | Product | A fictional 2.5D diving simulation in Games / Simulation. It is not training, certification, medical guidance, a dive computer, or a real-dive planning tool. |
 | Release scope | The intended first release territories are the United States and Germany, with English and German as release-blocking locales. EU trader disclosure conflicts with minimal public identity exposure and must be resolved before production identity or store records are created. |
 | Platforms | Android 10 / API 29 or newer and iOS 16 or newer. Mobile supports portrait and landscape, touch, safe rotation, and pause/re-layout. Web supports keyboard. Controller support is deferred. |
-| Android target API | `targetSdk` 36, Google Play's requirement from 31 August 2026, verified 2026-08-28 when the native project was created ("Android packaging"). Re-check it immediately before every submission. |
+| Android target API | `targetSdk` 36, Google Play's requirement from 31 August 2026 (verified 2026-08-28, #137 §3), set when the native project was created on 2026-11-14 ("Android packaging"). Re-check it immediately before every submission. |
 | Browsers | The latest two major Chrome, Edge, Firefox, and Safari releases. CI exercises Chromium, Firefox, and WebKit. |
 | Commerce | None. No advertising, purchase, subscription, entitlement, consent-management SDK, or unlock path exists in the client. |
 | Telemetry | No product analytics, advertising identifier, fingerprinting, or third-party crash/performance telemetry SDK. Diagnostic export is explicitly user initiated. |
