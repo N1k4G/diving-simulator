@@ -7,7 +7,10 @@ const { beginDescent } = require('./helpers/start-dive.cjs');
 // choice: every load opens in English. This client offers it in the same
 // place, redraws the setup in place, and keeps the choice in the page's
 // storage, which wins over the browser's languages at the next load
-// (docs/decisions.md, the #169 departure row).
+// (docs/decisions.md, the #169 departure row). The safety gate, which legacy
+// does not have, offers the same switch too, so a first-time reader reads
+// the safety text in their language before accepting it (the owner's
+// decision of 2026-11-14, the second #169 row).
 
 const { translate } = require('../src/app/i18n/catalog.ts');
 
@@ -15,6 +18,7 @@ const LOCALE_KEY = 'diving-simulator.locale';
 const SAVE_KEY = 'diving-simulator.save-game';
 
 const switchButton = (page) => page.locator('[data-setup-locale]');
+const gateSwitch = (page) => page.locator('[data-safety-locale]');
 const storedLocale = (page) => page.evaluate((key) => window.localStorage.getItem(key), LOCALE_KEY);
 
 /** Opens the page with nothing stored, the gate up. */
@@ -56,7 +60,46 @@ async function expectSetupIn(page, lang) {
   await expect(page.locator('[data-start-dive]')).toHaveText(translate(lang, 'setup.start'));
   await expect(page.locator('[data-setup-group=mode] legend')).toHaveText(translate(lang, 'setup.mode.legend'));
   await expect(switchButton(page)).toHaveText(translate(lang, 'setup.language.switch'));
+  await expect(switchButton(page)).toHaveAccessibleName(translate(lang, 'setup.language.switch'));
   await expect(switchButton(page)).toHaveAttribute('lang', other);
+}
+
+/** The gate in `lang`, its switch named as the setup's and carrying its lang. */
+async function expectGateIn(page, lang) {
+  const other = lang === 'en' ? 'de' : 'en';
+  await expect(page.locator('html')).toHaveAttribute('lang', lang);
+  await expect(page).toHaveTitle(translate(lang, 'wreck.brand'));
+  await expect(page.locator('.safety-eyebrow')).toHaveText(translate(lang, 'wreck.safety.eyebrow'));
+  await expect(page.locator('#safety-heading')).toHaveText(translate(lang, 'wreck.safety.heading'));
+  await expect(page.locator('.safety-summary')).toHaveText(translate(lang, 'wreck.safety.summary'));
+  await expect(page.locator('.safety-notices li')).toHaveText([
+    translate(lang, 'wreck.safety.training'),
+    translate(lang, 'wreck.safety.emergency'),
+  ]);
+  await expect(page.locator('#safety-methodology summary')).toHaveText(translate(lang, 'wreck.safety.methodologyHeading'));
+  await expect(page.locator('[data-accept-safety]')).toHaveText(translate(lang, 'wreck.safety.accept'));
+  await expect(gateSwitch(page)).toHaveCount(1);
+  await expect(gateSwitch(page)).toHaveText(translate(lang, 'setup.language.switch'));
+  await expect(gateSwitch(page)).toHaveAccessibleName(translate(lang, 'setup.language.switch'));
+  await expect(gateSwitch(page)).toHaveAttribute('lang', other);
+}
+
+/**
+ * The control at `selector` is a 44 px target inside the viewport's width,
+ * at least 8 px from each of `neighbours`.
+ */
+async function expectClearTarget(page, selector, neighbours, viewportWidth, label) {
+  const button = await page.locator(selector).boundingBox();
+  expect(button.width, `${label}: width`).toBeGreaterThanOrEqual(44);
+  expect(button.height, `${label}: height`).toBeGreaterThanOrEqual(44);
+  expect(button.x, `${label}: left edge`).toBeGreaterThanOrEqual(0);
+  expect(button.x + button.width, `${label}: right edge`).toBeLessThanOrEqual(viewportWidth);
+  for (const neighbour of neighbours) {
+    const other = await page.locator(neighbour).boundingBox();
+    const gapX = Math.max(button.x - (other.x + other.width), other.x - (button.x + button.width));
+    const gapY = Math.max(button.y - (other.y + other.height), other.y - (button.y + button.height));
+    expect(Math.round(Math.max(gapX, gapY)), `${label}: spacing to ${neighbour}`).toBeGreaterThanOrEqual(8);
+  }
 }
 
 test.describe('the language switch on the setup screen', () => {
@@ -150,6 +193,66 @@ test.describe('the language switch on the setup screen', () => {
   });
 });
 
+test.describe('the language switch on the safety gate', () => {
+  test.use({ locale: 'en-GB' });
+
+  test('redraws the gate in place by keyboard, keeps the focus and an open methodology, and setup, dive and next load follow', async ({ page }) => {
+    test.setTimeout(120_000);
+    await openFresh(page);
+    await expectGateIn(page, 'en');
+    expect(await storedLocale(page)).toBeNull();
+    await page.locator('#safety-methodology summary').click();
+    await expect(page.locator('#safety-methodology')).toHaveAttribute('open', '');
+
+    const noReload = await watchForReload(page);
+    await gateSwitch(page).focus();
+    await page.keyboard.press('Enter');
+    await expectGateIn(page, 'de');
+    await expect(gateSwitch(page)).toBeFocused();
+    await expect(page.locator('#safety-methodology')).toHaveAttribute('open', '');
+    expect(await storedLocale(page)).toBe('de');
+
+    // Space works as Enter does, and back again.
+    await page.keyboard.press(' ');
+    await expectGateIn(page, 'en');
+    await expect(gateSwitch(page)).toBeFocused();
+    expect(await storedLocale(page)).toBe('en');
+    await page.keyboard.press(' ');
+    await expectGateIn(page, 'de');
+    await expect(gateSwitch(page)).toBeFocused();
+    expect(await storedLocale(page)).toBe('de');
+    await noReload();
+
+    // The choice carries into the setup screen, whose switch it matches, and
+    // into the dive, all on the same page.
+    await acceptGate(page);
+    await expectSetupIn(page, 'de');
+    await expect(gateSwitch(page)).toHaveCount(0);
+    await page.locator('[data-start-dive]').click();
+    await page.locator('[data-renderer=pixi] canvas').waitFor();
+    await expect(page.locator('.wreck-controls [data-control="descend"]'))
+      .toHaveAttribute('aria-label', translate('de', 'wreck.controls.descend'));
+    await expect(page.locator('[data-surface-prompt]')).toHaveText(translate('de', 'wreck.controls.surfaceDescend'));
+    await noReload();
+
+    // Kept across a reload, over the browser's English, from the gate on.
+    await page.reload();
+    await expectGateIn(page, 'de');
+    await acceptGate(page);
+    await expectSetupIn(page, 'de');
+  });
+
+  test('a switch on the gate is kept across a reload before it is accepted', async ({ page }) => {
+    await openFresh(page);
+    await gateSwitch(page).click();
+    await expectGateIn(page, 'de');
+    await expect(gateSwitch(page)).toBeFocused();
+    await expect.poll(() => storedLocale(page)).toBe('de');
+    await page.reload();
+    await expectGateIn(page, 'de');
+  });
+});
+
 test.describe('the stored choice and the browser language', () => {
   test.use({ locale: 'de-DE' });
 
@@ -202,3 +305,28 @@ test.describe('the language switch on a phone, by touch', () => {
     expect(await storedLocale(page)).toBe('de');
   });
 });
+
+for (const viewport of [{ width: 320, height: 568 }, { width: 390, height: 844 }]) {
+  test.describe(`the language switch on the safety gate, by touch, at ${viewport.width}x${viewport.height}`, () => {
+    test.use({ locale: 'en-GB', viewport, hasTouch: true, isMobile: true });
+
+    test('a tap switches in place; the button is a 44 px target at least 8 px from its neighbours', async ({ page }) => {
+      await openFresh(page);
+      const neighbours = ['#safety-methodology summary', '[data-accept-safety]'];
+      for (const lang of ['en', 'de']) {
+        await expectGateIn(page, lang);
+        await expectClearTarget(page, '[data-safety-locale]', neighbours, viewport.width, `gate ${lang}`);
+        if (lang === 'en') {
+          const noReload = await watchForReload(page);
+          await gateSwitch(page).tap();
+          await expect(gateSwitch(page)).toBeFocused();
+          await noReload();
+        }
+      }
+      expect(await storedLocale(page)).toBe('de');
+      await page.locator('[data-accept-safety]').tap();
+      await page.locator('.setup-screen').waitFor();
+      await expectSetupIn(page, 'de');
+    });
+  });
+}
