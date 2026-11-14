@@ -38,8 +38,9 @@ import {
   type CollisionSite,
 } from "../../src/sites/site-collision";
 import { MAX_DEPTH_M, integrateBuoyancy } from "../../src/core/buoyancy";
-import { createInitialDiveState, freezeDiveState } from "../../src/core/dive-state";
-import { metres } from "../../src/core/units";
+import { createCcrState, createGasMix, createInitialDiveState, freezeDiveState } from "../../src/core/dive-state";
+import { DiveModel } from "../../src/core/dive-model";
+import { metres, seconds } from "../../src/core/units";
 import { SITE_GAMEPLAY } from "../../src/sites/site-resources";
 
 function legacyFunction(source: string, name: string): string {
@@ -65,6 +66,7 @@ interface LegacyApi {
   diverOverlapGrew(fromX: number, fromD: number, toX: number, toD: number): boolean;
   overheadAt(x: number, d: number): boolean;
   resolveDiverOverlap(): boolean;
+  ambientPressure(d: number): number;
   updateBuoyancyPhysics(dtSec: number): void;
   updateHorizontalPhysics(dtSec: number, kickDir: number): void;
 }
@@ -91,6 +93,7 @@ return {
   floorAt: floorAt, ceilingAt: ceilingAt, solidAt: solidAt, solidBoxAt: solidBoxAt, diverSolidAt: diverSolidAt,
   solidOverlapArea: solidOverlapArea, diverOverlapArea: diverOverlapArea, diverOverlapGrew: diverOverlapGrew,
   overheadAt: overheadAt, resolveDiverOverlap: resolveDiverOverlap,
+  ambientPressure: ambientPressure,
   updateBuoyancyPhysics: updateBuoyancyPhysics, updateHorizontalPhysics: updateHorizontalPhysics
 };`,
 )() as LegacyApi;
@@ -393,5 +396,66 @@ describe("the ported site collision against legacy's (#240)", { timeout: 30_000 
     expect(frames.compared).toBeGreaterThan(20_000);
     expect(frames.stopped).toBeGreaterThan(500);
     expect(frames.mismatches.slice(0, 5), `${frames.mismatches.length} mismatches`).toEqual([]);
+  });
+
+  it("measures the model's frame from the depth after the overlap push, as legacy's prevDepth (#240 PR 2a, pre-review pass 1)", () => {
+    // src/game-loop.js 427-453: resolveDiverOverlap(), then `var prevDepth =
+    // depth;`, the physics, and from prevDepth the frame's ascentRate and
+    // updateCCRDiluent(prevDepth, depth). A push out of a structure is not
+    // motion: it is no ascent and puts no diluent in the loop.
+    const wreck = site("wreck");
+    const mismatches: string[] = [];
+    let pushed = 0;
+    for (const position of positions(wreck, 4)) {
+      if (position.d < 1 || position.d > 65) continue;
+      for (const frameS of [0.05, 0.3]) {
+        legacy.setSite("wreck");
+        legacy.place(position.x, position.d, 0, 0, 6);
+        legacy.resolveDiverOverlap();
+        const prevDepth = legacy.diver().d;
+        if (prevDepth !== position.d) pushed += 1;
+        for (let remaining = frameS; remaining > 1e-9; remaining -= Math.min(0.1, remaining)) {
+          legacy.updateBuoyancyPhysics(Math.min(0.1, remaining));
+          legacy.updateHorizontalPhysics(Math.min(0.1, remaining), 0);
+        }
+        const depth = legacy.diver().d;
+        const legacyRate = -(depth - prevDepth) / (frameS / 60);
+
+        const base = createInitialDiveState(240, { ccr: createCcrState(createGasMix(0.21, 0)) });
+        const state = freezeDiveState({
+          ...base,
+          elapsedTimeS: seconds(600),
+          depthM: metres(position.d),
+          maxDepthM: metres(66),
+          verticalVelocityMpm: 0,
+          bcdGasSurfaceLiters: 6,
+        });
+        const ours = new DiveModel(state).advanceWithBuoyancy(
+          { site: wreck, xM: position.x, displacementM: 0 },
+          seconds(frameS),
+          { inflate: false, vent: false },
+        );
+        const where = `(${position.x}, ${position.d}) for ${frameS} s`;
+        if (!close(ours.depthM, depth)) mismatches.push(`depth ${where}`);
+        if (Math.abs(ours.log.ascentRateMpm - legacyRate) > 1e-9) {
+          mismatches.push(`ascent rate ${where}: ${ours.log.ascentRateMpm} vs ${legacyRate}`);
+        }
+        // updateCCRDiluent(prevDepth, depth): loopVolume * (p2 - p1) on descent only.
+        const ccr = state.ccr!;
+        const injectedL =
+          depth > prevDepth
+            ? Math.min(
+                ccr.loopVolumeL * (legacy.ambientPressure(depth) - legacy.ambientPressure(prevDepth)),
+                ccr.diluentCylinderPressureBar * ccr.diluentCylinderVolumeL,
+              )
+            : 0;
+        const usedBar = ccr.diluentCylinderPressureBar - ours.ccr!.diluentCylinderPressureBar;
+        if (Math.abs(usedBar - injectedL / ccr.diluentCylinderVolumeL) > 1e-12) {
+          mismatches.push(`diluent ${where}: ${usedBar} bar vs ${injectedL / ccr.diluentCylinderVolumeL}`);
+        }
+      }
+    }
+    expect(pushed).toBeGreaterThan(100);
+    expect(mismatches.slice(0, 5), `${mismatches.length} mismatches`).toEqual([]);
   });
 });

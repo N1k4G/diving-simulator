@@ -198,11 +198,25 @@ describe("integrating among a site's structures (#240)", () => {
     expect(freed.depthM).toBeCloseTo(15, 9);
   });
 
+  it("counts a push out of a structure as no motion: the frame starts from the depth after it", () => {
+    // 0.2 m into the wall's top at x 1.5: the nearest way out is up, to
+    // 10 - 0.3 m. Legacy takes prevDepth there (src/game-loop.js 429).
+    const caught = freezeDiveState({ ...at(createInitialDiveState(5), 9.9), bcdGasSurfaceLiters: neutralBcdSurfaceLitres(9.9) });
+    const freed = integrateBuoyancy(caught, { site: walled, xM: 1.5, displacementM: 0 }, 0.05);
+    expect(freed.startDepthM).toBeCloseTo(10 - 0.3 - 1e-6, 12);
+    const frame = new DiveModel(caught).advanceWithBuoyancy(
+      { site: walled, xM: 1.5, displacementM: 0 },
+      seconds(0.05),
+      { inflate: false, vent: false },
+    );
+    expect(Math.abs(frame.log.ascentRateMpm)).toBeLessThan(1);
+  });
+
   it("moves as between the site's ceiling and floor where nothing is in the way, and has no x without a place", () => {
     const { state } = sinking(5);
     const open = integrateBuoyancy(state, { ceilingM: 0, floorM: 30 }, 0.3);
     const placed = integrateBuoyancy(state, { site: walled, xM: -5, displacementM: 0 }, 0.3);
-    expect(placed).toEqual({ ...open, xM: -5 });
+    expect(placed).toEqual({ ...open, xM: -5, startDepthM: 5 });
     expect(open).not.toHaveProperty("xM");
   });
 });

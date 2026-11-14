@@ -158,6 +158,12 @@ export interface BuoyancyResult {
   readonly bcdGasSurfaceLiters: number;
   /** Where along x a frame given a place left the diver. */
   readonly xM?: number;
+  /**
+   * The depth a frame given a place starts its motion from: after
+   * resolveDiverOverlap(), where legacy takes its prevDepth
+   * (src/game-loop.js 427-429), so a push out of a structure is no motion.
+   */
+  readonly startDepthM?: number;
 }
 
 /**
@@ -203,6 +209,7 @@ export function integrateBuoyancy(
     depth = freed.depthM;
     if (freed.movedVertically) velocity = 0;
   }
+  const startDepthM = depth;
 
   let remaining = elapsedS;
   while (remaining > 1e-9) {
@@ -258,7 +265,7 @@ export function integrateBuoyancy(
     remaining -= dt;
   }
   return place
-    ? { depthM: depth, verticalVelocityMpm: velocity, bcdGasSurfaceLiters: bcd, xM: x }
+    ? { depthM: depth, verticalVelocityMpm: velocity, bcdGasSurfaceLiters: bcd, xM: x, startDepthM }
     : { depthM: depth, verticalVelocityMpm: velocity, bcdGasSurfaceLiters: bcd };
 }
 

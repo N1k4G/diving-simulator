@@ -386,8 +386,12 @@ export class DiveModel {
               return sample.value;
             },
           );
+    // The rest of the frame measures its motion, the ascent rate and the
+    // loop's diluent, from where legacy's prevDepth is: after the overlap
+    // push (src/game-loop.js 427-453).
     const withMotion = freezeDiveState({
       ...inflated,
+      ...(moved.startDepthM === undefined ? {} : { depthM: metres(moved.startDepthM) }),
       randomState,
       narcosisDrift: drifted.drift,
       verticalVelocityMpm: drifted.verticalVelocityMpm,
