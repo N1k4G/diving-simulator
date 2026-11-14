@@ -510,9 +510,9 @@ geometry alone (#262, #288).
    narrow-phone matrix. Open gaps: the dock against the D-pad, #258 (cylinder
    6 overlaps "Fin left" by 8 px at 340×640, and the bailout stood 1.4 px from
    it at 412×915 when #255 measured it; `tests/touch-context.spec.js` measures
-   the dock against the pad at 390×844 and 360×640 only); the hint at 320×568,
-   which lies under the HUD and is not seen, #258; the instructor panel on a
-   rebreather at 340 to 375 px, 20 to 24 px tall, #271.
+   the dock against the pad at 390×844, 360×640 and 1280×720 only); the hint
+   at 320×568, which lies under the HUD and is not seen, #258; the instructor
+   panel on a rebreather at 340 to 375 px, 20 to 24 px tall, #271.
 5. **Depth and NDL always visible.** Depth and the no-decompression time are
    on screen and topmost at every size, with any page, panel, notice or warning
    open, and under an overhead the rule of thirds too. A layout short of room
