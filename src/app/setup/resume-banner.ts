@@ -31,6 +31,9 @@ export function createResumeBanner(
   const text = document.createElement("p");
   text.id = "resume-banner-text";
   text.className = "resume-banner-text";
+  // Where the setup screen puts focus as it opens with a dive on offer
+  // (#311), never in the tab order.
+  text.tabIndex = -1;
   text.textContent = translate(locale, "setup.resume.text");
 
   const actions = document.createElement("div");

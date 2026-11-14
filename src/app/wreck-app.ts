@@ -118,6 +118,12 @@ import { selectInstructorPhysics } from "../presentation/instructor-physics";
 
 interface HudElements {
   readonly shell: HTMLElement;
+  /**
+   * The dive computer, focused as the dive replaces the setup (#311): never
+   * shrunk away, never clipped, and in portrait below the warning bar
+   * (#137 A15, #287).
+   */
+  readonly diveComputer: HTMLElement;
   readonly viewport: HTMLElement;
   readonly depth: HTMLElement;
   readonly time: HTMLElement;
@@ -424,11 +430,14 @@ function renderUnavailableSite(
   const panel = document.createElement("section");
   panel.className = "start-error";
   panel.dataset.unavailableSite = "true";
+  panel.setAttribute("aria-labelledby", "unavailable-site-heading");
   const heading = createElement(
     "h1",
     "",
     translate(locale, "setup.unavailableSite.heading"),
   );
+  heading.id = "unavailable-site-heading";
+  heading.tabIndex = -1;
   const body = createElement(
     "p",
     "",
@@ -446,6 +455,8 @@ function renderUnavailableSite(
 
   panel.append(heading, body, back);
   root.replaceChildren(panel);
+  // Start's other outcome, so focus moves as it does to the dive (#311).
+  heading.focus();
 }
 
 interface SafetyGateOptions {
@@ -560,6 +571,14 @@ async function startWreckSimulation(
   }
   const hud = createWreckShell(locale);
   root.replaceChildren(hud.shell);
+  // The setup's Start went with it, so focus moves into the dive (#311), as
+  // the game-over and debriefing screens move it to their headings. Not to
+  // the topbar's heading: the topbar shrinks it to nothing on a narrow
+  // screen, and a warning's bar stands over it in portrait (#287). The dive
+  // computer is never shrunk away or clipped, and in portrait the bar ends
+  // above it. The dive's keys are read on the window, so they reach it from
+  // there.
+  hud.diveComputer.focus();
   const audio = new WebAudioService();
   const audioResume = audio.resume();
   const renderer = await createSelectedRenderer();
@@ -1106,6 +1125,19 @@ function createWreckShell(locale: SupportedLocale): HudElements {
 
   const hud = document.createElement("dl");
   hud.className = "wreck-hud";
+  // Focused as the dive opens (#311), never in the tab order. Focusable, it
+  // would take its name from its readouts, so the focused object's name
+  // would change every dive-second and a screen reader would speak them all
+  // again each time: the per-frame churn #137 §4.4 removed. A group with a
+  // fixed name instead. The name is not a readout, so it is in the page's
+  // language, as the other groups' are, and it is read from an element
+  // outside the dive computer's lang="en" (#232), written once, here.
+  const hudName = createElement("span", "", translate(locale, "wreck.hud.name"));
+  hudName.id = "wreck-hud-name";
+  hudName.hidden = true;
+  hud.tabIndex = -1;
+  hud.setAttribute("role", "group");
+  hud.setAttribute("aria-labelledby", hudName.id);
   // The dive computer's language (#232), so a German screen reader reads its
   // English as English: the visible text is each row's only name, and lang
   // makes what is heard agree with what is shown. The location row is not
@@ -1304,7 +1336,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   // right (diagnostic.css): the topbar has no room left on a narrow phone
   // (#259), and the dock none on a rebreather's.
   const instructor = createInstructorPanel(locale);
-  column.append(hud, persistence, instructor.toggle, gasInfo.panel, instructor.panel);
+  column.append(hud, persistence, instructor.toggle, gasInfo.panel, instructor.panel, hudName);
 
   // The column above and the dock below share one flex column, so an open
   // page shrinks above the dock however many rows it wraps to (#168).
@@ -1323,6 +1355,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   shell.append(topbar, viewport, side, warning, onboardingHint, instructor.status, controls);
   return {
     shell,
+    diveComputer: hud,
     viewport,
     depth,
     time,
@@ -1853,11 +1886,17 @@ function appendMetric(
   return value;
 }
 
+// A screen, as the game over is, not a live region (#311): an alert created
+// already filled is not reliably announced, and one with focus inside it is
+// announced twice. Focus on its heading is what says the screen changed.
 function renderStartError(root: HTMLElement, locale: SupportedLocale): void {
   const error = document.createElement("section");
   error.className = "start-error";
-  error.setAttribute("role", "alert");
+  error.dataset.startError = "true";
+  error.setAttribute("aria-labelledby", "start-error-heading");
   const heading = document.createElement("h1");
+  heading.id = "start-error-heading";
+  heading.tabIndex = -1;
   heading.textContent = translate(locale, "wreck.error.heading");
   const reload = document.createElement("button");
   reload.type = "button";
@@ -1865,6 +1904,7 @@ function renderStartError(root: HTMLElement, locale: SupportedLocale): void {
   reload.addEventListener("click", () => location.reload());
   error.append(heading, reload);
   root.replaceChildren(error);
+  heading.focus();
 }
 
 function createElement<K extends keyof HTMLElementTagNameMap>(

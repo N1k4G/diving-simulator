@@ -101,6 +101,10 @@ const englishMessages = {
   "wreck.hud.fastForward": "Fast-forward ×10",
   "wreck.hud.fastForwardShort": "» ×10",
   "wreck.hud.zone": "Location",
+  // The dive computer's name as a group, read as focus moves to it when the
+  // dive opens (#311). Not one of its readouts, so in the page's language,
+  // as the other groups' names are.
+  "wreck.hud.name": "Dive computer",
   "wreck.tanks.heading": "Cylinders",
   "wreck.tanks.select": "Cylinder {n}: {gas} oxygen, {pressure}",
   "wreck.hud.normal": "Simulation running",
@@ -481,6 +485,7 @@ const catalog: Record<SupportedLocale, Record<MessageKey, string>> = {
     "wreck.hud.fastForward": "Vorspulen ×10",
     "wreck.hud.fastForwardShort": "» ×10",
     "wreck.hud.zone": "Ort",
+    "wreck.hud.name": "Tauchcomputer",
     "wreck.tanks.heading": "Flaschen",
     "wreck.tanks.select": "Flasche {n}: {gas} Sauerstoff, {pressure}",
     "wreck.hud.normal": "Simulation läuft",

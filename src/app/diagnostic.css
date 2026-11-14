@@ -205,13 +205,31 @@ summary:focus-visible {
   color: #ff7b7b;
 }
 
-.result-heading:focus {
+/* Where a screen puts focus as it replaces another (#138, #311): no ring
+   after a click or a tap, the buttons' ring after a key. */
+.result-heading:focus,
+.setup-heading:focus,
+.resume-banner-text:focus,
+.wreck-hud:focus,
+.start-error h1:focus {
   outline: none;
 }
 
-.result-heading:focus-visible {
+.result-heading:focus-visible,
+.setup-heading:focus-visible,
+.resume-banner-text:focus-visible,
+.wreck-hud:focus-visible,
+.start-error h1:focus-visible {
   outline: 3px solid #f6db72;
   outline-offset: 3px;
+}
+
+/* The dive computer's ring is drawn over its border, inside its box, so no
+   clipping ancestor cuts it. In portrait the warning bar ends above it; in
+   short landscape a two-line warning overlaps its top edge, and at 400 %
+   zoom its bottom can sit below the fold, the rest of the ring in view. */
+.wreck-hud:focus-visible {
+  outline-offset: -3px;
 }
 
 .game-over-reason {
