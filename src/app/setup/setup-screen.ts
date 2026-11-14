@@ -35,6 +35,7 @@ import {
 } from "../i18n/catalog";
 import { formatGasFraction, formatPressure } from "../i18n/formatters";
 import { nextLocale } from "../i18n/locale-preference";
+import { createLanguageSwitch } from "../language-switch";
 import { DEFAULT_DILUENT_CYLINDER_PRESSURE_BAR } from "../../core/dive-state";
 import {
   AMV_STEP_LPM,
@@ -706,20 +707,12 @@ function drillsToggle(locale: SupportedLocale, enabled: boolean, onToggle: () =>
   return group;
 }
 
-/**
- * Legacy's Language button (#169, src/ui.js 403-417 and 568): it names the
- * other language in that language, "Sprache" on an English screen and
- * "Language" on a German one, so a player who cannot read the screen finds
- * it. The words are in that language, and lang says so.
- */
+/** Legacy's Language button (#169), where legacy's stands, before Start. */
 function languageSwitch(locale: SupportedLocale, onSwitch: () => void): HTMLElement {
   const group = document.createElement("div");
   group.className = "setup-group";
-  const button = element("button", "setup-preset", translate(locale, "setup.language.switch"));
-  button.type = "button";
-  button.lang = nextLocale(locale);
+  const button = createLanguageSwitch(locale, onSwitch);
   button.dataset.setupLocale = "true";
-  button.addEventListener("click", onSwitch);
   group.append(button);
   return group;
 }

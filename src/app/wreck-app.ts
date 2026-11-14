@@ -69,8 +69,10 @@ import {
 import {
   initialLocale,
   loadLocalePreference,
+  nextLocale,
   type LocalePreference,
 } from "./i18n/locale-preference";
+import { createLanguageSwitch } from "./language-switch";
 import { isTurnBeepDue } from "./thirds-turn-beep";
 import {
   isWarningBeepActive,
@@ -261,29 +263,55 @@ export async function renderWreckApplication(
     repository: new LocalSaveRepository(store, { legacySeed: drawDiveSeed }),
     persistence: new PersistenceStatus(),
   };
-  // The stored choice, else the browser's, unless the caller names one.
-  const locale = requestedLocale ?? initialLocale(services.localePreference);
+  // The stored choice, else the browser's, unless the caller names one. The
+  // gate's language switch (#169) changes it, and the setup screen takes it.
+  let locale = requestedLocale ?? initialLocale(services.localePreference);
   applyDocumentLocale(locale);
 
-  const gate = createSafetyGate(locale);
-  root.replaceChildren(gate);
-  const accept = gate.querySelector<HTMLButtonElement>("[data-accept-safety]");
-  if (!accept) {
-    throw new Error("safety acceptance control was not created");
-  }
-
-  accept.addEventListener("click", () => {
-    accept.disabled = true;
-    void loadSavedDive(services).then((saved) =>
-      showSetupScreen(services, root, locale, undefined, saved),
-    );
-  });
+  let accepted = false;
+  const mount = (methodologyOpen: boolean): HTMLElement => {
+    const gate = createSafetyGate(locale, {
+      methodologyOpen,
+      // Redrawn in place in the other language, so the reader can read what
+      // they accept in it; an open methodology stays open, and the focus
+      // stays on the switch. Once accepted, the gate is on its way out.
+      onSwitchLocale: () => {
+        if (accepted) return;
+        locale = nextLocale(locale);
+        changeLocale(services, locale);
+        const open = gate.querySelector("details")?.open ?? false;
+        mount(open).querySelector<HTMLElement>("[data-safety-locale]")?.focus();
+      },
+      onAccept: () => {
+        if (accepted) return;
+        accepted = true;
+        for (const control of gate.querySelectorAll("button")) {
+          control.disabled = true;
+        }
+        void loadSavedDive(services).then((saved) =>
+          showSetupScreen(services, root, locale, undefined, saved),
+        );
+      },
+    });
+    root.replaceChildren(gate);
+    return gate;
+  };
+  mount(false);
 }
 
 /** The page's language and title follow the player's locale (#169). */
 function applyDocumentLocale(locale: SupportedLocale): void {
   document.documentElement.lang = locale;
   document.title = translate(locale, "wreck.brand");
+}
+
+/**
+ * The language switch's choice (#169), from the safety gate or the setup
+ * screen alike: kept for the next load, and the page's language follows.
+ */
+function changeLocale(services: AppServices, locale: SupportedLocale): void {
+  services.localePreference.save(locale);
+  applyDocumentLocale(locale);
 }
 
 /**
@@ -364,8 +392,7 @@ function showSetupScreen(
       : {}),
     onLocaleChange: (next) => {
       locale = next;
-      services.localePreference.save(next);
-      applyDocumentLocale(next);
+      changeLocale(services, next);
     },
     onStart: (setup) => {
       dispose();
@@ -421,10 +448,31 @@ function renderUnavailableSite(
   root.replaceChildren(panel);
 }
 
-function createSafetyGate(locale: SupportedLocale): HTMLElement {
+interface SafetyGateOptions {
+  /** The methodology is drawn open, as it was before a language switch. */
+  readonly methodologyOpen: boolean;
+  readonly onSwitchLocale: () => void;
+  readonly onAccept: () => void;
+}
+
+function createSafetyGate(
+  locale: SupportedLocale,
+  options: Readonly<SafetyGateOptions>,
+): HTMLElement {
   const gate = document.createElement("section");
   gate.className = "safety-gate";
   gate.setAttribute("aria-labelledby", "safety-heading");
+
+  // The setup screen's language switch, offered here too so a first-time
+  // reader reads the safety text in their language before accepting it: a
+  // departure from legacy, whose first screen is the gas setup
+  // (docs/decisions.md, #169, 2026-11-14). First in the gate, where a reader
+  // who cannot read the rest finds it before anything else.
+  const language = document.createElement("div");
+  language.className = "safety-language";
+  const languageButton = createLanguageSwitch(locale, options.onSwitchLocale);
+  languageButton.dataset.safetyLocale = "true";
+  language.append(languageButton);
 
   const eyebrow = createElement(
     "p",
@@ -456,6 +504,7 @@ function createSafetyGate(locale: SupportedLocale): HTMLElement {
   const methodology = document.createElement("details");
   methodology.id = "safety-methodology";
   methodology.className = "methodology";
+  methodology.open = options.methodologyOpen;
   const methodologyHeading = document.createElement("summary");
   methodologyHeading.textContent = translate(
     locale,
@@ -472,6 +521,7 @@ function createSafetyGate(locale: SupportedLocale): HTMLElement {
   accept.dataset.acceptSafety = "true";
   accept.className = "primary-action";
   accept.textContent = translate(locale, "wreck.safety.accept");
+  accept.addEventListener("click", options.onAccept);
   // No second action beside it. This used to link to
   // /src/diving-simulator.html, which only resolves when the legacy client is
   // served from the same origin — in a dist/-only package, and so in any
@@ -480,7 +530,7 @@ function createSafetyGate(locale: SupportedLocale): HTMLElement {
   // long as it is deployed; it is not this shell's job to advertise it.
   actions.append(accept);
 
-  gate.append(eyebrow, heading, summary, notices, methodology, actions);
+  gate.append(language, eyebrow, heading, summary, notices, methodology, actions);
   return gate;
 }
 
