@@ -210,7 +210,7 @@ summary:focus-visible {
 .result-heading:focus,
 .setup-heading:focus,
 .resume-banner-text:focus,
-.wreck-title:focus,
+.wreck-hud:focus,
 .start-error h1:focus {
   outline: none;
 }
@@ -218,15 +218,15 @@ summary:focus-visible {
 .result-heading:focus-visible,
 .setup-heading:focus-visible,
 .resume-banner-text:focus-visible,
-.wreck-title:focus-visible,
+.wreck-hud:focus-visible,
 .start-error h1:focus-visible {
   outline: 3px solid #f6db72;
   outline-offset: 3px;
 }
 
-/* The topbar's name is clipped to its box (.wreck-identity), so its ring is
-   drawn inside it. */
-.wreck-title:focus-visible {
+/* The dive computer's ring is drawn over its border, inside its box, so the
+   screen's edge and the topbar's warning bar never cut it. */
+.wreck-hud:focus-visible {
   outline-offset: -3px;
 }
 

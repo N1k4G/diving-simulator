@@ -118,8 +118,11 @@ import { selectInstructorPhysics } from "../presentation/instructor-physics";
 
 interface HudElements {
   readonly shell: HTMLElement;
-  /** The dive's heading, focused as the dive replaces the setup (#311). */
-  readonly title: HTMLElement;
+  /**
+   * The dive computer, focused as the dive replaces the setup (#311): always
+   * drawn whole, and under no warning (#137 A15, #287).
+   */
+  readonly diveComputer: HTMLElement;
   readonly viewport: HTMLElement;
   readonly depth: HTMLElement;
   readonly time: HTMLElement;
@@ -567,10 +570,13 @@ async function startWreckSimulation(
   }
   const hud = createWreckShell(locale);
   root.replaceChildren(hud.shell);
-  // The setup's Start went with it, so focus moves to the dive's heading, as
-  // the game-over and debriefing screens move it to theirs (#311). The dive's
-  // keys are read on the window, so they reach it from there.
-  hud.title.focus();
+  // The setup's Start went with it, so focus moves into the dive (#311), as
+  // the game-over and debriefing screens move it to their headings. Not to
+  // the topbar's heading: the topbar shrinks it to nothing on a narrow
+  // screen, and a warning's bar stands over it in portrait (#287). The dive
+  // computer is drawn whole at every size, and no warning covers it. The
+  // dive's keys are read on the window, so they reach it from there.
+  hud.diveComputer.focus();
   const audio = new WebAudioService();
   const audioResume = audio.resume();
   const renderer = await createSelectedRenderer();
@@ -1044,12 +1050,9 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   topbar.className = "wreck-topbar";
   const identity = document.createElement("div");
   identity.className = "wreck-identity";
-  const title = createElement("h1", "wreck-title", translate(locale, "wreck.site"));
-  title.id = "wreck-title";
-  title.tabIndex = -1;
   identity.append(
     createElement("p", "wreck-eyebrow", translate(locale, "wreck.preview")),
-    title,
+    createElement("h1", "wreck-title", translate(locale, "wreck.site")),
   );
   const status = createElement(
     "p",
@@ -1120,6 +1123,8 @@ function createWreckShell(locale: SupportedLocale): HudElements {
 
   const hud = document.createElement("dl");
   hud.className = "wreck-hud";
+  // Focused as the dive opens (#311), never in the tab order.
+  hud.tabIndex = -1;
   // The dive computer's language (#232), so a German screen reader reads its
   // English as English: the visible text is each row's only name, and lang
   // makes what is heard agree with what is shown. The location row is not
@@ -1337,7 +1342,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   shell.append(topbar, viewport, side, warning, onboardingHint, instructor.status, controls);
   return {
     shell,
-    title,
+    diveComputer: hud,
     viewport,
     depth,
     time,
