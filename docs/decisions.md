@@ -528,8 +528,12 @@ geometry alone (#262, #288).
    control, and NDL stays visible" (NDL visible with a page open, at 844×390,
    667×375, 390×844 and 1280×720, not checked for topmost);
    `tests/warning-banner.spec.js` (no banner meets the depth, ascent-rate or
-   NDL row). New obligation: depth and NDL topmost in landscape and on the
-   desktop, which no test checks yet.
+   NDL row); `tests/instructor-panel.spec.js` and
+   `tests/onboarding-hints.spec.js` (every visible HUD cell, depth and NDL
+   included, topmost at its left, middle and right with the panel or the hint
+   up, at 844×390, 667×375, 1280×720, 390×844 and 360×640). New obligation:
+   depth and NDL topmost in landscape and on the desktop with a gas page or
+   the persistence notice open, which no test checks yet.
 6. **Warnings cover nothing and take no taps.** A warning never covers depth,
    NDL, the ascent rate or any control, and takes no tap or click
    (`pointer-events: none`). On a phone in portrait it is a bar across the
@@ -560,7 +564,7 @@ geometry alone (#262, #288).
    its heading); `tests/onboarding-hints.spec.js` and
    `tests/instructor-panel.spec.js` (each region written once over a second);
    `tests/persistence.spec.js` (the notice's region present and empty before
-   it is written). Open gap, not yet filed: the start-error screen is a
+   it is written). Open gap (#311): the start-error screen is a
    `role=alert` section created already filled, with no focus moved
    (`renderStartError` in `src/app/wreck-app.ts`), and the setup screen after
    Accept and the dive after Start move no focus. New obligation: a screen a
