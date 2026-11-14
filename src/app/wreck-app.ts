@@ -118,6 +118,8 @@ import { selectInstructorPhysics } from "../presentation/instructor-physics";
 
 interface HudElements {
   readonly shell: HTMLElement;
+  /** The dive's heading, focused as the dive replaces the setup (#311). */
+  readonly title: HTMLElement;
   readonly viewport: HTMLElement;
   readonly depth: HTMLElement;
   readonly time: HTMLElement;
@@ -424,11 +426,14 @@ function renderUnavailableSite(
   const panel = document.createElement("section");
   panel.className = "start-error";
   panel.dataset.unavailableSite = "true";
+  panel.setAttribute("aria-labelledby", "unavailable-site-heading");
   const heading = createElement(
     "h1",
     "",
     translate(locale, "setup.unavailableSite.heading"),
   );
+  heading.id = "unavailable-site-heading";
+  heading.tabIndex = -1;
   const body = createElement(
     "p",
     "",
@@ -446,6 +451,8 @@ function renderUnavailableSite(
 
   panel.append(heading, body, back);
   root.replaceChildren(panel);
+  // Start's other outcome, so focus moves as it does to the dive (#311).
+  heading.focus();
 }
 
 interface SafetyGateOptions {
@@ -560,6 +567,10 @@ async function startWreckSimulation(
   }
   const hud = createWreckShell(locale);
   root.replaceChildren(hud.shell);
+  // The setup's Start went with it, so focus moves to the dive's heading, as
+  // the game-over and debriefing screens move it to theirs (#311). The dive's
+  // keys are read on the window, so they reach it from there.
+  hud.title.focus();
   const audio = new WebAudioService();
   const audioResume = audio.resume();
   const renderer = await createSelectedRenderer();
@@ -1033,9 +1044,12 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   topbar.className = "wreck-topbar";
   const identity = document.createElement("div");
   identity.className = "wreck-identity";
+  const title = createElement("h1", "wreck-title", translate(locale, "wreck.site"));
+  title.id = "wreck-title";
+  title.tabIndex = -1;
   identity.append(
     createElement("p", "wreck-eyebrow", translate(locale, "wreck.preview")),
-    createElement("h1", "wreck-title", translate(locale, "wreck.site")),
+    title,
   );
   const status = createElement(
     "p",
@@ -1323,6 +1337,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   shell.append(topbar, viewport, side, warning, onboardingHint, instructor.status, controls);
   return {
     shell,
+    title,
     viewport,
     depth,
     time,
@@ -1853,11 +1868,17 @@ function appendMetric(
   return value;
 }
 
+// A screen, as the game over is, not a live region (#311): an alert created
+// already filled is not reliably announced, and one with focus inside it is
+// announced twice. Focus on its heading is what says the screen changed.
 function renderStartError(root: HTMLElement, locale: SupportedLocale): void {
   const error = document.createElement("section");
   error.className = "start-error";
-  error.setAttribute("role", "alert");
+  error.dataset.startError = "true";
+  error.setAttribute("aria-labelledby", "start-error-heading");
   const heading = document.createElement("h1");
+  heading.id = "start-error-heading";
+  heading.tabIndex = -1;
   heading.textContent = translate(locale, "wreck.error.heading");
   const reload = document.createElement("button");
   reload.type = "button";
@@ -1865,6 +1886,7 @@ function renderStartError(root: HTMLElement, locale: SupportedLocale): void {
   reload.addEventListener("click", () => location.reload());
   error.append(heading, reload);
   root.replaceChildren(error);
+  heading.focus();
 }
 
 function createElement<K extends keyof HTMLElementTagNameMap>(

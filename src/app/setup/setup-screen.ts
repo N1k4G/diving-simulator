@@ -491,6 +491,13 @@ export function renderSetupScreen(
   }
 
   draw();
+  // The screen replaced the one whose control had focus (#311), so focus
+  // moves to its heading, as the game-over and debriefing screens' does.
+  // A saved dive on offer comes first: its line, so Tab reaches Resume next,
+  // as it did from the page before.
+  shell
+    .querySelector<HTMLElement>(banner ? "#resume-banner-text" : "#setup-heading")
+    ?.focus();
   document.addEventListener("keydown", handleKeyDown);
   return () => document.removeEventListener("keydown", handleKeyDown);
 }
@@ -500,6 +507,8 @@ function heading(locale: SupportedLocale, mode: DiveMode): HTMLElement {
   const eyebrow = element("p", "setup-eyebrow", translate(locale, "setup.eyebrow"));
   const title = element("h1", "setup-heading", translate(locale, "setup.heading"));
   title.id = "setup-heading";
+  // Focused as the screen opens (#311), never in the tab order.
+  title.tabIndex = -1;
   group.append(eyebrow, title);
 
   // CCR replaces the base hint rather than adding to it: that line promises
@@ -766,6 +775,9 @@ function nativelyHandles(target: EventTarget | null, key: string): boolean {
  */
 function focusKeyOf(node: Element | null): string | null {
   if (!(node instanceof HTMLElement)) return null;
+  // Where the screen puts focus as it opens (#311).
+  if (node.id === "setup-heading") return "#setup-heading";
+  if (node.id === "resume-banner-text") return "#resume-banner-text";
 
   const { setupOption, setupPreset, setupStep, startDive, backToSetup } =
     node.dataset;
