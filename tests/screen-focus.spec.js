@@ -122,31 +122,58 @@ async function focusedAccessibleName(cdp) {
 // readouts as its name, so the focused object's name changed every
 // dive-second, and a screen reader speaks the name of the focus again when
 // it changes: the per-frame churn #137 §4.4 removed. Its name is fixed.
-test('the focused dive computer keeps one name while its readouts change', async ({ page }) => {
-  await startDiveByKeyboard(page);
-  await page.locator('[data-renderer=pixi] canvas').waitFor();
-  await expect(page.locator('.wreck-hud')).toBeFocused();
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send('Accessibility.enable');
+// Pre-review pass 3: the name is not a readout, so it is in the page's
+// language, as the other groups' names are (#232 keeps only the readouts
+// English).
+for (const [locale, name] of [
+  ['en-US', 'Dive computer'],
+  ['de-DE', 'Tauchcomputer'],
+]) {
+  test.describe(`in ${locale}`, () => {
+    test.use({ locale });
 
-  const time = page.locator('.wreck-hud [data-hud-metric="time"] dd');
-  await page.keyboard.down('s');
-  const samples = [];
-  const times = [];
-  try {
-    for (let i = 0; i < 5; i += 1) {
-      samples.push(await focusedAccessibleName(cdp));
-      times.push(await time.textContent());
-      await page.waitForTimeout(300);
-    }
-  } finally {
-    await page.keyboard.up('s');
-  }
-  // The readouts did change over the samples...
-  expect(new Set(times).size).toBeGreaterThan(1);
-  // ...and the name did not.
-  expect(samples).toEqual(Array(5).fill({ role: 'group', name: 'Dive computer' }));
-});
+    test('the focused dive computer keeps one name while its readouts change', async ({ page }) => {
+      // By the data attributes: the gate's words are German in de-DE.
+      await page.locator('[data-accept-safety]').focus();
+      await page.keyboard.press('Enter');
+      await page.locator('.setup-screen').waitFor();
+      await page.locator('[data-start-dive]').focus();
+      await page.keyboard.press('Enter');
+      await page.locator('[data-renderer=pixi] canvas').waitFor();
+      await expect(page.locator('.wreck-hud')).toBeFocused();
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send('Accessibility.enable');
+
+      const time = page.locator('.wreck-hud [data-hud-metric="time"] dd');
+      await page.keyboard.down('s');
+      const samples = [];
+      const times = [];
+      try {
+        for (let i = 0; i < 5; i += 1) {
+          samples.push(await focusedAccessibleName(cdp));
+          times.push(await time.textContent());
+          await page.waitForTimeout(300);
+        }
+      } finally {
+        await page.keyboard.up('s');
+      }
+      // The readouts did change over the samples...
+      expect(new Set(times).size).toBeGreaterThan(1);
+      // ...and the name did not.
+      expect(samples).toEqual(Array(5).fill({ role: 'group', name }));
+      // It is read from an element in the page's language, outside the dive
+      // computer's lang="en", that no live region holds.
+      const label = page.locator('#wreck-hud-name');
+      await expect(label).toHaveText(name);
+      expect(
+        await label.evaluate((el, sel) => ({
+          lang: el.closest('[lang]').getAttribute('lang'),
+          live: el.closest(sel) !== null,
+        }), LIVE),
+      ).toEqual({ lang: locale.slice(0, 2), live: false });
+    });
+  });
+}
 
 /**
  * Where the focused element and its ring are: its box, the ring's box (the

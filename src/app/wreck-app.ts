@@ -1129,10 +1129,15 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   // would take its name from its readouts, so the focused object's name
   // would change every dive-second and a screen reader would speak them all
   // again each time: the per-frame churn #137 §4.4 removed. A group with a
-  // fixed name instead, in the dive computer's English (#232) as its lang.
+  // fixed name instead. The name is not a readout, so it is in the page's
+  // language, as the other groups' are, and it is read from an element
+  // outside the dive computer's lang="en" (#232), written once, here.
+  const hudName = createElement("span", "", translate(locale, "wreck.hud.name"));
+  hudName.id = "wreck-hud-name";
+  hudName.hidden = true;
   hud.tabIndex = -1;
   hud.setAttribute("role", "group");
-  hud.setAttribute("aria-label", diveComputerText("diveComputer.name"));
+  hud.setAttribute("aria-labelledby", hudName.id);
   // The dive computer's language (#232), so a German screen reader reads its
   // English as English: the visible text is each row's only name, and lang
   // makes what is heard agree with what is shown. The location row is not
@@ -1331,7 +1336,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   // right (diagnostic.css): the topbar has no room left on a narrow phone
   // (#259), and the dock none on a rebreather's.
   const instructor = createInstructorPanel(locale);
-  column.append(hud, persistence, instructor.toggle, gasInfo.panel, instructor.panel);
+  column.append(hud, persistence, instructor.toggle, gasInfo.panel, instructor.panel, hudName);
 
   // The column above and the dock below share one flex column, so an open
   // page shrinks above the dock however many rows it wraps to (#168).
