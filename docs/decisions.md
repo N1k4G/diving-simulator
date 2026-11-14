@@ -386,3 +386,242 @@ A mechanic or site is migrated only when:
   and
 - no production credential is in source or evidence, and the bundle contains
   no billing, advertising, consent, or analytics dependency.
+
+Amended 2026-11-14 by the product owner (#137 A16, #304). On a phone, a
+mechanic or site is migrated only when, in addition:
+
+- every intent the slice adds can be given by touch alone, and the touch
+  reaches the same authoritative action as its key: nothing is offered to the
+  keyboard that a touch cannot reach (#168; the departure row "#168,
+  2026-10-23 (PR 2 of #168, the touch context group)" above);
+- every touch target is at least 44 by 44 CSS pixels and stands at least 8 CSS
+  pixels from every other control, measured on the rendered box rather than
+  read from the CSS, with overlapping and diagonal pairs counted (#121, #147,
+  #255). `measureGroup` in `tests/touch-context.spec.js` and `measurePad` in
+  `tests/touch-dpad.spec.js` are the templates; the #121 test in
+  `tests/result-screen.spec.js` is not, as it skips overlapping and diagonal
+  pairs and measures the legacy client;
+- frame evidence from a physical device meets the A12b thresholds once they
+  are set (#300); until then the slice records frame evidence, under
+  "Performance evidence" above, on the device of #155's row (a Pixel 9 on
+  Android 17, owner decision 2026-11-14), and desktop emulation does not stand
+  in for it;
+- with the platform's large-font setting on, no text or control the slice adds
+  is clipped or runs out of its box, and the Mobile input and layout contract
+  below still holds;
+- every control and every item of critical status the slice adds has a role
+  and an accessible name that TalkBack and other screen readers announce, its
+  changes are announced as rule 7 of the contract below says, and the slice is
+  checked with TalkBack on the #155 device (#137 B4);
+- turning the phone between portrait and landscape keeps the session's
+  invariants: the same document, the dive clock, depth, route position, the
+  torch, the dialogs and pages open or closed as they were, and no control
+  held that the player has let go (`tests/rotation.spec.js`; the device level
+  is #297); and
+- the slice keeps every rule of the Mobile input and layout contract below.
+
+## Mobile input and layout contract
+
+Adopted 2026-11-14 (#137 A16, #304). These rules carry forward what phones
+taught the legacy client (WP-014, its touch controls; WP-016, its HTML gas
+setup; #120, #121 and #125) and the migration client (#255 to #288). Each rule
+is a statement a test can check. "Enforced by" names the tests that check it
+today, and how far. "New obligation" marks what no test checks yet, which
+every slice from now on carries. "Open gap" names a known breach and its
+issue where one is filed; the PRs so far have left each gap no worse than they found it (#255,
+#269, #283), and a slice must do the same.
+
+Distances are measured between rendered boxes (`getBoundingClientRect`), and
+an overlap is a negative distance that fails the check (#255). Whether
+something is covered is decided by hit-testing (`elementFromPoint`), not by
+geometry alone (#262, #288).
+
+1. **Sizes.** For every screen and state a slice adds, rules 3 to 6 hold on a
+   phone in portrait from 320 px wide, at 320×568, 340×640, 360×640, 375×553,
+   375×667 and 390×844, and on a short landscape phone at 844×390 and 667×375.
+   Source: #120 measured overflow at 320×568, 390×844 and 844×390; #255 and
+   #283 set the portrait sizes. Enforced by: `tests/in-dive-controls.spec.js`
+   ("the HUD and every open page stand 8px clear of every control on the
+   narrowest phones", at those six portrait sizes); `tests/warning-banner.spec.js` (320 to 390 px);
+   `tests/help-overlay.spec.js` (the topbar from 320 to 430 px). Open gap:
+   short landscape, #256. The shell keeps its minimum height there, 34rem, or
+   30rem at 720 px wide and below, so the D-pad sits below the fold (about
+   154 px at 844×390), and
+   `tests/rotation.spec.js` and `tests/viewport.spec.js` leave the bottom edge
+   unchecked in landscape until #256 lands. New obligation: a slice's new
+   screens and states join the portrait matrix, and the landscape sizes once
+   #256 closes.
+2. **Safe areas.** `viewport-fit=cover` is set, and every edge that meets the
+   screen's edge is offset by its inset, written as
+   `var(--safe-area-inset-<edge>, env(safe-area-inset-<edge>, 0px))`, never as
+   `env()` alone: Android WebViews before version 140 return wrong `env()`
+   values, and Capacitor injects the real ones as those custom properties.
+   Content inside an element that already carries an inset does not subtract
+   it again. Source: #137 §4.2 and A7, #255, #275. Enforced by:
+   `tests/viewport.spec.js` ("the controls stand inside the insets", "the gas
+   page and the instructor panel lose only what the insets take", "the warning
+   banner stands below the top inset"); `tests/touch-dpad.spec.js` ("the pad
+   keeps clear of the safe-area insets"); `tests/onboarding-hints.spec.js` (the
+   hint with insets). These tests set the `--safe-area-inset-*` properties, so
+   an edge they check that is written with `env()` alone fails them. Open gap:
+   on-device insets, #297; the wider landscape cutouts (47 to 59 px), #256.
+3. **No control hidden, covered or below the fold.** On the dive screen,
+   every control the dive's state offers is on screen without scrolling the
+   page, nothing is painted over it, and a tap at its centre reaches it. A
+   control that legacy shows in a state is not hidden to make a layout fit.
+   What does not fit there, the help or the instructor panel, scrolls inside
+   its own container. Heights use `dvh` with a `vh` fallback, as `vh` alone
+   is the largest viewport and puts the controls below the fold while the
+   browser's address bar shows. Outside the dive a screen may be taller than
+   the viewport and scroll the page, as the debriefing and the game-over
+   screen do by design (#159); then all of it is reachable by ordinary
+   scrolling and nothing runs off either side (#120). Source: #120 and #125
+   (legacy's result screens drawn past the fold with no way to scroll);
+   WP-016 (legacy's setup as scrolling HTML over the canvas); #137 §4.2; #256;
+   #257 and #269 (the topbar's buttons ran off screen, #259); #275; #287 and
+   #288. Enforced by: `tests/rotation.spec.js` (every in-dive control inside
+   the viewport and at least 44 px after each turn, the bottom edge in
+   portrait only); `tests/viewport.spec.js` ("the page does not scroll", a
+   dive at 390×844); `tests/warning-banner.spec.js` (a tap at the centre of
+   every shown button reaches it); `tests/help-overlay.spec.js` (every topbar
+   button within the screen's width, with fast-forward on too; and over the
+   debriefing, the help scrolls on its own and never the screen behind it);
+   `tests/control-visibility.spec.js` (legacy's controls per state, at 390×844
+   and 1280×720); `tests/post-dive.spec.js` and `tests/game-over.spec.js` (the
+   result screens reachable by scrolling, with nothing past either side, at
+   320×568 and up). Open gap: #256.
+4. **8 px around the HUD, pages and panels.** The HUD, an open gas page, the
+   instructor panel, a hint, the persistence notice and any panel a slice adds
+   stand at least 8 px from every control at every size of rule 1. A cluster
+   of controls gets no exception: #125 left legacy's D-pad 6 px apart as one
+   cluster, and #255 set the migration's to 8 px. Source: #121, #125, #255,
+   #258 and #283, #262, #267, #285. Enforced at 8 px by: the narrow-phone
+   matrix in `tests/in-dive-controls.spec.js` (the HUD and an open gas page,
+   at the six portrait sizes of rule 1); `tests/instructor-panel.spec.js` (the
+   panel and its button) and `tests/onboarding-hints.spec.js` (the hint), each
+   at 844×390, 667×375, 390×844, 360×640 and 1280×720. Checked for overlap
+   only, not for 8 px: an open gas page at 844×390, 667×375, 390×844 and
+   1280×720 (`tests/in-dive-controls.spec.js`, "no open page meets a control,
+   and NDL stays visible" and, in German, "no open page meets a control"), and
+   the persistence notice (`tests/persistence.spec.js`, "the notice meets
+   nothing and an open page keeps its room"). New obligation: the 8 px for an
+   open page in landscape and on the desktop and for the persistence notice,
+   which no test measures yet; and a slice's new panel or page joins the
+   narrow-phone matrix. Open gaps: the dock against the D-pad, #258 (cylinder
+   6 overlaps "Fin left" by 8 px at 340×640, and the bailout stood 1.4 px from
+   it at 412×915 when #255 measured it; `tests/touch-context.spec.js` measures
+   the dock against the pad at 390×844, 360×640 and 1280×720 only); the hint
+   at 320×568, which lies under the HUD and is not seen, #258; the instructor
+   panel on a rebreather at 340 to 375 px, 20 to 24 px tall, #271.
+5. **Depth and NDL always visible.** Depth and the no-decompression time are
+   on screen and topmost at every size, with any page, panel, notice or warning
+   open, and under an overhead the rule of thirds too. A layout short of room
+   drops or replaces other rows, never these: an open gas page takes the place
+   of the gas rows, as legacy's information pages take the place of its dive
+   computer's lower box. Source: #137 §4.4 item 1 and #147 (the phone layout
+   hid NDL); #258 and #283. Enforced by: `tests/wreck-slice.spec.js` ("#137
+   A15: the narrow HUD layout never hides NDL …", which also checks that zone
+   is the row dropped, at 390×844); the narrow-phone matrix in
+   `tests/in-dive-controls.spec.js` (depth, NDL and the thirds shown, inside
+   the screen and topmost, with every gas page open in turn, at the six
+   portrait sizes); `tests/in-dive-controls.spec.js` "no open page meets a
+   control, and NDL stays visible" (NDL visible with a page open, at 844×390,
+   667×375, 390×844 and 1280×720, not checked for topmost);
+   `tests/warning-banner.spec.js` (no banner meets the depth, ascent-rate or
+   NDL row); `tests/instructor-panel.spec.js` and
+   `tests/onboarding-hints.spec.js` (every visible HUD cell, depth and NDL
+   included, topmost at its left, middle and right with the panel or the hint
+   up, at 844×390, 667×375, 1280×720, 390×844 and 360×640). New obligation:
+   depth and NDL topmost in landscape and on the desktop with a gas page or
+   the persistence notice open, which no test checks yet.
+6. **Warnings cover nothing and take no taps.** A warning never covers depth,
+   NDL, the ascent rate or any control, and takes no tap or click
+   (`pointer-events: none`). On a phone in portrait it is a bar across the
+   topbar's row with the buttons painted over it, so mute, the alarm's off
+   switch, stays visible and pressable, and fast-forward's badge stays on top.
+   Its `role=alert` and `aria-live=assertive` stay. A hint or notice stands
+   under the HUD and the controls, never over a readout. Source: #287 and #288;
+   #262. Enforced by: `tests/warning-banner.spec.js` (every alert text, both
+   languages, 320 to 390 px, with each topbar button focused too);
+   `tests/onboarding-hints.spec.js` (every HUD row topmost over the hint).
+   Open gap:
+   #288 left the banner's place unchanged in landscape (#256) and from 721 to
+   about 900 px wide, where only `pointer-events: none` applies.
+7. **Live regions written on a change, never per frame.** A live region is
+   written only when what it says changes. Values that change every frame, the
+   HUD's readouts and the instructor panel's rows, are in no live region, and
+   no ancestor of the HUD is one. The dive shell's status regions, the
+   persistence notice, the hint and the instructor panel's status, exist,
+   empty, from the start, so their first write is announced; the warning is a
+   `role=alert`, announced as it is shown. A screen that replaces another is
+   no live region and moves focus to its heading: the game-over and debriefing
+   screens, the setup screen (or its resume banner's line when a saved dive is
+   on offer), the start-error screen and the unavailable-site panel; the dive
+   screen focuses the dive computer, a group with a static name in the page's
+   language, so no readout reaches the focused element's name (#311). Source:
+   #137 §4.4 item 3 (the whole app was a polite live region, so TalkBack spoke
+   every frame); #138; #257; #262; #267; #285; #159; #311 and #314. Enforced
+   by: `tests/wreck-slice.spec.js` (the status chip in no live region, `#app`
+   without `aria-live`, the shell's live regions listed exactly: the
+   persistence notice, the warning, the hint and the instructor panel's
+   status; and the game-over screen with no live region and focus on its
+   heading); `tests/onboarding-hints.spec.js` and
+   `tests/instructor-panel.spec.js` (each region written once over a second);
+   `tests/persistence.spec.js` (the notice's region present and empty before
+   it is written); `tests/screen-focus.spec.js` (focus on each new screen
+   after Accept, Start, Resume, a start error and an unavailable site, Accept
+   and Start by keyboard too; the dive computer's name unchanged over a second
+   of descent in English and German; its focus ring inside the viewport and
+   every clipping ancestor at 320×568). New obligation: a screen a slice adds
+   moves focus to its heading, as these screens do, rather than being a live
+   region; a region a slice adds joins the list in `tests/wreck-slice.spec.js`
+   and is tested to be written once per change.
+8. **Room for the Linux CI fonts.** Every distance check passes on the Linux
+   CI runner (`ubuntu-24.04`, `.github/workflows/pr.yml`), whose DejaVu Sans
+   and DejaVu Sans Mono are wider than the fonts on Windows. A margin
+   quoted in a PR is measured with DejaVu metrics: on CI, or on Linux such as
+   WSL Ubuntu, which reproduced CI in #255. A stand-in font is not evidence:
+   Verdana in place of DejaVu Sans was about 16 px optimistic in #283. A gap
+   fixed by construction, such as a flex gap, does not change with the fonts,
+   and #283 reached its 8 px that way. Layouts are measured in German, which
+   runs longer than English. Source: #255 (a rebreather HUD 6.6 px clear on
+   win32 overlapped the controls by 28.6 px on Linux); #283
+   (0.8 px on CI where the stand-in gave 17 px); #275 (a German hint off screen
+   on Linux CI); the German cases in `tests/in-dive-controls.spec.js` (#198).
+   Enforced by: CI runs every Playwright spec on Linux, so the checks of rules
+   1 to 6 run on DejaVu metrics. New obligation: a PR quotes Linux margins,
+   not only win32 ones.
+9. **No synthetic or stuck input, and pointer cancel handled.** Touch calls
+   the controller's intents and never synthesizes a key event (legacy's
+   WP-014 touch controls set `keys[]` and cleared them on a 100 ms timer). A
+   held control, a D-pad direction, captures its pointer, so a thumb that
+   slides off the button keeps it held, as legacy's `bindHold` does; it is let
+   go on `pointerup`, `pointercancel` and `lostpointercapture`, when the
+   window loses focus and when the page is hidden. A tap control presses when
+   the finger is lifted over it; a tap slid off its button or cancelled
+   presses nothing. The help, a drill and a hidden page let go of every held
+   control, and a restored dive holds nothing. Source: #137 §4.1 (d) (a pointer held as Android backgrounds
+   the app may never send its `pointerup`); #9 (legacy's stuck key); #255;
+   #257; #268; A5 (#276) and A4b (#286); #281. Enforced by:
+   `tests/touch-dpad.spec.js` (cancel, blur and hidden page each let go, and
+   "no stuck input" measured on the BCD's gas across two autosaves);
+   `tests/touch-context.spec.js` ("a tap presses once; a touch slid off or
+   cancelled presses nothing"); `tests/unit/touch-dpad.test.ts` and
+   `tests/unit/touch-press.test.ts`; `tests/rotation.spec.js` (a direction
+   held across turns, let go on lift or cancel); `tests/page-lifecycle.spec.js`
+   (a D-pad direction and D held as the page is hidden);
+   `tests/help-overlay.spec.js` (a direction held as the help opens);
+   `tests/session-resume.spec.js` (a reload with A still down: the resumed
+   dive's BCD untouched).
+   Open gap: on a device, after the process is killed, #295.
+10. **Meaning never carried by colour alone.** A state shown by colour is also
+    shown in words or a symbol: the status chip names its warning ("⚠ Low
+    gas"), a tone carries ⚠ or a visually hidden word, and a notice uses words
+    rather than a symbol alone. Source: "Accessibility and localization"
+    above; legacy's #39; #137 §4.4 item 4 and #138; #267; #285. Enforced by:
+    `tests/wreck-slice.spec.js` ("persisted safety states produce visible
+    semantic warnings"); `tests/unit/instructor-panel.test.ts` (the tissue's
+    tier "in more than colour"); `tests/in-dive-controls.spec.js` (the
+    scrubber's warnings in words in the alert and the chip, and a cylinder
+    under 30 bar and a CNS past 80 % marked with ⚠). New obligation: each
+    state a slice colours has a test that reads its words or symbol.
