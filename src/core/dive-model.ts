@@ -37,8 +37,10 @@ import {
   applyBcdControls,
   integrateBuoyancy,
   type BuoyancyControls,
+  type DiverPlace,
   type VerticalBounds,
 } from "./buoyancy";
+import { overheadAt } from "../sites/site-collision";
 import {
   DEFAULT_GF_HIGH_PERCENT,
   ceilingDepthM,
@@ -252,6 +254,7 @@ export class DiveModel {
   #state: DiveState;
 
   readonly #gradientFactorHighPercent: number;
+  #placeXM: number | null = null;
 
   constructor(initialState: DiveState, options: Readonly<DiveModelOptions> = {}) {
     this.#state = freezeDiveState(initialState);
@@ -261,6 +264,15 @@ export class DiveModel {
 
   get snapshot(): DiveState {
     return this.#state;
+  }
+
+  /**
+   * Where along x the last advanceWithBuoyancy() given a place left the
+   * diver (#240), or null after one given bounds. The caller owns the
+   * position and passes it in again; the model keeps none of its own.
+   */
+  get placeXM(): number | null {
+    return this.#placeXM;
   }
 
   advance(
@@ -329,22 +341,35 @@ export class DiveModel {
    * frame's tissues and decompression limits (advanceDiveStep).
    *
    * `drill` is a training drill's free-flow or held breath under way (#160).
+   *
+   * Given a place among a site's structures in place of bounds (#240), the
+   * diver moves along x too, through the structures as legacy's frame moves
+   * it (integrateBuoyancy), and is in the overhead where legacy's
+   * updateOverheadState() finds it after the physics: `inOverhead` is not
+   * read. The shark's world is then asked for once the diver has moved, by
+   * how far, as legacy's shark reads diverX after the physics. Where the
+   * frame left the diver is `placeXM`.
    */
   advanceWithBuoyancy(
-    bounds: Readonly<VerticalBounds>,
+    where: Readonly<VerticalBounds | DiverPlace>,
     frameS: Seconds,
     controls: Readonly<BuoyancyControls>,
     inOverhead = false,
-    shark?: SharkFrame,
+    shark?: SharkFrame | ((movedM: number) => SharkFrame),
     realS?: number,
     acts: Readonly<DiveActs> = NO_ACTS,
     drill?: DrillEffects,
   ): DiveState {
+    const place = "site" in where ? where : null;
+    this.#placeXM = place ? place.xM : null;
     if (frameS <= 0 || isDiveOver(this.#state)) {
       return this.#state;
     }
     const inflated = applyBcdControls(this.#state, controls, frameS);
-    const moved = integrateBuoyancy(inflated, bounds, frameS);
+    const moved = integrateBuoyancy(inflated, where, frameS);
+    const xM = moved.xM ?? 0;
+    if (place) this.#placeXM = xM;
+    const sharkFrame = typeof shark === "function" ? shark(place ? xM - place.xM : 0) : shark;
     let randomState = inflated.randomState;
     const drifted =
       realS === undefined
@@ -361,8 +386,12 @@ export class DiveModel {
               return sample.value;
             },
           );
+    // The rest of the frame measures its motion, the ascent rate and the
+    // loop's diluent, from where legacy's prevDepth is: after the overlap
+    // push (src/game-loop.js 427-453).
     const withMotion = freezeDiveState({
       ...inflated,
+      ...(moved.startDepthM === undefined ? {} : { depthM: metres(moved.startDepthM) }),
       randomState,
       narcosisDrift: drifted.drift,
       verticalVelocityMpm: drifted.verticalVelocityMpm,
@@ -373,8 +402,8 @@ export class DiveModel {
       {
         depthM: metres(moved.depthM),
         gradientFactorHighPercent: this.#gradientFactorHighPercent,
-        inOverhead,
-        ...(shark ? { shark } : {}),
+        inOverhead: place ? overheadAt(place.site, xM, moved.depthM) : inOverhead,
+        ...(sharkFrame ? { shark: sharkFrame } : {}),
         ...(drill ? { drill } : {}),
       },
       frameS,

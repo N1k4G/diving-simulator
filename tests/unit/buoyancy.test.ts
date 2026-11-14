@@ -150,3 +150,73 @@ describe("the frame cadence", () => {
     expect(once.verticalVelocityMpm).toBeCloseTo(stepped.verticalVelocityMpm, 12);
   });
 });
+
+// Among a site's structures (#240): legacy's frame on a site with structures,
+// resolveDiverOverlap() and then, in each sub-step, the depth and then the
+// fins (src/game-loop.js 427-434). tests/parity/site-collision.test.ts runs
+// whole frames through the wreck against legacy's.
+describe("integrating among a site's structures (#240)", () => {
+  /** A wall from x 1 to 2, 10 to 20 m down, over a seabed at 30 m. */
+  const walled = {
+    hasOverhead: false,
+    floor: [{ x: -10, d: 30 }],
+    ceiling: null,
+    structures: [{ x1: 1, x2: 2, dTop: 10, dBottom: 20 }],
+  };
+  const sinking = (depthM: number, xMps = 0) => ({
+    state: freezeDiveState({ ...at(createInitialDiveState(5), depthM), verticalVelocityMpm: 20, bcdGasSurfaceLiters: 0 }),
+    place: (xM: number, displacementM = xMps) => ({ site: walled, xM, displacementM }),
+  });
+
+  it("steps the depth before the fins, so the fins meet the wall the diver has sunk level with", () => {
+    // At 9.68 m the diver's body ends 0.02 m above the wall's top; the sub-step
+    // sinks it 1/30 m at 20 m/min, level with the wall, and then the fins'
+    // 0.2 m to the right would bury it in the wall.
+    const { state, place } = sinking(9.68);
+    const moved = integrateBuoyancy(state, place(0.5, 0.2), 0.1);
+    expect(moved.depthM).toBeCloseTo(9.68 + 20 / 600, 12);
+    expect(moved.xM).toBe(0.5);
+    // Higher up, the same stroke clears the wall's top.
+    expect(integrateBuoyancy(sinking(9.5).state, place(0.5, 0.2), 0.1).xM).toBeCloseTo(0.7, 12);
+  });
+
+  it("spreads the fins' stroke over the frame's sub-steps, and stops it at the wall", () => {
+    const { state, place } = sinking(15);
+    // Three sub-steps of 0.1 s, a third of the 0.3 m each; the wall's face at
+    // x 1 stops the body's right edge, 0.45 m right of the diver.
+    expect(integrateBuoyancy(state, place(0, 0.3), 0.3).xM).toBeCloseTo(0.3, 12);
+    const stopped = integrateBuoyancy(state, place(0.3, 0.6), 0.3).xM ?? Number.NaN;
+    expect(stopped).toBeCloseTo(0.5, 12);
+    expect(stopped + 0.45).toBeLessThanOrEqual(1);
+  });
+
+  it("frees a diver caught in a structure once, before the physics", () => {
+    // Inside the wall at x 1.2: the nearest way out is past its left face.
+    const caught = freezeDiveState({ ...at(createInitialDiveState(5), 15), bcdGasSurfaceLiters: neutralBcdSurfaceLitres(15) });
+    const freed = integrateBuoyancy(caught, { site: walled, xM: 1.2, displacementM: 0 }, 0.1);
+    expect(freed.xM).toBeCloseTo(1 - 0.45 - 1e-6, 12);
+    expect(freed.depthM).toBeCloseTo(15, 9);
+  });
+
+  it("counts a push out of a structure as no motion: the frame starts from the depth after it", () => {
+    // 0.2 m into the wall's top at x 1.5: the nearest way out is up, to
+    // 10 - 0.3 m. Legacy takes prevDepth there (src/game-loop.js 429).
+    const caught = freezeDiveState({ ...at(createInitialDiveState(5), 9.9), bcdGasSurfaceLiters: neutralBcdSurfaceLitres(9.9) });
+    const freed = integrateBuoyancy(caught, { site: walled, xM: 1.5, displacementM: 0 }, 0.05);
+    expect(freed.startDepthM).toBeCloseTo(10 - 0.3 - 1e-6, 12);
+    const frame = new DiveModel(caught).advanceWithBuoyancy(
+      { site: walled, xM: 1.5, displacementM: 0 },
+      seconds(0.05),
+      { inflate: false, vent: false },
+    );
+    expect(Math.abs(frame.log.ascentRateMpm)).toBeLessThan(1);
+  });
+
+  it("moves as between the site's ceiling and floor where nothing is in the way, and has no x without a place", () => {
+    const { state } = sinking(5);
+    const open = integrateBuoyancy(state, { ceilingM: 0, floorM: 30 }, 0.3);
+    const placed = integrateBuoyancy(state, { site: walled, xM: -5, displacementM: 0 }, 0.3);
+    expect(placed).toEqual({ ...open, xM: -5, startDepthM: 5 });
+    expect(open).not.toHaveProperty("xM");
+  });
+});
