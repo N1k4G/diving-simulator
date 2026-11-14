@@ -553,25 +553,29 @@ geometry alone (#262, #288).
    no ancestor of the HUD is one. The dive shell's status regions, the
    persistence notice, the hint and the instructor panel's status, exist,
    empty, from the start, so their first write is announced; the warning is a
-   `role=alert`, announced as it is shown. The game-over and debriefing
-   screens are no live regions and move focus to their heading when they
-   replace the dive. Source: #137 §4.4 item 3 (the whole app was a polite live
-   region, so TalkBack spoke every frame); #138; #257; #262; #267; #285; #159.
-   Enforced by: `tests/wreck-slice.spec.js` (the status chip in no live
-   region, `#app` without `aria-live`, the shell's live regions listed
-   exactly: the persistence notice, the warning, the hint and the instructor
-   panel's status; and the game-over screen with no live region and focus on
-   its heading); `tests/onboarding-hints.spec.js` and
+   `role=alert`, announced as it is shown. A screen that replaces another is
+   no live region and moves focus to its heading: the game-over and debriefing
+   screens, the setup screen (or its resume banner's line when a saved dive is
+   on offer), the start-error screen and the unavailable-site panel; the dive
+   screen focuses the dive computer, a group with a static name in the page's
+   language, so no readout reaches the focused element's name (#311). Source:
+   #137 §4.4 item 3 (the whole app was a polite live region, so TalkBack spoke
+   every frame); #138; #257; #262; #267; #285; #159; #311 and #314. Enforced
+   by: `tests/wreck-slice.spec.js` (the status chip in no live region, `#app`
+   without `aria-live`, the shell's live regions listed exactly: the
+   persistence notice, the warning, the hint and the instructor panel's
+   status; and the game-over screen with no live region and focus on its
+   heading); `tests/onboarding-hints.spec.js` and
    `tests/instructor-panel.spec.js` (each region written once over a second);
    `tests/persistence.spec.js` (the notice's region present and empty before
-   it is written). Open gap (#311): the start-error screen is a
-   `role=alert` section created already filled, with no focus moved
-   (`renderStartError` in `src/app/wreck-app.ts`), and the setup screen after
-   Accept and the dive after Start move no focus. New obligation: a screen a
-   slice adds moves focus to its heading, as the game-over and debriefing
-   screens do, rather than being a live region; a region a slice adds joins
-   the list in `tests/wreck-slice.spec.js` and is tested to be written once
-   per change.
+   it is written); `tests/screen-focus.spec.js` (focus on each new screen
+   after Accept, Start, Resume, a start error and an unavailable site, Accept
+   and Start by keyboard too; the dive computer's name unchanged over a second
+   of descent in English and German; its focus ring inside the viewport and
+   every clipping ancestor at 320×568). New obligation: a screen a slice adds
+   moves focus to its heading, as these screens do, rather than being a live
+   region; a region a slice adds joins the list in `tests/wreck-slice.spec.js`
+   and is tested to be written once per change.
 8. **Room for the Linux CI fonts.** Every distance check passes on the Linux
    CI runner (`ubuntu-24.04`, `.github/workflows/pr.yml`), whose DejaVu Sans
    and DejaVu Sans Mono are wider than the fonts on Windows. A margin
