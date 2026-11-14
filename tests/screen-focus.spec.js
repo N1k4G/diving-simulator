@@ -108,6 +108,46 @@ test('started by keyboard, the dive takes focus on its dive computer', async ({ 
   await expect(page.locator('.wreck-hud')).toBeFocused();
 });
 
+/** The focused element's role and accessible name, as Chrome exposes them. */
+async function focusedAccessibleName(cdp) {
+  const { result } = await cdp.send('Runtime.evaluate', { expression: 'document.activeElement' });
+  const { nodes } = await cdp.send('Accessibility.getPartialAXTree', {
+    objectId: result.objectId,
+    fetchRelatives: false,
+  });
+  return { role: nodes[0].role?.value, name: nodes[0].name?.value };
+}
+
+// Pre-review pass 2: a focusable element with no name of its own takes its
+// readouts as its name, so the focused object's name changed every
+// dive-second, and a screen reader speaks the name of the focus again when
+// it changes: the per-frame churn #137 §4.4 removed. Its name is fixed.
+test('the focused dive computer keeps one name while its readouts change', async ({ page }) => {
+  await startDiveByKeyboard(page);
+  await page.locator('[data-renderer=pixi] canvas').waitFor();
+  await expect(page.locator('.wreck-hud')).toBeFocused();
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Accessibility.enable');
+
+  const time = page.locator('.wreck-hud [data-hud-metric="time"] dd');
+  await page.keyboard.down('s');
+  const samples = [];
+  const times = [];
+  try {
+    for (let i = 0; i < 5; i += 1) {
+      samples.push(await focusedAccessibleName(cdp));
+      times.push(await time.textContent());
+      await page.waitForTimeout(300);
+    }
+  } finally {
+    await page.keyboard.up('s');
+  }
+  // The readouts did change over the samples...
+  expect(new Set(times).size).toBeGreaterThan(1);
+  // ...and the name did not.
+  expect(samples).toEqual(Array(5).fill({ role: 'group', name: 'Dive computer' }));
+});
+
 /**
  * Where the focused element and its ring are: its box, the ring's box (the
  * box grown by the outline's offset and width), the viewport, every ancestor
@@ -146,11 +186,18 @@ const focusGeometry = (page) =>
       right: [box.right - 1.5, midY],
       centre: [midX, midY],
     };
+    // Hit-tested as if the warning took taps, as tests/warning-banner.spec.js
+    // does: it is pointer-events: none (#287), and hit testing would pass
+    // through it to whatever it is painted over.
+    const banner = document.querySelector('.wreck-warning');
+    const pointerEvents = banner?.style.pointerEvents ?? '';
+    if (banner) banner.style.pointerEvents = 'auto';
     const onTop = {};
     for (const [name, [x, y]] of Object.entries(points)) {
       const hit = document.elementFromPoint(x, y);
       onTop[name] = hit !== null && focused.contains(hit);
     }
+    if (banner) banner.style.pointerEvents = pointerEvents;
     return {
       className: focused.className,
       focusVisible: focused.matches(':focus-visible'),
@@ -186,7 +233,7 @@ function expectVisibleFocus(geometry) {
 // Pre-review pass 1: at 320 px a tec or rebreather topbar shrinks the site's
 // name to nothing, and a warning's bar stands over it in portrait (#287), so
 // a focus there showed no ring. Focus goes to the dive computer, drawn whole
-// at every size and under no warning (#137 A15).
+// at 320 px and, in portrait, below the warning bar (#137 A15, #287).
 test.describe('at 320x568, by keyboard', () => {
   test.use({ viewport: { width: 320, height: 568 } });
 

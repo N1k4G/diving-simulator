@@ -776,6 +776,10 @@ export function translate(locale: SupportedLocale, key: MessageKey): string {
 export const DIVE_COMPUTER_LOCALE: SupportedLocale = "en";
 
 const diveComputerMessages = {
+  // The HUD's own name, read as focus moves to it when the dive opens
+  // (#311): fixed, so the readouts below are not its name and nothing is
+  // spoken again as they change.
+  "diveComputer.name": "Dive computer",
   // The HUD readouts. Legacy: DEPTH, TIME, NDL, the gas box (Gas, the
   // cylinder; SP, PO2, O2, DIL, SCR on a rebreather) and the ascent chevrons.
   "diveComputer.depth": "Depth",

@@ -224,8 +224,10 @@ summary:focus-visible {
   outline-offset: 3px;
 }
 
-/* The dive computer's ring is drawn over its border, inside its box, so the
-   screen's edge and the topbar's warning bar never cut it. */
+/* The dive computer's ring is drawn over its border, inside its box, so no
+   clipping ancestor cuts it. In portrait the warning bar ends above it; in
+   short landscape a two-line warning overlaps its top edge, and at 400 %
+   zoom its bottom can sit below the fold, the rest of the ring in view. */
 .wreck-hud:focus-visible {
   outline-offset: -3px;
 }

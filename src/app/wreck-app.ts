@@ -119,8 +119,9 @@ import { selectInstructorPhysics } from "../presentation/instructor-physics";
 interface HudElements {
   readonly shell: HTMLElement;
   /**
-   * The dive computer, focused as the dive replaces the setup (#311): always
-   * drawn whole, and under no warning (#137 A15, #287).
+   * The dive computer, focused as the dive replaces the setup (#311): never
+   * shrunk away, never clipped, and in portrait below the warning bar
+   * (#137 A15, #287).
    */
   readonly diveComputer: HTMLElement;
   readonly viewport: HTMLElement;
@@ -574,8 +575,9 @@ async function startWreckSimulation(
   // the game-over and debriefing screens move it to their headings. Not to
   // the topbar's heading: the topbar shrinks it to nothing on a narrow
   // screen, and a warning's bar stands over it in portrait (#287). The dive
-  // computer is drawn whole at every size, and no warning covers it. The
-  // dive's keys are read on the window, so they reach it from there.
+  // computer is never shrunk away or clipped, and in portrait the bar ends
+  // above it. The dive's keys are read on the window, so they reach it from
+  // there.
   hud.diveComputer.focus();
   const audio = new WebAudioService();
   const audioResume = audio.resume();
@@ -1123,8 +1125,14 @@ function createWreckShell(locale: SupportedLocale): HudElements {
 
   const hud = document.createElement("dl");
   hud.className = "wreck-hud";
-  // Focused as the dive opens (#311), never in the tab order.
+  // Focused as the dive opens (#311), never in the tab order. Focusable, it
+  // would take its name from its readouts, so the focused object's name
+  // would change every dive-second and a screen reader would speak them all
+  // again each time: the per-frame churn #137 §4.4 removed. A group with a
+  // fixed name instead, in the dive computer's English (#232) as its lang.
   hud.tabIndex = -1;
+  hud.setAttribute("role", "group");
+  hud.setAttribute("aria-label", diveComputerText("diveComputer.name"));
   // The dive computer's language (#232), so a German screen reader reads its
   // English as English: the visible text is each row's only name, and lang
   // makes what is heard agree with what is shown. The location row is not
