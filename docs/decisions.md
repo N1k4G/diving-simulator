@@ -30,7 +30,7 @@ Issue states are:
 | Product | A fictional 2.5D diving simulation in Games / Simulation. It is not training, certification, medical guidance, a dive computer, or a real-dive planning tool. |
 | Release scope | The intended first release territories are the United States and Germany, with English and German as release-blocking locales. EU trader disclosure conflicts with minimal public identity exposure and must be resolved before production identity or store records are created. |
 | Platforms | Android 10 / API 29 or newer and iOS 16 or newer. Mobile supports portrait and landscape, touch, safe rotation, and pause/re-layout. Web supports keyboard. Controller support is deferred. |
-| Android target API | `targetSdk` is not pinned this early. Record the Google Play requirement and verification date when the native project is created, and re-check it immediately before every submission. |
+| Android target API | `targetSdk` 36, Google Play's requirement from 31 August 2026, verified 2026-08-28 when the native project was created ("Android packaging"). Re-check it immediately before every submission. |
 | Browsers | The latest two major Chrome, Edge, Firefox, and Safari releases. CI exercises Chromium, Firefox, and WebKit. |
 | Commerce | None. No advertising, purchase, subscription, entitlement, consent-management SDK, or unlock path exists in the client. |
 | Telemetry | No product analytics, advertising identifier, fingerprinting, or third-party crash/performance telemetry SDK. Diagnostic export is explicitly user initiated. |
@@ -110,6 +110,40 @@ floor (`withinRoute`, #206). The controller's real time (`elapsedRealS`) is not
 saved: it times only the scene's animation, the breath and bubble sounds'
 cadence and the forecast's age, and a resumed dive starts it at 0. Held controls and the fast-forward are not saved,
 so nothing is held after a restore.
+
+## Android packaging
+
+#137 A1, owner decision 2026-11-14, recorded with A2 (#292).
+
+The Android app is a **Capacitor** shell around the migration client's `dist/`,
+never around the legacy client. TWA and PWA are rejected:
+
+- A **TWA** hands the Android lifecycle, back navigation, insets, wake lock and
+  durable storage to Chrome. Those five are the mobile readiness problem, and a
+  TWA is the one option that gives the app no control over any of them. It
+  also ties Play's quality bar to a live web deployment and its offline
+  behaviour, and ships whatever that deployment serves, today the legacy
+  client.
+- A **PWA** path alongside Capacitor would be a second packaging, lifecycle and
+  storage integration to maintain for the same client. Installation stays
+  deferred ("PWA" above).
+- Capacitor is what the architecture already assumes (`Browser / Capacitor
+  services`), keeps the model, planner, save and site schemas free of platform
+  imports, and gives one JS build for web and native.
+
+| Item | Decision |
+| --- | --- |
+| Capacitor | At least 8.4: SystemBars' native safe-area injection arrived in 8.3.0 and reached API ≤ 34 in 8.4.0, the range the API 29 floor needs. `package.json` pins `^8.6.2` for `@capacitor/core`, `@capacitor/android` and `@capacitor/cli`. **Checked 2026-11-14** on npm: 8.6.2 (12 November 2026) is the `latest` stable, 9.0.0-rc.0 a release candidate. 8.6.2's SystemBars, with `insetsHandling: "css"` (set explicitly in `capacitor.config.json`, also the default), sets `--safe-area-inset-*` with no API-level condition: on a WebView older than 140, or a page without `viewport-fit=cover`, it pads the WebView natively and sets them to `0px`; otherwise it passes the insets through and sets their real values (`SystemBars.java`, `initWindowInsetsListener`, `injectSafeAreaCSS`). Either way the A7 CSS, `var(--safe-area-inset-*, env(safe-area-inset-*, 0px))`, is right on API ≤ 34. Capacitor 9 makes `native` the default; moving to it is a decision of its own. |
+| App id | `monster.gorman.scuba.divingsimulator.dev`, the temporary development id ("Locked product decisions"), display name "Diving Simulator Dev". |
+| SDK levels | `minSdk` 29 (the Android 10 floor), `compileSdk` and `targetSdk` 36: Google Play requires API 36 for new apps and updates from 31 August 2026 (verified 2026-08-28; re-verified before every submission, #137 C3). Build tools 36.0.0. |
+| Toolchain | Node 22 or newer (`engines.node`, Capacitor 8 requires it); JDK 21, which Capacitor 8's Android library compiles for (Temurin 21.0.13+9 in CI); the generated Gradle 8.14.3 wrapper with its distribution's SHA-256 pinned, and Android Gradle Plugin 8.13.0. |
+| Activity | `android:configChanges` keeps `density`, so the WebView is not reloaded on a display-size change; Capacitor 8 generates it and CI checks it stays (#137 A8). |
+| Builds | Debug only. No keystore, signing config or upload key is in source or CI; release signing is #137 C2, an external gate. `capacitor.config.json` is a static file, never `.ts`, and carries no `server.url` or `cleartext` (live reload is local only). |
+| CI | `pr.yml`'s `android` job packages the `dist/` `verify` built and checked, by its recorded tree hash, with no second Vite build (#293): it syncs those bytes, assembles the debug APK, and fails unless the APK's web root is that `dist/` plus Capacitor's two empty Cordova stubs, its config is production-safe, `dist:check` passes over the unpacked bytes, and the APK names the app id and SDK levels above with no cleartext traffic. Whether it is a required check is the owner's call. |
+
+Native `PlatformServices` (Capacitor Preferences, app lifecycle, back, wake
+lock) are #294; until then the native shell runs the browser implementations
+inside the WebView.
 
 ## Engineering defaults
 
@@ -254,7 +288,8 @@ so nothing is held after a restore.
 
 The target pull-request checks are Node 22 install, type-check, lint, dependency
 license checks, unit/parity tests, Chromium/Firefox/WebKit browser tests, a
-production web build, and an Android debug build once native projects exist.
+production web build, and an Android debug build of that same build's bytes
+(the `android` job, "Android packaging").
 An unsigned iOS compile is required once the named macOS/Xcode environment is
 available; until then it remains `BLOCKED_EXTERNAL`.
 

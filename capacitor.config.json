@@ -1,0 +1,10 @@
+{
+  "appId": "monster.gorman.scuba.divingsimulator.dev",
+  "appName": "Diving Simulator Dev",
+  "webDir": "dist",
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css"
+    }
+  }
+}
