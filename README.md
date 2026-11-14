@@ -213,6 +213,15 @@ New TypeScript UI copy is keyed in `src/app/i18n/catalog.ts`; direct user-facing
 | `npm run screenshots:phone` | Captures the **built** migration client (`dist/`; run `npm run build` first) at a phone viewport, 390x844 portrait and 844x390 landscape, in English and German: setup, dive, help overlay and post-dive. 16 PNGs plus an `index.json` in `artifacts/wp-09/137/phone-screenshots/`. Review evidence, not a guard: no reference frames, no thresholds. CI uploads it as the `phone-screenshots` artifact (#137 A13a) |
 | `npm run interior:check` | Issue #124 optics guard: measures the legacy client's overhead interiors and fails if one has gone flat (CI-gated) |
 | `npm run interior:update` | Re-records that guard's reference frames. Deliberately does **not** touch its thresholds — see the note below |
+| `npm run android:sync` | Builds the migration client, runs `dist:check` over it and copies `dist/` into the Capacitor Android project (`cap sync android`) |
+| `npm run android:open` | Opens `android/` in Android Studio |
+| `npm run android:build` | `android:sync`, then a debug APK with the Gradle wrapper (`assembleDebug`) in `android/app/build/outputs/apk/debug/` |
+
+### Android shell (#137 WP-A)
+
+`android/` is the Capacitor Android project around the migration client's `dist/`, never around the legacy client (`docs/decisions.md`, "Android packaging"). It is a development build only: the app id `monster.gorman.scuba.divingsimulator.dev`, debug builds, no signing material. Building it locally needs Node 22+, a JDK 21 and an Android SDK with platform 36 and build tools 36.0.0 (`ANDROID_HOME`, or `sdk.dir` in `android/local.properties`, which git ignores). Never commit a `server.url` or `cleartext` to `capacitor.config.json` for live reload: CI refuses it.
+
+In CI the `android` job of `pr.yml` does not build the web client. `verify` builds `dist/` once, checks it, records its tree hash (`scripts/android-bundle-check.mjs hash`) and uploads it; the `android` job syncs exactly those bytes, assembles a debug APK and fails unless the APK's web assets hash to the same value, its config is production-safe, and `dist:check` passes over the bytes unpacked from the APK. The APK is uploaded as the `android-debug-apk` artifact.
 
 ### Interior optics thresholds (issue #124)
 

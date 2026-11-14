@@ -37,6 +37,25 @@ jobs:
       - name: Check the production bundle carries no diagnostics
         run: npm run dist:check
 
+      # #137 A3 (#293): the Android job packages these bytes rather than build
+      # its own, so what ships in the APK is what this job checked. Recorded and
+      # handed over right after the hygiene check passed them; the last step of
+      # this job checks the tests below ran over the same bytes.
+      - name: Record the verified dist/ for the Android build
+        run: |
+          node scripts/android-bundle-check.mjs hash dist > verified-dist.sha256
+          echo "Verified dist/ tree hash: \`$(cat verified-dist.sha256)\`" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the verified dist/
+        uses: actions/upload-artifact@v7
+        with:
+          name: verified-dist
+          path: |
+            dist/
+            verified-dist.sha256
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Lint
         run: npm run lint
 
@@ -134,4 +153,163 @@ jobs:
         with:
           name: playwright-report
           path: playwright-report/
+          retention-days: 7
+
+      # The Pixi check and the browser tests rebuild dist/ through their npm
+      # pre-scripts. The build is deterministic, so this holds; if it ever does
+      # not, the APK would package bytes the browser tests never ran over, and
+      # that has to fail here rather than pass unnoticed (#293).
+      - name: Check the tested dist/ is the one handed to the Android build
+        run: |
+          tested="$(node scripts/android-bundle-check.mjs hash dist)"
+          if [ "$tested" != "$(cat verified-dist.sha256)" ]; then
+            echo "::error::dist/ now hashes to $tested, not to the verified $(cat verified-dist.sha256): a rebuild produced different bytes."
+            exit 1
+          fi
+
+  # #137 A3 (#293): the Android debug build as a compile gate over the same
+  # verified dist/. A job of its own so it runs beside verify: it sets up while
+  # verify builds, then takes verify's dist/ and its recorded hash instead of
+  # running a second Vite build, syncs exactly those bytes into the native
+  # project, assembles a debug APK and checks what ended up inside it. Debug
+  # only: no signing material exists in the repository or in this job.
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      # Reading this run's artifact list, to wait for verify's upload.
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      # Pinned to the exact build: Capacitor 8's Android library compiles for
+      # Java 21, and a floating `21` moves under the build without a commit.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21.0.13+9'
+          cache: gradle
+          cache-dependency-path: |
+            android/**/*.gradle
+            android/gradle/wrapper/gradle-wrapper.properties
+            package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Production CI refuses a dev server URL or cleartext live reload in the
+      # config before anything is built with it; the APK's own copy is checked
+      # again below.
+      - name: Check the Capacitor config is production-safe
+        run: node scripts/android-bundle-check.mjs config
+
+      - name: Check no signing material is in the repository
+        run: |
+          found="$(git ls-files '*.jks' '*.keystore' '*.p12' '*.pk8' '*.pem' 'android/**/keystore.properties')"
+          if [ -n "$found" ]; then
+            echo "::error::signing material is committed: $found"
+            exit 1
+          fi
+
+      # Capacitor 8 needs density in configChanges or the WebView reloads on a
+      # display-size change (#137 A8). Generated that way; this keeps it so.
+      - name: Check the activity keeps density in configChanges
+        run: grep -Eq 'android:configChanges="([^"]*[|])?density([|][^"]*)?"' android/app/src/main/AndroidManifest.xml
+
+      # gradle-wrapper.jar is a committed binary that runs on this runner. Its
+      # checksum is Gradle's published one for 8.14.3
+      # (https://services.gradle.org/distributions/gradle-8.14.3-wrapper.jar.sha256);
+      # the distribution it downloads is pinned by distributionSha256Sum in
+      # gradle-wrapper.properties.
+      - name: Verify the committed Gradle wrapper
+        run: echo "7d3a4ac4de1c32b59bc6a4eb8ecb8e612ccd0cf1ae1e99f66902da64df296172  android/gradle/wrapper/gradle-wrapper.jar" | sha256sum --check
+
+      # The runner image ships an Android SDK; this pins the platform and the
+      # build tools variables.gradle names instead of trusting the image's set.
+      - name: Install the pinned Android platform and build tools
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-36" "build-tools;36.0.0" > /dev/null
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" version
+
+      - name: Wait for verify to hand over the verified dist/
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for _ in $(seq 1 120); do
+            count="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=verified-dist" --jq '.total_count')"
+            if [ "${count:-0}" -gt 0 ]; then
+              exit 0
+            fi
+            state="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs" --jq '.jobs[] | select(.name == "verify") | .status')"
+            if [ "$state" = "completed" ]; then
+              echo "::error::verify finished without uploading a verified dist/; its build or hygiene check failed."
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "::error::no verified dist/ after 20 minutes."
+          exit 1
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: verified-dist
+          path: verified
+
+      - name: Check the verified dist/ arrived intact
+        run: |
+          expected="$(cat verified/verified-dist.sha256)"
+          received="$(node scripts/android-bundle-check.mjs hash verified/dist)"
+          if [ "$received" != "$expected" ]; then
+            echo "::error::the downloaded dist/ hashes to $received, verify recorded $expected."
+            exit 1
+          fi
+          mv verified/dist dist
+          echo "Packaging verified dist/ \`$expected\`" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Sync the verified dist/ into the Android project
+        run: npx cap sync android
+
+      - name: Assemble the debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      # The assertion is on the APK, not on the directory it was built from:
+      # its web root must be the verified dist/ byte for byte (plus Capacitor's
+      # two empty Cordova stubs), its config must be production-safe, and the
+      # production-shell hygiene check must pass over those exact bytes.
+      - name: Check the APK packages the verified dist/
+        run: |
+          apk=android/app/build/outputs/apk/debug/app-debug.apk
+          unzip -q "$apk" 'assets/*' -d apk
+          node scripts/android-bundle-check.mjs apk apk "$(cat verified/verified-dist.sha256)"
+          node scripts/dist-check.mjs apk/assets/public
+
+      - name: Check the APK's identity, SDK levels and cleartext policy
+        run: |
+          apk=android/app/build/outputs/apk/debug/app-debug.apk
+          aapt2="$ANDROID_HOME/build-tools/36.0.0/aapt2"
+          badging="$("$aapt2" dump badging "$apk")"
+          echo "$badging" | grep -E "^(package|sdkVersion|minSdkVersion|targetSdkVersion)" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "$badging" | grep -q "^package: name='monster.gorman.scuba.divingsimulator.dev'"
+          echo "$badging" | grep -Eq "^(sdkVersion|minSdkVersion):'29'$"
+          echo "$badging" | grep -q "^targetSdkVersion:'36'$"
+          if "$aapt2" dump xmltree --file AndroidManifest.xml "$apk" | grep -q usesCleartextTraffic; then
+            echo "::error::the APK's manifest sets usesCleartextTraffic, which only live reload needs."
+            exit 1
+          fi
+
+      # For a reviewer with a device; signed only with the runner's throwaway
+      # debug key, which is neither kept nor uploaded.
+      - name: Upload the debug APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
           retention-days: 7

@@ -12,3 +12,8 @@
 # The exact Node pin, read by actions/setup-node, the dev container and nvm.
 # A CRLF here is a version string with a stray carriage return in it.
 .nvmrc text eol=lf
+
+# The Gradle wrapper runs on the Linux CI runner (#293); a CRLF shebang there is
+# "bad interpreter". gradlew.bat is the Windows one and stays CRLF.
+android/gradlew text eol=lf
+android/gradlew.bat text eol=crlf

@@ -33,7 +33,12 @@ import fs from "node:fs";
 import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
-const distDirectory = path.join(root, "dist");
+// An optional directory replaces dist/: the Android job runs this over the web
+// root unpacked from the APK, so the check holds for the bytes that ship in it,
+// not only for the directory they were copied from (#293).
+const distDirectory = process.argv[2]
+  ? path.resolve(process.argv[2])
+  : path.join(root, "dist");
 
 const FORBIDDEN = [
   {

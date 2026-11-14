@@ -5,7 +5,7 @@
   "description": "A 2D HTML5 Canvas diving simulator implementing the Buhlmann ZHL-16C decompression algorithm with multi-gas, CCR, and a technical wrist dive computer-style HUD.",
   "license": "MIT",
   "engines": {
-    "node": "^20.19.0 || >=22.13.0"
+    "node": ">=22.13.0"
   },
   "scripts": {
     "dev": "vite",
@@ -32,6 +32,9 @@
     "sites:check": "node scripts/generate-site-resources.mjs --check",
     "devcontainer:check": "node scripts/devcontainer-check.mjs",
     "dist:check": "node scripts/dist-check.mjs",
+    "android:sync": "npm run build && npm run dist:check && cap sync android",
+    "android:open": "cap open android",
+    "android:build": "npm run android:sync && node scripts/android-gradle.mjs assembleDebug",
     "prepixi:visual-check": "npm run build",
     "pixi:visual-check": "node scripts/pixi-visual-check.mjs",
     "prepixi:visual-update": "npm run build",
@@ -40,6 +43,7 @@
     "interior:update": "node scripts/interior-optics-check.mjs --update"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.2",
     "@playwright/test": "^1.63.0",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
@@ -58,6 +62,8 @@
     "src/**/*.{js,ts}": "eslint --max-warnings=0"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/core": "^8.6.2",
     "pixi.js": "^8.22.0"
   }
 }
