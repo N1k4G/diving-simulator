@@ -1,4 +1,5 @@
-import { ROUTE_START_POSITION_M, resumedRoutePosition } from "../sites/wreck-route";
+import { ROUTE_START_POSITION_M } from "../sites/wreck-route";
+import { resumedPosition } from "../sites/wreck-site";
 
 /**
  * The game session's snapshot (#137 A4b): what the controller owns beside
@@ -10,10 +11,11 @@ import { ROUTE_START_POSITION_M, resumedRoutePosition } from "../sites/wreck-rou
  *   draws the diver at the model's depth, so there is no view or controlled
  *   depth between steps, and the snapshot carries none: a resumed dive is
  *   drawn where its state is, and nothing restored can move the state.
- * - The route position is the controller's alone; the model never holds
- *   one. It is resumed only where the state's depth is in water
- *   (resumedRoutePosition): the depth decides, and a position it rules out
- *   goes back to the route's start. Only for a save with no position the
+ * - The position along x is the controller's alone; the model never keeps
+ *   one. It is resumed only where the diver fits among the wreck's
+ *   structures at the state's depth and could have swum to (resumedPosition,
+ *   #240): the depth decides, and a position it rules out goes back to the
+ *   route's start. Only for a save with no position the
  *   depth allows does the controller then move the depth, explicitly, to
  *   the start's floor (withinRoute in src/app/game-controller.ts, #206).
  * - Facing and torch are the controller's, and resumed as saved.
@@ -30,7 +32,7 @@ import { ROUTE_START_POSITION_M, resumedRoutePosition } from "../sites/wreck-rou
  * else a payload carries is dropped.
  */
 export interface SessionSnapshot {
-  /** Where on the wreck's route the diver is (#222). */
+  /** Where along the wreck the diver is (#222), among its structures since v22 (#240). */
   readonly routePositionM: number;
   /** The way the diver faces: legacy's `_diverFacing`, right 1, left -1. */
   readonly facing: -1 | 1;
@@ -54,7 +56,7 @@ export function resumedSession(candidate: unknown, depthM: number): SessionSnaps
   const fields: Partial<Record<keyof SessionSnapshot, unknown>> =
     typeof candidate === "object" && candidate !== null ? candidate : {};
   return Object.freeze({
-    routePositionM: resumedRoutePosition(fields.routePositionM, depthM),
+    routePositionM: resumedPosition(fields.routePositionM, depthM),
     facing: fields.facing === -1 || fields.facing === 1 ? fields.facing : START_SESSION.facing,
     torchOn: typeof fields.torchOn === "boolean" ? fields.torchOn : START_SESSION.torchOn,
   });

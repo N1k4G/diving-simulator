@@ -1580,11 +1580,11 @@ describe("SaveGame gradient factors", () => {
       }
     });
 
-    it("keeps the dive and resumes it at the start for a position that is no place on the route", () => {
-      // Not a number; off the route's 8..106 m; inside the hull at the saved
-      // 30 m: the stem, which stands to 24.5 m, and the stern's hull behind
-      // the hold's wall.
-      for (const value of [undefined, null, "50", Number.NaN, Infinity, 7.9, 106.1, 15, 104]) {
+    it("keeps the dive and resumes it at the start for a position that is no place in the wreck (#240)", () => {
+      // Not a number; off the site's -40..200 m; inside a structure at the
+      // saved 30 m: the bow's stem, x 14 to 16, and the stern's transom,
+      // x 168 to 170, both from 28 m down.
+      for (const value of [undefined, null, "50", Number.NaN, Infinity, -40.1, 200.1, 15, 169]) {
         const save = encode(inTheHold(), 50);
         save.session.routePositionM = value;
         const result = decodeSaveGame(JSON.stringify(save));
@@ -1592,22 +1592,26 @@ describe("SaveGame gradient factors", () => {
         if (!result.ok) return;
         expect(result.saveGame.session.routePositionM, String(value)).toBe(10);
       }
-      // Below the hold's floor, 33.5 m, at x 50.
-      const deep = encode(
-        freezeDiveState({ ...inTheHold(), depthM: metres(33.6), maxDepthM: metres(33.6) }),
-        10,
-      );
-      deep.session.routePositionM = 50;
-      const result = decodeSaveGame(JSON.stringify(deep));
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.saveGame.session.routePositionM).toBe(10);
+      // In the vehicle deck's floor, 39 to 40 m, at x 50; and in a cargo
+      // hold sealed behind the full bulkhead at x 56, where the diver fits
+      // but cannot have swum to.
+      for (const [positionM, depthM] of [[50, 39.5], [49.5, 49]] as const) {
+        const deep = encode(
+          freezeDiveState({ ...inTheHold(), depthM: metres(depthM), maxDepthM: metres(depthM) }),
+          10,
+        );
+        deep.session.routePositionM = positionM;
+        const result = decodeSaveGame(JSON.stringify(deep));
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.saveGame.session.routePositionM, `${positionM}, ${depthM}`).toBe(10);
+      }
     });
 
-    it("keeps the route's bounds and the hold's floor and ceiling as places", () => {
-      for (const [positionM, depthM] of [[8, 34], [106, 0], [50, 33.5], [50, 30], [16.5, 33.5]] as const) {
+    it("keeps the site's bounds, the decks the diver rests on and lies under, and the places beside the hull", () => {
+      for (const [positionM, depthM] of [[-40, 0], [200, 66], [50, 38.7], [50, 28.3], [16.45, 33.5], [100, 57]] as const) {
         const save = encode(
-          freezeDiveState({ ...inTheHold(), depthM: metres(depthM), maxDepthM: metres(34) }),
+          freezeDiveState({ ...inTheHold(), depthM: metres(depthM), maxDepthM: metres(66) }),
           positionM,
         );
         const result = decodeSaveGame(JSON.stringify(save));
@@ -1906,15 +1910,15 @@ describe("SaveGame gradient factors", () => {
     });
 
     it("lets the state's depth decide the position, never the reverse", () => {
-      // At 33.6 m x 50 is under the hold's floor: the position goes, the depth stays.
-      const deep = freezeDiveState({ ...inTheHold(), depthM: metres(33.6), maxDepthM: metres(33.6) });
+      // At 39.5 m x 50 is in the vehicle deck's floor: the position goes, the depth stays.
+      const deep = freezeDiveState({ ...inTheHold(), depthM: metres(39.5), maxDepthM: metres(39.5) });
       const save = encode(deep, { ...turned, routePositionM: 10 });
       save.session.routePositionM = 50;
       const result = decodeSaveGame(JSON.stringify(save));
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.saveGame.session).toEqual({ ...turned, routePositionM: 10 });
-      expect(result.saveGame.state.depthM).toBe(33.6);
+      expect(result.saveGame.state.depthM).toBe(39.5);
     });
 
     it("migrates a v18 to v20 save: its position kept, facing right and the torch on, as those clients resumed", () => {

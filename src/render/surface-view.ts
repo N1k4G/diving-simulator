@@ -10,7 +10,8 @@ export interface Rgb {
   readonly b: number;
 }
 
-export const SURFACE_SPAN_M = { left: -60, right: 180 } as const;
+/** The water's surface and the sky over it, past the camera's reach either side (#240). */
+export const SURFACE_SPAN_M = { left: -60, right: 220 } as const;
 export const SKY_TOP_M = -200;
 export const SURFACE_WAVES = [
   // sin(x * 0.02 + t * 2) * 4 px, then sin(x * 0.035 + t * 1.5) * 2 px.

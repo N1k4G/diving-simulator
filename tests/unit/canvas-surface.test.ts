@@ -64,10 +64,10 @@ async function mountedAdapter(): Promise<{ adapter: CanvasReferenceAdapter; call
 }
 
 // 1160 px across shows 58 m, so 20 px a metre, and 600 px down shows 30 m.
-// The diver at the surface, 20 m along the route, faces right: the camera's
-// 8 m lead is held at 29 m by the scene's left bound, and its depth at 9 m by
-// the six metres of sky above the surface. World (x, d) is on screen at
-// ((x - 29) * 20 + 580, (d - 9) * 20 + 300).
+// The diver at the surface, 20 m along the route, faces right: the camera
+// looks 8 m ahead, at 28 m, clear of the site's bound at -40 m (#240), and
+// its depth is held at 9 m by the six metres of sky above the surface. World
+// (x, d) is on screen at ((x - 28) * 20 + 580, (d - 9) * 20 + 300).
 const scene = (elapsedRealS: number): WreckSceneState => ({
   routePositionM: 20,
   diverDepthM: 0,
@@ -78,7 +78,7 @@ const scene = (elapsedRealS: number): WreckSceneState => ({
   shark: null,
 });
 const presentation = {} as PresentationState;
-const screenX = (x: number) => (x - 29) * 20 + 580;
+const screenX = (x: number) => (x - 28) * 20 + 580;
 const screenY = (d: number) => (d - 9) * 20 + 300;
 
 afterEach(() => {
@@ -95,9 +95,9 @@ describe("the canvas comparison renderer's surface (#222)", () => {
     // Each reaches half a metre under the next, so no seam shows between
     // them; what is left of each is Pixi's one-metre band.
     expect(sky).toHaveLength(1 + SKY_BANDS);
-    expect(sky[0]).toEqual(["fillRect", "rgba(196,230,240,1)", screenX(-60), screenY(-200), 240 * 20, 194.5 * 20]);
-    expect(sky[1]).toEqual(["fillRect", "rgba(191,227,238,1)", screenX(-60), screenY(-6), 240 * 20, 1.5 * 20]);
-    expect(sky.at(-1)).toEqual(["fillRect", "rgba(136,192,213,1)", screenX(-60), screenY(-1), 240 * 20, 20]);
+    expect(sky[0]).toEqual(["fillRect", "rgba(196,230,240,1)", screenX(-60), screenY(-200), 280 * 20, 194.5 * 20]);
+    expect(sky[1]).toEqual(["fillRect", "rgba(191,227,238,1)", screenX(-60), screenY(-6), 280 * 20, 1.5 * 20]);
+    expect(sky.at(-1)).toEqual(["fillRect", "rgba(136,192,213,1)", screenX(-60), screenY(-1), 280 * 20, 20]);
     expect(screenY(-6)).toBe(0);
   });
 
@@ -130,11 +130,13 @@ describe("the canvas comparison renderer's surface (#222)", () => {
     adapter.render(presentation, scene(0));
     const fills = calls.filter(([name]) => name === "fill");
 
-    expect(fills.slice(0, 3).map(([, style]) => style)).toEqual([
+    expect(fills.slice(0, 2).map(([, style]) => style)).toEqual([
       "rgba(135,206,235,0.18)",
       "rgba(135,206,235,0.18)",
-      "#30484a",
     ]);
+    // The wreck's structures are filled after both (#240).
+    const firstStructure = calls.findIndex(([name, style]) => name === "fillRect" && style === "#30484a");
+    expect(firstStructure).toBeGreaterThan(calls.indexOf(fills[1]!));
     expect(calls.filter(([name]) => name === "stroke")[0]).toEqual([
       "stroke",
       "rgba(230,248,255,0.35)",

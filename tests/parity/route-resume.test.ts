@@ -19,6 +19,8 @@ import { advanceDiveStep } from "../../src/core/dive-model";
 import { metres, seconds } from "../../src/core/units";
 import { createSaveGame, decodeSaveGame, encodeSaveGame } from "../../src/save/save-game";
 import { routeSpaceNear } from "../../src/sites/wreck-route";
+import { overheadAt } from "../../src/sites/site-collision";
+import { WRECK_SITE } from "../../src/sites/wreck-site";
 
 interface Checkpoint extends LegacyTissueCheckpoint {
   scenarioId: string;
@@ -86,39 +88,11 @@ const wreckCheckpoints = (
 const savable = wreckCheckpoints.filter((checkpoint) => checkpoint.state.gameState === "diving");
 const name = (checkpoint: Checkpoint) => `${checkpoint.scenarioId}/${checkpoint.checkpointId}`;
 
-/**
- * The checkpoints where the migration's own save resumes at the recorded
- * diverX: all in wreck-thirds, at x 50, where legacy's hold and the route's
- * agree.
- */
-const RESUMED_IN_PLACE = [
-  "wreck-thirds/surface",
+/** Under the deck, with a plan legacy's reload would drop. */
+const RESUMED_UNDER_THE_OVERHEAD = [
   "wreck-thirds/outbound-10min",
   "wreck-thirds/turn-20min",
   "wreck-thirds/reserve-28min",
-];
-/** Under the deck, with a plan legacy's reload would drop. */
-const RESUMED_UNDER_THE_OVERHEAD = RESUMED_IN_PLACE.slice(1);
-/**
- * The checkpoints whose diverX is no place on the route (8..106 m): legacy's
- * entry, x 0, and wreck-thirds' way out, x -20.
- */
-const RESUMED_AT_THE_START = [
-  "trimix-45m-20min/surface",
-  "trimix-45m-20min/bottom-20min",
-  "trimix-45m-20min/ascent-21m",
-  "trimix-45m-20min/deco-gas-21m",
-  "tec-switch-21m/surface",
-  "tec-switch-21m/bottom-15min",
-  "tec-switch-21m/ascent-21m",
-  "tec-switch-21m/switched",
-  "tec-switch-21m/deco-gas-3min",
-  "trimix-dcs-above-stop/surface",
-  "trimix-dcs-above-stop/bottom-20min",
-  "trimix-dcs-above-stop/above-stop-30s",
-  "trimix-dcs-surfaced/surface",
-  "trimix-dcs-surfaced/bottom-20min",
-  "wreck-thirds/outside-29min",
 ];
 
 /** The migration's save at a checkpoint, decoded as a reload reads it. */
@@ -175,27 +149,24 @@ describe("a resumed dive's place against legacy's save and restore", () => {
   });
 
   it("names every recorded wreck checkpoint a save can be taken at", () => {
-    expect(savable.map(name).sort()).toEqual([...RESUMED_IN_PLACE, ...RESUMED_AT_THE_START].sort());
+    // Legacy's entry, x 0, wreck-thirds' x 50 in the vehicle deck under the
+    // main deck, and its way out, x -20.
+    expect(savable).toHaveLength(19);
+    expect([...new Set(savable.map((checkpoint) => checkpoint.state.diverX_m || 0))].sort((a, b) => a - b)).toEqual([
+      -20, 0, 50,
+    ]);
   });
 
-  it("resumes the migration's own save at its position where it is on the route, in the overhead where legacy was", () => {
-    for (const checkpoint of savable.filter((entry) => RESUMED_IN_PLACE.includes(name(entry)))) {
+  it("resumes the migration's own save at legacy's diverX, among legacy's structures, in the overhead where legacy was (#240)", () => {
+    for (const checkpoint of savable) {
       const where = name(checkpoint);
       const legacyX = checkpoint.state.diverX_m || 0;
       expect(resumedSave(checkpoint).session.routePositionM, where).toBe(legacyX);
-      expect(routeSpaceNear(legacyX, checkpoint.state.depth_m).inOverhead, where).toBe(
-        checkpoint.state.debrief.inOverhead,
-      );
+      expect(overheadAt(WRECK_SITE, legacyX, checkpoint.state.depth_m), where).toBe(checkpoint.state.debrief.inOverhead);
     }
-  });
-
-  it("departs where the recorded diverX is off the route: the migration's own save resumes at x 10", () => {
-    for (const checkpoint of savable.filter((entry) => RESUMED_AT_THE_START.includes(name(entry)))) {
-      const where = name(checkpoint);
-      const legacyX = checkpoint.state.diverX_m || 0;
-      expect(legacyX, where).not.toBe(ROUTE_START_M);
-      expect(resumedSave(checkpoint).session.routePositionM, where).toBe(ROUTE_START_M);
-    }
+    expect(savable.filter((checkpoint) => checkpoint.state.debrief.inOverhead).map(name)).toEqual(
+      RESUMED_UNDER_THE_OVERHEAD,
+    );
   });
 
   it("departs for every legacy save: it resumes at x 10, where legacy restores its diverX", () => {
@@ -224,11 +195,11 @@ describe("a resumed dive's place against legacy's save and restore", () => {
     for (const checkpoint of savable.filter((entry) => RESUMED_UNDER_THE_OVERHEAD.includes(name(entry)))) {
       const where = name(checkpoint);
       const save = resumedSave(checkpoint);
-      const space = routeSpaceNear(save.session.routePositionM, save.state.depthM);
-      expect(space.inOverhead, where).toBe(true);
+      const inOverhead = overheadAt(WRECK_SITE, save.session.routePositionM, save.state.depthM);
+      expect(inOverhead, where).toBe(true);
       const next = advanceDiveStep(
         save.state,
-        { depthM: metres(checkpoint.state.depth_m), gradientFactorHighPercent: 75, inOverhead: space.inOverhead },
+        { depthM: metres(checkpoint.state.depth_m), gradientFactorHighPercent: 75, inOverhead },
         seconds(1),
       );
       // The independent reference: the plan legacy made on entering, as

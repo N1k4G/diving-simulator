@@ -39,13 +39,9 @@ import { selectWreckZone } from "../render/renderer";
 import { wreckViewAround } from "../render/camera";
 import { PlannerWorkerClient } from "./planner-worker-client";
 import { drawDiveSeed } from "./dive-seed";
-import {
-  OPEN_WATER_FLOOR_M,
-  ROUTE_START_POSITION_M,
-  floorUnder,
-  moveAlongRoute,
-  routeSpaceNear,
-} from "../sites/wreck-route";
+import { ROUTE_START_POSITION_M, floorUnder } from "../sites/wreck-route";
+import { WRECK_MAX_X_M, WRECK_MIN_X_M, WRECK_SITE } from "../sites/wreck-site";
+import { floorAt, overheadAt } from "../sites/site-collision";
 import { siteGameplay } from "../sites/site-resources";
 import { START_SESSION, resumedSession, type SessionSnapshot } from "../save/session-snapshot";
 import {
@@ -642,13 +638,6 @@ export class GameController {
     const timeMultiplier = this.#timeMultiplier();
     const frameDiveS = elapsedS * timeMultiplier;
     if (frameDiveS > 0 && !this.#awaitingDescent) {
-      // The bounds where the diver is (#199): the surface outside the wreck,
-      // the deck inside it. Under the deck is legacy's inOverhead, which
-      // runs the rule of thirds.
-      const space = routeSpaceNear(
-        this.#routePositionM,
-        this.#model.snapshot.depthM,
-      );
       const acts = this.#takeActs();
       const before = this.#model.snapshot;
       if (!isDiveOver(before)) {
@@ -691,23 +680,25 @@ export class GameController {
       const switching =
         !isDiveOver(before) &&
         applyGasSwitchKeys(before, acts.switchGasIndices) !== before;
+      // The diver moves among the wreck's structures as legacy's frame
+      // moves it (#240): the model's physics steps the depth and then the
+      // fins' stroke, and the overhead is where that leaves the diver, which
+      // runs the rule of thirds. The shark sees the diver where it moved to.
       this.#model.advanceWithBuoyancy(
-        space,
+        { site: WRECK_SITE, xM: fromPositionM, displacementM: this.#finStrokeM(controls, elapsedS) },
         seconds(frameDiveS),
         // W or up inflates the BCD, S or down vents it: src/game-loop.js
         // `wActive` / `sActive` before inflateBCD() and ventBCD().
         { inflate: controls.inflate, vent: controls.vent },
-        space.inOverhead,
-        this.#sharkFrame(
-          timeMultiplier,
-          (this.#routePositionM - fromPositionM) / frameDiveS,
-        ),
+        false,
+        (movedM) => this.#sharkFrame(timeMultiplier, fromPositionM + movedM, movedM / frameDiveS),
         elapsedS,
         acts,
         this.#drill,
       );
-      this.#inOverhead = space.inOverhead;
+      this.#routePositionM = this.#model.placeXM ?? fromPositionM;
       const after = this.#model.snapshot;
+      this.#inOverhead = overheadAt(WRECK_SITE, this.#routePositionM, after.depthM);
       // A gas switch ends a fast-forward (src/game-loop.js TASK-019 sets
       // fastForwardActive = false alongside activeTank). The new gas changes
       // the schedule the diver was waiting out, so the sped-up clock stops and
@@ -804,12 +795,21 @@ export class GameController {
     if (facing !== 0 && horizontal === facing) {
       this.#facing = facing < 0 ? -1 : 1;
     }
-    // The hull stops the diver as legacy's structures do (#199).
-    this.#routePositionM = moveAlongRoute(
-      this.#routePositionM,
-      this.#routePositionM + horizontal * FIN_SPEED_MPS * elapsedS,
-      this.#model.snapshot.depthM,
+  }
+
+  /**
+   * How far the fin keys held this frame carry the diver along x, before
+   * the structures have their say: the client's fin speed in real time,
+   * held to the site's reach. The model's physics spreads it over the
+   * frame's sub-steps, where the structures stop it (#240).
+   */
+  #finStrokeM(controls: MovementControls, elapsedS: number): number {
+    const horizontal = (controls.right ? 1 : 0) - (controls.left ? 1 : 0);
+    const toM = Math.min(
+      WRECK_MAX_X_M,
+      Math.max(WRECK_MIN_X_M, this.#routePositionM + horizontal * FIN_SPEED_MPS * elapsedS),
     );
+    return toM - this.#routePositionM;
   }
 
   #torchAvailable(): boolean {
@@ -863,8 +863,7 @@ export class GameController {
    * the edge of legacy's centred view); the route's floor under the shark;
    * and the site's noShark.
    */
-  #sharkFrame(timeMultiplier: number, diverVelocityMps: number): SharkFrame {
-    const positionM = this.#routePositionM;
+  #sharkFrame(timeMultiplier: number, positionM: number, diverVelocityMps: number): SharkFrame {
     const view = wreckViewAround(positionM, this.#facing);
     return {
       timeMultiplier,
@@ -932,8 +931,8 @@ export class GameController {
       elapsedRealS: this.#elapsedRealS,
       facing: this.#facing,
       torchOn: this.#torchOn,
-      // Over the hold but above its deck is open water, not the hold.
-      zone: routeSpaceNear(this.#routePositionM, depthM).inOverhead
+      // Over the wreck but under nothing is open water, not its inside.
+      zone: overheadAt(WRECK_SITE, this.#routePositionM, depthM)
         ? selectWreckZone(this.#routePositionM)
         : "exterior",
       // The model holds the shark relative to the diver (#219).
@@ -1231,13 +1230,13 @@ function hasNotBegun(state: DiveState): boolean {
 }
 
 /**
- * A resumed dive picks up where it was saved (#222) when the saved depth is in
- * water there, and only then away from the route's start. At the start, in
- * open water beside the wreck, the water runs from the surface to the floor,
- * so only a dive saved below the floor, such as a legacy save at 40 m, has to
- * move: to the floor, at rest and neutral there (#198 pre-review). The physics
+ * A resumed dive picks up where it was saved (#222) when the diver fits there
+ * among the wreck's structures (#240), and only then away from the route's
+ * start. At the start, in open water off the bow, the water runs from the
+ * surface to the seabed at 66 m, so only a dive saved below it has to move:
+ * to the seabed, at rest and neutral there (#198 pre-review). The physics
  * would clamp the depth on the first frame but keep the saved BCD gas, so a
- * diver moved up from 40 m would arrive light and rise on its own. At rest and
+ * diver moved up would arrive light and rise on its own. At rest and
  * neutral is how a save without live motion resumes (src/save/save-game.ts,
  * v6).
  */
@@ -1245,7 +1244,7 @@ function withinRoute(state: DiveState, routePositionM: number): DiveState {
   if (routePositionM !== ROUTE_START_POSITION_M) {
     return state;
   }
-  const depthM = Math.min(state.depthM, OPEN_WATER_FLOOR_M);
+  const depthM = Math.min(state.depthM, floorAt(WRECK_SITE, ROUTE_START_POSITION_M));
   if (depthM === state.depthM) {
     return state;
   }

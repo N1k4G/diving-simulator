@@ -90,9 +90,9 @@ describe("the canvas comparison renderer's shark (#246)", () => {
     adapter.render(presentation, scene({ positionM: 26, depthM: 18, direction: -1 }));
     const drawn = sharkCalls(calls);
 
-    // 6 m right of the camera's focus at 29 m, 2 m above the diver; no bob
-    // on the frame it is first drawn.
-    expect(drawn[1]).toEqual(["translate", 520, 260]);
+    // 6 m right of the camera's focus at 28 m (#240), 2 m above the diver;
+    // no bob on the frame it is first drawn.
+    expect(drawn[1]).toEqual(["translate", 540, 260]);
     expect(drawn[2]).toEqual(["scale", -20, 20]);
     // Body, dorsal, tail and pectoral fins, then the eye and its pupil.
     expect(drawn.filter(([name]) => name === "fill").map(([, style]) => style)).toEqual([
@@ -114,13 +114,13 @@ describe("the canvas comparison renderer's shark (#246)", () => {
     calls.length = 0;
     adapter.render(presentation, scene(shark, 10.5));
     const [, translate] = sharkCalls(calls);
-    expect(translate?.[1]).toBe(520);
+    expect(translate?.[1]).toBe(540);
     expect(translate?.[2]).toBeCloseTo(260 + Math.sin(1.5) * SHARK_BOB_M * 20, 9);
     expect(sharkCalls(calls)[2]).toEqual(["scale", 20, 20]);
 
     adapter.render(presentation, scene(null, 11));
     calls.length = 0;
     adapter.render(presentation, scene(shark, 12));
-    expect(sharkCalls(calls)[1]).toEqual(["translate", 520, 260]);
+    expect(sharkCalls(calls)[1]).toEqual(["translate", 540, 260]);
   });
 });

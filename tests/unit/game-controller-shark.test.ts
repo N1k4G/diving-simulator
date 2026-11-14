@@ -23,8 +23,8 @@ import { ROUTE_START_POSITION_M, floorUnder } from "../../src/sites/wreck-route"
 // replayed against legacy in tests/parity/shark-encounter.test.ts.
 
 const FRAME_MS = 20;
-/** The route's start: the camera's bound holds the view 10 m behind, 48 m ahead. */
-const START_VIEW = { leftM: 10, rightM: 48 };
+/** The route's start: the camera leads 8 m, so the view reaches 21 m behind, 37 m ahead (#240). */
+const START_VIEW = { leftM: 21, rightM: 37 };
 
 let queue: FrameRequestCallback[] = [];
 let nowMs = 0;
@@ -113,11 +113,15 @@ function at18(seed: number, encounter: Partial<SharkEncounter> | null, timerS = 
   });
 }
 
-/** The shark's world the controller handed the model on its last frame. */
-function lastSharkFrame(spy: { mock: { calls: unknown[][] } }): SharkFrame {
-  const frame = spy.mock.calls.at(-1)?.[4] as SharkFrame | undefined;
+/**
+ * The shark's world the controller handed the model on its last frame, for
+ * a diver who moved `movedM` in it: the model asks once the diver has moved
+ * (#240).
+ */
+function lastSharkFrame(spy: { mock: { calls: unknown[][] } }, movedM = 0): SharkFrame {
+  const frame = spy.mock.calls.at(-1)?.[4] as ((movedM: number) => SharkFrame) | undefined;
   if (!frame) throw new Error("no shark frame was handed to the model");
-  return frame;
+  return frame(movedM);
 }
 
 describe("the controller hands the model the shark's world (#219 part 2)", () => {
@@ -126,7 +130,7 @@ describe("the controller hands the model the shark's world (#219 part 2)", () =>
     const { controller, frames } = await startController(at18(1, null));
     controller.setControl("right", true);
     step(1);
-    const frame = lastSharkFrame(spy);
+    const frame = lastSharkFrame(spy, 0.1);
     expect(frame.timeMultiplier).toBe(3);
     // 5 m/s for 20 ms of real time is 0.1 m, over 60 ms of dive time.
     const positionM = frames.at(-1)!.scene.routePositionM;
@@ -134,7 +138,7 @@ describe("the controller hands the model the shark's world (#219 part 2)", () =>
     expect(frame.diverVelocityMps).toBeCloseTo(0.1 / 0.06, 9);
     // The view as the camera shows it, its lead and its bound included.
     expect({ leftM: frame.viewLeftM, rightM: frame.viewRightM }).toEqual(wreckViewAround(positionM, 1));
-    expect(frame.viewLeftM).toBeCloseTo(START_VIEW.leftM + 0.1, 12);
+    expect(frame.viewLeftM).toBeCloseTo(START_VIEW.leftM, 12);
     // The floor under the shark, from where the diver is: over the bow's
     // stem 5 m ahead, in open water 20 m behind.
     expect(frame.floorAt(5, 30)).toBe(floorUnder(positionM + 5, 30));
@@ -149,7 +153,7 @@ describe("the controller hands the model the shark's world (#219 part 2)", () =>
     controller.setControl("right", false);
     controller.setControl("left", true);
     step(1);
-    const turned = lastSharkFrame(spy);
+    const turned = lastSharkFrame(spy, -0.1);
     expect(frames.at(-1)!.scene.routePositionM).toBeCloseTo(ROUTE_START_POSITION_M + 40 - 0.1, 9);
     expect(turned.diverVelocityMps).toBeCloseTo(-0.1 / 0.06, 9);
     expect(turned.viewLeftM).toBeCloseTo(37, 9);

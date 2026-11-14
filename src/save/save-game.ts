@@ -183,6 +183,11 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // overhead, out of the light-failure drill's dark (legacyTorchOn). They turn
 // the diver to their horizontalVelocity, as legacy's renderer does on its
 // first frame; they save no facing of their own.
+//
+// Since #240 the diver swims among legacy's wreck structures, and a saved
+// position of any version resumes only where the diver fits and can have
+// swum to (resumedPosition, src/sites/wreck-site.ts). The format is
+// unchanged, so the version is too.
 export const CURRENT_SAVE_GAME_VERSION = 21;
 // Each version's gate names its own number, not CURRENT_SAVE_GAME_VERSION,
 // so a later version does not move it.

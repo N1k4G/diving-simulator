@@ -1,3 +1,5 @@
+import { WRECK_MAX_X_M, WRECK_MIN_X_M, WRECK_SITE } from "../sites/wreck-site";
+
 export interface Point {
   readonly x: number;
   readonly y: number;
@@ -24,13 +26,15 @@ export interface CameraTransform {
 /**
  * What the camera may show. The top is above the surface (#199): the dive
  * starts and ends there, so the view has to reach it, with a band of sky
- * above as legacy draws it.
+ * above as legacy draws it. Across and down, the wreck's site (#240): as far
+ * along x as the diver may swim, and down to the site's deepest, under its
+ * seabed.
  */
 export const WRECK_CAMERA_BOUNDS: Readonly<CameraBounds> = Object.freeze({
-  left: 0,
-  right: 116,
+  left: WRECK_MIN_X_M,
+  right: WRECK_MAX_X_M,
   top: -6,
-  bottom: 40,
+  bottom: WRECK_SITE.maxDepth,
 });
 
 /** The wreck camera shows this many metres across, whatever the viewport. */
@@ -95,11 +99,14 @@ export function createCameraTransform(
       bounds.right - halfWidthM,
       (bounds.left + bounds.right) / 2,
     ),
+    // A view taller than the scene, as a phone's in portrait is, follows the
+    // diver down but never above the sky (#240): held at the scene's middle,
+    // the site's 66 m would sit as low on screen as the instructor panel.
     y: clampFocus(
       requestedFocus.y,
       bounds.top + halfHeightM,
       bounds.bottom - halfHeightM,
-      (bounds.top + bounds.bottom) / 2,
+      Math.max(bounds.top + halfHeightM, requestedFocus.y),
     ),
   });
 

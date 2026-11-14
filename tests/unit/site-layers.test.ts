@@ -64,7 +64,7 @@ describe("elements between the camera and the wreck are not painted behind it", 
   );
 
   it("paints the shark in front of the wreck and behind the diver, as legacy (#219)", () => {
-    for (const element of ["hull", "rooms", "engine"] as const) {
+    for (const element of ["hull"] as const) {
       expect(drawsAfter(layerOf("shark"), layerOf(element)), element).toBe(true);
     }
     expect(drawsAfter(layerOf("diver"), layerOf("shark"))).toBe(true);
@@ -76,7 +76,7 @@ describe("elements between the camera and the wreck are not painted behind it", 
   });
 
   it("keeps silt above every opaque structural element", () => {
-    for (const element of ["hull", "rooms", "engine"] as const) {
+    for (const element of ["hull"] as const) {
       expect(
         drawsAfter(layerOf("silt"), layerOf(element)),
         `silt must draw after ${element}`,

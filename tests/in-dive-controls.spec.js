@@ -524,13 +524,14 @@ test('the torch key and the torch button reach the same state', async ({ page })
  *   17.5 m under the default gradient factors, and decoStop() rounds that up
  *   to 18 m. The diver is parked there neutral and at rest: since #199 the
  *   route is open to the surface, so nothing but buoyancy holds it there.
- * - `onTheFloor`: 4.5 bar puts the stop at 33 m, and the diver lies on the
- *   route's 34 m floor with the 2 L a dive leaves the surface with. The floor
- *   holds it within legacy's 1.5 m of the stop while a vertical key is held.
+ * - `onTheFloor`: 5.0 bar puts the stop at 39 m, and the diver lies on the
+ *   vehicle deck's floor at x 50, its body on the slab at 39 m (#240), with
+ *   the 2 L a dive leaves the surface with. The deck holds it within
+ *   legacy's 1.5 m of the stop while a vertical key is held.
  */
 const DECO_STOPS = Object.freeze({
   midWater: Object.freeze({ depthM: 18, nitrogenBar: 3, bcdGasSurfaceLiters: 9.990465669399928 }),
-  onTheFloor: Object.freeze({ depthM: 34, nitrogenBar: 4.5, bcdGasSurfaceLiters: 2 }),
+  onTheFloor: Object.freeze({ positionM: 50, depthM: 38.7, nitrogenBar: 5, bcdGasSurfaceLiters: 2 }),
 });
 
 /**
@@ -550,7 +551,8 @@ async function startDiveAtDecoStop(page, configure, stop = DECO_STOPS.midWater) 
 
   const saved = await persistedSave(page);
   saved.state.depthM = stop.depthM;
-  saved.state.maxDepthM = 34;
+  saved.state.maxDepthM = Math.max(34, stop.depthM);
+  if (stop.positionM !== undefined) saved.session.routePositionM = stop.positionM;
   saved.state.verticalVelocityMpm = 0;
   saved.state.bcdGasSurfaceLiters = stop.bcdGasSurfaceLiters;
   saved.state.tissues.nitrogenBar = saved.state.tissues.nitrogenBar.map(() => stop.nitrogenBar);
@@ -706,7 +708,7 @@ test.describe('fast-forward', () => {
     await expect(fastForwardIndicator(page)).toBeHidden();
 
     await page.keyboard.up('ArrowDown');
-    // The diver lies on the route's floor, so venting leaves it at the stop
+    // The diver lies on the vehicle deck, so venting leaves it at the stop
     // and the control returns — unpressed. Legacy cleared the flag; only a
     // new press sets it again.
     await expect(fastForwardButton(page)).toBeVisible();
@@ -1385,8 +1387,8 @@ test.describe('gas information', () => {
   /**
    * A German dive in `mode`, resumed at 9 m, neutral, its safety stop paused;
    * with `stop` 'deco' at DECO_STOPS.midWater, under a ceiling; with 'hold'
-   * finned into the cargo hold, under the overhead, as
-   * tests/hud-readouts.spec.js enters it.
+   * finned from the bow visor's opening under the main deck, into the
+   * overhead, as tests/hud-readouts.spec.js enters it (#240).
    */
   async function resumeGermanAtPausedStop(page, mode, stop = 'safety') {
     await page.goto('/dist/');
@@ -1407,11 +1409,12 @@ test.describe('gas information', () => {
     const pressureBar = 1 + 9 / 10;
     if (stop === 'hold') {
       Object.assign(saved.state, {
-        depthM: 21,
-        maxDepthM: Math.max(saved.state.maxDepthM, 21),
+        depthM: 30,
+        maxDepthM: Math.max(saved.state.maxDepthM, 30),
         verticalVelocityMpm: 0,
         bcdGasSurfaceLiters: 5,
       });
+      saved.session.routePositionM = 19;
     } else if (stop === 'deco') {
       Object.assign(saved.state, {
         depthM: DECO_STOPS.midWater.depthM,
