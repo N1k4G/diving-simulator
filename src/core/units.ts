@@ -2,6 +2,9 @@ declare const unitBrand: unique symbol;
 
 type Unit<Name extends string> = number & { readonly [unitBrand]: Name };
 
+/** src/constants.js MAX_DEPTH: the deepest anything can be. */
+export const MAX_DEPTH_M = 300;
+
 export type Bars = Unit<"bars">;
 export type Fraction = Unit<"fraction">;
 export type Litres = Unit<"litres">;

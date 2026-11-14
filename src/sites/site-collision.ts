@@ -7,7 +7,7 @@
 // structures only: features (the wreck's engines, its bow visor) are drawn,
 // never collided with, as in legacy.
 
-import { MAX_DEPTH_M } from "../core/buoyancy";
+import { MAX_DEPTH_M } from "../core/units";
 import type { ProfilePoint, SiteGameplay } from "./site-resources";
 
 /** What collision reads of a site. */

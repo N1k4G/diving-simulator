@@ -37,7 +37,9 @@ import {
   stepVertically,
   type CollisionSite,
 } from "../../src/sites/site-collision";
-import { MAX_DEPTH_M } from "../../src/core/buoyancy";
+import { MAX_DEPTH_M, integrateBuoyancy } from "../../src/core/buoyancy";
+import { createInitialDiveState, freezeDiveState } from "../../src/core/dive-state";
+import { metres } from "../../src/core/units";
 import { SITE_GAMEPLAY } from "../../src/sites/site-resources";
 
 function legacyFunction(source: string, name: string): string {
@@ -349,5 +351,47 @@ describe("the ported site collision against legacy's (#240)", { timeout: 30_000 
     expect(resolution.stopped).toBeGreaterThan(1000);
     const mismatches = [...movement.mismatches, ...resolution.mismatches];
     expect(mismatches.slice(0, 5), `${mismatches.length} mismatches`).toEqual([]);
+  });
+
+  it("runs the model's frame through the wreck as legacy's updateDiving() runs it, for a diver not finning (#240 PR 2)", () => {
+    // src/game-loop.js 427-434: resolveDiverOverlap(), then in sub-steps of
+    // at most 0.1 s updateBuoyancyPhysics() and updateHorizontalPhysics().
+    // Legacy's fins have a velocity of their own that the client's do not
+    // (docs/decisions.md), so the frame is compared where the diver does not
+    // fin: everything else of it, the overlap, the depth's sub-steps and
+    // their stops, is legacy's.
+    const wreck = site("wreck");
+    const frames = tally();
+    const base = createInitialDiveState(240);
+    for (const position of positions(wreck, 4)) {
+      for (const [velocity, bcd] of [[-20, 12], [0, 6], [15, 0]] as const) {
+        for (const frameS of [0.3, 3]) {
+          legacy.setSite("wreck");
+          legacy.place(position.x, position.d, velocity, 0, bcd);
+          const freed = legacy.resolveDiverOverlap();
+          for (let remaining = frameS; remaining > 1e-9; remaining -= Math.min(0.1, remaining)) {
+            legacy.updateBuoyancyPhysics(Math.min(0.1, remaining));
+            legacy.updateHorizontalPhysics(Math.min(0.1, remaining), 0);
+          }
+          const theirs = legacy.diver();
+          const state = freezeDiveState({
+            ...base,
+            depthM: metres(position.d),
+            maxDepthM: metres(position.d),
+            verticalVelocityMpm: velocity,
+            bcdGasSurfaceLiters: bcd,
+          });
+          const ours = integrateBuoyancy(state, { site: wreck, xM: position.x, displacementM: 0 }, frameS);
+          frames.compared += 1;
+          if (freed) frames.stopped += 1;
+          if (!close(ours.depthM, theirs.d) || !close(ours.verticalVelocityMpm, theirs.verticalVelocity) || !close(ours.xM ?? Number.NaN, theirs.x)) {
+            frames.mismatches.push(`(${position.x}, ${position.d}) at ${velocity} m/min for ${frameS} s: ${ours.depthM}/${ours.xM} vs ${theirs.d}/${theirs.x}`);
+          }
+        }
+      }
+    }
+    expect(frames.compared).toBeGreaterThan(20_000);
+    expect(frames.stopped).toBeGreaterThan(500);
+    expect(frames.mismatches.slice(0, 5), `${frames.mismatches.length} mismatches`).toEqual([]);
   });
 });

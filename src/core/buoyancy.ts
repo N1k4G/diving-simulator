@@ -8,7 +8,13 @@
 // (PHYSICS_MAX_SUBSTEP_SEC), so a one-second model step is the same ten
 // sub-steps legacy runs for a one-second tick.
 import { freezeDiveState, type DiveState } from "./dive-state";
-import { bars, litres, type Seconds } from "./units";
+import {
+  moveHorizontally,
+  resolveDiverOverlap,
+  stepVertically,
+  type CollisionSite,
+} from "../sites/site-collision";
+import { MAX_DEPTH_M, bars, litres, type Seconds } from "./units";
 
 /** src/constants.js BUOYANCY_PARAMS, the fields the physics reads. */
 export const BUOYANCY_PARAMS = Object.freeze({
@@ -29,8 +35,7 @@ export const BUOYANCY_PARAMS = Object.freeze({
 
 /** src/constants.js PHYSICS_MAX_SUBSTEP_SEC. */
 export const PHYSICS_MAX_SUBSTEP_S = 0.1;
-/** src/constants.js MAX_DEPTH. */
-export const MAX_DEPTH_M = 300;
+export { MAX_DEPTH_M };
 /**
  * The BCD gas legacy sets when a dive leaves the surface
  * (src/game-loop.js updateSurface: `bcdGasSurfaceLiters = 2.0`).
@@ -151,23 +156,53 @@ export interface BuoyancyResult {
   readonly depthM: number;
   readonly verticalVelocityMpm: number;
   readonly bcdGasSurfaceLiters: number;
+  /** Where along x a frame given a place left the diver. */
+  readonly xM?: number;
 }
 
 /**
- * Integrates `elapsedS` of vertical motion from the state's depth, velocity
- * and BCD gas: legacy's sub-step loop around updateBuoyancyPhysics(), without
- * the per-structure collision sub-stepping, which only applies on sites with
- * solid structures; the bounds stand in for ceilingAt()/floorAt().
+ * Where the diver is among a site's structures (#240): legacy's diverX on its
+ * active site, and how far the diver fins along x this frame.
+ */
+export interface DiverPlace {
+  readonly site: CollisionSite;
+  readonly xM: number;
+  /** The frame's displacement along x, spread over its sub-steps by their length. */
+  readonly displacementM: number;
+}
+
+function isDiverPlace(where: VerticalBounds | DiverPlace): where is DiverPlace {
+  return "site" in where;
+}
+
+/**
+ * Integrates `elapsedS` of motion from the state's depth, velocity and BCD
+ * gas: legacy's sub-step loop around updateBuoyancyPhysics().
+ *
+ * Given bounds, they stand in for ceilingAt()/floorAt() on a site without
+ * structures. Given a place among a site's structures (#240), the frame runs
+ * as legacy's updateDiving() runs it there: resolveDiverOverlap() once, then
+ * in each sub-step updateBuoyancyPhysics(), whose depth sub-steps stop at a
+ * structure, and then updateHorizontalPhysics() at the depth it left
+ * (src/game-loop.js 427–434). The result then carries the diver's x.
  */
 export function integrateBuoyancy(
   state: DiveState,
-  bounds: VerticalBounds,
+  where: VerticalBounds | DiverPlace,
   elapsedS: number,
 ): BuoyancyResult {
   const P = BUOYANCY_PARAMS;
   let depth: number = state.depthM;
   let velocity = state.verticalVelocityMpm;
   let bcd = state.bcdGasSurfaceLiters;
+  const place = isDiverPlace(where) ? where : null;
+  let x = place ? place.xM : 0;
+  if (place) {
+    const freed = resolveDiverOverlap(place.site, x, depth);
+    x = freed.xM;
+    depth = freed.depthM;
+    if (freed.movedVertically) velocity = 0;
+  }
 
   let remaining = elapsedS;
   while (remaining > 1e-9) {
@@ -191,8 +226,19 @@ export function integrateBuoyancy(
     if (velocity < -P.maxAscentRate) velocity = -P.maxAscentRate;
     if (velocity > P.maxDescentRate) velocity = P.maxDescentRate;
 
-    depth += velocity * (dt / 60);
+    if (place) {
+      const step = stepVertically(place.site, x, depth, velocity, dt);
+      depth = step.depthM;
+      velocity = step.verticalVelocityMpm;
+      if (place.displacementM !== 0) {
+        x = moveHorizontally(place.site, x, depth, place.displacementM * (dt / elapsedS)).xM;
+      }
+      remaining -= dt;
+      continue;
+    }
 
+    depth += velocity * (dt / 60);
+    const bounds = where as VerticalBounds;
     if (depth < bounds.ceilingM) {
       depth = bounds.ceilingM;
       if (velocity < 0) velocity = 0;
@@ -211,5 +257,8 @@ export function integrateBuoyancy(
     }
     remaining -= dt;
   }
-  return { depthM: depth, verticalVelocityMpm: velocity, bcdGasSurfaceLiters: bcd };
+  return place
+    ? { depthM: depth, verticalVelocityMpm: velocity, bcdGasSurfaceLiters: bcd, xM: x }
+    : { depthM: depth, verticalVelocityMpm: velocity, bcdGasSurfaceLiters: bcd };
 }
+
