@@ -17,7 +17,11 @@ test('c302 diagnostic', async ({ page }) => {
     return JSON.stringify(out);
   }));
   await startDive(page);
-  await page.waitForTimeout(20000);
+  test.setTimeout(150000);
+  for (let t = 0; t <= 90; t += 5) {
+    console.log('T', t, await page.locator('[data-renderer=pixi] canvas').count(), await page.locator('[data-renderer]').evaluateAll((els) => els.map((e) => e.getAttribute('data-renderer') + ':' + e.childElementCount).join(',')));
+    await page.waitForTimeout(5000);
+  }
   console.log('CANVAS', await page.locator('[data-renderer=pixi] canvas').count());
   console.log('BODY', (await page.locator('body').innerText()).slice(0, 600));
 });
