@@ -1383,8 +1383,9 @@ test.describe('gas information', () => {
   // open page, and on a rebreather the HUD itself, ran into the dock (#258):
   // there the HUD is one column as wide as the screen, and up to 360 px wide
   // or 600 px tall an open page takes the place of the HUD's gas rows.
-  // Measured too: a rebreather at a deco stop, where on linux fonts the open
-  // page reached 2.2 px into a control at 360x640; 375x553, a 375x667 phone
+  // Measured too: a rebreather at a deco stop, its stop row pinned on two
+  // lines (measureLayout), where on linux fonts the open page reached 2.2 px
+  // into a control at 360x640 when it wrapped; 375x553, a 375x667 phone
   // in Safari with its toolbars; and both modes in the wreck's hold, where
   // the rule of thirds adds a row that stays with an open page. Depth and
   // NDL, and the thirds in the hold, stay on screen.
@@ -1439,7 +1440,12 @@ test.describe('gas information', () => {
       });
     }
     await page.goto('/dist/');
-    await page.evaluate(([key, value]) => window.localStorage.setItem(key, value), [SAVE_KEY, JSON.stringify(saved)]);
+    // No hint: on a short screen held upright one takes the place of the
+    // gas rows while it shows (#258), and the HUD is measured at its tallest.
+    await page.evaluate(([key, value]) => {
+      window.localStorage.setItem(key, value);
+      window.localStorage.setItem('diveSim_hintsDone', '1');
+    }, [SAVE_KEY, JSON.stringify(saved)]);
     await page.locator('[data-accept-safety]').click();
     await page.locator('.setup-screen').waitFor();
     await page.locator('[data-resume-continue]').click();
@@ -1456,35 +1462,54 @@ test.describe('gas information', () => {
     }
   }
 
-  /** The least distance from the HUD or an open page to any visible control. */
-  const nearestControl = (page) =>
-    page.evaluate(() => {
-      const shown = (element) => element !== null && element.getClientRects().length > 0;
-      const blocks = [document.querySelector('.wreck-hud'), document.querySelector('[data-gas-info]')]
-        .filter(shown)
-        .map((element) => element.getBoundingClientRect());
-      let nearest = Infinity;
-      for (const control of document.querySelectorAll('.wreck-shell button')) {
-        if (!shown(control)) continue;
-        const c = control.getBoundingClientRect();
-        for (const b of blocks) {
-          nearest = Math.min(nearest, Math.max(c.top - b.bottom, b.top - c.bottom, c.left - b.right, b.left - c.right));
-        }
+  /**
+   * The least distance from the HUD or an open page to any visible control,
+   * which of `names` are shown and topmost at their centre inside the
+   * screen, and the stop row's value's lines. With `pinned`, the stop's
+   * value is broken onto two lines for the measurement, after its "·", and
+   * restored after it, in one task so no frame writes it in between: the
+   * HUD at its tallest at a deco stop, whose row wraps or not as the stop's
+   * numbers tick (#258; on linux fonts it once reached 2.2px into a control
+   * at 360x640, in the runs where it wrapped).
+   */
+  const measureLayout = (page, names, pinned) =>
+    page.evaluate(([wanted, pin]) => {
+      const value = document.querySelector('.wreck-hud [data-hud-metric="safetyStop"] dd');
+      const before = [...value.childNodes];
+      if (pin) {
+        const text = value.textContent;
+        const at = text.indexOf('·') + 1;
+        value.replaceChildren(text.slice(0, at), document.createElement('br'), text.slice(at).trim());
       }
-      return Math.round(nearest * 10) / 10;
-    });
-
-  /** Which of `names` are shown and topmost at their centre, inside the screen. */
-  const readoutsOnScreen = (page, names) =>
-    page.evaluate((wanted) =>
-      wanted.filter((name) => {
-        const row = document.querySelector(`.wreck-hud [data-hud-metric="${name}"]`);
-        if (row === null || row.getClientRects().length === 0) return false;
-        const r = row.getBoundingClientRect();
-        const y = r.top + r.height / 2;
-        if (r.top < 0 || r.bottom > window.innerHeight) return false;
-        return row.contains(document.elementFromPoint(r.left + r.width / 2, y));
-      }), names);
+      try {
+        const shown = (element) => element !== null && element.getClientRects().length > 0;
+        const blocks = [document.querySelector('.wreck-hud'), document.querySelector('[data-gas-info]')]
+          .filter(shown)
+          .map((element) => element.getBoundingClientRect());
+        let nearest = Infinity;
+        for (const control of document.querySelectorAll('.wreck-shell button')) {
+          if (!shown(control)) continue;
+          const c = control.getBoundingClientRect();
+          for (const b of blocks) {
+            nearest = Math.min(nearest, Math.max(c.top - b.bottom, b.top - c.bottom, c.left - b.right, b.left - c.right));
+          }
+        }
+        const readouts = wanted.filter((name) => {
+          const row = document.querySelector(`.wreck-hud [data-hud-metric="${name}"]`);
+          if (row === null || row.getClientRects().length === 0) return false;
+          const r = row.getBoundingClientRect();
+          const y = r.top + r.height / 2;
+          if (r.top < 0 || r.bottom > window.innerHeight) return false;
+          return row.contains(document.elementFromPoint(r.left + r.width / 2, y));
+        });
+        const range = document.createRange();
+        range.selectNodeContents(value);
+        const stopLines = new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top))).size;
+        return { nearest: Math.round(nearest * 10) / 10, readouts, stopLines };
+      } finally {
+        value.replaceChildren(...before);
+      }
+    }, [names, pinned]);
 
   const PLACES = { safety: 'at a paused safety stop', deco: 'at a deco stop', hold: "in the wreck's hold" };
   const CASES = [['rec', 'safety'], ['tec', 'safety'], ['ccr', 'safety'], ['ccr', 'deco'], ['tec', 'hold'], ['ccr', 'hold']];
@@ -1497,10 +1522,13 @@ test.describe('gas information', () => {
         await resumeGermanAtPausedStop(page, mode, stop);
         const measured = {};
         const readouts = {};
+        const stopLines = {};
         const wanted = stop === 'hold' ? ['depth', 'ndl', 'thirds'] : ['depth', 'ndl'];
         const measure = async (label) => {
-          measured[label] = await nearestControl(page);
-          readouts[label] = await readoutsOnScreen(page, wanted);
+          const now = await measureLayout(page, wanted, stop === 'deco');
+          measured[label] = now.nearest;
+          readouts[label] = now.readouts;
+          stopLines[label] = now.stopLines;
         };
         for (const [width, height] of NARROW_SIZES) {
           await page.setViewportSize({ width, height });
@@ -1526,6 +1554,8 @@ test.describe('gas information', () => {
           // Soft, so a failure reports the whole matrix rather than its first case.
           expect.soft(apart, label).toBeGreaterThanOrEqual(8);
           expect.soft(readouts[label], label).toEqual(wanted);
+          // The worst case was measured: the deco stop's row on two lines.
+          if (stop === 'deco') expect.soft(stopLines[label], label).toBe(2);
         }
       });
     });
