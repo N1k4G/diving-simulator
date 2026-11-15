@@ -33,12 +33,12 @@
   //
   // -noble is deliberate: the workflows are pinned to ubuntu-24.04, and the
   // committed linux reference frames were recorded there.
-  "image": "mcr.microsoft.com/playwright:v1.63.0-noble",
+  "image": "mcr.microsoft.com/playwright:v1.65.0-noble",
 
   "containerEnv": {
     // Kept beside the image tag so the two are edited together; asserted
     // against the lockfile on create.
-    "PLAYWRIGHT_IMAGE_VERSION": "1.63.0",
+    "PLAYWRIGHT_IMAGE_VERSION": "1.65.0",
     // The browsers live in the image, not under node_modules.
     "PLAYWRIGHT_BROWSERS_PATH": "/ms-playwright",
     "LANG": "C.UTF-8"
