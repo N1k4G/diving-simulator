@@ -4,8 +4,9 @@ import { describe, expect, it } from "vitest";
 // and restore (docs/decisions.md, deliberate departures). Legacy's own lines
 // are written out here and checked against src/game-loop.js, so the test
 // reads what legacy does rather than what the migration does. Legacy's
-// src/sites.js is loaded as tests/parity/wreck-route.test.ts loads it, to
-// show why a legacy diverX is not placed on the route (#261 pre-review).
+// src/sites.js is loaded from its source for its own overheadAt(), and
+// legacy's diverX resumes on the structures the client ports from it
+// (#240 PR 3b).
 import gameLoopSource from "../../src/game-loop.js?raw";
 import sitesSource from "../../src/sites.js?raw";
 import constantsSource from "../../src/constants.js?raw";
@@ -18,7 +19,6 @@ import {
 import { advanceDiveStep } from "../../src/core/dive-model";
 import { metres, seconds } from "../../src/core/units";
 import { createSaveGame, decodeSaveGame, encodeSaveGame } from "../../src/save/save-game";
-import { routeSpaceNear } from "../../src/sites/wreck-route";
 import { overheadAt } from "../../src/sites/site-collision";
 import { WRECK_SITE } from "../../src/sites/wreck-site";
 
@@ -29,6 +29,9 @@ interface Checkpoint extends LegacyTissueCheckpoint {
     gameState: string;
     diveSite: string;
     diverX_m: number;
+    verticalVelocity_mpm: number;
+    horizontalVelocity_mps: number;
+    bcdGasSurface_l: number;
     debrief: {
       inOverhead: boolean;
       thirdsStartingGas_l: number;
@@ -77,15 +80,14 @@ function legacyFunction(name: string): string {
   return gameLoopSource.slice(start, end);
 }
 
-const wreckCheckpoints = (
+const recordedCheckpoints = (
   baselineFixture.scenarios as unknown as { scenarioId: string; checkpoints: Checkpoint[] }[]
-).flatMap((scenario) =>
-  scenario.checkpoints
-    .filter((checkpoint) => checkpoint.state.diveSite === "wreck")
-    .map((checkpoint) => ({ ...checkpoint, scenarioId: scenario.scenarioId })),
-);
+).flatMap((scenario) => scenario.checkpoints.map((checkpoint) => ({ ...checkpoint, scenarioId: scenario.scenarioId })));
 /** Legacy saves only while 'diving', 'surface' or 'drill'; a game over is cleared. */
-const savable = wreckCheckpoints.filter((checkpoint) => checkpoint.state.gameState === "diving");
+const savableAnywhere = recordedCheckpoints.filter((checkpoint) => checkpoint.state.gameState === "diving");
+const savable = savableAnywhere.filter((checkpoint) => checkpoint.state.diveSite === "wreck");
+/** The recorded checkpoints a save can be taken at on another site: the shore, the cave and the reef. */
+const savableOffTheWreck = savableAnywhere.filter((checkpoint) => checkpoint.state.diveSite !== "wreck");
 const name = (checkpoint: Checkpoint) => `${checkpoint.scenarioId}/${checkpoint.checkpointId}`;
 
 /** Under the deck, with a plan legacy's reload would drop. */
@@ -118,8 +120,13 @@ function legacySave(checkpoint: Checkpoint): Record<string, unknown> {
     gameState: checkpoint.state.gameState,
     diveSite: checkpoint.state.diveSite,
     diverX: checkpoint.state.diverX_m,
+    verticalVelocity: checkpoint.state.verticalVelocity_mpm,
+    horizontalVelocity: checkpoint.state.horizontalVelocity_mps,
+    bcdGasSurfaceLiters: checkpoint.state.bcdGasSurface_l,
     depth: checkpoint.state.depth_m,
-    maxDepth: checkpoint.state.maxDepth_m,
+    // A recording put straight at its depth, with no dive before, holds a
+    // maxDepth of 0; one legacy saves in a dive holds at least the depth.
+    maxDepth: Math.max(checkpoint.state.maxDepth_m, checkpoint.state.depth_m),
     diveTime: checkpoint.state.diveTime_min,
     amvRate: 15,
     po2ViolationTime: 0,
@@ -169,26 +176,60 @@ describe("a resumed dive's place against legacy's save and restore", () => {
     );
   });
 
-  it("departs for every legacy save: it resumes at x 10, where legacy restores its diverX", () => {
+  it("resumes every legacy save at its diverX, as legacy restores it, with the motion it saved (#240 PR 3b)", () => {
     for (const checkpoint of savable) {
       const where = name(checkpoint);
       const legacyX = checkpoint.state.diverX_m || 0;
-      expect(legacyX, where).not.toBe(ROUTE_START_M);
       const imported = decodeSaveGame(JSON.stringify(legacySave(checkpoint)));
       expect(imported.ok, where).toBe(true);
-      expect(imported.ok && imported.saveGame.session.routePositionM, where).toBe(ROUTE_START_M);
+      if (!imported.ok) return;
+      const { session, state } = imported.saveGame;
+      expect(session.routePositionM, where).toBe(legacyX);
+      // Under the overhead exactly where legacy's own overheadAt has it, and recorded it.
+      expect(legacySites.overheadAt(legacyX, checkpoint.state.depth_m), where).toBe(checkpoint.state.debrief.inOverhead);
+      expect(overheadAt(WRECK_SITE, session.routePositionM, state.depthM), where).toBe(
+        legacySites.overheadAt(legacyX, checkpoint.state.depth_m),
+      );
+      expect(state.verticalVelocityMpm, where).toBe(checkpoint.state.verticalVelocity_mpm);
+      expect(state.bcdGasSurfaceLiters, where).toBe(checkpoint.state.bcdGasSurface_l);
     }
+    // x 10, the route's start, is none of them: every place is legacy's own.
+    expect(savable.some((checkpoint) => (checkpoint.state.diverX_m || 0) === ROUTE_START_M)).toBe(false);
   });
 
-  it("has legacy's hull and the route's simplified slice disagree on the overhead, which is why", () => {
-    // Over legacy's main deck at 27 m the water is open; the route's deck
-    // underside is at 24.3 m there. In legacy's accommodation at x 100 the
-    // diver is under its roof; the route is above its own deck there.
-    for (const [x, d] of [[30, 25], [100, 25]] as const) {
-      expect(routeSpaceNear(x, d).inOverhead, `${x}, ${d}`).not.toBe(legacySites.overheadAt(x, d));
+  it("departs for every legacy save of another site: it resumes at x 10, where legacy's own restore gives its diverX", () => {
+    // Legacy restores the site with the x (src/game-loop.js 1674, 1677); the
+    // client plays the wreck alone, where another site's x is no place.
+    // Legacy's own restore line, checked above, run on each save.
+    const legacyRestoredX = new Function("state", `var diverX; ${LEGACY_RESTORES_DIVER_X} return diverX;`) as (
+      state: Record<string, unknown>,
+    ) => number;
+    const bySite = new Map<string, number>();
+    for (const checkpoint of savableOffTheWreck) {
+      bySite.set(checkpoint.state.diveSite, (bySite.get(checkpoint.state.diveSite) ?? 0) + 1);
     }
-    expect(legacySites.overheadAt(30, 25)).toBe(false);
-    expect(legacySites.overheadAt(100, 25)).toBe(true);
+    expect(Object.fromEntries(bySite)).toEqual({ shore: 31, cave: 3, reef: 6 });
+    expect([...new Set(savableOffTheWreck.map((checkpoint) => checkpoint.scenarioId))].sort()).toEqual([
+      "air-18m-30min",
+      "barotrauma-runaway-ascent-30m",
+      "buoyancy-ccr-inflate-12m",
+      "buoyancy-vent-inflate-12m",
+      "ccr-30m-30min",
+      "ccr-bailout-30m",
+      "ccr-setpoint-bailout-30m",
+      "narcosis-air-65m",
+      "shark-encounter-5m",
+    ]);
+    for (const checkpoint of savableOffTheWreck) {
+      const where = `${name(checkpoint)} (${checkpoint.state.diveSite})`;
+      const save = legacySave(checkpoint);
+      expect(legacyRestoredX(save), where).toBe(0);
+      const imported = decodeSaveGame(JSON.stringify(save));
+      expect(imported.ok, where).toBe(true);
+      if (!imported.ok) return;
+      expect(imported.saveGame.session.routePositionM, where).toBe(ROUTE_START_M);
+      expect(imported.saveGame.session.routePositionM, where).not.toBe(legacyRestoredX(save));
+    }
   });
 
   it("departs under the overhead: keeps the plan made on entering, which legacy's reload drops", () => {
