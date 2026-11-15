@@ -304,23 +304,25 @@ test('the rule of thirds is kept under the deck, from the plan made on entering,
   // deck into the overhead.
   await resumeWith(page, inTheBowOpening);
   await expect(hudRow(page, 'thirds')).toBeHidden();
-
+  // Legacy's zone map (#240): the opening is the vehicle deck's, open to the surface.
   const zone = hudValue(page, 'zone');
+  await expect(zone).toHaveText('Vehicle deck');
+
   await page.keyboard.down('d');
-  await expect(zone).toHaveText('Cargo hold', { timeout: 30_000 });
+  await expect(hudRow(page, 'thirds')).toBeVisible({ timeout: 30_000 });
   await page.keyboard.up('d');
-  await expect(hudRow(page, 'thirds')).toBeVisible();
   await expect(hudValue(page, 'thirds')).toHaveText(/^Outbound · \d+%$/);
+  await expect(zone).toHaveText('Vehicle deck');
 
   // Back out the same way: forward from under the deck into the opening,
   // which is open water and not the overhead.
   await page.keyboard.down('a');
-  await expect(zone).toHaveText('Wreck exterior', { timeout: 30_000 });
+  await expect(hudRow(page, 'thirds')).toBeHidden({ timeout: 30_000 });
   await page.keyboard.up('a');
-  await expect(hudRow(page, 'thirds')).toBeHidden();
+  await expect(zone).toHaveText('Vehicle deck');
 });
 
-test('a dive resumed in the cargo hold stays there, under the overhead with the plan it entered on', async ({ page }) => {
+test('a dive resumed on the vehicle deck stays there, under the overhead with the plan it entered on', async ({ page }) => {
   test.setTimeout(120_000);
   // Into the hold as above (#222, #240), then a reload: the save holds the
   // route position, so the resumed diver is still under the deck, and the
@@ -329,8 +331,9 @@ test('a dive resumed in the cargo hold stays there, under the overhead with the 
   await resumeWith(page, inTheBowOpening);
   const zone = hudValue(page, 'zone');
   await page.keyboard.down('d');
-  await expect(zone).toHaveText('Cargo hold', { timeout: 30_000 });
+  await expect(hudRow(page, 'thirds')).toBeVisible({ timeout: 30_000 });
   await page.keyboard.up('d');
+  await expect(zone).toHaveText('Vehicle deck');
   await expect(hudValue(page, 'thirds')).toHaveText(/^Outbound · \d+%$/);
 
   // An autosave taken under the deck, with the plan made on entering.
@@ -355,7 +358,7 @@ test('a dive resumed in the cargo hold stays there, under the overhead with the 
   await resumeSavedDive(page);
   await page.locator('[data-renderer=pixi] canvas').waitFor();
 
-  await expect(zone).toHaveText('Cargo hold');
+  await expect(zone).toHaveText('Vehicle deck');
   await expect(hudRow(page, 'thirds')).toBeVisible();
   await expect(hudValue(page, 'thirds')).toHaveText(/^Outbound · \d+%$/);
   // The resumed dive's own saves: still in the hold, on the same plan.

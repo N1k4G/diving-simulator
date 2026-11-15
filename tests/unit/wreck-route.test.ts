@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { selectWreckZone } from "../../src/render/renderer";
 import { SITE_GAMEPLAY } from "../../src/sites/site-resources";
 import {
   CARGO_HOLD_FROM_M,
@@ -58,7 +57,6 @@ describe("where the diver can be along the wreck route", () => {
 
   it("starts in open water off the bow, clear of the hull", () => {
     expect(ROUTE_START_POSITION_M).toBeLessThan(WRECK_BOW_X_M);
-    expect(selectWreckZone(ROUTE_START_POSITION_M)).toBe("exterior");
   });
 
   it("has the deck above the diver in the cargo hold and the engine room, and open water above the deck", () => {
@@ -90,7 +88,6 @@ describe("where the diver can be along the wreck route", () => {
         floorM: WRECK_HOLD_FLOOR_M,
         inOverhead: true,
       });
-      expect(selectWreckZone(position), `at ${position} m`).toBe("cargo-hold");
     }
     // Ahead of the deck is the bow visor's opening, open to the surface.
     expect(routeSpacesAt(21.9)).toEqual([
@@ -115,7 +112,6 @@ describe("where the diver can be along the wreck route", () => {
       expect(routeSpacesAt(position), `at ${position} m`).toEqual([
         { ceilingM: 0, floorM: WRECK_HOLD_FLOOR_M, inOverhead: false },
       ]);
-      expect(selectWreckZone(position), `at ${position} m`).toBe("exterior");
     }
     // The visor stands on the deck's forward edge, and the diver goes over it.
     expect(routeSpacesAt(22.5)[0]).toEqual({ ceilingM: 0, floorM: WRECK_VISOR.topM, inOverhead: false });
@@ -152,15 +148,6 @@ describe("where the diver can be along the wreck route", () => {
     // On the hold's floor, the wall stops a diver finning aft.
     expect(moveAlongRoute(99.4, 99.5, 33.2)).toBe(99.4);
     expect(moveAlongRoute(101, 101.1, 31.45)).toBe(101);
-  });
-
-  it("is in the overhead exactly where the zone says cargo hold or engine room, up to the stern wall", () => {
-    for (let position = ROUTE_MIN_POSITION_M; position <= WRECK_HOLD_STERN_X_M; position += 0.5) {
-      const inside = routeSpaceNear(position, 30).inOverhead;
-      expect(inside, `at ${position} m`).toBe(selectWreckZone(position) !== "exterior");
-      // Above the deck is never the overhead.
-      expect(routeSpaceNear(position, 5).inOverhead, `at ${position} m`).toBe(false);
-    }
   });
 
   it("interpolates the drawn deck, and holds it level past either end", () => {

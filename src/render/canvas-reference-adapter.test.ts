@@ -63,6 +63,7 @@ const scene = (shark: SceneShark | null, elapsedRealS = 10): WreckSceneState => 
   facing: 1,
   torchOn: false,
   zone: "exterior",
+  inOverhead: false,
   shark,
 });
 const presentation = {} as PresentationState;

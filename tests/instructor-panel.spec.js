@@ -292,11 +292,11 @@ const ROUTE_M = Array.from({ length: 241 }, (_, index) => -40 + index);
 test('the panel stands over no part of the diver wherever the camera leads it, either way it faces, at any depth', async ({ page }) => {
   test.setTimeout(120_000);
   const saved = await savedDive(page, 'rec');
-  // In the cargo hold, where legacy's wreck-thirds recorded x 50 at 32 m (docs/decisions.md, #222).
+  // On the vehicle deck, where legacy's wreck-thirds recorded x 50 at 32 m (docs/decisions.md, #222).
   Object.assign(saved.session, { routePositionM: 50 });
   Object.assign(saved.state, { depthM: 32, maxDepthM: 32, verticalVelocityMpm: 0 });
   await resume(page, saved, { hints: false });
-  await expect(page.locator('.wreck-hud [data-hud-metric="zone"] dd')).toHaveText('Cargo hold');
+  await expect(page.locator('.wreck-hud [data-hud-metric="zone"] dd')).toHaveText('Vehicle deck');
   await page.keyboard.press('l');
   await expect(panel(page)).toBeVisible();
   // Wide screens: every position where the camera's focus is free, x -29 to
