@@ -4,9 +4,8 @@ import { describe, expect, it } from "vitest";
 // and restore (docs/decisions.md, deliberate departures). Legacy's own lines
 // are written out here and checked against src/game-loop.js, so the test
 // reads what legacy does rather than what the migration does. Legacy's
-// src/sites.js is loaded from its source for its own overheadAt(), and
-// legacy's diverX resumes on the structures the client ports from it
-// (#240 PR 3b).
+// src/sites.js is loaded as tests/parity/wreck-route.test.ts loads it, to
+// show why a legacy diverX is not placed on the route (#261 pre-review).
 import gameLoopSource from "../../src/game-loop.js?raw";
 import sitesSource from "../../src/sites.js?raw";
 import constantsSource from "../../src/constants.js?raw";
@@ -19,6 +18,7 @@ import {
 import { advanceDiveStep } from "../../src/core/dive-model";
 import { metres, seconds } from "../../src/core/units";
 import { createSaveGame, decodeSaveGame, encodeSaveGame } from "../../src/save/save-game";
+import { routeSpaceNear } from "../../src/sites/wreck-route";
 import { overheadAt } from "../../src/sites/site-collision";
 import { WRECK_SITE } from "../../src/sites/wreck-site";
 
@@ -29,9 +29,6 @@ interface Checkpoint extends LegacyTissueCheckpoint {
     gameState: string;
     diveSite: string;
     diverX_m: number;
-    verticalVelocity_mpm: number;
-    horizontalVelocity_mps: number;
-    bcdGasSurface_l: number;
     debrief: {
       inOverhead: boolean;
       thirdsStartingGas_l: number;
@@ -121,9 +118,6 @@ function legacySave(checkpoint: Checkpoint): Record<string, unknown> {
     gameState: checkpoint.state.gameState,
     diveSite: checkpoint.state.diveSite,
     diverX: checkpoint.state.diverX_m,
-    verticalVelocity: checkpoint.state.verticalVelocity_mpm,
-    horizontalVelocity: checkpoint.state.horizontalVelocity_mps,
-    bcdGasSurfaceLiters: checkpoint.state.bcdGasSurface_l,
     depth: checkpoint.state.depth_m,
     maxDepth: checkpoint.state.maxDepth_m,
     diveTime: checkpoint.state.diveTime_min,
@@ -175,25 +169,26 @@ describe("a resumed dive's place against legacy's save and restore", () => {
     );
   });
 
-  it("resumes every legacy save at its diverX, as legacy restores it, with the motion it saved (#240 PR 3b)", () => {
+  it("departs for every legacy save: it resumes at x 10, where legacy restores its diverX", () => {
     for (const checkpoint of savable) {
       const where = name(checkpoint);
       const legacyX = checkpoint.state.diverX_m || 0;
+      expect(legacyX, where).not.toBe(ROUTE_START_M);
       const imported = decodeSaveGame(JSON.stringify(legacySave(checkpoint)));
       expect(imported.ok, where).toBe(true);
-      if (!imported.ok) return;
-      const { session, state } = imported.saveGame;
-      expect(session.routePositionM, where).toBe(legacyX);
-      // Under the overhead exactly where legacy's own overheadAt has it, and recorded it.
-      expect(legacySites.overheadAt(legacyX, checkpoint.state.depth_m), where).toBe(checkpoint.state.debrief.inOverhead);
-      expect(overheadAt(WRECK_SITE, session.routePositionM, state.depthM), where).toBe(
-        legacySites.overheadAt(legacyX, checkpoint.state.depth_m),
-      );
-      expect(state.verticalVelocityMpm, where).toBe(checkpoint.state.verticalVelocity_mpm);
-      expect(state.bcdGasSurfaceLiters, where).toBe(checkpoint.state.bcdGasSurface_l);
+      expect(imported.ok && imported.saveGame.session.routePositionM, where).toBe(ROUTE_START_M);
     }
-    // x 10, the route's start, is none of them: every place is legacy's own.
-    expect(savable.some((checkpoint) => (checkpoint.state.diverX_m || 0) === ROUTE_START_M)).toBe(false);
+  });
+
+  it("has legacy's hull and the route's simplified slice disagree on the overhead, which is why", () => {
+    // Over legacy's main deck at 27 m the water is open; the route's deck
+    // underside is at 24.3 m there. In legacy's accommodation at x 100 the
+    // diver is under its roof; the route is above its own deck there.
+    for (const [x, d] of [[30, 25], [100, 25]] as const) {
+      expect(routeSpaceNear(x, d).inOverhead, `${x}, ${d}`).not.toBe(legacySites.overheadAt(x, d));
+    }
+    expect(legacySites.overheadAt(30, 25)).toBe(false);
+    expect(legacySites.overheadAt(100, 25)).toBe(true);
   });
 
   it("departs under the overhead: keeps the plan made on entering, which legacy's reload drops", () => {
