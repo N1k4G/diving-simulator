@@ -42,6 +42,7 @@ import {
   isInSafetyStopBand,
 } from "../core/dive-model";
 import { ROUTE_START_POSITION_M } from "../sites/wreck-route";
+import { resumesAt } from "../sites/wreck-site";
 import { START_SESSION, resumedSession, type SessionSnapshot } from "./session-snapshot";
 import { NO_DRILL, isLoggableDrillOutcome, resumedDrill, type DrillState } from "../core/drills";
 import {
@@ -146,9 +147,9 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // did. A position is kept only where the route has water at the saved
 // depth, which the physics leaves every position it saves at; anything else
 // resumes at the start too (resumedRoutePosition, docs/decisions.md).
-// Legacy saves carry diverX, but on legacy's own hull, whose decks lie at
-// other depths than the route's simplified slice (#240): they resume at the
-// start, as before v18. A dive resumed under the
+// Legacy saves carry diverX: until #240 PR 3b it was on a hull whose decks
+// lay at other depths than the route's simplified slice, and they resumed at
+// the start, as before v18; since then see v22. A dive resumed under the
 // overhead keeps the rule-of-thirds plan it saved, which legacy's reload
 // drops (it saves only thirdsReserveHitThisDive).
 //
@@ -190,8 +191,11 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // rested on, or was held under, the provisional route's floors and deck,
 // which are gone: its BCD and motion would carry it 30 m down or up into a
 // barotrauma failure. An older save under water resumes at rest and neutral
-// at its depth, as a save without live motion resumes (v6), and so does a
-// legacy save, which resumes at the route's start, off the deck it lay on.
+// at its depth, as a save without live motion resumes (v6). A legacy save of
+// the wreck is taken among the same structures, and its diverX resumes as
+// the client's own position does (#240 PR 3b), with the motion it saved; one
+// whose diverX does not resume, or of another site, resumes at the route's
+// start, off whatever it lay on, at rest and neutral.
 export const CURRENT_SAVE_GAME_VERSION = 22;
 // Each version's gate names its own number, not CURRENT_SAVE_GAME_VERSION,
 // so a later version does not move it.
@@ -691,6 +695,14 @@ function migrateLegacyV2(
 
   // The safety stop is checked against the log's below-five latch.
   const log = migrateLegacyLog(candidate, { ccr, tanks: tanks as readonly TankState[] });
+  // Legacy's diverX, saved among the wreck's structures the client ports
+  // (#240 PR 3b), resumes where the client's own position would; a save of
+  // another site, whose x is on that site, does not.
+  const diverX = candidate.diveSite === "wreck" ? candidate.diverX : undefined;
+  const keepsPlace = resumesAt(diverX, candidate.depth as number);
+  // Its saved motion is that of its place: kept there, and at the surface;
+  // under water at the route's start, off what held it, at rest and neutral.
+  const keepsMotion = keepsPlace || !((candidate.depth as number) > 0);
   const state: DiveState = {
     elapsedTimeS:
       ((candidate.diveTime as number) * 60) as DiveState["elapsedTimeS"],
@@ -718,15 +730,13 @@ function migrateLegacyV2(
     narcosisDrift: Number.isFinite(candidate.narcDrift)
       ? (candidate.narcDrift as number)
       : 0,
-    // Legacy saves both since its save-state v2. Under water they held the
-    // diver on its own decks, and it resumes at the route's start, off them
-    // (#240): at rest and neutral there, as an older save of the client's.
+    // Legacy saves both since its save-state v2, for the place it saved.
     verticalVelocityMpm:
-      Number.isFinite(candidate.verticalVelocity) && !((candidate.depth as number) > 0)
+      Number.isFinite(candidate.verticalVelocity) && keepsMotion
         ? (candidate.verticalVelocity as number)
         : 0,
     bcdGasSurfaceLiters:
-      isNonNegativeFinite(candidate.bcdGasSurfaceLiters) && !((candidate.depth as number) > 0)
+      isNonNegativeFinite(candidate.bcdGasSurfaceLiters) && keepsMotion
         ? (candidate.bcdGasSurfaceLiters as number)
         : neutralBcdSurfaceLitres(candidate.depth as number),
     ccr,
@@ -779,22 +789,19 @@ function migrateLegacyV2(
 
   try {
     // The legacy save records its mode, so it is carried over, not inferred.
-    // Its diverX is not (#261 pre-review): restoreDiveState() restores it on
-    // legacy's own hull, whose main deck and accommodation lie at other depths
-    // than the route's simplified slice (#240), so the same x and depth can be
-    // open water in one and under an overhead in the other. A legacy dive
-    // resumes at the route's start until the two structures agree. Its
-    // torchOn is kept where it means the same on the wreck (#137 A4b,
-    // legacyTorchOn); it saves no facing, and its renderer turns the diver to
-    // the saved horizontalVelocity on the first frame (src/renderer.js
-    // 1471-1473), so that is the facing it resumes with.
+    // Its diverX on the wreck resumes where it fits and can have been swum to
+    // (#240 PR 3b, resumesAt); restoreDiveState() restores it unchecked
+    // (`state.diverX || 0`). Its torchOn is kept where it means the same on
+    // the wreck (#137 A4b, legacyTorchOn); it saves no facing, and its
+    // renderer turns the diver to the saved horizontalVelocity on the first
+    // frame (src/renderer.js 1471-1473), so that is the facing it resumes with.
     return createSaveGame(
       state,
       gradientFactors,
       candidate.savedAt,
       candidate.diveMode as SavedDiveMode,
       {
-        routePositionM: ROUTE_START_POSITION_M,
+        routePositionM: keepsPlace ? diverX : ROUTE_START_POSITION_M,
         facing: legacyFacing(candidate.horizontalVelocity),
         torchOn: legacyTorchOn(candidate),
       },

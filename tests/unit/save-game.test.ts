@@ -322,16 +322,23 @@ describe("SaveGame gradient factors", () => {
       }
     });
 
-    it("carries legacy's verticalVelocity and bcdGasSurfaceLiters over at the surface, and under water rests neutral (#240)", () => {
+    it("carries legacy's verticalVelocity and bcdGasSurfaceLiters over at the surface and where its diverX resumes, and elsewhere under water rests neutral (#240)", () => {
       const surfaced = decodeSaveGame(
         JSON.stringify({ ...legacyV2Save(), depth: 0, verticalVelocity: 6.5, bcdGasSurfaceLiters: 9.25 }),
       );
       expect(surfaced.ok && surfaced.saveGame.state.verticalVelocityMpm).toBe(6.5);
       expect(surfaced.ok && surfaced.saveGame.state.bcdGasSurfaceLiters).toBe(9.25);
-      // At 24 m the diver lay on legacy's own decks; it resumes off them.
+      // At 24 m with no place on the wreck, it resumes at the route's start, off what held it.
       const under = decodeSaveGame(JSON.stringify({ ...legacyV2Save(), verticalVelocity: 6.5, bcdGasSurfaceLiters: 9.25 }));
       expect(under.ok && under.saveGame.state.verticalVelocityMpm).toBe(0);
       expect(under.ok && under.saveGame.state.bcdGasSurfaceLiters).toBeCloseTo(neutralBcdSurfaceLitres(24), 12);
+      // In the wreck's accommodation at x 50, where its diverX resumes (#240 PR 3b), as legacy restores it.
+      const placed = decodeSaveGame(
+        JSON.stringify({ ...legacyV2Save(), diveSite: "wreck", diverX: 50, verticalVelocity: 6.5, bcdGasSurfaceLiters: 9.25 }),
+      );
+      expect(placed.ok && placed.saveGame.session.routePositionM).toBe(50);
+      expect(placed.ok && placed.saveGame.state.verticalVelocityMpm).toBe(6.5);
+      expect(placed.ok && placed.saveGame.state.bcdGasSurfaceLiters).toBe(9.25);
     });
   });
 
@@ -1631,17 +1638,35 @@ describe("SaveGame gradient factors", () => {
       }
     });
 
-    it("resumes a legacy save at the route's start, whatever its diverX", () => {
-      // Legacy's diverX is on its own hull, whose decks lie at other depths
-      // than the route's (#261 pre-review): legacyV2Save's 24 m at x 30 is
-      // under the route's deck but open water above legacy's main deck at
-      // 27 m (tests/parity/route-resume.test.ts).
+    it("resumes a legacy save of the wreck at its diverX where the diver fits and can have swum to (#240 PR 3b)", () => {
+      // legacyV2Save is at 24 m: legacy's structures are the client's, so its
+      // diverX resumes as the client's own position does: in the
+      // accommodation under the superstructure's deck at x 50, over the main
+      // deck at x 30, off the bow at legacy's entry, x 0, and at the site's
+      // ends.
+      for (const diverX of [50, 30, 0, -40, 200]) {
+        const result = decodeSaveGame(JSON.stringify({ ...legacyV2Save(), diveSite: "wreck", diverX }));
+        expect(result.ok, String(diverX)).toBe(true);
+        if (!result.ok) return;
+        expect(result.migratedFrom).toBe("legacy-v2");
+        expect(result.saveGame.session.routePositionM, String(diverX)).toBe(diverX);
+      }
+    });
+
+    it("resumes a legacy save at the route's start where its diverX does not resume, or is not the wreck's", () => {
+      // Another site's x, or legacy's default site, 'open'; no diverX, or not
+      // a number; off the site; inside the superstructure's wall at x 40 to
+      // 42 at 24 m; and, at 49 m, in the hold sealed behind the full bulkhead
+      // at x 56.
       for (const carried of [
-        { diveSite: "wreck", diverX: 50 },
-        { diveSite: "wreck", diverX: 30 },
         { diveSite: "reef", diverX: 50 },
         { diverX: 50 },
         { diveSite: "wreck" },
+        { diveSite: "wreck", diverX: "50" },
+        { diveSite: "wreck", diverX: Number.NaN },
+        { diveSite: "wreck", diverX: 200.5 },
+        { diveSite: "wreck", diverX: 41 },
+        { diveSite: "wreck", diverX: 49.5, depth: 49, maxDepth: 49 },
       ]) {
         const result = decodeSaveGame(JSON.stringify({ ...legacyV2Save(), ...carried }));
         expect(result.ok, JSON.stringify(carried)).toBe(true);
@@ -1951,8 +1976,8 @@ describe("SaveGame gradient factors", () => {
       // legacy's structures do not: (1) light, under its deck at x 30,
       // 24.3 m, now open water over the main deck; (2) on its 34 m floor at
       // the start, with the 2 L a dive leaves the surface with; (2b) on its
-      // engine block over the main hatch, x 85, 27.4 m; (3) a legacy save on
-      // its vehicle deck at 38.7 m, which resumes at the route's start.
+      // engine block over the main hatch, x 85, 27.4 m; (3) a legacy save of
+      // the reef at 38.7 m, whose x is not the wreck's, at the route's start.
       const settles = (decoded: ReturnType<typeof decodeSaveGame>, where: string) => {
         expect(decoded.ok, where).toBe(true);
         if (!decoded.ok) return;
@@ -1981,9 +2006,27 @@ describe("SaveGame gradient factors", () => {
         settles(decodeSaveGame(JSON.stringify({ ...save, version: 21 })), `v21 at ${positionM}, ${depthM} m`);
       }
       settles(
-        decodeSaveGame(JSON.stringify({ ...legacyV2Save(), diveSite: "wreck", diverX: 50, depth: 38.7, maxDepth: 38.7, bcdGasSurfaceLiters: 2 })),
-        "legacy on its vehicle deck",
+        decodeSaveGame(JSON.stringify({ ...legacyV2Save(), diveSite: "reef", diverX: 50, depth: 38.7, maxDepth: 38.7, bcdGasSurfaceLiters: 2 })),
+        "legacy of the reef",
       );
+    });
+
+    it("resumes a legacy save on the vehicle deck it lay on, with its motion, and it stays there (#240 PR 3b)", () => {
+      const result = decodeSaveGame(
+        JSON.stringify({ ...legacyV2Save(), diveSite: "wreck", diverX: 50, depth: 38.7, maxDepth: 38.7, bcdGasSurfaceLiters: 2, verticalVelocity: 0 }),
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const { state, session } = result.saveGame;
+      expect(session.routePositionM).toBe(50);
+      expect(state.bcdGasSurfaceLiters).toBe(2);
+      const model = new DiveModel(state);
+      for (let frame = 0; frame < 100; frame += 1) {
+        model.advanceWithBuoyancy({ site: WRECK_SITE, xM: 50, displacementM: 0 }, seconds(0.3), { inflate: false, vent: false });
+      }
+      expect(model.snapshot.failure.reason).toBeNull();
+      // Heavy, held by the vehicle deck's floor at 39 m, as legacy's was.
+      expect(model.snapshot.depthM).toBeCloseTo(38.7, 9);
     });
 
     it("keeps a v22 save's motion: it was taken among legacy's structures", () => {
