@@ -1,14 +1,13 @@
 // The wreck the diver swims through (#240 PR 2): legacy's structures
 // (src/sites/resources/gameplay.json, generated from src/sites.js) under the
 // ported collision (src/sites/site-collision.ts), the x range the diver may
-// swim, and where a resumed dive can be.
+// swim, where a dive starts, and where a resumed dive can be.
 //
 // Renderer-neutral: the controller and the save read it, the renderer draws
 // from the same structures, and it imports neither.
 
 import { ceilingAt, diverOverlapArea, floorAt } from "./site-collision";
 import { siteGameplay, type ProfilePoint, type SiteGameplay } from "./site-resources";
-import { ROUTE_START_POSITION_M } from "./wreck-route";
 
 function requireWreck(): SiteGameplay {
   const wreck = siteGameplay("wreck");
@@ -25,6 +24,17 @@ export const WRECK_SITE: SiteGameplay = requireWreck();
  */
 export const WRECK_MIN_X_M = (WRECK_SITE.floor[0] as ProfilePoint).x;
 export const WRECK_MAX_X_M = (WRECK_SITE.floor[WRECK_SITE.floor.length - 1] as ProfilePoint).x;
+
+/**
+ * Where the client starts a dive: x 10, in open water off the bow, clear of
+ * the stem at x 14. A departure from legacy, whose resetDive() starts every
+ * dive at x 0 (src/state.js 1108; docs/decisions.md, the #240 PR 3c row).
+ * The provisional route of #199 set it, when that route ran from x 8 to 106
+ * and legacy's x 0 was not on it; it moved here when #240 PR 3c retired that
+ * route. A resumed dive picks up where it was saved (resumedPosition), and
+ * here when that is not a place it can resume.
+ */
+export const ROUTE_START_POSITION_M = 10;
 
 /** Whether the diver's body fits at (x, d): inside the site's bounds, touching no more than a structure's edge. */
 export function diverFitsAt(xM: number, depthM: number): boolean {

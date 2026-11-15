@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import gameLoopSource from "../../src/game-loop.js?raw";
 import sitesSource from "../../src/sites.js?raw";
 import constantsSource from "../../src/constants.js?raw";
+import stateSource from "../../src/state.js?raw";
 import baselineFixture from "../fixtures/traces/baseline-v1.json";
 
 import {
@@ -19,8 +20,9 @@ import {
 import { advanceDiveStep } from "../../src/core/dive-model";
 import { metres, seconds } from "../../src/core/units";
 import { createSaveGame, decodeSaveGame, encodeSaveGame } from "../../src/save/save-game";
+import { START_SESSION } from "../../src/save/session-snapshot";
 import { overheadAt } from "../../src/sites/site-collision";
-import { WRECK_SITE } from "../../src/sites/wreck-site";
+import { WRECK_SITE, reachableAt } from "../../src/sites/wreck-site";
 
 interface Checkpoint extends LegacyTissueCheckpoint {
   scenarioId: string;
@@ -251,6 +253,50 @@ describe("a resumed dive's place against legacy's save and restore", () => {
       const legacyPlanL = checkpoint.tanks[0]!.gasRemaining_l;
       expect(legacyPlanL, where).toBeLessThan(checkpoint.state.debrief.thirdsStartingGas_l);
       expect(next.thirds.startingGasL, where).not.toBe(legacyPlanL);
+    }
+  });
+});
+
+/**
+ * Where legacy starts a dive: resetDive() puts the diver at x 0 (src/state.js
+ * 1108), its entry, whatever the site; no legacy code reads the site's
+ * entry.x.
+ */
+const LEGACY_RESETS_DIVER_X = "diverX = 0;";
+
+/** The recorded wreck checkpoints at the start of a dive at legacy's x 0. */
+const FRESH_AT_LEGACY_START = [
+  "trimix-45m-20min/surface",
+  "tec-switch-21m/surface",
+  "trimix-dcs-above-stop/surface",
+  "trimix-dcs-surfaced/surface",
+];
+
+describe("where a fresh dive starts against legacy's resetDive()", () => {
+  it("departs: the client starts a fresh dive at x 10, where legacy's starts at x 0 (#199)", () => {
+    const start = stateSource.indexOf("function resetDive(");
+    const end = stateSource.indexOf("\nfunction ", start + 1);
+    expect(start, "resetDive in src/state.js").toBeGreaterThanOrEqual(0);
+    expect(stateSource.slice(start, end < 0 ? undefined : end)).toContain(LEGACY_RESETS_DIVER_X);
+    const fresh = recordedCheckpoints.filter(
+      (checkpoint) =>
+        checkpoint.state.diveSite === "wreck" && checkpoint.state.diveTime_min === 0 && checkpoint.state.diverX_m === 0,
+    );
+    expect(fresh.map(name)).toEqual(FRESH_AT_LEGACY_START);
+    for (const checkpoint of fresh) {
+      expect(checkpoint.state.depth_m, name(checkpoint)).toBe(0);
+    }
+    // The departure: the client's fresh session starts at x 10, not legacy's 0.
+    expect(START_SESSION.routePositionM).toBe(ROUTE_START_M);
+    expect(START_SESSION.routePositionM).not.toBe(fresh[0]!.state.diverX_m);
+    // In place only: both are open water off the bow, clear of the stem at
+    // x 14, reached from the surface down to the seabed, with nothing overhead.
+    for (const x of [0, ROUTE_START_M]) {
+      for (const depthM of [0, 20, 40, 66]) {
+        expect(reachableAt(x, depthM), `reachable at x ${x}, ${depthM} m`).toBe(true);
+        expect(overheadAt(WRECK_SITE, x, depthM), `overhead at x ${x}, ${depthM} m`).toBe(false);
+        expect(legacySites.overheadAt(x, depthM), `legacy's overhead at x ${x}, ${depthM} m`).toBe(false);
+      }
     }
   });
 });
