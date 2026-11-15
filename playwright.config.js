@@ -1,4 +1,6 @@
+const fs = require('node:fs');
 const os = require('node:os');
+const path = require('node:path');
 const { defineConfig } = require('@playwright/test');
 
 // Playwright's default is one worker per two cores, which on a 14-core machine
@@ -28,6 +30,19 @@ const WORKERS = Math.max(1, Math.min(4, Math.ceil(os.cpus().length / 4)));
 // marked test.fixme for that engine only, with its issue number.
 const CHROMIUM_ONLY = /@chromium-only/;
 
+// #319: on the GPU-less CI runner Firefox gets no WebGL headless, and under
+// Xvfb Pixi's init never settles, so the wreck scene cannot start there. With
+// PLAYWRIGHT_FIREFOX_NO_WEBGL set (pr.yml, Firefox only) the firefox project
+// leaves out every spec file that starts the scene: one that waits for its
+// canvas or drives a dive through the start helpers. Read from the files, so a
+// new spec is sorted without a list to keep. Remove with #319.
+const STARTS_PIXI = /data-renderer=pixi|WaitForCanvas|\b(startDive|startDiveByKeyboard|startDiveByTouch|resumeSavedDive|descendTo|beginDescent)\b/;
+const PIXI_SPECS = fs
+  .readdirSync(path.join(__dirname, 'tests'))
+  .filter((name) => name.endsWith('.spec.js'))
+  .filter((name) => STARTS_PIXI.test(fs.readFileSync(path.join(__dirname, 'tests', name), 'utf8')));
+const FIREFOX_IGNORE = process.env.PLAYWRIGHT_FIREFOX_NO_WEBGL ? PIXI_SPECS : [];
+
 module.exports = defineConfig({
   testDir: './tests',
   testMatch: '**/*.spec.js',
@@ -41,14 +56,7 @@ module.exports = defineConfig({
   reporter: [['list'], ['html', { open: 'never' }]],
   projects: [
     { name: 'chromium', use: { browserName: 'chromium' } },
-    // Headless Firefox on a GPU-less Linux runner refuses WebGL on its
-    // software rasteriser, so the Pixi scene never starts there; Chromium
-    // (SwiftShader) and WebKit draw on theirs without being asked (#302).
-    {
-      name: 'firefox',
-      use: { browserName: 'firefox', launchOptions: { firefoxUserPrefs: { 'webgl.force-enabled': true } } },
-      grepInvert: CHROMIUM_ONLY,
-    },
+    { name: 'firefox', use: { browserName: 'firefox' }, grepInvert: CHROMIUM_ONLY, testIgnore: FIREFOX_IGNORE },
     { name: 'webkit', use: { browserName: 'webkit' }, grepInvert: CHROMIUM_ONLY },
   ],
 });
