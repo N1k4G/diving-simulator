@@ -7,11 +7,11 @@
 //
 // Each column of the site, at an x, is split by the structures standing in
 // it into stretches of water, from the surface (or the site's ceiling) to the
-// floor. The shark is in one of them, and it stays in it as it swims, unless
-// the next column's water at its depth is gone: then it goes over or under
-// what stopped it, into the water there that joins its own (the bow's stem,
-// a superstructure's wall, a bulkhead's door), and where none joins its own
-// (a full bulkhead, the hull's side under a deck) its way on is closed.
+// floor. The shark swims on at its depth, from stretch to stretch, only
+// through water: where a structure stands in its way at its depth (the hull's
+// side, a bulkhead, a deck's end), its way on is closed, and it is never
+// lifted or sunk past one. Its depth changes only as it tracks the diver, and
+// by at most the margin as it keeps clear of the structures above and below.
 //
 // Pure and renderer-neutral, on the structure model of
 // src/sites/site-collision.ts: structures are solid with their edges, as
@@ -71,18 +71,13 @@ function distance(stretch: WaterStretch, d: number): number {
   return d < stretch.bottomM ? stretch.topM - d : d - stretch.bottomM;
 }
 
-/** The stretch nearest d; the shallower of two as near, as legacy's guard only ever lifts. */
+/** The stretch nearest d, to place a shark in; the shallower of two as near, as legacy's guard only ever lifts. */
 function nearest(stretches: readonly WaterStretch[], d: number): WaterStretch | null {
   let best: WaterStretch | null = null;
   for (const stretch of stretches) {
     if (best === null || distance(stretch, d) < distance(best, d)) best = stretch;
   }
   return best;
-}
-
-/** Whether two stretches in neighbouring columns share water. */
-function joins(a: WaterStretch, b: WaterStretch): boolean {
-  return Math.max(a.topM, b.topM) < Math.min(a.bottomM, b.bottomM);
 }
 
 /**
@@ -121,13 +116,12 @@ function columnsBetween(site: CollisionSite, fromX: number, toX: number): number
 
 /**
  * The depths the shark may hold once it has swum from (fromX, fromD) to toX,
- * keeping marginM clear of the structures above and below it; null where its
- * way is closed. Its own water is the stretch at fromX that holds fromD, or
- * the nearest to it where fromD is in none (a shark spawned, or resumed,
- * inside a structure or under the floor). Column by column it keeps to the
- * stretch that holds its depth; where none does, it rises or sinks into the
- * nearest one that joins the stretch it was in, and holds the depth there
- * nearest its own.
+ * keeping marginM clear of the structures above and below it; null where a
+ * structure stands in its way at its depth. Its own water is the stretch at
+ * fromX that holds fromD, or the nearest to it where fromD is in none (a
+ * shark spawned, or resumed, inside a structure or under the floor), where
+ * it is placed. Column by column it keeps to the stretch that holds that
+ * depth.
  */
 export function sharkWaterAt(
   site: CollisionSite,
@@ -138,24 +132,40 @@ export function sharkWaterAt(
 ): SharkWater | null {
   let stretch = nearest(waterStretchesAt(site, fromX), fromD);
   if (stretch === null) return null;
-  let d = holds(stretch, fromD) ? fromD : clampInto(sharkWaterIn(stretch, marginM), fromD);
+  const d = holds(stretch, fromD) ? fromD : clampInto(sharkWaterIn(stretch, marginM), fromD);
   for (const x of columnsBetween(site, fromX, toX)) {
-    const stretches = waterStretchesAt(site, x);
-    const here = stretches.find((candidate) => holds(candidate, d));
-    if (here) {
-      stretch = here;
-      continue;
-    }
-    const from = stretch;
-    const next = nearest(
-      stretches.filter((candidate) => joins(candidate, from)),
-      d,
-    );
-    if (next === null) return null;
-    stretch = next;
-    d = clampInto(sharkWaterIn(next, marginM), d);
+    const here = waterStretchesAt(site, x).find((candidate) => holds(candidate, d));
+    if (!here) return null;
+    stretch = here;
   }
   return sharkWaterIn(stretch, marginM);
+}
+
+/**
+ * Whether open water joins (x1, d1) and (x2, d2): the straight line between
+ * them touches no structure, edges included. The shark reaches the diver
+ * only so, never through a deck or a bulkhead.
+ */
+export function openBetween(site: CollisionSite, x1: number, d1: number, x2: number, d2: number): boolean {
+  return !site.structures.some((w) => {
+    let enter = 0;
+    let leave = 1;
+    for (const [from, along, low, high] of [
+      [x1, x2 - x1, w.x1, w.x2],
+      [d1, d2 - d1, w.dTop, w.dBottom],
+    ] as const) {
+      if (along === 0) {
+        if (from < low || from > high) return false;
+        continue;
+      }
+      const a = (low - from) / along;
+      const b = (high - from) / along;
+      enter = Math.max(enter, Math.min(a, b));
+      leave = Math.min(leave, Math.max(a, b));
+      if (enter > leave) return false;
+    }
+    return true;
+  });
 }
 
 function clampInto(water: SharkWater, d: number): number {

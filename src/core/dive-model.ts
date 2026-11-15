@@ -197,14 +197,21 @@ export interface SharkFrame {
   readonly viewRightM: number;
   /**
    * The depths the shark may hold once it has swum from its offset and
-   * depth to `toOffsetM`, or null where its way on is closed. Legacy's
-   * floor guard holds it SHARK_FLOOR_MARGIN_M above floorAt(shark.x), so
-   * on a site without structures this is 0 down to that; among the wreck's
-   * structures the shark keeps the margin to the nearest structure below
-   * and above it and never swims through one (#219, #240 PR 3b;
-   * sharkWaterAt in src/sites/shark-water.ts).
+   * depth to `toOffsetM`, or null where a structure stands in its way at
+   * its depth. Legacy's floor guard holds it SHARK_FLOOR_MARGIN_M above
+   * floorAt(shark.x), so on a site without structures this is 0 down to
+   * that; among the wreck's structures the shark keeps the margin to the
+   * nearest structure below and above it and never swims through one
+   * (#219, #240 PR 3b; sharkWaterAt in src/sites/shark-water.ts).
    */
   readonly waterAt: (fromOffsetM: number, fromDepthM: number, toOffsetM: number) => SharkWater | null;
+  /**
+   * Whether open water joins the shark, at its offset and depth, and the
+   * diver at theirs: always on a site without structures, as legacy's
+   * contact reads distance alone; among structures, none between them
+   * (openBetween in src/sites/shark-water.ts, #240 PR 3b).
+   */
+  readonly openTo: (offsetM: number, depthM: number, diverDepthM: number) => boolean;
   /** The site's noShark: the timer still rolls, nothing spawns. */
   readonly noShark: boolean;
 }
@@ -839,9 +846,12 @@ export interface SharkStep {
  * the spawn, the swim, the depth tracking and floor guard, contact, and the
  * exit past the view. Legacy draws the spawn roll only while no shark
  * swims, before it reads the site's noShark, then the heading and the depth;
- * contact draws once. An attack leaves the shark where it struck. Where the
- * frame's water closes its way on (#240 PR 3b, a departure: legacy's swims
- * through the structures), it is gone after the swim, with no contact roll.
+ * contact draws once. An attack leaves the shark where it struck.
+ * Departures among structures (#240 PR 3b; legacy's shark swims through
+ * them): where one stands in its way, the shark turns away where it is,
+ * passed, so it rolls no contact, and leaves past the view as legacy's
+ * passed shark does; where it would already have left, it is gone there. It rolls contact
+ * only with open water between it and the diver.
  */
 export function advanceShark(
   shark: SharkState,
@@ -878,8 +888,20 @@ export function advanceShark(
     encounter.offsetM + encounter.direction * encounter.speedMps * (elapsedS / frame.timeMultiplier);
   const water = frame.waterAt(encounter.offsetM, encounter.depthM, offsetM);
   if (water === null) {
-    // Its way on is closed (#240 PR 3b): it turns away and is gone, as past the view.
-    return { shark: { timerS, encounter: null }, attacked: false };
+    // A structure stands in its way (#240 PR 3b). Past the edge where a
+    // shark leaves, 7.5 m beyond the view, it is gone, unseen; nearer, it
+    // turns away where it is, kept clear of the structures there.
+    const here = frame.waterAt(encounter.offsetM, encounter.depthM, encounter.offsetM);
+    const seen =
+      encounter.offsetM >= -(frame.viewLeftM + SHARK_DESPAWN_MARGIN_M) &&
+      encounter.offsetM <= frame.viewRightM + SHARK_DESPAWN_MARGIN_M;
+    if (!seen || here === null) {
+      return { shark: { timerS, encounter: null }, attacked: false };
+    }
+    const depthHereM = Math.min(Math.max(encounter.depthM, here.shallowestM), here.deepestM);
+    const direction = encounter.direction === 1 ? -1 : 1;
+    const turned: SharkEncounter = { ...encounter, depthM: metres(depthHereM), direction, passed: true };
+    return { shark: { timerS, encounter: turned }, attacked: false };
   }
   let depthM: number = encounter.depthM;
   const gapM = diverDepthM - depthM;
@@ -891,7 +913,8 @@ export function advanceShark(
   if (
     !passed &&
     Math.abs(offsetM) < SHARK_CONTACT_ACROSS_M &&
-    Math.abs(depthM - diverDepthM) < SHARK_CONTACT_DEPTH_M
+    Math.abs(depthM - diverDepthM) < SHARK_CONTACT_DEPTH_M &&
+    frame.openTo(offsetM, depthM, diverDepthM)
   ) {
     passed = true;
     if (draw() < SHARK_ATTACK_PROBABILITY) {

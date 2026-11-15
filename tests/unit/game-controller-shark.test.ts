@@ -143,12 +143,17 @@ describe("the controller hands the model the shark's world (#219 part 2)", () =>
     expect(frame.viewLeftM).toBeCloseTo(START_VIEW.leftM, 12);
     // The water the shark swims in among the wreck's structures, from where
     // the diver is (#240 PR 3b): 20 m behind, in open water over the 66 m
-    // seabed; 5 m ahead, met by the bow's side at 30 m, over it; in the crew
-    // deck, its way forward closed by the bow's side.
+    // seabed; 5 m ahead, over the bow's side at 27.9 m, held 0.5 m above it;
+    // at 30 m the side stands in its way, as in the crew deck going forward.
     expect(frame.waterAt(-20, 30, -20)).toEqual(sharkWaterAt(WRECK_SITE, positionM - 20, 30, positionM - 20, 0.5));
     expect(frame.waterAt(-20, 30, -20)).toEqual({ shallowestM: 0, deepestM: 65.5 });
-    expect(frame.waterAt(3, 30, 5)).toEqual({ shallowestM: 0, deepestM: 27.5 });
+    expect(frame.waterAt(3, 27.9, 5)).toEqual({ shallowestM: 0, deepestM: 27.5 });
+    expect(frame.waterAt(3, 30, 5)).toBeNull();
     expect(frame.waterAt(10, 42, 2)).toBeNull();
+    // Open water to the diver at the start, but not under the main deck at x 30.
+    expect(frame.openTo(-3, 30, 30)).toBe(true);
+    expect(frame.openTo(20, 26.5, 26.7)).toBe(true);
+    expect(frame.openTo(20, 28.5, 26.7)).toBe(false);
     expect(frame.noShark).toBe(SITE_GAMEPLAY.wreck?.noShark);
     expect(frame.noShark).toBe(false);
 

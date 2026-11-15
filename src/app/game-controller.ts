@@ -41,7 +41,7 @@ import { wreckViewAround } from "../render/camera";
 import { PlannerWorkerClient } from "./planner-worker-client";
 import { drawDiveSeed } from "./dive-seed";
 import { ROUTE_START_POSITION_M } from "../sites/wreck-route";
-import { sharkWaterAt } from "../sites/shark-water";
+import { openBetween, sharkWaterAt } from "../sites/shark-water";
 import { WRECK_MAX_X_M, WRECK_MIN_X_M, WRECK_SITE } from "../sites/wreck-site";
 import { floorAt, overheadAt } from "../sites/site-collision";
 import { siteGameplay } from "../sites/site-resources";
@@ -870,7 +870,8 @@ export class GameController {
    * either side of the diver, with the camera's lead (owner decision of
    * 2026-10-07: the shark appears just beyond the edge the player sees, not
    * the edge of legacy's centred view); the water the shark swims in among
-   * the wreck's structures (#219, #240 PR 3b); and the site's noShark.
+   * the wreck's structures and whether open water joins it to the diver
+   * (#219, #240 PR 3b); and the site's noShark.
    */
   #sharkFrame(timeMultiplier: number, positionM: number, diverVelocityMps: number): SharkFrame {
     const view = wreckViewAround(positionM, this.#facing);
@@ -881,6 +882,8 @@ export class GameController {
       viewRightM: view.rightM,
       waterAt: (fromOffsetM, fromDepthM, toOffsetM) =>
         sharkWaterAt(WRECK_SITE, positionM + fromOffsetM, fromDepthM, positionM + toOffsetM, SHARK_FLOOR_MARGIN_M),
+      openTo: (offsetM, depthM, diverDepthM) =>
+        openBetween(WRECK_SITE, positionM + offsetM, depthM, positionM, diverDepthM),
       noShark: NO_SHARK,
     };
   }

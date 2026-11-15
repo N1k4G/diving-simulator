@@ -1466,7 +1466,7 @@ describe("SaveGame gradient factors", () => {
       while (nextRandom(seed).value >= 0.33) seed += 1;
       const failed = advanceDiveStep(swimming(seed), {
         depthM: metres(10),
-        shark: { timeMultiplier: 3, diverVelocityMps: 0, viewLeftM: 25, viewRightM: 25, waterAt: () => ({ shallowestM: 0, deepestM: 300 - 0.5 }), noShark: false },
+        shark: { timeMultiplier: 3, diverVelocityMps: 0, viewLeftM: 25, viewRightM: 25, waterAt: () => ({ shallowestM: 0, deepestM: 300 - 0.5 }), openTo: () => true, noShark: false },
       }, seconds(1));
       expect(failed.failure.reason).toBe("shark-attack");
       const decoded = decodeSaveGame(encodeSaveGame(createSaveGame(failed, CONSERVATIVE_FACTORS, 1)));
