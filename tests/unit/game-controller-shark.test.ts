@@ -141,15 +141,18 @@ describe("the controller hands the model the shark's world (#219 part 2)", () =>
     // The view as the camera shows it, its lead and its bound included.
     expect({ leftM: frame.viewLeftM, rightM: frame.viewRightM }).toEqual(wreckViewAround(positionM, 1));
     expect(frame.viewLeftM).toBeCloseTo(START_VIEW.leftM, 12);
-    // The water the shark swims in among the wreck's structures, from where
-    // the diver is (#240 PR 3b): 20 m behind, in open water over the 66 m
-    // seabed; 5 m ahead, over the bow's side at 27.9 m, held 0.5 m above it;
-    // at 30 m the side stands in its way, as in the crew deck going forward.
+    // The open water the shark swims in above the wreck's structures, from
+    // where the diver is (#240 PR 3b): 20 m behind, over the 66 m seabed;
+    // 5 m ahead, over the bow's side at 27.9 m, held 0.5 m above it; at
+    // 30 m the side stands in its way, and its way on is over it; one put
+    // under the main deck at x 30 is held over it.
     expect(frame.waterAt(-20, 30, -20)).toEqual(sharkWaterAt(WRECK_SITE, positionM - 20, 30, positionM - 20, 0.5));
     expect(frame.waterAt(-20, 30, -20)).toEqual({ shallowestM: 0, deepestM: 65.5 });
     expect(frame.waterAt(3, 27.9, 5)).toEqual({ shallowestM: 0, deepestM: 27.5 });
     expect(frame.waterAt(3, 30, 5)).toBeNull();
-    expect(frame.waterAt(10, 42, 2)).toBeNull();
+    expect(frame.wayThroughAt(3, 30, 5)).toBe(27.5);
+    expect(frame.wayThroughAt(-20, 30, -19)).toBeNull();
+    expect(frame.waterAt(20, 33, 20)).toEqual({ shallowestM: 0, deepestM: 26.5 });
     // Open water to the diver at the start, but not under the main deck at x 30.
     expect(frame.openTo(-3, 30, 30)).toBe(true);
     expect(frame.openTo(20, 26.5, 26.7)).toBe(true);

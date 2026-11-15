@@ -5,13 +5,12 @@
 // legacy's structures: the shark holds 0.5 m above the nearest structure
 // below it, and never swims through a deck or a bulkhead.
 //
-// Each column of the site, at an x, is split by the structures standing in
-// it into stretches of water, from the surface (or the site's ceiling) to the
-// floor. The shark swims on at its depth, from stretch to stretch, only
-// through water: where a structure stands in its way at its depth (the hull's
-// side, a bulkhead, a deck's end), its way on is closed, and it is never
-// lifted or sunk past one. Its depth changes only as it tracks the diver, and
-// by at most the margin as it keeps clear of the structures above and below.
+// The shark keeps to the open water: in each column, from the surface (or
+// the site's ceiling) down to the first structure, or to the floor. It is
+// never under a structure, so never in the wreck's overhead, and can always
+// rise to its way on: where a structure stands in its way at its depth, the
+// way on is over it, which the shark rises to where it is. It is never
+// lifted or sunk past a structure.
 //
 // Pure and renderer-neutral, on the structure model of
 // src/sites/site-collision.ts: structures are solid with their edges, as
@@ -19,77 +18,43 @@
 
 import { ceilingAt, floorAt, type CollisionSite } from "./site-collision";
 
-/** A stretch of water in a column: deeper than topM, shallower than bottomM. */
-export interface WaterStretch {
+/** The open water in a column: deeper than topM, the surface's included, and shallower than bottomM. */
+export interface OpenWater {
   readonly topM: number;
   readonly bottomM: number;
-  /** Whether a structure or the site's ceiling closes it above; otherwise it is open to the surface. */
-  readonly roofed: boolean;
 }
 
-/** The depths the shark may hold in a stretch of water. */
+/** The depths the shark may hold. */
 export interface SharkWater {
   readonly shallowestM: number;
   readonly deepestM: number;
 }
 
 /**
- * The stretches of water at x, shallowest first. A structure touching x
- * closes the column from its top to its bottom, its edges included, and
- * structures that meet or overlap close it as one.
+ * The open water at x: from the surface, or the site's ceiling, down to the
+ * top of the first structure touching x, its edges included, or to the
+ * floor; null where a structure closes the column at its top.
  */
-export function waterStretchesAt(site: CollisionSite, x: number): readonly WaterStretch[] {
-  const ceilingM = ceilingAt(site, x);
-  const floorM = floorAt(site, x);
-  const closed = site.structures
-    .filter((w) => x >= w.x1 && x <= w.x2 && w.dBottom > ceilingM && w.dTop < floorM)
-    .map((w) => [w.dTop, w.dBottom] as const)
-    .sort((a, b) => a[0] - b[0]);
-  const stretches: WaterStretch[] = [];
-  let topM = ceilingM;
-  let roofed = ceilingM > 0;
-  for (const [dTop, dBottom] of closed) {
-    if (dTop > topM) {
-      stretches.push({ topM, bottomM: dTop, roofed });
-    }
-    topM = Math.max(topM, dBottom);
-    roofed = true;
+export function openWaterAt(site: CollisionSite, x: number): OpenWater | null {
+  const topM = ceilingAt(site, x);
+  let bottomM = floorAt(site, x);
+  for (const w of site.structures) {
+    if (x >= w.x1 && x <= w.x2 && w.dBottom > topM) bottomM = Math.min(bottomM, w.dTop);
   }
-  if (floorM > topM) {
-    stretches.push({ topM, bottomM: floorM, roofed });
-  }
-  return stretches;
-}
-
-/** Whether depth d is water in the stretch: open at the surface, closed at a structure. */
-function holds(stretch: WaterStretch, d: number): boolean {
-  return (stretch.roofed ? d > stretch.topM : d >= stretch.topM) && d < stretch.bottomM;
-}
-
-function distance(stretch: WaterStretch, d: number): number {
-  if (holds(stretch, d)) return 0;
-  return d < stretch.bottomM ? stretch.topM - d : d - stretch.bottomM;
-}
-
-/** The stretch nearest d, to place a shark in; the shallower of two as near, as legacy's guard only ever lifts. */
-function nearest(stretches: readonly WaterStretch[], d: number): WaterStretch | null {
-  let best: WaterStretch | null = null;
-  for (const stretch of stretches) {
-    if (best === null || distance(stretch, d) < distance(best, d)) best = stretch;
-  }
-  return best;
+  return bottomM > topM ? { topM, bottomM } : null;
 }
 
 /**
- * The depths the shark holds in a stretch: marginM above its floor, and
- * marginM below a structure closing it above. A stretch too thin for both
- * holds it at its middle, so it is never inside a structure.
+ * The depths the shark holds in a column's open water: marginM above the
+ * structure or floor below, and marginM below a ceiling. Where the water is
+ * too thin for both, it holds at its middle, so it is never inside a
+ * structure.
  */
-export function sharkWaterIn(stretch: WaterStretch, marginM: number): SharkWater {
-  const shallowestM = stretch.roofed ? stretch.topM + marginM : stretch.topM;
-  const deepestM = stretch.bottomM - marginM;
+export function sharkWaterIn(water: OpenWater, marginM: number): SharkWater {
+  const shallowestM = water.topM > 0 ? water.topM + marginM : water.topM;
+  const deepestM = water.bottomM - marginM;
   if (shallowestM <= deepestM) return { shallowestM, deepestM };
-  const middleM = (stretch.topM + stretch.bottomM) / 2;
+  const middleM = (water.topM + water.bottomM) / 2;
   return { shallowestM: middleM, deepestM: middleM };
 }
 
@@ -114,14 +79,48 @@ function columnsBetween(site: CollisionSite, fromX: number, toX: number): number
   return columns;
 }
 
+/** Whether depth d is in the open water: at the surface, but not at a ceiling or a structure. */
+function holds(water: OpenWater, d: number): boolean {
+  return (water.topM === 0 ? d >= 0 : d > water.topM) && d < water.bottomM;
+}
+
+interface Way {
+  /** The depth it swims at: fromD, or where it is placed at fromX. */
+  readonly d: number;
+  /** The deepest it could hold in every column from fromX to toX, toX's band last. */
+  readonly deepestM: number;
+  readonly arrival: SharkWater;
+  readonly blocked: boolean;
+}
+
+/**
+ * The shark's way from (fromX, fromD) to toX at its depth. A shark not in
+ * the open water at fromX (spawned, or resumed, inside a structure or under
+ * one, or under the floor) is placed at the nearest depth it may hold there.
+ */
+function wayFrom(site: CollisionSite, fromX: number, fromD: number, toX: number, marginM: number): Way | null {
+  const start = openWaterAt(site, fromX);
+  if (start === null) return null;
+  const startBand = sharkWaterIn(start, marginM);
+  const d = holds(start, fromD)
+    ? fromD : Math.min(Math.max(fromD, startBand.shallowestM), startBand.deepestM);
+  let deepestM = startBand.deepestM;
+  let arrival = startBand;
+  let blocked = false;
+  for (const x of columnsBetween(site, fromX, toX)) {
+    const water = openWaterAt(site, x);
+    if (water === null) return null;
+    arrival = sharkWaterIn(water, marginM);
+    deepestM = Math.min(deepestM, arrival.deepestM);
+    if (!holds(water, d)) blocked = true;
+  }
+  return { d, deepestM, arrival, blocked };
+}
+
 /**
  * The depths the shark may hold once it has swum from (fromX, fromD) to toX,
- * keeping marginM clear of the structures above and below it; null where a
- * structure stands in its way at its depth. Its own water is the stretch at
- * fromX that holds fromD, or the nearest to it where fromD is in none (a
- * shark spawned, or resumed, inside a structure or under the floor), where
- * it is placed. Column by column it keeps to the stretch that holds that
- * depth.
+ * keeping marginM clear of the structures below it; null where a structure
+ * stands in its way at its depth.
  */
 export function sharkWaterAt(
   site: CollisionSite,
@@ -130,15 +129,24 @@ export function sharkWaterAt(
   toX: number,
   marginM: number,
 ): SharkWater | null {
-  let stretch = nearest(waterStretchesAt(site, fromX), fromD);
-  if (stretch === null) return null;
-  const d = holds(stretch, fromD) ? fromD : clampInto(sharkWaterIn(stretch, marginM), fromD);
-  for (const x of columnsBetween(site, fromX, toX)) {
-    const here = waterStretchesAt(site, x).find((candidate) => holds(candidate, d));
-    if (!here) return null;
-    stretch = here;
-  }
-  return sharkWaterIn(stretch, marginM);
+  const way = wayFrom(site, fromX, fromD, toX, marginM);
+  return way !== null && !way.blocked ? way.arrival : null;
+}
+
+/**
+ * Where a structure stands in the shark's way from (fromX, fromD) to toX:
+ * the depth at fromX from which it swims on over it, the deepest it may hold
+ * in every column on the way; null where nothing stands in its way.
+ */
+export function sharkWayThroughAt(
+  site: CollisionSite,
+  fromX: number,
+  fromD: number,
+  toX: number,
+  marginM: number,
+): number | null {
+  const way = wayFrom(site, fromX, fromD, toX, marginM);
+  return way !== null && way.blocked ? way.deepestM : null;
 }
 
 /**
@@ -166,8 +174,4 @@ export function openBetween(site: CollisionSite, x1: number, d1: number, x2: num
     }
     return true;
   });
-}
-
-function clampInto(water: SharkWater, d: number): number {
-  return Math.min(Math.max(d, water.shallowestM), water.deepestM);
 }

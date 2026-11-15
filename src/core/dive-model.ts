@@ -102,6 +102,13 @@ export const SHARK_PASSED_SPEED_MPS = 12;
 export const SHARK_DEPTH_TRACK_MPS = 0.3;
 export const SHARK_DEPTH_DEADBAND_M = 0.1;
 export const SHARK_FLOOR_MARGIN_M = 0.5;
+/**
+ * How far from its position the drawn shark reaches: its tail, 1.5 times
+ * legacy's shark.size of 45 px at 0.05 m a pixel (src/renderer.js,
+ * src/render/shark-view.ts). Beyond the view's edge by more, none of it is
+ * seen (#240 PR 3b).
+ */
+export const SHARK_DRAWN_REACH_M = 1.5 * 45 * 0.05;
 export const SHARK_CONTACT_ACROSS_M = 2;
 export const SHARK_CONTACT_DEPTH_M = 3;
 export const SHARK_ATTACK_PROBABILITY = 0.33;
@@ -200,11 +207,17 @@ export interface SharkFrame {
    * depth to `toOffsetM`, or null where a structure stands in its way at
    * its depth. Legacy's floor guard holds it SHARK_FLOOR_MARGIN_M above
    * floorAt(shark.x), so on a site without structures this is 0 down to
-   * that; among the wreck's structures the shark keeps the margin to the
-   * nearest structure below and above it and never swims through one
-   * (#219, #240 PR 3b; sharkWaterAt in src/sites/shark-water.ts).
+   * that; among the wreck's structures the shark keeps to the open water
+   * above them, the margin over the nearest one below it, and never swims
+   * through one (#219, #240 PR 3b; sharkWaterAt in src/sites/shark-water.ts).
    */
   readonly waterAt: (fromOffsetM: number, fromDepthM: number, toOffsetM: number) => SharkWater | null;
+  /**
+   * Where waterAt is null: the depth at its offset from which the shark
+   * swims on over what stands in its way, or null where it cannot
+   * (sharkWayThroughAt in src/sites/shark-water.ts).
+   */
+  readonly wayThroughAt: (fromOffsetM: number, fromDepthM: number, toOffsetM: number) => number | null;
   /**
    * Whether open water joins the shark, at its offset and depth, and the
    * diver at theirs: always on a site without structures, as legacy's
@@ -848,10 +861,10 @@ export interface SharkStep {
  * swims, before it reads the site's noShark, then the heading and the depth;
  * contact draws once. An attack leaves the shark where it struck.
  * Departures among structures (#240 PR 3b; legacy's shark swims through
- * them): where one stands in its way, the shark turns away where it is,
- * passed, so it rolls no contact, and leaves past the view as legacy's
- * passed shark does; where it would already have left, it is gone there. It rolls contact
- * only with open water between it and the diver.
+ * them): where one stands in its way, a shark yet to pass the diver turns
+ * away where it is, passed, so it rolls no contact, and a passed one rises
+ * over it where it is; where none of it can be seen, it is gone there. It
+ * rolls contact only with open water between it and the diver.
  */
 export function advanceShark(
   shark: SharkState,
@@ -888,20 +901,27 @@ export function advanceShark(
     encounter.offsetM + encounter.direction * encounter.speedMps * (elapsedS / frame.timeMultiplier);
   const water = frame.waterAt(encounter.offsetM, encounter.depthM, offsetM);
   if (water === null) {
-    // A structure stands in its way (#240 PR 3b). Past the edge where a
-    // shark leaves, 7.5 m beyond the view, it is gone, unseen; nearer, it
-    // turns away where it is, kept clear of the structures there.
+    // A structure stands in its way (#240 PR 3b). Where none of the shark
+    // can be seen, it is gone. Where it can, a shark yet to pass the diver
+    // turns away where it is, passed. A passed one, on its way out, holds
+    // where it is and rises at its tracking rate until it clears it.
     const here = frame.waterAt(encounter.offsetM, encounter.depthM, encounter.offsetM);
     const seen =
-      encounter.offsetM >= -(frame.viewLeftM + SHARK_DESPAWN_MARGIN_M) &&
-      encounter.offsetM <= frame.viewRightM + SHARK_DESPAWN_MARGIN_M;
+      encounter.offsetM >= -(frame.viewLeftM + SHARK_DRAWN_REACH_M) &&
+      encounter.offsetM <= frame.viewRightM + SHARK_DRAWN_REACH_M;
     if (!seen || here === null) {
       return { shark: { timerS, encounter: null }, attacked: false };
     }
-    const depthHereM = Math.min(Math.max(encounter.depthM, here.shallowestM), here.deepestM);
-    const direction = encounter.direction === 1 ? -1 : 1;
-    const turned: SharkEncounter = { ...encounter, depthM: metres(depthHereM), direction, passed: true };
-    return { shark: { timerS, encounter: turned }, attacked: false };
+    const heldM = Math.min(Math.max(encounter.depthM, here.shallowestM), here.deepestM);
+    const throughM = encounter.passed ? frame.wayThroughAt(encounter.offsetM, encounter.depthM, offsetM) : null;
+    if (throughM === null) {
+      const direction = encounter.direction === 1 ? -1 : 1;
+      const turned: SharkEncounter = { ...encounter, depthM: metres(heldM), direction, passed: true };
+      return { shark: { timerS, encounter: turned }, attacked: false };
+    }
+    const reachM = SHARK_DEPTH_TRACK_MPS * elapsedS;
+    const seekingM = heldM + Math.max(-reachM, Math.min(reachM, throughM - heldM));
+    return { shark: { timerS, encounter: { ...encounter, depthM: metres(seekingM) } }, attacked: false };
   }
   let depthM: number = encounter.depthM;
   const gapM = diverDepthM - depthM;

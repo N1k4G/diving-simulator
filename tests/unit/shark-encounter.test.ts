@@ -35,6 +35,7 @@ const FRAME: SharkFrame = {
   viewRightM: 25,
   waterAt: () => openWater(300),
   openTo: () => true,
+  wayThroughAt: () => null,
   noShark: false,
 };
 
@@ -198,7 +199,7 @@ describe("the shark encounter", () => {
     expect(stepWith(shark({ offsetM: -20, depthM: metres(28.6) }), [], 10, 1, roofed).shark.encounter!.depthM).toBe(28.5);
   });
 
-  it("turns away where a structure stands in its way, with no contact roll, and is gone there where it would have left (#240 PR 3b)", () => {
+  it("turns away where a structure stands in its way, with no contact roll, and is gone there where none of it can be seen (#240 PR 3b)", () => {
     // Water where it is, 0.5 m over a floor at 10.5 m; none where it swims to.
     const closed = {
       ...FRAME,
@@ -212,13 +213,34 @@ describe("the shark encounter", () => {
       shark: { timerS: 29, encounter: { offsetM: -1, depthM: 10, direction: -1, speedMps: SHARK_SPEED_MPS, passed: true } },
       attacked: false,
     });
-    // 7.5 m beyond the view's edge, where it leaves, it is gone; nearer it turns.
-    expect(stepWith(shark({ offsetM: -32.6 }), [], 10, 1, closed)).toEqual({ shark: { timerS: 29, encounter: null }, attacked: false });
-    expect(stepWith(shark({ offsetM: -32.4 }), [], 10, 1, closed).shark.encounter).toMatchObject({ direction: -1 });
-    // A spawn into closed water, 5 m beyond the view: turned, and gone 5 m on.
-    const spawned = stepWith(shark(null, 1), [0.004, 0.2, 0.75], 10, 1, closed).shark;
-    expect(spawned.encounter).toMatchObject({ offsetM: -30, direction: -1, passed: true });
-    expect(stepWith(spawned, [], 10, 2, { ...FRAME, waterAt: () => openWater(10.5) }).shark.encounter).toBeNull();
+    // Beyond the view's 25 m by more than the drawn shark reaches, 3.375 m,
+    // none of it is seen and it is gone; nearer it turns.
+    expect(stepWith(shark({ offsetM: -28.4 }), [], 10, 1, closed)).toEqual({ shark: { timerS: 29, encounter: null }, attacked: false });
+    expect(stepWith(shark({ offsetM: -28.3 }), [], 10, 1, closed).shark.encounter).toMatchObject({ direction: -1 });
+    // A spawn into closed water, 5 m beyond the view, unseen: gone.
+    expect(stepWith(shark(null, 1), [0.004, 0.2, 0.75], 10, 1, closed).shark.encounter).toBeNull();
+  });
+
+  it("holds a passed shark where it is and takes it to the depth its way on opens at, turning only where none does (#240 PR 3b)", () => {
+    // Its way opens at 12 m, a door: from 10 m it sinks 0.3 m a dive second where it is, never past.
+    const door = {
+      ...FRAME,
+      waterAt: (fromOffsetM: number, fromDepthM: number, toOffsetM: number) =>
+        toOffsetM === fromOffsetM || fromDepthM === 12 ? openWater(20) : null,
+      wayThroughAt: () => 12,
+    };
+    const seeking = stepWith(shark({ offsetM: 3, passed: true }), [], 10, 1, door).shark.encounter!;
+    expect(seeking).toMatchObject({ offsetM: 3, direction: 1, passed: true });
+    expect(seeking.depthM).toBeCloseTo(10.3, 12);
+    const there = stepWith(shark({ offsetM: 3, depthM: metres(11.9), passed: true }), [], 10, 1, door).shark.encounter!;
+    expect(there.depthM).toBe(12);
+    // At 12 m it swims on.
+    expect(stepWith(shark({ offsetM: 3, depthM: metres(12), passed: true }), [], 12, 1, door).shark.encounter!.offsetM).toBeCloseTo(5.5, 12);
+    // Its way closed, it turns again, still passed.
+    const closed = { ...door, wayThroughAt: () => null };
+    expect(stepWith(shark({ offsetM: 3, passed: true }), [], 10, 1, closed).shark.encounter).toMatchObject({ offsetM: 3, direction: -1 });
+    // One yet to pass the diver turns, and never seeks.
+    expect(stepWith(shark({ offsetM: -3 }), [], 10, 1, door).shark.encounter).toMatchObject({ offsetM: -3, direction: -1, passed: true, depthM: 10 });
   });
 
   it("rolls contact only with open water between it and the diver (#240 PR 3b)", () => {

@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 // floorAt() and solidAt().
 import legacySitesSource from "../../src/sites.js?raw";
 import baselineFixture from "../fixtures/traces/baseline-v1.json";
-import { openBetween, sharkWaterAt } from "../../src/sites/shark-water";
-import { WRECK_SITE } from "../../src/sites/wreck-site";
+import { openBetween, sharkWaterAt, sharkWayThroughAt } from "../../src/sites/shark-water";
+import { WRECK_SITE, reachableAt } from "../../src/sites/wreck-site";
 import { wreckViewAround } from "../../src/render/camera";
 import {
   diveStateFromLegacyCheckpoint,
@@ -60,6 +60,7 @@ const FRAME: SharkFrame = {
   viewRightM: 1000 * (1 - 0.5) * 0.05,
   waterAt: () => ({ shallowestM: 0, deepestM: 300 - 0.5 }),
   openTo: () => true,
+  wayThroughAt: () => null,
   noShark: false,
 };
 
@@ -216,21 +217,22 @@ const LED_FRAME: SharkFrame = { ...FRAME, viewLeftM: LED_VIEW.leftM, viewRightM:
 
 /**
  * The shark's water among legacy's structures (#219, #240 PR 3b; owner
- * decision of 2026-11-15): it holds 0.5 m above the nearest structure below
- * it and below the nearest above it. Legacy's shark reads floorAt(), the
+ * decision of 2026-11-15): the open water above the wreck, 0.5 m above the
+ * first structure below the surface. Legacy's shark reads floorAt(), the
  * wreck's seabed at 66 m from x -40 to 200 (src/sites.js), and swims through
- * its structures. Named places, with the depths the client holds there,
- * from legacy's structures: off the bow; in the vehicle deck under the main
- * deck at x 50; in the crew deck there; in the main hatch, x 78 to 92, under
- * the superstructure's deck at 19 m and over the hull's bottom at 65 m; met
- * by the bow's side, x 14 to 16, at 30 m.
+ * its structures. Named places, with the deepest the client holds there,
+ * whatever depth a shark is put at: off the bow; over the bow's side, x 14
+ * to 16, from 28 m; in the bow visor's opening over the vehicle deck at
+ * 39 m; over the main deck at 27 m; over the superstructure at 22 m; over
+ * the funnel at 14 m, in the main hatch's columns.
  */
-const STRUCTURE_WATER: readonly { x: number; depthM: number; shallowestM: number; deepestM: number; where: string }[] = [
-  { x: 0, depthM: 30, shallowestM: 0, deepestM: 65.5, where: "off the bow" },
-  { x: 50, depthM: 33, shallowestM: 28.5, deepestM: 38.5, where: "in the vehicle deck" },
-  { x: 50, depthM: 42, shallowestM: 40.5, deepestM: 44.5, where: "in the crew deck" },
-  { x: 85, depthM: 50, shallowestM: 19.5, deepestM: 64.5, where: "in the main hatch" },
-  { x: 15, depthM: 30, shallowestM: 0, deepestM: 27.5, where: "over the bow's side" },
+const STRUCTURE_WATER: readonly { x: number; depthM: number; deepestM: number; where: string }[] = [
+  { x: 0, depthM: 30, deepestM: 65.5, where: "off the bow" },
+  { x: 15, depthM: 30, deepestM: 27.5, where: "over the bow's side" },
+  { x: 19, depthM: 30, deepestM: 38.5, where: "in the bow visor's opening" },
+  { x: 30, depthM: 33, deepestM: 26.5, where: "over the main deck" },
+  { x: 50, depthM: 42, deepestM: 21.5, where: "over the superstructure" },
+  { x: 85, depthM: 50, deepestM: 13.5, where: "over the funnel" },
 ];
 /** The shallowest structure of legacy's wreck: its mast's top, 10 m at x 75 to 76. */
 const SHALLOWEST_STRUCTURE_M = 10;
@@ -245,17 +247,20 @@ return { floorAt: floorAt, solidAt: solidAt };`,
 )(300) as { floorAt(x: number): number; solidAt(x: number, d: number): boolean };
 
 /** The shark's water and its reach to the diver among legacy's structures, for a diver at diverX. */
-function amongTheStructures(diverX: number): Pick<SharkFrame, "waterAt" | "openTo"> {
+function amongTheStructures(diverX: number): Pick<SharkFrame, "waterAt" | "wayThroughAt" | "openTo"> {
   return {
     waterAt: (fromOffsetM, fromDepthM, toOffsetM) =>
       sharkWaterAt(WRECK_SITE, diverX + fromOffsetM, fromDepthM, diverX + toOffsetM, FLOOR_MARGIN_M),
+    wayThroughAt: (fromOffsetM, fromDepthM, toOffsetM) =>
+      sharkWayThroughAt(WRECK_SITE, diverX + fromOffsetM, fromDepthM, diverX + toOffsetM, FLOOR_MARGIN_M),
     openTo: (offsetM, depthM, diverDepthM) => openBetween(WRECK_SITE, diverX + offsetM, depthM, diverX, diverDepthM),
   };
 }
 
 /** Legacy's: its floor guard over its floorAt(shark.x), and contact on distance alone. */
-function overTheSeabed(diverX: number): Pick<SharkFrame, "waterAt" | "openTo"> {
+function overTheSeabed(diverX: number): Pick<SharkFrame, "waterAt" | "wayThroughAt" | "openTo"> {
   return {
+    wayThroughAt: () => null,
     waterAt: (_fromOffsetM, _fromDepthM, toOffsetM) => ({
       shallowestM: 0,
       deepestM: legacySites.floorAt(diverX + toOffsetM) - FLOOR_MARGIN_M,
@@ -272,7 +277,7 @@ function overTheSeabed(diverX: number): Pick<SharkFrame, "waterAt" | "openTo"> {
 function swimBy(
   diverDepthM: number,
   encounter: NonNullable<SharkState["encounter"]>,
-  world: Pick<SharkFrame, "waterAt" | "openTo">,
+  world: Pick<SharkFrame, "waterAt" | "wayThroughAt" | "openTo">,
   steps: number,
 ): { sharks: (SharkState["encounter"])[]; draws: number } {
   let shark: SharkState = { timerS: seconds(1e6), encounter };
@@ -338,23 +343,20 @@ describe("the client's departures from legacy's shark (#219 part 2)", () => {
     expect(struck.encounter).toMatchObject({ direction: 1, speedMps: 7.5, passed: true });
   });
 
-  it("keeps the shark between the structures above and below it, where legacy's swims over its 66 m seabed", () => {
+  it("keeps the shark in the open water 0.5 m above the wreck, where legacy's swims over its 66 m seabed", () => {
     const water = (x: number, depthM: number) => sharkWaterAt(WRECK_SITE, x, depthM, x, FLOOR_MARGIN_M);
-    for (const { x, depthM, shallowestM, deepestM, where } of STRUCTURE_WATER) {
-      expect(water(x, depthM), where).toEqual({ shallowestM, deepestM });
+    for (const { x, depthM, deepestM, where } of STRUCTURE_WATER) {
+      expect(water(x, depthM), where).toEqual({ shallowestM: 0, deepestM });
       expect(legacySites.floorAt(x), where).toBe(66);
-      // Legacy has a structure 0.5 m below the deepest depth, or its seabed,
-      // and one 0.5 m above the shallowest where that is not the surface.
+      // Legacy has no structure from the surface to 0.5 m below the deepest
+      // depth, and one there, or its seabed.
+      for (let d = 0; d < deepestM + FLOOR_MARGIN_M; d += 0.05) expect(legacySites.solidAt(x, d), `${where}, ${d}`).toBe(false);
       const onTheSeabed = deepestM + FLOOR_MARGIN_M === legacySites.floorAt(x);
       expect(onTheSeabed || legacySites.solidAt(x, deepestM + FLOOR_MARGIN_M), where).toBe(true);
-      if (shallowestM > 0) expect(legacySites.solidAt(x, shallowestM - FLOOR_MARGIN_M), where).toBe(true);
     }
-    // Legacy's bow is solid at 30 m, and its shark's floor guard does not read it.
-    expect(legacySites.solidAt(15, 30)).toBe(true);
     // Where it changes the depth: a shark at 27.9 m crossing the bow's side
-    // is held 0.5 m above its top at 28 m; one in the vehicle deck is held
-    // under the main deck tracking a diver above it, and over the vehicle
-    // deck's floor tracking one below it. Legacy's floor guard holds none.
+    // is held 0.5 m above its top at 28 m; over the main deck it is held
+    // above it tracking a diver under it. Legacy's floor guard holds neither.
     const deep = (fromX: number, toX: number, depthM: number, diverDepthM: number, waterAt: SharkFrame["waterAt"]) =>
       advanceShark(
         {
@@ -372,33 +374,25 @@ describe("the client's departures from legacy's shark (#219 part 2)", () => {
         seconds(1),
         () => 0.5,
       ).shark.encounter!.depthM;
-    const fromStructures: SharkFrame["waterAt"] = (fromOffsetM, fromDepthM, toOffsetM) =>
-      sharkWaterAt(WRECK_SITE, 10 + fromOffsetM, fromDepthM, 10 + toOffsetM, FLOOR_MARGIN_M);
-    const fromSeabed: SharkFrame["waterAt"] = (_fromOffsetM, _fromDepthM, toOffsetM) => ({
-      shallowestM: 0,
-      deepestM: legacySites.floorAt(10 + toOffsetM) - FLOOR_MARGIN_M,
-    });
+    const fromStructures = amongTheStructures(10).waterAt;
+    const fromSeabed = overTheSeabed(10).waterAt;
     expect(deep(13.9, 14.1, 27.9, 27.9, fromStructures)).toBeCloseTo(28 - FLOOR_MARGIN_M, 9);
     expect(deep(13.9, 14.1, 27.9, 27.9, fromSeabed)).toBeCloseTo(27.9, 9);
-    expect(deep(50, 50, 28.6, 20, fromStructures)).toBeCloseTo(28 + FLOOR_MARGIN_M, 9);
-    expect(deep(50, 50, 28.6, 20, fromSeabed)).toBeCloseTo(28.3, 9);
-    expect(deep(50, 50, 38.4, 42, fromStructures)).toBeCloseTo(39 - FLOOR_MARGIN_M, 9);
-    expect(deep(50, 50, 38.4, 42, fromSeabed)).toBeCloseTo(38.7, 9);
+    expect(deep(30, 30, 26.4, 29, fromStructures)).toBeCloseTo(27 - FLOOR_MARGIN_M, 9);
+    expect(deep(30, 30, 26.4, 29, fromSeabed)).toBeCloseTo(26.7, 9);
     // Off the bow, over the seabed alone, it is legacy's.
     expect(deep(0, 0, 65.4, 66, fromStructures)).toBeCloseTo(deep(0, 0, 65.4, 66, fromSeabed), 12);
   });
 
-  it("holds the shark 0.5 m from the first depths legacy's solidAt finds solid below and above it", () => {
-    // Over a grid of the wreck's water in legacy's solidAt, the deepest a
-    // shark staying in its column holds is 0.5 m above the first solid depth
-    // below it, or legacy's floorAt; the shallowest 0.5 m below the first
-    // above it, or the surface.
-    const firstSolid = (x: number, fromM: number, toM: number): number | null => {
-      const steps = Math.ceil(Math.abs(toM - fromM) / 0.05);
-      if (steps === 0) return null;
-      let clear = fromM;
+  it("holds the shark 0.5 m above the first depth legacy's solidAt finds solid below the surface", () => {
+    // Over a grid of the site, wherever the shark is put, the deepest it
+    // holds is 0.5 m above the first solid depth from the surface down in
+    // legacy's solidAt, or legacy's floorAt, and the shallowest the surface.
+    const firstSolid = (x: number, floorM: number): number => {
+      const steps = Math.ceil(floorM / 0.05);
+      let clear = 0;
       for (let k = 1; k <= steps; k += 1) {
-        const d = fromM + ((toM - fromM) * k) / steps;
+        const d = (floorM * k) / steps;
         if (legacySites.solidAt(x, d)) {
           let solid = d;
           for (let i = 0; i < 60; i += 1) {
@@ -410,66 +404,79 @@ describe("the client's departures from legacy's shark (#219 part 2)", () => {
         }
         clear = d;
       }
-      return null;
+      return floorM;
     };
     let checked = 0;
-    for (let x = -40; x <= 200; x += 5.5) {
-      for (let d = 0.25; d < 66; d += 1.5) {
-        if (legacySites.solidAt(x, d)) continue;
-        const floorM = legacySites.floorAt(x);
-        const below = firstSolid(x, d, floorM) ?? floorM;
-        const above = firstSolid(x, d, 0);
+    for (let x = -40; x <= 200; x += 2.5) {
+      const deepestM = firstSolid(x, legacySites.floorAt(x)) - FLOOR_MARGIN_M;
+      for (const d of [0, 5, 20, 33, 49, 70]) {
         const held = sharkWaterAt(WRECK_SITE, x, d, x, FLOOR_MARGIN_M)!;
-        expect(held.deepestM, `${x}, ${d}`).toBeCloseTo(below - FLOOR_MARGIN_M, 6);
-        expect(held.shallowestM, `${x}, ${d}`).toBeCloseTo(above === null ? 0 : above + FLOOR_MARGIN_M, 6);
+        expect(held.deepestM, `${x}, ${d}`).toBeCloseTo(deepestM, 6);
+        expect(held.shallowestM, `${x}, ${d}`).toBe(0);
         checked += 1;
       }
     }
-    expect(checked).toBeGreaterThan(1500);
+    expect(checked).toBeGreaterThan(500);
   });
 
   it("turns away where a structure stands in its way at its depth, where legacy's swims on through it", () => {
-    // Legacy's full bulkhead at x 56 is solid from the crew deck's floor to
-    // the lower deck's, and its bow's side at x 15 from 28 m to the seabed.
-    for (let d = 45; d <= 59; d += 0.1) expect(legacySites.solidAt(56.5, d), `56.5, ${d}`).toBe(true);
+    // Legacy's bow's side at x 15 is solid from 28 m to the seabed.
     for (let d = 28; d <= 66; d += 0.1) expect(legacySites.solidAt(15, d), `15, ${d}`).toBe(true);
-    const at49 = { depthM: metres(49), direction: 1 as const, speedMps: 7.5, passed: false };
-    // In view, 1 m past a diver in the lower deck at x 54.5: legacy's swims
-    // on to 1.75 m past and rolls contact; the client's turns where it is,
-    // passed, and rolls none as it swims back past the diver.
-    const legacy = swimBy(49, { ...at49, offsetM: 1 }, overTheSeabed(54.5), 12);
-    const client = swimBy(49, { ...at49, offsetM: 1 }, amongTheStructures(54.5), 12);
+    // In view, 1 m aft of a diver off the bow at x 12.5, 49 m, heading for
+    // the bow: legacy's swims on to 1.75 m and rolls contact; the client's
+    // turns where it is, passed, and rolls none as it swims back past the
+    // diver.
+    expect(reachableAt(12.5, 49)).toBe(true);
+    const at49 = { offsetM: 1, depthM: metres(49), direction: 1 as const, speedMps: 7.5, passed: false };
+    const legacy = swimBy(49, at49, overTheSeabed(12.5), 12);
+    const client = swimBy(49, at49, amongTheStructures(12.5), 12);
     expect(legacy.sharks[0]).toMatchObject({ offsetM: 1.75, depthM: 49, direction: 1, passed: true });
     expect(client.sharks[0]).toMatchObject({ offsetM: 1, depthM: 49, direction: -1, passed: true, speedMps: 7.5 });
     expect(legacy.draws).toBe(1);
     expect(client.draws).toBe(0);
-    for (const shark of client.sharks) expect(legacySites.solidAt(54.5 + shark!.offsetM, shark!.depthM)).toBe(false);
+    for (const shark of client.sharks) expect(legacySites.solidAt(12.5 + shark!.offsetM, shark!.depthM)).toBe(false);
     expect(client.sharks.at(-1)!.offsetM).toBeCloseTo(1 - 11 * 0.75, 9);
-    // Heading back at 45.5 m ahead of a diver at x 12, beyond the 44.5 m
-    // where a shark leaves the view, it is gone there, unseen; legacy's,
-    // heading left, swims on.
-    const back = { ...at49, offsetM: 45.5, direction: -1 as const };
-    expect(swimBy(49, back, amongTheStructures(12), 1).sharks).toEqual([null]);
-    expect(swimBy(49, back, overTheSeabed(12), 1).sharks[0]!.offsetM).toBeCloseTo(44.75, 9);
-    // Forward in the crew deck at 42 m, at the bow's side.
-    const forward = { offsetM: -3.6, depthM: metres(42), direction: -1 as const, speedMps: 7.5, passed: false };
-    expect(swimBy(42, forward, amongTheStructures(20), 1).sharks[0]).toMatchObject({ offsetM: -3.6, direction: 1 });
-    expect(swimBy(42, forward, overTheSeabed(20), 1).sharks[0]!.offsetM).toBeCloseTo(-4.35, 9);
+    // Met there 43.5 m ahead of a diver at x -30, beyond the view's 37 m by
+    // more than the drawn shark reaches, 3.375 m, it is gone, unseen;
+    // legacy's swims on.
+    expect(reachableAt(-30, 49)).toBe(true);
+    const unseen = { ...at49, offsetM: 43.5 };
+    expect(swimBy(49, unseen, amongTheStructures(-30), 1).sharks).toEqual([null]);
+    expect(swimBy(49, unseen, overTheSeabed(-30), 1).sharks[0]!.offsetM).toBeCloseTo(44.25, 9);
+  });
+
+  it("lets a passed shark rise over what stands in its way, where legacy's swims through it", () => {
+    // Passed, 3.5 m ahead of a diver at x 10, 30 m, heading for the bow: it
+    // holds where it meets the side and rises 0.09 m a step until it is over
+    // its top at 28 m, then swims on over it, held 0.5 m above it; legacy's
+    // swims on at 30 m through the side.
+    const passed = { offsetM: 3.5, depthM: metres(30), direction: 1 as const, speedMps: 7.5, passed: true };
+    const legacy = swimBy(30, passed, overTheSeabed(10), 40);
+    const client = swimBy(30, passed, amongTheStructures(10), 40);
+    expect(legacy.sharks.every((shark) => shark!.depthM === 30)).toBe(true);
+    const held = client.sharks.filter((shark) => shark!.offsetM === 3.5);
+    expect(held.length).toBe(Math.ceil((30 - 28) / 0.09));
+    expect(held.at(-1)!.depthM).toBeCloseTo(30 - held.length * 0.09, 9);
+    expect(held.at(-1)!.depthM).toBeLessThan(28);
+    expect(client.sharks[held.length]!.depthM).toBeCloseTo(27.5, 9);
+    expect(10 + client.sharks.at(-1)!.offsetM).toBeGreaterThan(16);
+    for (const shark of client.sharks) expect(legacySites.solidAt(10 + shark!.offsetM, shark!.depthM)).toBe(false);
   });
 
   it("rolls no contact through a deck, where legacy's rolls on distance alone", () => {
-    // A diver resting on the main deck at x 30, 26.7 m; a shark under it at
-    // 28.5 m, 2.25 m aft, heading forward. Legacy's deck is solid between them.
+    // A diver under the main deck at x 30, 29 m; a shark over it at 26.5 m,
+    // 2.25 m aft, heading forward. Legacy's deck is solid between them.
+    expect(reachableAt(30, 29)).toBe(true);
     expect(legacySites.solidAt(30.75, 27.5)).toBe(true);
-    const under = { offsetM: 2.25, depthM: metres(28.5), direction: -1 as const, speedMps: 7.5, passed: false };
-    const legacy = swimBy(26.7, under, overTheSeabed(30), 8);
-    const client = swimBy(26.7, under, amongTheStructures(30), 8);
-    // At 1.5 m across and 1.71 m in depth legacy rolls; the client, held
-    // under the deck at 28.5 m, does not, and swims on unpassed.
+    const over = { offsetM: 2.25, depthM: metres(26.5), direction: -1 as const, speedMps: 7.5, passed: false };
+    const legacy = swimBy(29, over, overTheSeabed(30), 8);
+    const client = swimBy(29, over, amongTheStructures(30), 8);
+    // At 1.5 m across and 2.41 m in depth legacy rolls; the client, held
+    // over the deck at 26.5 m, does not, and swims on unpassed.
     expect(legacy.sharks[0]!.offsetM).toBeCloseTo(1.5, 9);
-    expect(legacy.sharks[0]!.depthM).toBeCloseTo(28.5 - 0.09, 9);
+    expect(legacy.sharks[0]!.depthM).toBeCloseTo(26.5 + 0.09, 9);
     expect(legacy.draws).toBe(1);
-    expect(client.sharks[0]).toMatchObject({ depthM: 28.5, passed: false });
+    expect(client.sharks[0]).toMatchObject({ depthM: 26.5, passed: false });
     expect(client.draws).toBe(0);
   });
 
