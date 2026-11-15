@@ -237,40 +237,10 @@ jobs:
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-36" "build-tools;36.0.0" > /dev/null
           "$ANDROID_HOME/build-tools/36.0.0/aapt2" version
 
-      - name: Wait for verify to hand over the verified dist/
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          for _ in $(seq 1 120); do
-            count="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=verified-dist" --jq '.total_count')"
-            if [ "${count:-0}" -gt 0 ]; then
-              exit 0
-            fi
-            state="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs" --jq '.jobs[] | select(.name == "verify") | .status')"
-            if [ "$state" = "completed" ]; then
-              echo "::error::verify finished without uploading a verified dist/; its build or hygiene check failed."
-              exit 1
-            fi
-            sleep 10
-          done
-          echo "::error::no verified dist/ after 20 minutes."
-          exit 1
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: verified-dist
-          path: verified
-
-      - name: Check the verified dist/ arrived intact
-        run: |
-          expected="$(cat verified/verified-dist.sha256)"
-          received="$(node scripts/android-bundle-check.mjs hash verified/dist)"
-          if [ "$received" != "$expected" ]; then
-            echo "::error::the downloaded dist/ hashes to $received, verify recorded $expected."
-            exit 1
-          fi
-          mv verified/dist dist
-          echo "Packaging verified dist/ \`$expected\`" | tee -a "$GITHUB_STEP_SUMMARY"
+      # Waits for verify's upload, downloads it and checks its tree hash
+      # before moving it into dist/; shared with the browsers job below.
+      - name: Take the verified dist/
+        uses: ./.github/actions/verified-dist
 
       - name: Sync the verified dist/ into the Android project
         run: npx cap sync android
@@ -312,4 +282,63 @@ jobs:
           name: android-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          retention-days: 7
+
+  # #302 (#137 A14a): the functional Playwright suite in Firefox and WebKit,
+  # over the same verified dist/ as the android job and with no second Vite
+  # build. Beside verify rather than inside it, and each engine in three shards,
+  # so a PR waits no longer than verify's own Chromium run. Tests tagged
+  # @chromium-only (CDP input or accessibility tree, see playwright.config.js)
+  # are left out; the Pixi pixel-diff and interior optics checks stay in verify,
+  # Chromium only. Not a required check: it becomes one after about ten green
+  # runs and with the product owner's consent (docs/decisions.md, "CI and
+  # evidence").
+  browsers:
+    name: browsers (${{ matrix.browser }} ${{ matrix.shard }}/3)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    permissions:
+      contents: read
+      # Reading this run's artifact list, to wait for verify's upload.
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [firefox, webkit]
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The browser build is pinned by playwright-core in package-lock.json,
+      # as verify's Chromium is; the dev container's image carries the same.
+      - name: Install the Playwright browser
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Take the verified dist/
+        uses: ./.github/actions/verified-dist
+
+      # Straight through npx, not npm run test:e2e, whose pre-script would
+      # rebuild dist/.
+      # #319: no WebGL for Firefox on this runner, so its project leaves out
+      # the spec files that start the Pixi scene (playwright.config.js). A
+      # shard left with nothing to run passes.
+      - name: Run the functional suite
+        env:
+          PLAYWRIGHT_FIREFOX_NO_WEBGL: ${{ matrix.browser == 'firefox' && '1' || '' }}
+        run: npx playwright test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/3 --pass-with-no-tests
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-${{ matrix.browser }}-${{ matrix.shard }}
+          path: playwright-report/
           retention-days: 7

@@ -431,10 +431,14 @@ async function expectMobileLayout(page) {
   expect(offEdge).toEqual([]);
 
   // Reachability is measured against the content: after scrolling to the
-  // end, the last line of the screen sits inside the viewport.
-  await page.mouse.wheel(0, 20000);
+  // end, the last line of the screen sits inside the viewport. Wheeled until
+  // it does: Firefox scrolls one wheel event by at most a screenful or so,
+  // where Chromium takes the whole delta at once (#302).
   const hint = page.locator('[data-post-dive] .result-hint');
-  await expect(hint).toBeInViewport();
+  await expect(async () => {
+    await page.mouse.wheel(0, 20000);
+    await expect(hint).toBeInViewport({ timeout: 1000 });
+  }).toPass({ timeout: 10_000 });
   const hintBox = await hint.boundingBox();
   const viewport = page.viewportSize();
   expect(hintBox.y + hintBox.height).toBeLessThanOrEqual(viewport.height);
@@ -472,6 +476,7 @@ async function expectMobileLayout(page) {
 
 test.describe('at the mobile viewport', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  test.skip(({ browserName }) => browserName === 'webkit', 'Playwright has no mouse wheel in mobile WebKit, and this test scrolls by wheel (#302)');
 
   test('the whole debriefing is reachable by scrolling, within the edges, with 44px targets', async ({ page }) => {
     await resumeCompletedDive(page, { configure: configureCcr, editState: drawDownLoop });
@@ -487,6 +492,7 @@ for (const [width, height] of [[844, 390], [667, 375]]) {
   for (const locale of ['en-US', 'de-DE']) {
     test.describe(`at ${width}x${height}, ${locale}`, () => {
       test.use({ viewport: { width, height }, hasTouch: true, isMobile: true, locale });
+      test.skip(({ browserName }) => browserName === 'webkit', 'Playwright has no mouse wheel in mobile WebKit, and this test scrolls by wheel (#302)');
 
       test('the boundary line is whole without scrolling, above the chart', async ({ page }) => {
         await resumeCompletedDive(page);
@@ -515,6 +521,7 @@ test.describe('on a small phone', () => {
   // the rebreather lines and the German strings are the longest the screen
   // draws. The text checks make sure each case draws what it says it does.
   test.use({ viewport: { width: 320, height: 568 }, hasTouch: true, isMobile: true });
+  test.skip(({ browserName }) => browserName === 'webkit', 'Playwright has no mouse wheel in mobile WebKit, and this test scrolls by wheel (#302)');
   const TEXT = {
     'en-US': {
       heading: 'Dive complete',

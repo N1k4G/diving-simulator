@@ -182,7 +182,11 @@ function layoutProblems() {
     const heading = document.querySelector('.instructor-heading').getBoundingClientRect();
     topmost(document.querySelector('.instructor-heading'), heading.left + 4, heading.top + heading.height / 2, 'the panel\'s heading');
     const box = document.querySelector('[data-instructor-panel]').getBoundingClientRect();
-    const gap = (a, b) => Math.max(a.top - b.bottom, b.top - a.bottom, a.left - b.right, b.left - a.right);
+    // Rounded to a thousandth of a pixel: Firefox lays out in sixtieths and
+    // hands rects back through single precision, so a panel ending at 712 px
+    // reads 712.0000153 and an 8 px gap 7.99998 (#302). Chromium and WebKit
+    // lay out in sixty-fourths, which a thousandth cannot move across 8.
+    const gap = (a, b) => Math.round(1000 * Math.max(a.top - b.bottom, b.top - a.bottom, a.left - b.right, b.left - a.right)) / 1000;
     const button = document.querySelector('[data-instructor-toggle]');
     const own = button.getBoundingClientRect();
     if (own.width < 44 || own.height < 44) problems.push(`the button is ${own.width}x${own.height}`);

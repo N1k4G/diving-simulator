@@ -136,7 +136,7 @@ async function resumeAtSafetyStop(page, mode, tanksToAdd = 0) {
   await expect(fastForward(page)).toBeVisible();
 }
 
-test.describe('a second finger, with a thumb on the D-pad', () => {
+test.describe('a second finger, with a thumb on the D-pad', { tag: '@chromium-only' }, () => {
   test.use({ viewport: { width: 390, height: 844 }, ...PHONE });
 
   test('works the torch, a cylinder and the gas information, once each', async ({ page }) => {
@@ -195,7 +195,7 @@ test.describe('a second finger, with a thumb on the D-pad', () => {
   });
 });
 
-test.describe('one finger', () => {
+test.describe('one finger', { tag: '@chromium-only' }, () => {
   test.use({ viewport: { width: 390, height: 844 }, ...PHONE });
 
   test('a tap presses once; a touch slid off or cancelled presses nothing', async ({ page }) => {

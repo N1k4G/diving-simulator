@@ -387,7 +387,7 @@ const HELD_CASES = [
 
 for (const { pair: { portrait, landscape }, control, startM, vents, read, saturated } of HELD_CASES) {
   for (const ending of ['lifted', 'cancelled']) {
-    test.describe(`a ${control} held across a turn, ${portrait.width}x${portrait.height} and back`, () => {
+    test.describe(`a ${control} held across a turn, ${portrait.width}x${portrait.height} and back`, { tag: '@chromium-only' }, () => {
       test.use({ ...PHONE, viewport: portrait });
 
       test(`should stay held through two turns and be let go when the touch is ${ending}`, async ({ page }) => {

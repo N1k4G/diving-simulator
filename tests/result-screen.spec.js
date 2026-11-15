@@ -184,7 +184,8 @@ test.describe('issue #120: result screens fit and can be reached', () => {
     expect(errors).toEqual([]);
   });
 
-  test('content taller than the viewport is reachable by scrolling', async ({ page }) => {
+  test('content taller than the viewport is reachable by scrolling', async ({ page, browserName }) => {
+    test.skip(browserName === 'webkit', 'Playwright has no mouse wheel in mobile WebKit, and this test scrolls by wheel (#302)');
     // Reachability has to be measured against the content, not against the
     // renderer's own declared scroll range. Asserting only that scrolling
     // reaches `resultScrollMaxY` is circular: pinning that value to 1 leaves
@@ -230,7 +231,8 @@ test.describe('issue #120: result screens fit and can be reached', () => {
     expect(lowestOnScreen, 'and should not have been scrolled off the top').toBeGreaterThan(0);
   });
 
-  test('the help overlay keeps its own scrolling while a result screen is open', async ({ page }) => {
+  test('the help overlay keeps its own scrolling while a result screen is open', async ({ page, browserName }) => {
+    test.skip(browserName === 'webkit', 'Playwright has no mouse wheel in mobile WebKit, and this test scrolls by wheel (#302)');
     // Regression: the wheel/touch handlers live on `window`, so events bubbling
     // out of the HTML help overlay were preventDefault()ed on the canvas's
     // behalf — the overlay stayed pinned at scrollTop 0 while the result screen

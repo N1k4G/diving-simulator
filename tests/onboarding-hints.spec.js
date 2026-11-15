@@ -248,7 +248,7 @@ for (const mode of ['rec', 'ccr']) {
   });
 }
 
-test.describe('by touch, in German, on a phone', () => {
+test.describe('by touch, in German, on a phone', { tag: '@chromium-only' }, () => {
   test.use({ locale: 'de-DE', viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
   test('the D-pad takes the dive past 2 m, the hint shows, and the help\'s opt-out is a 44 px target that stops it', async ({ page }) => {

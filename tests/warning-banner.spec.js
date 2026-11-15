@@ -235,7 +235,11 @@ for (const locale of ['en-US', 'de-DE']) {
         // A topbar button with keyboard focus stays in view at the narrowest
         // size (WCAG 2.4.11), and the banner stays where it is, off the HUD.
         await page.setViewportSize({ width: 320, height: 568 });
-        await page.keyboard.press('Shift');
+        // A Tab first, so the scripted focus below lands as a keyboard user's
+        // would: after the clicks that set the dive up, Firefox keeps a
+        // scripted focus off :focus-visible until focus has moved by key, and
+        // a modifier alone does not count there as it does in Chromium (#302).
+        await page.keyboard.press('Tab');
         for (const button of await page.locator('.topbar-actions button:visible').all()) {
           await button.focus();
           const label = await button.getAttribute('aria-label');
