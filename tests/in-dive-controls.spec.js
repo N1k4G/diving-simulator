@@ -933,11 +933,17 @@ test.describe('rebreather controls', () => {
     // included, and updateDiving consumes one step per set (#163 review
     // round 3 on PR #182). Playwright marks every keyboard.down() after the
     // first as a repeat until the key is released, which is what a held key
-    // sends.
+    // sends. Each repeat is awaited on the HUD before the next: legacy takes
+    // one step per frame that finds the key set, so repeats landing in one
+    // frame are one step there too, and Firefox delivers all three inside a
+    // frame where Chromium's protocol round trips happened to spread them
+    // (#302).
     await startCcrDive(page);
 
     await page.keyboard.down(']');
+    await expect(hudValue(page, 'setpoint')).toHaveText('0.80 bar');
     await page.keyboard.down(']');
+    await expect(hudValue(page, 'setpoint')).toHaveText('0.90 bar');
     await page.keyboard.down(']');
     await page.keyboard.up(']');
 

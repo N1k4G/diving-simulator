@@ -431,10 +431,14 @@ async function expectMobileLayout(page) {
   expect(offEdge).toEqual([]);
 
   // Reachability is measured against the content: after scrolling to the
-  // end, the last line of the screen sits inside the viewport.
-  await page.mouse.wheel(0, 20000);
+  // end, the last line of the screen sits inside the viewport. Wheeled until
+  // it does: Firefox scrolls one wheel event by at most a screenful or so,
+  // where Chromium takes the whole delta at once (#302).
   const hint = page.locator('[data-post-dive] .result-hint');
-  await expect(hint).toBeInViewport();
+  await expect(async () => {
+    await page.mouse.wheel(0, 20000);
+    await expect(hint).toBeInViewport({ timeout: 1000 });
+  }).toPass({ timeout: 10_000 });
   const hintBox = await hint.boundingBox();
   const viewport = page.viewportSize();
   expect(hintBox.y + hintBox.height).toBeLessThanOrEqual(viewport.height);
