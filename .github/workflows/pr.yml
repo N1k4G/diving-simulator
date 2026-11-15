@@ -334,7 +334,7 @@ jobs:
       # Straight through npx, not npm run test:e2e, whose pre-script would
       # rebuild dist/.
       - name: Run the functional suite
-        run: npx playwright test --project=${{ matrix.browser }} tests/c302-diag.spec.js --reporter=list
+        run: xvfb-run -a npx playwright test --project=${{ matrix.browser }} tests/c302-diag.spec.js --reporter=list --headed
 
       - name: Upload test report
         if: always()
