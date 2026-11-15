@@ -1440,8 +1440,9 @@ test.describe('gas information', () => {
       });
     }
     await page.goto('/dist/');
-    // No hint: on a short screen held upright one takes the place of the
-    // gas rows while it shows (#258), and the HUD is measured at its tallest.
+    // No hint: on a short screen held upright one takes the place of a
+    // rebreather's cylinder rows while it shows (#258), and the HUD is
+    // measured at its tallest.
     await page.evaluate(([key, value]) => {
       window.localStorage.setItem(key, value);
       window.localStorage.setItem('diveSim_hintsDone', '1');

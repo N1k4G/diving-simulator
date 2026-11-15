@@ -1648,13 +1648,23 @@ summary:focus-visible {
    stood off the screen's right edge, unseen though announced. It stands
    under the HUD instead, at the top of Learn's row and right of Learn, 8px
    clear of both: placed by the HUD's height (trackHudHeight, kept on the
-   shell), with the notice under the HUD counted in it. Under a
-   rebreather's HUD, Learn and the dock fill the column's height, which
-   left the hint 48px on linux fonts, where the longest German hint takes
-   three lines, 71px; so while a hint shows it takes the place of the gas
-   rows, as an open gas page does above, and they come back as it goes.
-   Depth, the ascent rate, the dive time, NDL, the stop and the rule of
-   thirds stay. tests/onboarding-hints.spec.js measures 320 to 390px. */
+   shell), with the notice under the HUD counted in it. On open circuit it
+   fits there with every row.
+
+   Under a rebreather's HUD, Learn and the dock fill the column's height,
+   which left the hint 48px on linux fonts, where the longest German hint
+   takes three lines, 71px. So on a rebreather, while a hint shows, it
+   takes the place of the O2 and diluent cylinder rows and of the
+   cylinder row while it reads Loop, never Bailout. The loop's PO2, the
+   setpoint and the scrubber stay (owner, 2026-11-15: no safety value
+   disappears), as do depth, the ascent rate, the dive time, NDL, the stop
+   and the rule of thirds; the rows come back as the hint goes. Rows are
+   hidden only while no warning shows and no HUD row is in its danger
+   state, so a hidden row is never one that is warning, and a warning that
+   starts during a hint brings them back at once. While a warning or a
+   danger row stands on a rebreather, a hint is not drawn here: it stays
+   in its status region, visually hidden, so it is still announced.
+   tests/onboarding-hints.spec.js measures 320 to 390px. */
 @media (height <= 600px) and (orientation: portrait) {
   .onboarding-hint {
     top: calc(
@@ -1664,8 +1674,18 @@ summary:focus-visible {
     left: calc(var(--wreck-gutter) + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)) + 2.75rem + 0.5rem);
   }
 
-  .wreck-shell:has(> .onboarding-hint:not(:empty)) .wreck-hud > div:not([data-hud-metric="depth"], [data-hud-metric="ascentRate"], [data-hud-metric="time"], [data-hud-metric="ndl"], [data-hud-metric="safetyStop"], [data-hud-metric="thirds"]) {
+  .wreck-shell:has(> .onboarding-hint:not(:empty)):not(.has-warning, :has(.wreck-hud > div[data-danger])) .wreck-hud > :is([data-hud-metric="oxygenCylinder"], [data-hud-metric="diluentCylinder"], [data-hud-metric="cylinder"][data-loop]) {
     display: none;
+  }
+
+  .wreck-shell:is(.has-warning, :has(.wreck-hud > div[data-danger])):has(.wreck-hud > [data-hud-metric="loopPo2"]:not([hidden])) > .onboarding-hint:not(:empty) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    padding: 0;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }
 

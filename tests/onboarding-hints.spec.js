@@ -114,9 +114,10 @@ const PIN_FRAMES = () => {
  * A dive in `mode` resumed at 9 m, neutral, its safety stop paused, so the
  * stop row shows (tests/in-dive-controls.spec.js resumeGermanAtPausedStop),
  * on frames stepped by hand. The BCD hint is marked seen, so the first hint
- * is the safety stop's, in German the longest.
+ * is the safety stop's, in German the longest. `edit` changes the saved
+ * state before the dive is resumed.
  */
-async function resumeAtPausedStop(page, mode) {
+async function resumeAtPausedStop(page, mode, edit = () => {}) {
   await page.goto('/dist/');
   await page.locator('[data-accept-safety]').click();
   await page.locator(`[data-setup-group=mode] [data-setup-option=${mode}]`).check();
@@ -137,6 +138,7 @@ async function resumeAtPausedStop(page, mode) {
     bcdGasSurfaceLiters: (7 + 2 - 3 - 5 * Math.pow(1 / pressureBar, 0.7)) * pressureBar,
     safetyStop: { needed: true, countdownStarted: true, remainingS: 172, paused: true, complete: false },
   });
+  edit(saved.state);
   await page.addInitScript(PIN_FRAMES);
   await page.goto('/dist/');
   await page.evaluate(([key, value]) => {
@@ -215,8 +217,32 @@ const PORTRAIT_SIZES = [[320, 568], [340, 640], [360, 640], [375, 553], [375, 66
 // (src/game-loop.js gameLoop), so no hint hides a HUD row. Here it stands
 // beside the HUD, so nothing hides it either; on a short screen held
 // upright, where the HUD is as wide as the screen, it stands under the HUD
-// beside Learn, and takes the place of the gas rows while it shows (#258).
-const GAS_ROWS = ['cylinder', 'setpoint', 'loopPo2', 'oxygenCylinder', 'diluentCylinder', 'scrubber'];
+// beside Learn, and on a rebreather takes the place of the cylinder rows
+// while it shows, never of the loop's PO2, setpoint or scrubber (#258,
+// owner 2026-11-15).
+const HIDDEN_WITH_HINT = { rec: [], ccr: ['cylinder', 'oxygenCylinder', 'diluentCylinder'] };
+const LOOP_ROWS = ['setpoint', 'loopPo2', 'scrubber'];
+
+/** The HUD's rows on screen, by name. */
+const shownRows = (page) =>
+  page.evaluate(() =>
+    [...document.querySelectorAll('.wreck-hud > div')]
+      .filter((row) => row.getClientRects().length > 0)
+      .map((row) => row.dataset.hudMetric));
+
+/** The least distance from the HUD to any shown control. */
+const hudToControls = (page) =>
+  page.evaluate(() => {
+    const hud = document.querySelector('.wreck-hud').getBoundingClientRect();
+    let nearest = Infinity;
+    for (const control of document.querySelectorAll('.wreck-shell button')) {
+      if (control.getClientRects().length === 0) continue;
+      const c = control.getBoundingClientRect();
+      nearest = Math.min(nearest, Math.max(c.top - hud.bottom, hud.top - c.bottom, c.left - hud.right, hud.left - c.right));
+    }
+    return nearest;
+  });
+
 const SAFETY_STOP_DE = 'Sicherheitsstopp: 3–5 min zwischen 2,4–8,3m halten, F = Zeitraffer';
 for (const mode of ['rec', 'ccr']) {
   test.describe(`in German, on a ${mode} dive at a paused safety stop`, () => {
@@ -234,28 +260,31 @@ for (const mode of ['rec', 'ccr']) {
       await expect(toast(page)).toHaveText(SAFETY_STOP_DE);
     });
 
-    test('on a short screen held upright the hint takes the place of the gas rows, which are back as it goes', async ({ page }) => {
+    test('on a short screen held upright the hint hides no loop row, and any row it hides is back as it goes', async ({ page }) => {
       test.setTimeout(120_000);
       await resumeAtPausedStop(page, mode);
       await expect(toast(page)).toHaveText(SAFETY_STOP_DE);
-      const shownRows = () =>
-        page.evaluate(() =>
-          [...document.querySelectorAll('.wreck-hud > div')]
-            .filter((row) => row.getClientRects().length > 0)
-            .map((row) => row.dataset.hudMetric));
-      const withHint = ['depth', 'ascentRate', 'time', 'ndl', 'safetyStop'];
-      await resizeTo(page, 320, 568);
-      expect(await shownRows()).toEqual(withHint);
-      // Wider and taller, the hint stands beside the HUD, which keeps them.
+      // Wider and taller, the hint stands beside the HUD, which keeps every row.
       await resizeTo(page, 390, 844);
-      const all = await shownRows();
-      expect(all.filter((row) => GAS_ROWS.includes(row)).length).toBeGreaterThan(0);
-      // The hint's 6 s, then it is gone and the rows are back at 320x568.
+      const all = await shownRows(page);
+      if (mode === 'ccr') expect(all).toEqual(expect.arrayContaining([...LOOP_ROWS, ...HIDDEN_WITH_HINT.ccr]));
       await resizeTo(page, 320, 568);
+      const withHint = await shownRows(page);
+      expect(withHint).toEqual(all.filter((row) => !HIDDEN_WITH_HINT[mode].includes(row)));
+      // The loop's PO2 among them, on screen and topmost (owner, 2026-11-15).
+      if (mode === 'ccr') {
+        expect(withHint).toEqual(expect.arrayContaining(LOOP_ROWS));
+        expect(await page.evaluate(() => {
+          const row = document.querySelector('.wreck-hud [data-hud-metric="loopPo2"]').getBoundingClientRect();
+          return document.elementFromPoint(row.left + row.width / 2, row.top + row.height / 2)?.closest('[data-hud-metric]')?.dataset.hudMetric;
+        })).toBe('loopPo2');
+      }
+      expect(await page.evaluate(layoutProblems)).toEqual([]);
+      // The hint's 6 s, then it is gone and the rows are back.
       await page.evaluate(() => window.__stepFrames(7 * 60));
       await expect(toast(page)).toHaveText('');
       await resizeTo(page, 320, 568);
-      expect(await shownRows()).toEqual(all);
+      expect(await shownRows(page)).toEqual(all);
     });
 
     // The shell's side carries the safe-area insets (#137 A7), so the hint,
@@ -289,12 +318,48 @@ for (const mode of ['rec', 'ccr']) {
         }, inset);
         await resizeTo(page, width, height);
         const problems = await page.evaluate(layoutProblems);
-        const short = height <= 600;
+        // The allowance is #256's, short landscape only.
+        const short = height <= 600 && width > height;
         expect(short ? problems.filter((p) => !offScreen(p)) : problems, `${width}x${height} ${JSON.stringify(inset)}`).toEqual([]);
       }
     });
   });
 }
+
+// A warning on a rebreather, here an O2 cylinder under 30 bar, which ranks
+// last among the rebreather's warnings: no row is hidden for a hint while
+// any warning shows or any row is in its danger state, so the low row is
+// never the one a hint hides. On a short screen held upright there is then
+// no room under the HUD, so the hint is not drawn there, but it is still
+// written to its status region and announced (#258, owner 2026-11-15).
+test.describe('in German, on a ccr dive with its O2 cylinder low', () => {
+  test.use({ locale: 'de-DE' });
+
+  test('on a short screen held upright a hint hides no row, is not drawn, and is still announced', async ({ page }) => {
+    test.setTimeout(120_000);
+    await resumeAtPausedStop(page, 'ccr', (state) => {
+      state.ccr.oxygenCylinderPressureBar = 25;
+    });
+    await expect(toast(page)).toHaveText(SAFETY_STOP_DE);
+    await expect(page.locator('.wreck-hud [data-hud-metric="oxygenCylinder"]')).toHaveAttribute('data-danger', '');
+    await resizeTo(page, 390, 844);
+    const all = await shownRows(page);
+    expect(all).toEqual(expect.arrayContaining([...LOOP_ROWS, ...HIDDEN_WITH_HINT.ccr]));
+    for (const [width, height] of [[320, 568], [375, 553]]) {
+      await resizeTo(page, width, height);
+      expect(await shownRows(page), `${width}x${height}`).toEqual(all);
+      // In the status region still, and drawn nowhere.
+      await expect(toast(page)).toHaveText(SAFETY_STOP_DE);
+      await expect(toast(page)).toHaveAttribute('role', 'status');
+      const box = await toast(page).boundingBox();
+      expect(box.width * box.height, `${width}x${height}`).toBeLessThanOrEqual(1);
+      expect(await hudToControls(page), `${width}x${height}`).toBeGreaterThanOrEqual(8);
+    }
+    // Where there is room the hint is drawn as before.
+    await resizeTo(page, 390, 844);
+    expect(await page.evaluate(layoutProblems)).toEqual([]);
+  });
+});
 
 test.describe('by touch, in German, on a phone', { tag: '@chromium-only' }, () => {
   test.use({ locale: 'de-DE', viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
