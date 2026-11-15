@@ -136,7 +136,7 @@ describe("the model's narcosis draws", () => {
   it("drifts after the physics with the frame's real time, before the shark rolls", () => {
     const state = freezeDiveState({ ...deep(0.9), shark: { timerS: seconds(0.05), encounter: null } });
     const shark: SharkFrame = {
-      timeMultiplier: 3, diverVelocityMps: 0, viewLeftM: 25, viewRightM: 25, floorAt: () => 300, noShark: false,
+      timeMultiplier: 3, diverVelocityMps: 0, viewLeftM: 25, viewRightM: 25, waterAt: () => ({ shallowestM: 0, deepestM: 300 - 0.5 }), noShark: false,
     };
     const model = new DiveModel(state);
     model.advanceWithBuoyancy(BOUNDS, seconds(0.06), { inflate: false, vent: false }, false, shark, 0.02);

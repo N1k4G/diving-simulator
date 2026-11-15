@@ -101,14 +101,16 @@ export function reachableAt(xM: number, depthM: number): boolean {
 }
 
 /**
- * Where a resumed dive picks up (#222, #240): the saved position, where the
- * diver fits at the saved depth and can have swum to, and otherwise the
- * route's start. Every position the controller saves passes, as the
- * physics never leaves the diver anywhere else; one inside a structure, in a
- * sealed hold, off the site or not a number at all resumes at the start.
+ * Whether a saved position resumes (#222, #240): the diver fits there at the
+ * saved depth and can have swum there. Every position the controller saves
+ * passes, as the physics never leaves the diver anywhere else; one inside a
+ * structure, in a sealed hold, off the site or not a number at all does not.
  */
+export function resumesAt(positionM: unknown, depthM: number): positionM is number {
+  return typeof positionM === "number" && Number.isFinite(depthM) && reachableAt(positionM, depthM);
+}
+
+/** Where a resumed dive picks up: the saved position where it resumes, and otherwise the route's start. */
 export function resumedPosition(positionM: unknown, depthM: number): number {
-  return typeof positionM === "number" && Number.isFinite(depthM) && reachableAt(positionM, depthM)
-    ? positionM
-    : ROUTE_START_POSITION_M;
+  return resumesAt(positionM, depthM) ? positionM : ROUTE_START_POSITION_M;
 }

@@ -33,9 +33,14 @@ const FRAME: SharkFrame = {
   diverVelocityMps: 0,
   viewLeftM: 25,
   viewRightM: 25,
-  floorAt: () => 300,
+  waterAt: () => openWater(300),
   noShark: false,
 };
+
+/** Legacy's floor guard over a floor at floorM: 0 down to 0.5 m above it. */
+function openWater(floorM: number) {
+  return { shallowestM: 0, deepestM: floorM - 0.5 };
+}
 
 function shark(encounter: Partial<SharkEncounter> | null, timerS = 30): SharkState {
   return {
@@ -120,7 +125,7 @@ describe("the shark encounter", () => {
     expect(left.depthM).toBeCloseTo(0.3, 12);
     expect(stepWith(shark(null, 1), [0.005], 10, 1).shark.encounter).toBeNull();
     // Clamped to MAX_DEPTH over a deeper floor, then tracked up for 1 ms.
-    const deep = stepWith(shark(null, 0.0005), [0.001, 0.5, 1], 299, 0.001, { ...FRAME, floorAt: () => 400 });
+    const deep = stepWith(shark(null, 0.0005), [0.001, 0.5, 1], 299, 0.001, { ...FRAME, waterAt: () => openWater(400) });
     expect(deep.shark.encounter!.depthM).toBeCloseTo(300 - 0.0003, 9);
   });
 
@@ -135,7 +140,7 @@ describe("the shark encounter", () => {
     expect(moved.offsetM).toBeCloseTo(-20 - 1.5 + 7.5 * 0.1, 12);
     expect(moved.depthM).toBeCloseTo(20 - 0.9, 12);
     expect(stepWith(shark({ offsetM: -20, depthM: metres(10.05) }), []).shark.encounter!.depthM).toBe(10.05);
-    const floored = stepWith(shark({ offsetM: -20, depthM: metres(12) }), [], 14, 1, { ...FRAME, floorAt: () => 12 });
+    const floored = stepWith(shark({ offsetM: -20, depthM: metres(12) }), [], 14, 1, { ...FRAME, waterAt: () => openWater(12) });
     expect(floored.shark.encounter!.depthM).toBe(11.5);
   });
 
@@ -173,19 +178,32 @@ describe("the shark encounter", () => {
     expect(stepWith(shark({ offsetM: -25.9, passed: true, direction: -1 }), [], 10, 1, led).shark.encounter).not.toBeNull();
   });
 
-  it("reads the floor where the shark has swum to, at the depth it tracked to", () => {
-    const asked: [number, number][] = [];
-    const floorAt = (offsetM: number, depthM: number) => {
-      asked.push([offsetM, depthM]);
-      return offsetM > -18 ? 15 : 300;
+  it("asks for the water from where the shark was to where it has swum, and holds it there (#240 PR 3b)", () => {
+    const asked: [number, number, number][] = [];
+    const waterAt = (fromOffsetM: number, fromDepthM: number, toOffsetM: number) => {
+      asked.push([fromOffsetM, fromDepthM, toOffsetM]);
+      return toOffsetM > -18 ? { shallowestM: 0, deepestM: 14.5 } : openWater(300);
     };
-    // From 20 m back to 17.5 m back, and from 20 m up to 19.7 m: over the
-    // shallower floor only once it has swum.
-    const floored = stepWith(shark({ offsetM: -20, depthM: metres(20) }), [], 10, 1, { ...FRAME, floorAt });
+    // From 20 m back to 17.5 m back, from 20 m: over the shallower water
+    // only once it has swum, tracked up to 19.7 m and held at 14.5 m.
+    const floored = stepWith(shark({ offsetM: -20, depthM: metres(20) }), [], 10, 1, { ...FRAME, waterAt });
     expect(asked).toHaveLength(1);
-    expect(asked[0]![0]).toBeCloseTo(-17.5, 12);
-    expect(asked[0]![1]).toBeCloseTo(19.7, 12);
+    expect(asked[0]![0]).toBe(-20);
+    expect(asked[0]![1]).toBe(20);
+    expect(asked[0]![2]).toBeCloseTo(-17.5, 12);
     expect(floored.shark.encounter!.depthM).toBe(14.5);
+    // Under a deck it is held below it, tracking a diver above the deck.
+    const roofed = { ...FRAME, waterAt: () => ({ shallowestM: 28.5, deepestM: 38.5 }) };
+    expect(stepWith(shark({ offsetM: -20, depthM: metres(28.6) }), [], 10, 1, roofed).shark.encounter!.depthM).toBe(28.5);
+  });
+
+  it("is gone, with no contact roll, where its way on is closed (#240 PR 3b)", () => {
+    const closed = { ...FRAME, waterAt: () => null };
+    // Beside the diver and not yet passed: it would roll for contact.
+    const step = stepWith(shark({ offsetM: -1 }), [], 10, 1, closed);
+    expect(step).toEqual({ shark: { timerS: 29, encounter: null }, attacked: false });
+    // A roll that spawns one into closed water rolls its heading and depth, and it is gone.
+    expect(stepWith(shark(null, 1), [0.004, 0.2, 0.75], 10, 1, closed).shark.encounter).toBeNull();
   });
 
   it("ends the dive in a shark attack on a seed whose contact roll is under 0.33", () => {

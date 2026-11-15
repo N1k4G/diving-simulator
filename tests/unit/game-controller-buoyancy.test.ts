@@ -48,7 +48,7 @@ function still(timeMultiplier: number): SharkFrame {
     diverVelocityMps: 0,
     viewLeftM: 21,
     viewRightM: 37,
-    floorAt: () => 34,
+    waterAt: () => ({ shallowestM: 0, deepestM: 34 - 0.5 }),
     noShark: false,
   };
 }
