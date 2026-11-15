@@ -24,6 +24,13 @@ import { narcosisVignetteAlpha, narcosisWobblePx } from "./narcosis-view";
 import { diveUnderway, type SceneRenderer, type WreckSceneState } from "./renderer";
 import { SHARK_MOUTH_WIDTH_M, SHARK_SIZE_M, sharkBobM } from "./shark-view";
 import {
+  BOW_VISOR_ASSET_ID,
+  BOW_VISOR_SHAPE,
+  ENGINE_ASSET_ID,
+  ENGINE_SHAPE,
+  type FeaturePoint,
+} from "./wreck-features";
+import {
   BOAT_SHADOW_DEPTH_M,
   BOAT_X_M,
   LEGACY_M_PER_PX,
@@ -91,8 +98,9 @@ export class PixiWreckRenderer implements SceneRenderer {
   #layers = new Map<LayerId, Container>();
   // Placement markers are pooled. Camera movement changes which features are
   // visible many times a dive; allocating a Graphics per feature per resync
-  // would churn the heap for a scene whose contents barely change.
-  #markerPool: Graphics[] = [];
+  // would churn the heap for a scene whose contents barely change. Pooled per
+  // asset id, since the engines and the visor have shapes of their own.
+  #markerPool = new Map<string, Graphics[]>();
   #activeMarkers: Graphics[] = [];
   #lastSyncFocus: { x: number; y: number } | null = null;
   /**
@@ -265,7 +273,7 @@ export class PixiWreckRenderer implements SceneRenderer {
     this.#bubbles = [];
     this.#waves = [];
     this.#layers.clear();
-    this.#markerPool = [];
+    this.#markerPool.clear();
     this.#activeMarkers = [];
     this.#lastSyncFocus = null;
     this.#sharkSinceRealS = null;
@@ -352,7 +360,7 @@ export class PixiWreckRenderer implements SceneRenderer {
 
     for (const marker of this.#activeMarkers) {
       marker.visible = false;
-      this.#markerPool.push(marker);
+      this.#markerPool.get(marker.label)?.push(marker);
     }
     this.#activeMarkers = [];
 
@@ -362,7 +370,7 @@ export class PixiWreckRenderer implements SceneRenderer {
         continue;
       }
       for (const placement of layer.placements) {
-        const marker = this.#takeMarker();
+        const marker = this.#takeMarker(placement.assetId);
         marker.visible = true;
         marker.position.set(placement.x, placement.d);
         // Unconditional, not `if (marker.parent !== container)`. buildSceneLayers
@@ -371,28 +379,39 @@ export class PixiWreckRenderer implements SceneRenderer {
         // container it already sits in keeps its stale child index, so that sort
         // stopped being reflected in the display list after the first resync.
         // Pixi's addChild splices an existing child out and pushes it to the
-        // end, so calling it every time is what applies the ordering. Invisible
-        // today because every marker is the same provisional circle; it would
-        // surface as soon as real atlas frames overlap.
+        // end, so calling it every time is what applies the ordering, which
+        // shows wherever shaped placements (the engines, the visor) overlap.
         container.addChild(marker);
         this.#activeMarkers.push(marker);
       }
     }
   }
 
-  #takeMarker(): Graphics {
-    const pooled = this.#markerPool.pop();
+  #takeMarker(assetId: string): Graphics {
+    let pool = this.#markerPool.get(assetId);
+    if (!pool) {
+      pool = [];
+      this.#markerPool.set(assetId, pool);
+    }
+    const pooled = pool.pop();
     if (pooled) {
       return pooled;
     }
-    // Provisional marker geometry. Production atlases are BLOCKED_EXTERNAL, so
-    // placements are drawn as a deliberately plain shape rather than as art
-    // guessed at here; the manifest already fixes the atlas/frame contract they
-    // will be loaded through.
-    return new Graphics()
-      .circle(0, 0, 0.32)
-      .fill({ color: 0x4f7f7a, alpha: 0.34 })
-      .stroke({ color: 0x8fd4c8, width: 0.06, alpha: 0.5 });
+    // The wreck's engines and its bow visor in legacy's shapes, flat (#240
+    // PR 4); a marker of one asset is only ever reused for that asset.
+    const marker =
+      assetId === ENGINE_ASSET_ID ? buildEngine()
+      : assetId === BOW_VISOR_ASSET_ID ? buildBowVisor()
+      // Provisional marker geometry. Production atlases are BLOCKED_EXTERNAL,
+      // so placements are drawn as a deliberately plain shape rather than as
+      // art guessed at here; the manifest already fixes the atlas/frame
+      // contract they will be loaded through.
+      : new Graphics()
+          .circle(0, 0, 0.32)
+          .fill({ color: 0x4f7f7a, alpha: 0.34 })
+          .stroke({ color: 0x8fd4c8, width: 0.06, alpha: 0.5 });
+    marker.label = assetId;
+    return marker;
   }
 
   #buildRetainedScene(): void {
@@ -615,6 +634,54 @@ function buildShark(): Graphics {
     .fill({ color: 0x111111 })
     .circle(s * 0.6, -s * 0.1, s * 0.03)
     .fill({ color: 0xc80000, alpha: 0.5 });
+}
+
+/** The placeholder steel of the funnel and the mast, outlined as the structures are. */
+const FEATURE_STEEL = { color: 0x55636f };
+const FEATURE_OUTLINE = { color: 0x76918c, width: 0.06 };
+const FEATURE_DARK = { color: 0x1a1a1a };
+
+/**
+ * One of the wreck's engines on its deck (#240 PR 4, legacy's drawEngine),
+ * flat: the base block, the cylinder heads and their risers, the side pipes.
+ */
+function buildEngine(): Graphics {
+  const { block, heads, risers, pipes, pipeWidth } = ENGINE_SHAPE;
+  const engine = new Graphics();
+  for (const part of [...heads, ...risers]) {
+    engine.rect(part.x, part.y, part.width, part.height).fill(FEATURE_DARK);
+  }
+  engine
+    .rect(block.x, block.y, block.width, block.height)
+    .fill(FEATURE_STEEL)
+    .stroke(FEATURE_OUTLINE);
+  for (const pipe of pipes) {
+    tracePolyline(engine, pipe).stroke({ color: FEATURE_OUTLINE.color, width: pipeWidth });
+  }
+  return engine;
+}
+
+function tracePolyline(graphics: Graphics, points: readonly FeaturePoint[]): Graphics {
+  points.forEach(([x, y], index) => (index === 0 ? graphics.moveTo(x, y) : graphics.lineTo(x, y)));
+  return graphics;
+}
+
+/**
+ * The bow visor hinged up over the bow opening (#240 PR 4, legacy's
+ * drawBowVisor), flat: the door slab, its seam and its hinge, turned.
+ */
+function buildBowVisor(): Graphics {
+  const { rotationRad, slab, seam, seamWidth, hinge } = BOW_VISOR_SHAPE;
+  const visor = new Graphics()
+    .rect(slab.x, slab.y, slab.width, slab.height)
+    .fill(FEATURE_STEEL)
+    .stroke(FEATURE_OUTLINE);
+  tracePolyline(visor, seam)
+    .stroke({ color: 0x000000, alpha: 0.45, width: seamWidth })
+    .circle(hinge.x, hinge.y, hinge.radius)
+    .fill(FEATURE_DARK);
+  visor.rotation = rotationRad;
+  return visor;
 }
 
 /**
