@@ -16,11 +16,18 @@ const hudRow = (page, name) => page.locator(`.wreck-hud [data-hud-metric="${name
 const hudValue = (page, name) => hudRow(page, name).locator('dd');
 const chevrons = (page) => hudRow(page, 'ascentRate').locator('.ascent-chevrons');
 
-/** A diver at 20 m with a BCD full enough to rise at legacy's 25 m/min cap. */
+/**
+ * A diver at 20 m with a BCD full enough to rise at legacy's 25 m/min cap.
+ * At rest in the log too (#323): the save is taken sinking at up to 20
+ * m/min, and the resumed HUD shows the log's rate, as legacy's restored
+ * ascentRate, until the first step. Left as saved, past 18 m/min down, the
+ * first frames showed the danger chevrons pointing down.
+ */
 const risingFast = (state) => {
   state.depthM = 20;
   state.maxDepthM = Math.max(state.maxDepthM, 20);
   state.verticalVelocityMpm = 0;
+  state.log.ascentRateMpm = 0;
   state.bcdGasSurfaceLiters = 40;
 };
 
