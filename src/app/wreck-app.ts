@@ -189,8 +189,13 @@ let instructorOn = false;
 
 const zoneMessageKeys: Record<WreckZone, MessageKey> = {
   exterior: "wreck.zone.exterior",
+  bridge: "wreck.zone.bridge",
+  accommodation: "wreck.zone.accommodation",
+  "vehicle-deck": "wreck.zone.vehicle-deck",
+  "crew-deck": "wreck.zone.crew-deck",
   "cargo-hold": "wreck.zone.cargo-hold",
   "engine-room": "wreck.zone.engine-room",
+  bilge: "wreck.zone.bilge",
 };
 
 // The chip in the topbar and the alert paragraph describe the same state at

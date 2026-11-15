@@ -75,6 +75,7 @@ const scene = (elapsedRealS: number): WreckSceneState => ({
   facing: 1,
   torchOn: false,
   zone: "exterior",
+  inOverhead: false,
   shark: null,
 });
 const presentation = {} as PresentationState;

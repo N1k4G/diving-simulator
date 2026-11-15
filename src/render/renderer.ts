@@ -1,11 +1,20 @@
 import type { PresentationState } from "../presentation/presentation-state";
-import { CARGO_HOLD_FROM_M, ENGINE_ROOM_FROM_M } from "../sites/wreck-route";
+import { sitePresentation, visualZoneAt } from "../sites/layer-factory";
 
 export const RENDERER_KINDS = ["pixi", "canvas"] as const;
 
 export type RendererKind = (typeof RENDERER_KINDS)[number];
 
-export type WreckZone = "exterior" | "cargo-hold" | "engine-room";
+/** Legacy's wreck zones (src/sites.js visualZones), named without their "wreck_" prefix. */
+export type WreckZone =
+  | "exterior"
+  | "bridge"
+  | "accommodation"
+  | "vehicle-deck"
+  | "crew-deck"
+  | "cargo-hold"
+  | "engine-room"
+  | "bilge";
 
 export interface WreckSceneState {
   readonly routePositionM: number;
@@ -14,6 +23,8 @@ export interface WreckSceneState {
   readonly facing: -1 | 1;
   readonly torchOn: boolean;
   readonly zone: WreckZone;
+  /** Legacy's inOverhead: a structure above the diver (src/sites.js overheadAt). */
+  readonly inOverhead: boolean;
   /**
    * The shark while one swims (#219), DiveState.shark.encounter: its world
    * position along the route, its depth, and its heading. Null otherwise.
@@ -50,18 +61,30 @@ export function resolveRendererKind(
   return requested === "canvas" ? "canvas" : "pixi";
 }
 
+/** The wreck's zones as legacy declares them, keyed by legacy's id. */
+export const WRECK_ZONE_IDS: Readonly<Record<string, WreckZone>> = Object.freeze({
+  wreck_exterior: "exterior",
+  wreck_bridge: "bridge",
+  wreck_accommodation: "accommodation",
+  wreck_vehicle_deck: "vehicle-deck",
+  wreck_crew_deck: "crew-deck",
+  wreck_cargo_hold: "cargo-hold",
+  wreck_engine_room: "engine-room",
+  wreck_bilge: "bilge",
+});
+
+const WRECK_VISUAL_ZONES = sitePresentation("wreck")?.visualZones;
+
 /**
- * The part of the wreck a route position lies in. The overhead is only under
- * the deck: the controller reports open water above it as the exterior.
+ * The part of the wreck the diver is in (#240): legacy's visualZoneAt() over
+ * the wreck's zones, by position and depth alone, as legacy has it. The
+ * vehicle deck's zone takes in the bow visor's opening and the stern's, which
+ * are open to the surface, so a zone is not the overhead: that is
+ * `inOverhead`. Outside every zone, past the site's ends, is the exterior.
  */
-export function selectWreckZone(routePositionM: number): WreckZone {
-  if (routePositionM >= ENGINE_ROOM_FROM_M) {
-    return "engine-room";
-  }
-  if (routePositionM >= CARGO_HOLD_FROM_M) {
-    return "cargo-hold";
-  }
-  return "exterior";
+export function selectWreckZone(positionM: number, depthM: number): WreckZone {
+  const zone = visualZoneAt(WRECK_VISUAL_ZONES, positionM, depthM);
+  return (zone && WRECK_ZONE_IDS[zone.id]) ?? "exterior";
 }
 
 /**

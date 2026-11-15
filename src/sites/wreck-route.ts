@@ -121,8 +121,9 @@ export const ROUTE_MAX_POSITION_M = 106;
 export const ROUTE_START_POSITION_M = 10;
 
 /**
- * Where the overhead starts, and with it the zone map's cargo hold
- * (src/render/renderer.ts selectWreckZone()): the deck's forward edge.
+ * Where the route's overhead starts: the deck's forward edge. The zone map
+ * no longer reads these two since #240 (src/render/renderer.ts
+ * selectWreckZone(), legacy's visualZoneAt()).
  * Legacy counts any diver with solid structure above as in the overhead
  * (src/sites.js overheadAt), and its main deck covers the hull from x 22,
  * after the bow-visor opening; under the opening nothing is above the diver

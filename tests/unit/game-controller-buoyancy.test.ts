@@ -436,8 +436,9 @@ describe("the route through the wreck", { timeout: 30_000 }, () => {
     expect(depthM).toBeLessThanOrEqual(39 - DIVER_HALF_HEIGHT_M);
     expect(depthM).toBeGreaterThan(39 - DIVER_HALF_HEIGHT_M - STEP_M);
     expect(controller.authoritativeState.verticalVelocityMpm).toBe(0);
-    // The opening is open to the surface: not the overhead yet.
-    expect(frames.at(-1)?.scene.zone).toBe("exterior");
+    // The opening is the vehicle deck's, open to the surface: not the overhead yet.
+    expect(frames.at(-1)?.scene.zone).toBe("vehicle-deck");
+    expect(frames.at(-1)?.scene.inOverhead).toBe(false);
     expect(controller.authoritativeState.thirds.startingGasL).toBe(0);
   }
 
@@ -448,7 +449,8 @@ describe("the route through the wreck", { timeout: 30_000 }, () => {
     step(31 * FIN_FRAMES_PER_METRE);
     controller.setControl("right", false);
     expect(frames.at(-1)?.scene.routePositionM).toBeCloseTo(50, 9);
-    expect(frames.at(-1)?.scene.zone).toBe("cargo-hold");
+    expect(frames.at(-1)?.scene.zone).toBe("vehicle-deck");
+    expect(frames.at(-1)?.scene.inOverhead).toBe(true);
     // legacy updateDiving, Issue #27: the plan is set on entering the overhead.
     expect(controller.authoritativeState.thirds.startingGasL).toBeGreaterThan(0);
 
@@ -482,7 +484,7 @@ describe("the route through the wreck", { timeout: 30_000 }, () => {
     controller.setControl("right", true);
     step(31 * FIN_FRAMES_PER_METRE);
     controller.setControl("right", false);
-    expect(frames.at(-1)?.scene.zone).toBe("cargo-hold");
+    expect(frames.at(-1)?.scene.inOverhead).toBe(true);
     expect(controller.authoritativeState.completed).toBe(false);
 
     // Forward out from under the main deck into the opening, where the stem
@@ -494,7 +496,8 @@ describe("the route through the wreck", { timeout: 30_000 }, () => {
     const outAt = frames.at(-1)?.scene.routePositionM ?? Number.NaN;
     expect(outAt).toBeGreaterThanOrEqual(16 + DIVER_HALF_WIDTH_M);
     expect(outAt).toBeLessThan(16 + DIVER_HALF_WIDTH_M + STEP_M);
-    expect(frames.at(-1)?.scene.zone).toBe("exterior");
+    expect(frames.at(-1)?.scene.zone).toBe("vehicle-deck");
+    expect(frames.at(-1)?.scene.inOverhead).toBe(false);
     ascendCarefully(controller, 9000);
     const state = controller.authoritativeState;
     expect(state.failure.reason).toBeNull();

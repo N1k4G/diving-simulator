@@ -309,7 +309,7 @@ export class PixiWreckRenderer implements SceneRenderer {
     this.#boat.rotation = boatRockRad(t);
     const shadow = boatShadowStrength(
       diveUnderway(presentation),
-      scene.zone !== "exterior",
+      scene.inOverhead,
       scene.diverDepthM,
     );
     this.#boatShadow.visible = shadow > 0;

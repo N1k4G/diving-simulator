@@ -61,6 +61,34 @@ export interface VisualZone {
   readonly priority?: number;
 }
 
+/**
+ * The zone at (x, d), legacy's visualZoneAt() (src/sites.js, issue #53), or
+ * null where no zone holds it. Edges are inclusive. The highest priority wins,
+ * a missing one counting as 0; on a tie the smaller zone, and on a tie of
+ * both the one declared first.
+ */
+export function visualZoneAt<Zone extends VisualZone>(
+  zones: readonly Zone[] | undefined,
+  x: number,
+  d: number,
+): Zone | null {
+  let best: Zone | null = null;
+  let bestPriority = Number.NEGATIVE_INFINITY;
+  let bestArea = Number.POSITIVE_INFINITY;
+  for (const zone of zones ?? []) {
+    if (x < zone.x1 || x > zone.x2 || d < zone.d1 || d > zone.d2) continue;
+    const priority = zone.priority ?? 0;
+    const area = (zone.x2 - zone.x1) * (zone.d2 - zone.d1);
+    // Zones are visited in declared order, so an equal one never displaces the first.
+    if (priority > bestPriority || (priority === bestPriority && area < bestArea)) {
+      best = zone;
+      bestPriority = priority;
+      bestArea = area;
+    }
+  }
+  return best;
+}
+
 export interface DecorationRule {
   readonly id: string;
   readonly zone: string;

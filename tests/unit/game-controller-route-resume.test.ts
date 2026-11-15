@@ -97,17 +97,19 @@ function underway(depthM = 30): DiveState {
 }
 
 describe("a dive resumed at its saved route position (#222)", () => {
-  it("stays in the cargo hold, under the overhead, with the plan it entered on", async () => {
+  it("stays on the vehicle deck, under the overhead, with the plan it entered on", async () => {
     const { controller, frames, saved } = await startController(underway(), 50);
     expect(frames.at(-1)?.scene.routePositionM).toBe(50);
-    expect(frames.at(-1)?.scene.zone).toBe("cargo-hold");
+    expect(frames.at(-1)?.scene.zone).toBe("vehicle-deck");
+    expect(frames.at(-1)?.scene.inOverhead).toBe(true);
     expect(frames.at(-1)?.presentation.ruleOfThirds?.phase).toBe("outbound");
 
     step(10);
     // The rule of thirds runs on under the deck, from the plan made on
     // entering, rather than being dropped as outside the overhead.
     expect(controller.authoritativeState.thirds.startingGasL).toBe(PLAN_GAS_L);
-    expect(frames.at(-1)?.scene.zone).toBe("cargo-hold");
+    expect(frames.at(-1)?.scene.zone).toBe("vehicle-deck");
+    expect(frames.at(-1)?.scene.inOverhead).toBe(true);
     expect(frames.at(-1)?.presentation.ruleOfThirds?.phase).toBe("outbound");
     expect(controller.routePositionM).toBe(50);
     expect(saved.at(-1)?.routePositionM).toBe(50);
@@ -119,6 +121,7 @@ describe("a dive resumed at its saved route position (#222)", () => {
     step(2);
     expect(controller.routePositionM).toBe(100);
     expect(frames.at(-1)?.scene.zone).toBe("engine-room");
+    expect(frames.at(-1)?.scene.inOverhead).toBe(true);
     expect(controller.authoritativeState.thirds.startingGasL).toBe(PLAN_GAS_L);
     controller.destroy();
   });
@@ -139,6 +142,7 @@ describe("a dive resumed at its saved route position (#222)", () => {
     const { controller, frames } = await startController(underway());
     expect(frames.at(-1)?.scene.routePositionM).toBe(10);
     expect(frames.at(-1)?.scene.zone).toBe("exterior");
+    expect(frames.at(-1)?.scene.inOverhead).toBe(false);
     step(2);
     expect(controller.authoritativeState.thirds.startingGasL).toBe(0);
     expect(frames.at(-1)?.presentation.ruleOfThirds).toBeNull();

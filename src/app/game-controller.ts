@@ -938,10 +938,8 @@ export class GameController {
       elapsedRealS: this.#elapsedRealS,
       facing: this.#facing,
       torchOn: this.#torchOn,
-      // Over the wreck but under nothing is open water, not its inside.
-      zone: overheadAt(WRECK_SITE, this.#routePositionM, depthM)
-        ? selectWreckZone(this.#routePositionM)
-        : "exterior",
+      zone: selectWreckZone(this.#routePositionM, depthM),
+      inOverhead: overheadAt(WRECK_SITE, this.#routePositionM, depthM),
       // The model holds the shark relative to the diver (#219).
       shark: encounter
         ? Object.freeze({
