@@ -10,7 +10,10 @@ import {
   boatShadowSwayM,
   nearSurfaceLightFactor,
 } from "../../src/render/surface-boat";
-import { WRECK_BOW_X_M } from "../../src/sites/wreck-route";
+import { WRECK_SITE } from "../../src/sites/wreck-site";
+
+/** The wreck's bow: legacy's stem, the structure furthest forward. */
+const WRECK_BOW_X_M = Math.min(...WRECK_SITE.structures.map((structure) => structure.x1));
 
 // The dive boat and its shadow (#222), after legacy's src/renderer.js:
 // drawScene's "Ship on surface", nearSurfaceLightFactor,
@@ -20,6 +23,7 @@ import { WRECK_BOW_X_M } from "../../src/sites/wreck-route";
 describe("the boat at the surface", () => {
   it("is moored at legacy's boatX 5, its hull clear of the wreck's bow stem at 14", () => {
     expect(BOAT_X_M).toBe(5);
+    expect(WRECK_BOW_X_M).toBe(14);
     // paintShip's hull runs from -64 to 78 px.
     expect(BOAT_X_M + 78 * 0.05).toBeLessThan(WRECK_BOW_X_M);
   });

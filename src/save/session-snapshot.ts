@@ -1,5 +1,4 @@
-import { ROUTE_START_POSITION_M } from "../sites/wreck-route";
-import { resumedPosition } from "../sites/wreck-site";
+import { ROUTE_START_POSITION_M, resumedPosition } from "../sites/wreck-site";
 
 /**
  * The game session's snapshot (#137 A4b): what the controller owns beside

@@ -15,9 +15,8 @@ import { nextRandom } from "../../src/core/rng";
 import { bars, metres, seconds } from "../../src/core/units";
 import { wreckViewAround } from "../../src/render/camera";
 import { SITE_GAMEPLAY } from "../../src/sites/site-resources";
-import { ROUTE_START_POSITION_M } from "../../src/sites/wreck-route";
 import { sharkWaterAt } from "../../src/sites/shark-water";
-import { WRECK_SITE } from "../../src/sites/wreck-site";
+import { ROUTE_START_POSITION_M, WRECK_SITE } from "../../src/sites/wreck-site";
 
 // The controller's shark wiring (#219 part 2): what it hands the model each
 // frame as DiveEnvironment.shark, and the shark it hands the scene. The

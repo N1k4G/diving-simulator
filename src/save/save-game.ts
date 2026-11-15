@@ -41,8 +41,7 @@ import {
   SURFACE_DCS_DEPTH_M,
   isInSafetyStopBand,
 } from "../core/dive-model";
-import { ROUTE_START_POSITION_M } from "../sites/wreck-route";
-import { resumesAt } from "../sites/wreck-site";
+import { ROUTE_START_POSITION_M, resumesAt } from "../sites/wreck-site";
 import { START_SESSION, resumedSession, type SessionSnapshot } from "./session-snapshot";
 import { NO_DRILL, isLoggableDrillOutcome, resumedDrill, type DrillState } from "../core/drills";
 import {
