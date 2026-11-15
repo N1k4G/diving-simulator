@@ -1654,12 +1654,13 @@ describe("SaveGame gradient factors", () => {
     });
 
     it("resumes a legacy save at the route's start where its diverX does not resume, or is not the wreck's", () => {
-      // Another site's x, or legacy's default site, 'open'; no diverX, or not
+      // Another site's x, legacy's default site, 'open', or none; no diverX, or not
       // a number; off the site; inside the superstructure's wall at x 40 to
       // 42 at 24 m; and, at 49 m, in the hold sealed behind the full bulkhead
       // at x 56.
       for (const carried of [
         { diveSite: "reef", diverX: 50 },
+        { diveSite: "open", diverX: 50 },
         { diverX: 50 },
         { diveSite: "wreck" },
         { diveSite: "wreck", diverX: "50" },

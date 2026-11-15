@@ -80,15 +80,14 @@ function legacyFunction(name: string): string {
   return gameLoopSource.slice(start, end);
 }
 
-const wreckCheckpoints = (
+const recordedCheckpoints = (
   baselineFixture.scenarios as unknown as { scenarioId: string; checkpoints: Checkpoint[] }[]
-).flatMap((scenario) =>
-  scenario.checkpoints
-    .filter((checkpoint) => checkpoint.state.diveSite === "wreck")
-    .map((checkpoint) => ({ ...checkpoint, scenarioId: scenario.scenarioId })),
-);
+).flatMap((scenario) => scenario.checkpoints.map((checkpoint) => ({ ...checkpoint, scenarioId: scenario.scenarioId })));
 /** Legacy saves only while 'diving', 'surface' or 'drill'; a game over is cleared. */
-const savable = wreckCheckpoints.filter((checkpoint) => checkpoint.state.gameState === "diving");
+const savableAnywhere = recordedCheckpoints.filter((checkpoint) => checkpoint.state.gameState === "diving");
+const savable = savableAnywhere.filter((checkpoint) => checkpoint.state.diveSite === "wreck");
+/** The recorded checkpoints a save can be taken at on another site: the shore, the cave and the reef. */
+const savableOffTheWreck = savableAnywhere.filter((checkpoint) => checkpoint.state.diveSite !== "wreck");
 const name = (checkpoint: Checkpoint) => `${checkpoint.scenarioId}/${checkpoint.checkpointId}`;
 
 /** Under the deck, with a plan legacy's reload would drop. */
@@ -125,7 +124,9 @@ function legacySave(checkpoint: Checkpoint): Record<string, unknown> {
     horizontalVelocity: checkpoint.state.horizontalVelocity_mps,
     bcdGasSurfaceLiters: checkpoint.state.bcdGasSurface_l,
     depth: checkpoint.state.depth_m,
-    maxDepth: checkpoint.state.maxDepth_m,
+    // A recording put straight at its depth, with no dive before, holds a
+    // maxDepth of 0; one legacy saves in a dive holds at least the depth.
+    maxDepth: Math.max(checkpoint.state.maxDepth_m, checkpoint.state.depth_m),
     diveTime: checkpoint.state.diveTime_min,
     amvRate: 15,
     po2ViolationTime: 0,
@@ -194,6 +195,41 @@ describe("a resumed dive's place against legacy's save and restore", () => {
     }
     // x 10, the route's start, is none of them: every place is legacy's own.
     expect(savable.some((checkpoint) => (checkpoint.state.diverX_m || 0) === ROUTE_START_M)).toBe(false);
+  });
+
+  it("departs for every legacy save of another site: it resumes at x 10, where legacy's own restore gives its diverX", () => {
+    // Legacy restores the site with the x (src/game-loop.js 1674, 1677); the
+    // client plays the wreck alone, where another site's x is no place.
+    // Legacy's own restore line, checked above, run on each save.
+    const legacyRestoredX = new Function("state", `var diverX; ${LEGACY_RESTORES_DIVER_X} return diverX;`) as (
+      state: Record<string, unknown>,
+    ) => number;
+    const bySite = new Map<string, number>();
+    for (const checkpoint of savableOffTheWreck) {
+      bySite.set(checkpoint.state.diveSite, (bySite.get(checkpoint.state.diveSite) ?? 0) + 1);
+    }
+    expect(Object.fromEntries(bySite)).toEqual({ shore: 31, cave: 3, reef: 6 });
+    expect([...new Set(savableOffTheWreck.map((checkpoint) => checkpoint.scenarioId))].sort()).toEqual([
+      "air-18m-30min",
+      "barotrauma-runaway-ascent-30m",
+      "buoyancy-ccr-inflate-12m",
+      "buoyancy-vent-inflate-12m",
+      "ccr-30m-30min",
+      "ccr-bailout-30m",
+      "ccr-setpoint-bailout-30m",
+      "narcosis-air-65m",
+      "shark-encounter-5m",
+    ]);
+    for (const checkpoint of savableOffTheWreck) {
+      const where = `${name(checkpoint)} (${checkpoint.state.diveSite})`;
+      const save = legacySave(checkpoint);
+      expect(legacyRestoredX(save), where).toBe(0);
+      const imported = decodeSaveGame(JSON.stringify(save));
+      expect(imported.ok, where).toBe(true);
+      if (!imported.ok) return;
+      expect(imported.saveGame.session.routePositionM, where).toBe(ROUTE_START_M);
+      expect(imported.saveGame.session.routePositionM, where).not.toBe(legacyRestoredX(save));
+    }
   });
 
   it("departs under the overhead: keeps the plan made on entering, which legacy's reload drops", () => {
