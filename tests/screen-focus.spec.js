@@ -132,7 +132,7 @@ for (const [locale, name] of [
   test.describe(`in ${locale}`, () => {
     test.use({ locale });
 
-    test('the focused dive computer keeps one name while its readouts change', async ({ page }) => {
+    test('the focused dive computer keeps one name while its readouts change', { tag: '@chromium-only' }, async ({ page }) => {
       // By the data attributes: the gate's words are German in de-DE.
       await page.locator('[data-accept-safety]').focus();
       await page.keyboard.press('Enter');
@@ -266,8 +266,13 @@ test.describe('at 320x568, by keyboard', () => {
 
   for (const mode of ['tec', 'ccr']) {
     test(`${mode}: the focused dive computer shows its ring, whole, in view and uncovered, a warning up too`, async ({ page }) => {
+      // The mode by keyboard too: after a click, Firefox keeps the focus the
+      // dive moves to the dive computer off :focus-visible, where Chromium
+      // takes the Enter on Start as the keyboard's (#302).
       await startDiveByKeyboard(page, async (p) => {
-        await p.locator(`[data-setup-group=mode] [data-setup-option=${mode}]`).check();
+        await p.locator(`[data-setup-group=mode] [data-setup-option=${mode}]`).focus();
+        await p.keyboard.press('Space');
+        await expect(p.locator(`[data-setup-group=mode] [data-setup-option=${mode}]`)).toBeChecked();
       });
       await page.locator('[data-renderer=pixi] canvas').waitFor();
       await beginDescent(page);

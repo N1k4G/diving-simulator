@@ -18,6 +18,16 @@ const { defineConfig } = require('@playwright/test');
 // a small CI runner.
 const WORKERS = Math.max(1, Math.min(4, Math.ceil(os.cpus().length / 4)));
 
+// #302: the same suite in three engines. `npm run test:e2e` and verify run the
+// chromium project; pr.yml's `browsers` job runs firefox and webkit over the
+// verified dist/. A test that drives the page through the Chrome DevTools
+// Protocol (multi-touch input through Input.dispatchTouchEvent, the
+// accessibility tree through Accessibility.getPartialAXTree) has no equivalent
+// in the other two, so it carries the @chromium-only tag and runs in Chromium
+// alone. A test that fails in one engine for a reason of that engine's is
+// marked test.fixme for that engine only, with its issue number.
+const CHROMIUM_ONLY = /@chromium-only/;
+
 module.exports = defineConfig({
   testDir: './tests',
   testMatch: '**/*.spec.js',
@@ -29,4 +39,9 @@ module.exports = defineConfig({
     headless: true,
   },
   reporter: [['list'], ['html', { open: 'never' }]],
+  projects: [
+    { name: 'chromium', use: { browserName: 'chromium' } },
+    { name: 'firefox', use: { browserName: 'firefox' }, grepInvert: CHROMIUM_ONLY },
+    { name: 'webkit', use: { browserName: 'webkit' }, grepInvert: CHROMIUM_ONLY },
+  ],
 });

@@ -268,7 +268,7 @@ test.describe('in German, on a phone', () => {
 test.describe(`phone, portrait ${PORTRAIT.width}x${PORTRAIT.height}`, () => {
   test.use({ ...PHONE, viewport: PORTRAIT });
 
-  test('smoke: mobile click-through — start, descend, D-pad, no stuck input', async ({ page }) => {
+  test('smoke: mobile click-through — start, descend, D-pad, no stuck input', { tag: '@chromium-only' }, async ({ page }) => {
     const consoleErrors = collectConsoleErrors(page);
     await page.goto('/dist/');
     await page.evaluate(() => window.localStorage.clear());
@@ -299,12 +299,12 @@ test.describe(`phone, portrait ${PORTRAIT.width}x${PORTRAIT.height}`, () => {
     expect(consoleErrors, consoleErrors.join(' | ')).toEqual([]);
   });
 
-  test('a cancelled touch releases the direction', async ({ page }) => {
+  test('a cancelled touch releases the direction', { tag: '@chromium-only' }, async ({ page }) => {
     await startDiveBelow(page, 4);
     await holdAscendThen(page, (finger) => finger.cancel());
   });
 
-  test('the window losing focus releases the direction', async ({ page }) => {
+  test('the window losing focus releases the direction', { tag: '@chromium-only' }, async ({ page }) => {
     await startDiveBelow(page, 4);
     await holdAscendThen(
       page,
@@ -313,7 +313,7 @@ test.describe(`phone, portrait ${PORTRAIT.width}x${PORTRAIT.height}`, () => {
     );
   });
 
-  test('the page being hidden releases the direction', async ({ page }) => {
+  test('the page being hidden releases the direction', { tag: '@chromium-only' }, async ({ page }) => {
     await startDiveBelow(page, 4);
     await holdAscendThen(page, () =>
       page.evaluate(() => {

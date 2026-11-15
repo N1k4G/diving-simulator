@@ -1,0 +1,46 @@
+name: Take verify's dist/
+description: >
+  Waits for the verify job of this run to upload the verified-dist artifact,
+  downloads it, checks its tree hash against the one verify recorded and moves
+  it into dist/. The recorded hash stays at verified/verified-dist.sha256.
+  The calling job needs `actions: read` to list this run's artifacts.
+
+runs:
+  using: composite
+  steps:
+    - name: Wait for verify to hand over the verified dist/
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        for _ in $(seq 1 120); do
+          count="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=verified-dist" --jq '.total_count')"
+          if [ "${count:-0}" -gt 0 ]; then
+            exit 0
+          fi
+          state="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs" --jq '.jobs[] | select(.name == "verify") | .status')"
+          if [ "$state" = "completed" ]; then
+            echo "::error::verify finished without uploading a verified dist/; its build or hygiene check failed."
+            exit 1
+          fi
+          sleep 10
+        done
+        echo "::error::no verified dist/ after 20 minutes."
+        exit 1
+
+    - uses: actions/download-artifact@v8
+      with:
+        name: verified-dist
+        path: verified
+
+    - name: Check the verified dist/ arrived intact
+      shell: bash
+      run: |
+        expected="$(cat verified/verified-dist.sha256)"
+        received="$(node scripts/android-bundle-check.mjs hash verified/dist)"
+        if [ "$received" != "$expected" ]; then
+          echo "::error::the downloaded dist/ hashes to $received, verify recorded $expected."
+          exit 1
+        fi
+        mv verified/dist dist
+        echo "Using verified dist/ \`$expected\`" | tee -a "$GITHUB_STEP_SUMMARY"

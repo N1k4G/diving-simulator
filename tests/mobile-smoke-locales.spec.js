@@ -142,7 +142,7 @@ function completeAtSurface(state) {
 }
 
 for (const { locale, lang, other } of LOCALES) {
-  test.describe(`mobile smoke flow in ${locale}`, () => {
+  test.describe(`mobile smoke flow in ${locale}`, { tag: '@chromium-only' }, () => {
     test.use({ locale, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
     test('gate, setup, dive, help, gas page, post-dive and Dive again, by touch', async ({ page }) => {
