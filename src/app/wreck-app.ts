@@ -1348,7 +1348,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   const side = document.createElement("div");
   side.className = "wreck-side";
   side.append(column, dock);
-  const stopHudTracking = trackHudHeight(hud, side, persistence);
+  const stopHudTracking = trackHudHeight(hud, shell, persistence);
 
   // The onboarding hint (#160), where legacy draws its toast. A status
   // region written only when the hint shown changes, so each is announced
@@ -1428,6 +1428,12 @@ function updateHud(
     ? formatPressure(activeTank.pressureBar, DC)
     : translate(DC, "wreck.value.unavailable");
   hud.cylinder.textContent = selectCylinderText(presentation);
+  // "Loop" rather than "Bailout": on a short screen held upright a hint may
+  // take this row's place then, never while it reads Bailout (#258).
+  hud.cylinder.parentElement?.toggleAttribute(
+    "data-loop",
+    presentation.ccr !== null && !presentation.ccr.onBailout,
+  );
   // The control appears only while it would do something and reads as
   // pressed while the clock is sped up; the chip says the same in words.
   hud.fastForward.hidden = !fastForward.available;

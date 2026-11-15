@@ -108,14 +108,16 @@ export function createInstructorPanel(locale: SupportedLocale): InstructorPanelE
 }
 
 /**
- * Keeps the HUD's height on the side as `--wreck-hud-height`, so on a phone
- * the panel stands below the HUD as well as below the diver (diagnostic.css).
+ * Keeps the HUD's height on `host` as `--wreck-hud-height`, so on a phone
+ * the panel stands below the HUD as well as below the diver, and on a short
+ * screen held upright the onboarding hint below it (diagnostic.css): the
+ * shell, which holds both.
  * `under` stands under the HUD in the column (the notice that the dive is
  * not being saved, #282) and counts with it while it stands in the
  * column's flow: empty, or while an open panel takes its place, it is out of
  * it. Written only when either's size changes; returns the disconnect.
  */
-export function trackHudHeight(hud: HTMLElement, side: HTMLElement, under?: HTMLElement): () => void {
+export function trackHudHeight(hud: HTMLElement, host: HTMLElement, under?: HTMLElement): () => void {
   if (typeof ResizeObserver === "undefined") {
     return () => {};
   }
@@ -124,7 +126,7 @@ export function trackHudHeight(hud: HTMLElement, side: HTMLElement, under?: HTML
       under !== undefined && getComputedStyle(under).position !== "absolute"
         ? under.offsetTop + under.offsetHeight - hud.offsetTop
         : hud.offsetHeight;
-    side.style.setProperty("--wreck-hud-height", `${height}px`);
+    host.style.setProperty("--wreck-hud-height", `${height}px`);
   });
   observer.observe(hud);
   if (under !== undefined) observer.observe(under);
