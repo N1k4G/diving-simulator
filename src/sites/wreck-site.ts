@@ -26,12 +26,13 @@ export const WRECK_MIN_X_M = (WRECK_SITE.floor[0] as ProfilePoint).x;
 export const WRECK_MAX_X_M = (WRECK_SITE.floor[WRECK_SITE.floor.length - 1] as ProfilePoint).x;
 
 /**
- * Where a dive starts: in open water off the bow, clear of the hull, as
- * legacy's dives start at the site's entry beside the boat (src/sites.js
- * entry.x, boatX). A resumed dive picks up where it was saved
- * (resumedPosition), and here when that is not a place it can resume.
- * The provisional route of #199 set it; it moved here when #240 PR 3c
- * retired that route.
+ * Where the client starts a dive: x 10, in open water off the bow, clear of
+ * the stem at x 14. A departure from legacy, whose resetDive() starts every
+ * dive at x 0 (src/state.js 1108; docs/decisions.md, the #240 PR 3c row).
+ * The provisional route of #199 set it, when that route ran from x 8 to 106
+ * and legacy's x 0 was not on it; it moved here when #240 PR 3c retired that
+ * route. A resumed dive picks up where it was saved (resumedPosition), and
+ * here when that is not a place it can resume.
  */
 export const ROUTE_START_POSITION_M = 10;
 
