@@ -1348,7 +1348,7 @@ function createWreckShell(locale: SupportedLocale): HudElements {
   const side = document.createElement("div");
   side.className = "wreck-side";
   side.append(column, dock);
-  const stopHudTracking = trackHudHeight(hud, side, persistence);
+  const stopHudTracking = trackHudHeight(hud, shell, persistence);
 
   // The onboarding hint (#160), where legacy draws its toast. A status
   // region written only when the hint shown changes, so each is announced

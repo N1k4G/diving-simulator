@@ -193,9 +193,30 @@ function layoutProblems() {
   return problems;
 }
 
+/**
+ * Resizes the page and waits for the HUD's height on the shell, which
+ * places the hint on a short screen held upright (trackHudHeight), to be
+ * the HUD's height now: a ResizeObserver writes it after the layout a
+ * resize starts. Polled on a timer, as the frames are stepped by hand.
+ */
+async function resizeTo(page, width, height) {
+  await page.setViewportSize({ width, height });
+  await page.waitForFunction(() => {
+    const shell = document.querySelector('.wreck-shell');
+    const hud = document.querySelector('.wreck-hud');
+    return getComputedStyle(shell).getPropertyValue('--wreck-hud-height').trim() === `${hud.offsetHeight}px`;
+  }, undefined, { polling: 50 });
+}
+
+/** The portrait phones of docs/decisions.md's layout contract, rule 1. */
+const PORTRAIT_SIZES = [[320, 568], [340, 640], [360, 640], [375, 553], [375, 667], [390, 844]];
+
 // Legacy draws its toast in drawScene() and its dive computer over it
 // (src/game-loop.js gameLoop), so no hint hides a HUD row. Here it stands
-// beside the HUD, so nothing hides it either.
+// beside the HUD, so nothing hides it either; on a short screen held
+// upright, where the HUD is as wide as the screen, it stands under the HUD
+// beside Learn, and takes the place of the gas rows while it shows (#258).
+const GAS_ROWS = ['cylinder', 'setpoint', 'loopPo2', 'oxygenCylinder', 'diluentCylinder', 'scrubber'];
 const SAFETY_STOP_DE = 'Sicherheitsstopp: 3–5 min zwischen 2,4–8,3m halten, F = Zeitraffer';
 for (const mode of ['rec', 'ccr']) {
   test.describe(`in German, on a ${mode} dive at a paused safety stop`, () => {
@@ -205,12 +226,36 @@ for (const mode of ['rec', 'ccr']) {
       test.setTimeout(120_000);
       await resumeAtPausedStop(page, mode);
       await expect(toast(page)).toHaveText(SAFETY_STOP_DE);
-      for (const [width, height] of [[844, 390], [667, 375], [390, 844], [360, 640], [1280, 720]]) {
-        await page.setViewportSize({ width, height });
+      for (const [width, height] of [[844, 390], [667, 375], ...PORTRAIT_SIZES, [1280, 720]]) {
+        await resizeTo(page, width, height);
         expect(await page.evaluate(layoutProblems), `${width}x${height}`).toEqual([]);
       }
       // No frame ran while it was measured: the same hint is still up.
       await expect(toast(page)).toHaveText(SAFETY_STOP_DE);
+    });
+
+    test('on a short screen held upright the hint takes the place of the gas rows, which are back as it goes', async ({ page }) => {
+      test.setTimeout(120_000);
+      await resumeAtPausedStop(page, mode);
+      await expect(toast(page)).toHaveText(SAFETY_STOP_DE);
+      const shownRows = () =>
+        page.evaluate(() =>
+          [...document.querySelectorAll('.wreck-hud > div')]
+            .filter((row) => row.getClientRects().length > 0)
+            .map((row) => row.dataset.hudMetric));
+      const withHint = ['depth', 'ascentRate', 'time', 'ndl', 'safetyStop'];
+      await resizeTo(page, 320, 568);
+      expect(await shownRows()).toEqual(withHint);
+      // Wider and taller, the hint stands beside the HUD, which keeps them.
+      await resizeTo(page, 390, 844);
+      const all = await shownRows();
+      expect(all.filter((row) => GAS_ROWS.includes(row)).length).toBeGreaterThan(0);
+      // The hint's 6 s, then it is gone and the rows are back at 320x568.
+      await resizeTo(page, 320, 568);
+      await page.evaluate(() => window.__stepFrames(7 * 60));
+      await expect(toast(page)).toHaveText('');
+      await resizeTo(page, 320, 568);
+      expect(await shownRows()).toEqual(all);
     });
 
     // The shell's side carries the safe-area insets (#137 A7), so the hint,
@@ -232,14 +277,17 @@ for (const mode of ['rec', 'ccr']) {
         [812, 375, { top: 0, right: 44, bottom: 21, left: 44 }],
         [390, 844, { top: 47, right: 0, bottom: 34, left: 0 }],
         [360, 640, { top: 0, right: 0, bottom: 24, left: 0 }],
+        // A short screen held upright, where the hint stands under the HUD
+        // (#258): an iPhone SE's status bar in an app.
+        [320, 568, { top: 20, right: 0, bottom: 0, left: 0 }],
       ];
       for (const [width, height, inset] of cases) {
-        await page.setViewportSize({ width, height });
         await page.evaluate((edges) => {
           for (const [edge, px] of Object.entries(edges)) {
             document.documentElement.style.setProperty(`--safe-area-inset-${edge}`, `${px}px`);
           }
         }, inset);
+        await resizeTo(page, width, height);
         const problems = await page.evaluate(layoutProblems);
         const short = height <= 600;
         expect(short ? problems.filter((p) => !offScreen(p)) : problems, `${width}x${height} ${JSON.stringify(inset)}`).toEqual([]);

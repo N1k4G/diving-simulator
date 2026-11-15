@@ -1643,6 +1643,32 @@ summary:focus-visible {
   }
 }
 
+/* The onboarding hint on a short screen held upright (#258): 320x568 and
+   375x553. The HUD is as wide as the screen there, so beside it the hint
+   stood off the screen's right edge, unseen though announced. It stands
+   under the HUD instead, at the top of Learn's row and right of Learn, 8px
+   clear of both: placed by the HUD's height (trackHudHeight, kept on the
+   shell), with the notice under the HUD counted in it. Under a
+   rebreather's HUD, Learn and the dock fill the column's height, which
+   left the hint 48px on linux fonts, where the longest German hint takes
+   three lines, 71px; so while a hint shows it takes the place of the gas
+   rows, as an open gas page does above, and they come back as it goes.
+   Depth, the ascent rate, the dive time, NDL, the stop and the rule of
+   thirds stay. tests/onboarding-hints.spec.js measures 320 to 390px. */
+@media (height <= 600px) and (orientation: portrait) {
+  .onboarding-hint {
+    top: calc(
+      var(--wreck-side-top) + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)) +
+        var(--wreck-hud-height, 0px) + 0.5rem
+    );
+    left: calc(var(--wreck-gutter) + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)) + 2.75rem + 0.5rem);
+  }
+
+  .wreck-shell:has(> .onboarding-hint:not(:empty)) .wreck-hud > div:not([data-hud-metric="depth"], [data-hud-metric="ascentRate"], [data-hud-metric="time"], [data-hud-metric="ndl"], [data-hud-metric="safetyStop"], [data-hud-metric="thirds"]) {
+    display: none;
+  }
+}
+
 /* The gas-information panel (#163). Same treatment as the HUD above it. */
 .gas-info {
   box-sizing: border-box;
