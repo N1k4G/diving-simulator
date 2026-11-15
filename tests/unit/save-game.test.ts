@@ -24,6 +24,12 @@ import { DiveModel, advanceDiveStep } from "../../src/core/dive-model";
 import { nextRandom } from "../../src/core/rng";
 import { NO_DRILL, type DrillState } from "../../src/core/drills";
 import { START_SESSION, resumedSession } from "../../src/save/session-snapshot";
+import { WRECK_SITE } from "../../src/sites/wreck-site";
+
+/** A save before v22 under water, as it resumes since #240: at rest and neutral at its depth. */
+function atRest(state: DiveState): DiveState {
+  return freezeDiveState({ ...state, verticalVelocityMpm: 0, bcdGasSurfaceLiters: neutralBcdSurfaceLitres(state.depthM) });
+}
 
 describe("SaveGame", () => {
   it("round-trips every authoritative DiveState field", () => {
@@ -316,13 +322,16 @@ describe("SaveGame gradient factors", () => {
       }
     });
 
-    it("carries legacy's verticalVelocity and bcdGasSurfaceLiters over", () => {
-      const legacy = { ...legacyV2Save(), verticalVelocity: 6.5, bcdGasSurfaceLiters: 9.25 };
-      const result = decodeSaveGame(JSON.stringify(legacy));
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.saveGame.state.verticalVelocityMpm).toBe(6.5);
-      expect(result.saveGame.state.bcdGasSurfaceLiters).toBe(9.25);
+    it("carries legacy's verticalVelocity and bcdGasSurfaceLiters over at the surface, and under water rests neutral (#240)", () => {
+      const surfaced = decodeSaveGame(
+        JSON.stringify({ ...legacyV2Save(), depth: 0, verticalVelocity: 6.5, bcdGasSurfaceLiters: 9.25 }),
+      );
+      expect(surfaced.ok && surfaced.saveGame.state.verticalVelocityMpm).toBe(6.5);
+      expect(surfaced.ok && surfaced.saveGame.state.bcdGasSurfaceLiters).toBe(9.25);
+      // At 24 m the diver lay on legacy's own decks; it resumes off them.
+      const under = decodeSaveGame(JSON.stringify({ ...legacyV2Save(), verticalVelocity: 6.5, bcdGasSurfaceLiters: 9.25 }));
+      expect(under.ok && under.saveGame.state.verticalVelocityMpm).toBe(0);
+      expect(under.ok && under.saveGame.state.bcdGasSurfaceLiters).toBeCloseTo(neutralBcdSurfaceLitres(24), 12);
     });
   });
 
@@ -391,8 +400,9 @@ describe("SaveGame gradient factors", () => {
       if (!result.ok) return;
       expect(result.migratedFrom).toBe("save-game-v6");
       expect(result.saveGame.state.log).toEqual(createEmptyDiveLog());
-      // v6 already carried live motion, and keeps it.
-      expect(result.saveGame.state.bcdGasSurfaceLiters).toBe(logged().bcdGasSurfaceLiters);
+      // v6 already carried live motion; under water it rests neutral since
+      // #240, as every save before v22 does.
+      expect(result.saveGame.state.bcdGasSurfaceLiters).toBeCloseTo(neutralBcdSurfaceLitres(logged().depthM), 12);
     });
 
     it("rejects a current save with an invalid log", () => {
@@ -1576,7 +1586,7 @@ describe("SaveGame gradient factors", () => {
         expect(result.migratedFrom).toBe("save-game-v17");
         expect(result.saveGame.version).toBe(CURRENT_SAVE_GAME_VERSION);
         expect(result.saveGame.session.routePositionM, String(carried)).toBe(10);
-        expect(result.saveGame.state).toEqual(inTheHold());
+        expect(result.saveGame.state).toEqual(atRest(inTheHold()));
       }
     });
 
@@ -1705,7 +1715,7 @@ describe("SaveGame gradient factors", () => {
         if (!result.ok) return;
         expect(result.migratedFrom).toBe("save-game-v18");
         expect(result.saveGame.drill, String(carried)).toEqual(NO_DRILL);
-        expect(result.saveGame.state).toEqual(twoCylinders());
+        expect(result.saveGame.state).toEqual(atRest(twoCylinders()));
       }
     });
 
@@ -1934,6 +1944,53 @@ describe("SaveGame gradient factors", () => {
         expect(result.saveGame.session, String(version)).toEqual({ routePositionM: 50, facing: 1, torchOn: true });
       }
       expect(decodedSession({ ...old, version: 17, routePositionM: 50 })).toEqual(START_SESSION);
+    });
+
+    it("resumes a save from before v22 at rest and neutral, so it stays where the provisional route held it (#240)", () => {
+      // Each held still by a floor or a deck the provisional route had and
+      // legacy's structures do not: (1) light, under its deck at x 30,
+      // 24.3 m, now open water over the main deck; (2) on its 34 m floor at
+      // the start, with the 2 L a dive leaves the surface with; (2b) on its
+      // engine block over the main hatch, x 85, 27.4 m; (3) a legacy save on
+      // its vehicle deck at 38.7 m, which resumes at the route's start.
+      const settles = (decoded: ReturnType<typeof decodeSaveGame>, where: string) => {
+        expect(decoded.ok, where).toBe(true);
+        if (!decoded.ok) return;
+        const { state, session } = decoded.saveGame;
+        expect(state.verticalVelocityMpm, where).toBe(0);
+        expect(state.bcdGasSurfaceLiters, where).toBeCloseTo(neutralBcdSurfaceLitres(state.depthM), 12);
+        const model = new DiveModel(state);
+        for (let frame = 0; frame < 100; frame += 1) {
+          model.advanceWithBuoyancy({ site: WRECK_SITE, xM: session.routePositionM, displacementM: 0 }, seconds(0.3), {
+            inflate: false,
+            vent: false,
+          });
+        }
+        expect(model.snapshot.failure.reason, where).toBeNull();
+        expect(Math.abs(model.snapshot.depthM - state.depthM), where).toBeLessThan(0.5);
+      };
+      for (const [positionM, depthM, bcdLitres] of [
+        [30, 24.3, neutralBcdSurfaceLitres(24.3) + 1],
+        [10, 34, 2],
+        [85, 27.4, 2],
+      ] as const) {
+        const save = encode(
+          freezeDiveState({ ...inTheHold(), depthM: metres(depthM), maxDepthM: metres(34), bcdGasSurfaceLiters: bcdLitres }),
+          { ...turned, routePositionM: positionM },
+        );
+        settles(decodeSaveGame(JSON.stringify({ ...save, version: 21 })), `v21 at ${positionM}, ${depthM} m`);
+      }
+      settles(
+        decodeSaveGame(JSON.stringify({ ...legacyV2Save(), diveSite: "wreck", diverX: 50, depth: 38.7, maxDepth: 38.7, bcdGasSurfaceLiters: 2 })),
+        "legacy on its vehicle deck",
+      );
+    });
+
+    it("keeps a v22 save's motion: it was taken among legacy's structures", () => {
+      const moving = freezeDiveState({ ...inTheHold(), verticalVelocityMpm: -6, bcdGasSurfaceLiters: 7.5 });
+      const result = decodeSaveGame(JSON.stringify({ ...encode(moving), version: 22 }));
+      expect(result.ok && result.migratedFrom).toBeNull();
+      expect(result.ok && result.saveGame.state).toEqual(moving);
     });
 
     it("restores a v21 save's session by its own number, so a later version keeps it", () => {

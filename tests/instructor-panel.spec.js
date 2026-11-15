@@ -246,7 +246,8 @@ for (const mode of ['rec', 'ccr']) {
  * either way, at every whole depth from the surface to the seabed, 66 m
  * (#240). The diver is placed as the wreck camera places it
  * (src/render/camera.ts): 58 m across, the focus 8 m ahead and held within
- * the site's bounds, x -11 to 171 for the -40 to 200 m site and depth -6 to
+ * the site's bounds, x -21 to 181 for the -50 to 210 m the camera may show
+ * around the -40 to 200 m site, and depth -6 to
  * 68, or following the diver down from the sky where the view is taller; its body
  * (src/render/pixi-renderer.ts) from 2.15 m behind its centre to 1.2 m ahead,
  * 0.53 m above to 0.62 m below. With `unclampedOnly`, a position and facing
@@ -263,7 +264,7 @@ function panelOverDiver([positions, unclampedOnly]) {
   for (const positionM of positions) {
     for (const facing of [1, -1]) {
       const wantedX = positionM + facing * 8;
-      const focusX = clamp(wantedX, -11, 171, 80);
+      const focusX = clamp(wantedX, -21, 181, 80);
       if (unclampedOnly && focusX !== wantedX) continue;
       probed += 1;
       for (let depthM = 0; depthM <= 66; depthM += 1) {
@@ -294,14 +295,14 @@ test('the panel stands over no part of the diver wherever the camera leads it, e
   await expect(page.locator('.wreck-hud [data-hud-metric="zone"] dd')).toHaveText('Cargo hold');
   await page.keyboard.press('l');
   await expect(panel(page)).toBeVisible();
-  // Wide screens: every position where the camera's focus is free, x -19 to
-  // 163 facing right and x -3 to 179 facing left. Where the bounds hold it,
+  // Wide screens: every position where the camera's focus is free, x -29 to
+  // 173 facing right and x -13 to 189 facing left. Where the bounds hold it,
   // the diver drifts towards the stage's edges, under the HUD or this panel:
   // that range is #271's, so it is not probed here.
   for (const [width, height] of [[1280, 720], [1366, 768], [1440, 900], [1920, 1080]]) {
     await resizeTo(page, width, height);
     const { probed, hits } = await page.evaluate(panelOverDiver, [ROUTE_M, true]);
-    expect(probed, `${width}x${height}`).toBe(183 + 183);
+    expect(probed, `${width}x${height}`).toBe(203 + 203);
     expect(hits, `${width}x${height}`).toEqual([]);
     expect(await page.evaluate(layoutProblems), `${width}x${height}`).toEqual([]);
   }

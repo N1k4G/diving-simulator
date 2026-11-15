@@ -201,14 +201,14 @@ describe("the shark encounter against the recorded legacy dive", () => {
 /**
  * The wreck camera (#219, owner decision of 2026-10-07): it shows 58 m
  * across and looks 8 m ahead of the diver in the direction they face, held
- * inside the site's -40..200 m (#240). Facing right, that is 29 - 8 m
- * behind and 29 + 8 m ahead, at the route's start, x 10, as well; near
- * x -40, the bound holds it, 5 m behind at x -35 facing left and 58 - 5 m
- * ahead. Legacy's recorded view is
+ * inside the site's -40..200 m and 10 m past either end (#240). Facing
+ * right, that is 29 - 8 m behind and 29 + 8 m ahead, at the route's start,
+ * x 10, as well; near x -40 the bound at x -50 holds it, 15 m behind at
+ * x -35 facing left and 58 - 15 m ahead. Legacy's recorded view is
  * 1000 px at 0.05 m a pixel with the diver centred: 25 m either way.
  */
 const LED_VIEW = { leftM: 29 - 8, rightM: 29 + 8 };
-const BOUND_VIEW = { leftM: 5, rightM: 58 - 5 };
+const BOUND_VIEW = { leftM: 15, rightM: 58 - 15 };
 const LED_FRAME: SharkFrame = { ...FRAME, viewLeftM: LED_VIEW.leftM, viewRightM: LED_VIEW.rightM };
 
 /**

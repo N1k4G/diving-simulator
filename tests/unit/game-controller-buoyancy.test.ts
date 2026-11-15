@@ -18,6 +18,8 @@ import {
 import { bars, metres, seconds } from "../../src/core/units";
 import { DEFAULT_PLANNER_SETTINGS, type PlannerSettings } from "../../src/planner/dive-planner";
 import { DIVER_HALF_HEIGHT_M, DIVER_HALF_WIDTH_M } from "../../src/sites/site-collision";
+import { WRECK_MAX_X_M, WRECK_MIN_X_M } from "../../src/sites/wreck-site";
+import constantsSource from "../../src/constants.js?raw";
 
 // The controller's buoyancy wiring (#192 PR 2), on a stubbed animation-frame
 // loop. The physics itself is replayed against legacy in
@@ -537,5 +539,62 @@ describe("the route through the wreck", { timeout: 30_000 }, () => {
     expect(depthM).toBeGreaterThan(22 - DIVER_HALF_HEIGHT_M - STEP_M);
     expect(frames.at(-1)?.scene.zone).toBe("exterior");
     controller.destroy();
+  });
+});
+
+// The client's fins (#240, docs/decisions.md): its own 5 m/s of real time,
+// held to the site's x -40 to 200, with legacy's exertion while a fin key is
+// held. No recorded checkpoint fins or reaches either end
+// (tests/parity/site-collision.test.ts names them), so these pin the
+// departing values; legacy's FINKICK_PARAMS, read from its source, is the
+// independent reference.
+describe("the client's fins", { timeout: 30_000 }, () => {
+  const legacyFinkick = (name: string): number => {
+    const match = new RegExp(`${name}:\\s*(-?\\d+(?:\\.\\d+)?)`).exec(constantsSource);
+    if (!match) throw new Error(`could not read FINKICK_PARAMS.${name} from src/constants.js`);
+    return Number(match[1]);
+  };
+  const legacyTimeAcceleration = Number(/const TIME_ACCELERATION = (\d+);/.exec(constantsSource)?.[1]);
+
+  it("fin 5 m in a second of real time, where legacy's kick tops out at 0.6 m a dive second", async () => {
+    const { controller, frames } = await startController(neutralAt(5));
+    controller.setControl("right", true);
+    step(50);
+    controller.setControl("right", false);
+    const finnedM = (frames.at(-1)?.scene.routePositionM ?? Number.NaN) - 10;
+    expect(finnedM).toBeCloseTo(5, 9);
+    // Legacy's top speed, at its time acceleration, is 1.8 m a real second.
+    expect(legacyFinkick("maxSpeed")).toBe(0.6);
+    expect(legacyTimeAcceleration).toBe(3);
+    expect(finnedM).not.toBeCloseTo(legacyFinkick("maxSpeed") * legacyTimeAcceleration, 1);
+    controller.destroy();
+  });
+
+  it("holds the diver at the site's ends, x -40 and 200", async () => {
+    const { controller, frames } = await startController(neutralAt(5));
+    controller.setControl("left", true);
+    step(60 * 10);
+    expect(frames.at(-1)?.scene.routePositionM).toBe(WRECK_MIN_X_M);
+    controller.setControl("left", false);
+    controller.setControl("right", true);
+    step(250 * 10);
+    expect(frames.at(-1)?.scene.routePositionM).toBe(WRECK_MAX_X_M);
+    expect([WRECK_MIN_X_M, WRECK_MAX_X_M]).toEqual([-40, 200]);
+    controller.destroy();
+  });
+
+  it("breathes legacy's exertion, 1.4 times the gas, while a fin key is held", async () => {
+    const used = async (fin: boolean): Promise<number> => {
+      const start = neutralAt(30);
+      const { controller } = await startController(start);
+      controller.setControl("right", fin);
+      step(10);
+      const gasL = start.tanks[0]!.gasRemainingL - controller.authoritativeState.tanks[0]!.gasRemainingL;
+      controller.destroy();
+      return gasL;
+    };
+    const still = await used(false);
+    expect(still).toBeGreaterThan(0);
+    expect((await used(true)) / still).toBeCloseTo(legacyFinkick("exertionFactor"), 6);
   });
 });

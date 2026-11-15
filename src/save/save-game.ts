@@ -184,13 +184,18 @@ export const SAVE_GAME_SCHEMA = "diving-simulator/save-game";
 // the diver to their horizontalVelocity, as legacy's renderer does on its
 // first frame; they save no facing of their own.
 //
-// Since #240 the diver swims among legacy's wreck structures, and a saved
+// v22 marks the saves taken among legacy's wreck structures (#240). A saved
 // position of any version resumes only where the diver fits and can have
-// swum to (resumedPosition, src/sites/wreck-site.ts). The format is
-// unchanged, so the version is too.
-export const CURRENT_SAVE_GAME_VERSION = 21;
+// swum to (resumedPosition, src/sites/wreck-site.ts). Before v22 the diver
+// rested on, or was held under, the provisional route's floors and deck,
+// which are gone: its BCD and motion would carry it 30 m down or up into a
+// barotrauma failure. An older save under water resumes at rest and neutral
+// at its depth, as a save without live motion resumes (v6), and so does a
+// legacy save, which resumes at the route's start, off the deck it lay on.
+export const CURRENT_SAVE_GAME_VERSION = 22;
 // Each version's gate names its own number, not CURRENT_SAVE_GAME_VERSION,
 // so a later version does not move it.
+export const TWENTY_SECOND_SAVE_GAME_VERSION = 22;
 export const TWENTY_FIRST_SAVE_GAME_VERSION = 21;
 export const TWENTIETH_SAVE_GAME_VERSION = 20;
 export const NINETEENTH_SAVE_GAME_VERSION = 19;
@@ -290,6 +295,7 @@ export type SaveGameMigration =
   | "save-game-v18"
   | "save-game-v19"
   | "save-game-v20"
+  | "save-game-v21"
   | null;
 
 /**
@@ -468,6 +474,19 @@ export function decodeSaveGame(
         ...candidate.state,
         verticalVelocityMpm: 0,
         bcdGasSurfaceLiters: neutralBcdSurfaceLitres(savedDepth),
+      };
+    }
+    // Before v22 the diver rested on or under the provisional route (#240).
+    if (
+      v < TWENTY_SECOND_SAVE_GAME_VERSION &&
+      isRecord(candidate.state) &&
+      isNonNegativeFinite(candidate.state.depthM) &&
+      (candidate.state.depthM as number) > 0
+    ) {
+      candidate.state = {
+        ...candidate.state,
+        verticalVelocityMpm: 0,
+        bcdGasSurfaceLiters: neutralBcdSurfaceLitres(candidate.state.depthM as number),
       };
     }
     if (v < FOURTH_SAVE_GAME_VERSION && isRecord(candidate.state)) {
@@ -699,13 +718,17 @@ function migrateLegacyV2(
     narcosisDrift: Number.isFinite(candidate.narcDrift)
       ? (candidate.narcDrift as number)
       : 0,
-    // Legacy saves both since its save-state v2.
-    verticalVelocityMpm: Number.isFinite(candidate.verticalVelocity)
-      ? (candidate.verticalVelocity as number)
-      : 0,
-    bcdGasSurfaceLiters: isNonNegativeFinite(candidate.bcdGasSurfaceLiters)
-      ? (candidate.bcdGasSurfaceLiters as number)
-      : neutralBcdSurfaceLitres(candidate.depth as number),
+    // Legacy saves both since its save-state v2. Under water they held the
+    // diver on its own decks, and it resumes at the route's start, off them
+    // (#240): at rest and neutral there, as an older save of the client's.
+    verticalVelocityMpm:
+      Number.isFinite(candidate.verticalVelocity) && !((candidate.depth as number) > 0)
+        ? (candidate.verticalVelocity as number)
+        : 0,
+    bcdGasSurfaceLiters:
+      isNonNegativeFinite(candidate.bcdGasSurfaceLiters) && !((candidate.depth as number) > 0)
+        ? (candidate.bcdGasSurfaceLiters as number)
+        : neutralBcdSurfaceLitres(candidate.depth as number),
     ccr,
     completed: false,
     thirds: {

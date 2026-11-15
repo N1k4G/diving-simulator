@@ -26,8 +26,9 @@ describe("wreck camera", () => {
       { x: -100, y: 100 },
     );
 
-    // 58 m across and 30 m down: half of each inside x -40 and 68 m.
-    expect(camera.focus).toEqual({ x: -40 + 29, y: 68 - 15 });
+    // 58 m across and 30 m down: half of each inside x -50, the site's -40
+    // and the camera's 10 m margin, and 68 m.
+    expect(camera.focus).toEqual({ x: -50 + 29, y: 68 - 15 });
   });
 
   it("shows the surface, with sky above it, to a diver floating there (#199)", () => {
@@ -77,8 +78,11 @@ describe("the wreck camera's view around the diver", () => {
     expect(wreckViewAround(50, 1)).toEqual({ leftM: 21, rightM: 37 });
     expect(wreckViewAround(50, -1)).toEqual({ leftM: 37, rightM: 21 });
     // At the route's start too, now the site reaches past it (#240); held
-    // only at the site's own bound, x -40.
+    // only at the camera's bound, x -50, 10 m past the site's -40.
     expect(wreckViewAround(10, 1)).toEqual({ leftM: 21, rightM: 37 });
-    expect(wreckViewAround(-35, -1)).toEqual({ leftM: 5, rightM: 53 });
+    expect(wreckViewAround(-35, -1)).toEqual({ leftM: 15, rightM: 43 });
+    // At either end of the swim the diver is 10 m inside the stage (#240).
+    expect(wreckViewAround(-40, -1)).toEqual({ leftM: 10, rightM: 48 });
+    expect(wreckViewAround(200, 1)).toEqual({ leftM: 48, rightM: 10 });
   });
 });

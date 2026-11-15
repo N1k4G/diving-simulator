@@ -685,7 +685,14 @@ export class GameController {
       // fins' stroke, and the overhead is where that leaves the diver, which
       // runs the rule of thirds. The shark sees the diver where it moved to.
       this.#model.advanceWithBuoyancy(
-        { site: WRECK_SITE, xM: fromPositionM, displacementM: this.#finStrokeM(controls, elapsedS) },
+        {
+          site: WRECK_SITE,
+          xM: fromPositionM,
+          displacementM: this.#finStrokeM(controls, elapsedS),
+          // Legacy's kicking (src/game-loop.js 646): a fin key that narcosis
+          // did not swallow, the one way, costs exertion's gas (#240).
+          finning: controls.right !== controls.left,
+        },
         seconds(frameDiveS),
         // W or up inflates the BCD, S or down vents it: src/game-loop.js
         // `wActive` / `sActive` before inflateBCD() and ventBCD().
