@@ -476,6 +476,7 @@ async function expectMobileLayout(page) {
 
 test.describe('at the mobile viewport', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  test.skip(({ browserName }) => browserName === 'webkit', 'Playwright has no mouse wheel in mobile WebKit, and this test scrolls by wheel (#302)');
 
   test('the whole debriefing is reachable by scrolling, within the edges, with 44px targets', async ({ page }) => {
     await resumeCompletedDive(page, { configure: configureCcr, editState: drawDownLoop });
@@ -491,6 +492,7 @@ for (const [width, height] of [[844, 390], [667, 375]]) {
   for (const locale of ['en-US', 'de-DE']) {
     test.describe(`at ${width}x${height}, ${locale}`, () => {
       test.use({ viewport: { width, height }, hasTouch: true, isMobile: true, locale });
+      test.skip(({ browserName }) => browserName === 'webkit', 'Playwright has no mouse wheel in mobile WebKit, and this test scrolls by wheel (#302)');
 
       test('the boundary line is whole without scrolling, above the chart', async ({ page }) => {
         await resumeCompletedDive(page);
@@ -519,6 +521,7 @@ test.describe('on a small phone', () => {
   // the rebreather lines and the German strings are the longest the screen
   // draws. The text checks make sure each case draws what it says it does.
   test.use({ viewport: { width: 320, height: 568 }, hasTouch: true, isMobile: true });
+  test.skip(({ browserName }) => browserName === 'webkit', 'Playwright has no mouse wheel in mobile WebKit, and this test scrolls by wheel (#302)');
   const TEXT = {
     'en-US': {
       heading: 'Dive complete',

@@ -41,7 +41,14 @@ module.exports = defineConfig({
   reporter: [['list'], ['html', { open: 'never' }]],
   projects: [
     { name: 'chromium', use: { browserName: 'chromium' } },
-    { name: 'firefox', use: { browserName: 'firefox' }, grepInvert: CHROMIUM_ONLY },
+    // Headless Firefox on a GPU-less Linux runner refuses WebGL on its
+    // software rasteriser, so the Pixi scene never starts there; Chromium
+    // (SwiftShader) and WebKit draw on theirs without being asked (#302).
+    {
+      name: 'firefox',
+      use: { browserName: 'firefox', launchOptions: { firefoxUserPrefs: { 'webgl.force-enabled': true } } },
+      grepInvert: CHROMIUM_ONLY,
+    },
     { name: 'webkit', use: { browserName: 'webkit' }, grepInvert: CHROMIUM_ONLY },
   ],
 });

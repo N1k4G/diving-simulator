@@ -286,7 +286,7 @@ jobs:
 
   # #302 (#137 A14a): the functional Playwright suite in Firefox and WebKit,
   # over the same verified dist/ as the android job and with no second Vite
-  # build. Beside verify rather than inside it, and each engine in two shards,
+  # build. Beside verify rather than inside it, and each engine in three shards,
   # so a PR waits no longer than verify's own Chromium run. Tests tagged
   # @chromium-only (CDP input or accessibility tree, see playwright.config.js)
   # are left out; the Pixi pixel-diff and interior optics checks stay in verify,
@@ -294,7 +294,7 @@ jobs:
   # runs and with the product owner's consent (docs/decisions.md, "CI and
   # evidence").
   browsers:
-    name: browsers (${{ matrix.browser }} ${{ matrix.shard }}/2)
+    name: browsers (${{ matrix.browser }} ${{ matrix.shard }}/3)
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     permissions:
@@ -305,7 +305,7 @@ jobs:
       fail-fast: false
       matrix:
         browser: [firefox, webkit]
-        shard: [1, 2]
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v7
 
@@ -328,7 +328,7 @@ jobs:
       # Straight through npx, not npm run test:e2e, whose pre-script would
       # rebuild dist/.
       - name: Run the functional suite
-        run: npx playwright test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/2
+        run: npx playwright test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/3
 
       - name: Upload test report
         if: always()
