@@ -19,50 +19,50 @@
     },
     "wreck-descended": {
       "statistics": {
-        "meanLuma": 36.65,
-        "sdLuma": 15.734,
+        "meanLuma": 36.882,
+        "sdLuma": 16.121,
         "meanRGB": [
-          12.859,
-          42.11,
-          52.617
+          13.106,
+          42.339,
+          52.845
         ],
-        "channelSpread": 39.758
+        "channelSpread": 39.739
       }
     },
     "wreck-torch-off": {
       "statistics": {
-        "meanLuma": 34.443,
-        "sdLuma": 14.179,
+        "meanLuma": 34.675,
+        "sdLuma": 14.643,
         "meanRGB": [
-          11.068,
-          39.806,
-          50.145
+          11.315,
+          40.034,
+          50.373
         ],
-        "channelSpread": 39.077
+        "channelSpread": 39.058
       }
     },
     "wreck-narcosis": {
       "statistics": {
-        "meanLuma": 33.923,
-        "sdLuma": 15.305,
+        "meanLuma": 34.154,
+        "sdLuma": 15.741,
         "meanRGB": [
-          11.924,
-          38.969,
-          48.711
+          12.171,
+          39.196,
+          48.939
         ],
-        "channelSpread": 36.787
+        "channelSpread": 36.768
       }
     },
     "wreck-shark": {
       "statistics": {
-        "meanLuma": 36.689,
-        "sdLuma": 16.004,
+        "meanLuma": 36.921,
+        "sdLuma": 16.385,
         "meanRGB": [
-          13.1,
-          42.105,
-          52.493
+          13.348,
+          42.334,
+          52.722
         ],
-        "channelSpread": 39.393
+        "channelSpread": 39.374
       }
     }
   }
