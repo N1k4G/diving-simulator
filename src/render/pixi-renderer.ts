@@ -11,15 +11,7 @@ import {
 import type { PresentationState } from "../presentation/presentation-state";
 import { LAYERS, type LayerId, type QualityTier } from "../sites/asset-manifest";
 import { buildSceneLayers } from "../sites/layer-factory";
-import {
-  WRECK_DECK_TOP,
-  WRECK_ENGINE,
-  WRECK_HOLD_EDGE,
-  WRECK_HULL_EDGE,
-  WRECK_VISOR,
-  profileAt,
-  type RoutePoint,
-} from "../sites/wreck-route";
+import { WRECK_SITE } from "../sites/wreck-site";
 import { createCameraTransform, wreckCameraFocusX, type CameraTransform } from "./camera";
 import {
   BUBBLE_LAYER,
@@ -404,76 +396,47 @@ export class PixiWreckRenderer implements SceneRenderer {
   }
 
   #buildRetainedScene(): void {
+    // The wreck's outline behind its structures (#240): the hull from the bow
+    // stem to the stern transom, the superstructure, the bridge and the
+    // funnel (src/sites.js), dark, so its inside reads as inside.
     const distantHull = new Graphics()
-      .poly([8, 36, 18, 23, 83, 20, 111, 29, 106, 36])
+      .poly([14, 66, 14, 28, 40, 28, 40, 22, 70, 22, 70, 18, 84, 18, 84, 14, 96, 14, 96, 18, 110, 18, 110, 22, 140, 22, 140, 28, 170, 28, 170, 66])
       .fill({ color: 0x07151b, alpha: 0.88 });
 
+    // The seabed at the site's floor, legacy's 66 m (src/sites.js).
     const seabed = new Graphics()
-      .poly([0, 38, 22, 36, 48, 38, 72, 36.5, 95, 38, 116, 35.5, 116, 42, 0, 42])
+      .rect(-60, 66, 280, 64)
       .fill({ color: 0x132a2b })
+      .moveTo(-60, 66)
+      .lineTo(220, 66)
       .stroke({ color: 0x315b52, width: 0.2, alpha: 0.8 });
 
-    // The deck and the floor the diver is held to (src/sites/wreck-route.ts),
-    // so the hull on screen is the one in the physics. The edges are open
-    // paths, so no line closes the bow visor's opening (#222).
-    const hullEdge = flatten(WRECK_HULL_EDGE);
-    const holdEdge = flatten(WRECK_HOLD_EDGE);
-    const visorHeightM = profileAt(WRECK_DECK_TOP, WRECK_VISOR.x1) - WRECK_VISOR.topM;
-    const hull = new Graphics()
-      .poly(hullEdge)
-      .fill({ color: 0x33484a })
-      .poly(holdEdge)
-      .fill({ color: 0x0a1c22 })
-      .poly(hullEdge, false)
-      .stroke({ color: 0x76918c, width: 0.35 })
-      .poly(holdEdge, false)
-      .stroke({ color: 0x567069, width: 0.25 })
-      // The bow visor, hinged up on the deck's forward edge: legacy's slab,
-      // its plate seam and its hinge spindle (src/renderer.js drawBowVisor).
-      .rect(WRECK_VISOR.x1, WRECK_VISOR.topM, WRECK_VISOR.x2 - WRECK_VISOR.x1, visorHeightM)
-      .fill({ color: 0x55636f })
-      .stroke({ color: 0x76918c, width: 0.12 })
-      .moveTo((WRECK_VISOR.x1 + WRECK_VISOR.x2) / 2, WRECK_VISOR.topM + 0.2)
-      .lineTo((WRECK_VISOR.x1 + WRECK_VISOR.x2) / 2, WRECK_VISOR.topM + visorHeightM - 0.2)
-      .stroke({ color: 0x1b2429, width: 0.06, alpha: 0.6 })
-      .circle((WRECK_VISOR.x1 + WRECK_VISOR.x2) / 2, WRECK_VISOR.topM + visorHeightM - 0.15, 0.14)
-      .fill({ color: 0x1a1a1a });
+    // Every structure the diver collides with, and nothing else (#240):
+    // legacy's 50 boxes, flat, in the placeholder hull colours.
+    const hull = new Graphics();
+    for (const w of WRECK_SITE.structures) {
+      const steel = w.kind === "funnel" || w.kind === "mast";
+      hull
+        .rect(w.x1, w.dTop, w.x2 - w.x1, w.dBottom - w.dTop)
+        .fill({ color: steel ? 0x55636f : 0x33484a })
+        .stroke({ color: 0x76918c, width: 0.12 });
+    }
 
-    const rooms = new Graphics()
-      .rect(43, 24.2, 1, 9.3)
-      .rect(73, 23.3, 1, 10.2)
-      .rect(97, 28, 1, 5.5)
-      .fill({ color: 0x536763 })
-      .rect(48, 29, 19, 0.55)
-      .rect(79, 27.2, 14, 0.55)
-      .fill({ color: 0x435a57 });
-
-    // Solid, from the same numbers the route reads (#222).
-    const { centreX, centreD, radiusM, bedX1, bedX2, bedTopM } = WRECK_ENGINE;
-    const engine = new Graphics()
-      .circle(centreX, centreD, radiusM)
-      .fill({ color: 0x192c2f })
-      .stroke({ color: 0xb26d3f, width: 0.45 })
-      .circle(centreX, centreD, 1.35)
-      .stroke({ color: 0xd18d4f, width: 0.35 })
-      .rect(bedX1, bedTopM, bedX2 - bedX1, 0.65)
-      .fill({ color: 0x6e4d39 });
-
-    // The guideline the diver can follow: over the stem, down through the bow
-    // visor's opening, under the deck and over the engine block (#222).
+    // The guideline the diver can follow: down through the bow visor's
+    // opening and aft along the vehicle deck to the main hatch.
     const route = new Graphics()
       .moveTo(9, 21)
       .bezierCurveTo(15, 21, 19, 21.5, 19, 25)
-      .bezierCurveTo(19, 28, 24, 28.5, 34, 28.5)
-      .bezierCurveTo(42, 28.5, 46, 28, 50, 28)
-      .bezierCurveTo(64, 27.5, 72, 26, 87, 26)
-      .lineTo(101, 31)
+      .lineTo(19, 33)
+      .bezierCurveTo(19, 34, 21, 34.5, 26, 34.5)
+      .lineTo(85, 34.5)
       .stroke({ color: 0xe5d071, width: 0.16, alpha: 0.72 });
 
     const silt = new Graphics();
     for (let index = 0; index < 48; index += 1) {
-      const x = 18 + ((index * 23) % 91);
-      const y = 34.2 + ((index * 17) % 25) / 20;
+      // On the vehicle deck's floor, legacy's 39 m.
+      const x = 18 + ((index * 23) % 148);
+      const y = 37.7 + ((index * 17) % 25) / 20;
       const radius = 0.05 + (index % 4) * 0.025;
       silt.circle(x, y, radius).fill({
         color: 0xb9aa83,
@@ -534,8 +497,6 @@ export class PixiWreckRenderer implements SceneRenderer {
       distantHull,
       seabed,
       hull,
-      rooms,
-      engine,
       route,
       silt,
       diver: this.#diver,
@@ -790,10 +751,6 @@ function buildBoatShadow(): Sprite {
   shadow.anchor.set(0.5);
   shadow.scale.set(LEGACY_M_PER_PX);
   return shadow;
-}
-
-function flatten(points: readonly RoutePoint[]): number[] {
-  return points.flatMap((point) => [point.x, point.d]);
 }
 
 /**

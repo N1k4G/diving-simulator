@@ -11,7 +11,9 @@ import { litres, metres, seconds } from "../../src/core/units";
 
 // A dive resumed inside the wreck stays there (#222): the controller picks up
 // at the saved route position, under the deck with its rule of thirds, and
-// hands the position on with every state for the save.
+// hands the position on with every state for the save. Among legacy's
+// structures since #240: the vehicle deck at 30 m under the main deck at
+// x 50, the engine room down the main hatch.
 
 const FRAME_MS = 20;
 const DIVE_SEED = 0x57524543;
@@ -112,9 +114,10 @@ describe("a dive resumed at its saved route position (#222)", () => {
     controller.destroy();
   });
 
-  it("stays in the engine room", async () => {
-    const { controller, frames } = await startController(underway(28), 78);
+  it("stays in the engine room, aft of the main hatch", async () => {
+    const { controller, frames } = await startController(underway(57), 100);
     step(2);
+    expect(controller.routePositionM).toBe(100);
     expect(frames.at(-1)?.scene.zone).toBe("engine-room");
     expect(controller.authoritativeState.thirds.startingGasL).toBe(PLAN_GAS_L);
     controller.destroy();
@@ -143,8 +146,16 @@ describe("a dive resumed at its saved route position (#222)", () => {
   });
 
   it("picks up at the route's start where the saved depth is inside the hull there", async () => {
-    // Over the stem, which stands to 24.5 m: 30 m there is solid hull.
+    // In the bow's stem, x 14 to 16 from 28 m down: 30 m there is solid hull.
     const { controller, frames } = await startController(underway(), 15);
+    expect(frames.at(-1)?.scene.routePositionM).toBe(10);
+    expect(controller.routePositionM).toBe(10);
+    controller.destroy();
+  });
+
+  it("picks up at the route's start in a cargo hold sealed behind a full bulkhead (#240)", async () => {
+    // The diver fits at 49 m between x 43 and 56, but no way leads there.
+    const { controller, frames } = await startController(underway(49), 49.5);
     expect(frames.at(-1)?.scene.routePositionM).toBe(10);
     expect(controller.routePositionM).toBe(10);
     controller.destroy();

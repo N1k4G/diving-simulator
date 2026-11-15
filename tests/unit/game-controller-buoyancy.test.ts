@@ -17,25 +17,23 @@ import {
 } from "../../src/core/dive-state";
 import { bars, metres, seconds } from "../../src/core/units";
 import { DEFAULT_PLANNER_SETTINGS, type PlannerSettings } from "../../src/planner/dive-planner";
-import {
-  CARGO_HOLD_FROM_M,
-  WRECK_BOW_X_M,
-  WRECK_DECK_TOP,
-  WRECK_DECK_UNDERSIDE,
-  WRECK_HOLD_BOW_X_M,
-  WRECK_HOLD_FLOOR_M,
-  profileAt,
-} from "../../src/sites/wreck-route";
+import { DIVER_HALF_HEIGHT_M, DIVER_HALF_WIDTH_M } from "../../src/sites/site-collision";
+import { WRECK_MAX_X_M, WRECK_MIN_X_M } from "../../src/sites/wreck-site";
+import constantsSource from "../../src/constants.js?raw";
 
 // The controller's buoyancy wiring (#192 PR 2), on a stubbed animation-frame
 // loop. The physics itself is replayed against legacy in
 // tests/parity/buoyancy.test.ts; what is pinned here is what the controller
 // hands the model each frame: legacy's frame dive time (dtReal capped at
 // 0.1 s, times TIME_ACCELERATION, times the fast-forward multiplier), the
-// controls (W inflates, S vents) and the route's bounds.
+// controls (W inflates, S vents) and the wreck it moves the diver through.
 
-/** Open water at the route's start: the surface to the floor (#199). */
-const ROUTE = { ceilingM: 0, floorM: 34 };
+/**
+ * Open water at the route's start, x 10: the surface to the seabed (#240).
+ * A diver who neither fins nor meets a structure moves there as between
+ * these bounds.
+ */
+const ROUTE = { ceilingM: 0, floorM: 66 };
 const FRAME_MS = 20;
 /** A dive's seed, fixed here as the client's was before each dive drew one (#219). */
 const DIVE_SEED = 0x57524543;
@@ -48,8 +46,8 @@ function still(timeMultiplier: number): SharkFrame {
   return {
     timeMultiplier,
     diverVelocityMps: 0,
-    viewLeftM: 10,
-    viewRightM: 48,
+    viewLeftM: 21,
+    viewRightM: 37,
     floorAt: () => 34,
     noShark: false,
   };
@@ -249,14 +247,14 @@ describe("the controller drives the buoyancy model frame by frame", () => {
     controller.destroy();
   });
 
-  it("vents on S, and stops the descent at the route's floor", async () => {
-    const { controller, frames } = await startController(neutralAt(33));
+  it("vents on S, and stops the descent at the seabed (#240)", async () => {
+    const { controller, frames } = await startController(neutralAt(65));
     controller.setControl("descend", true);
     step(300);
     const state = controller.authoritativeState;
-    expect(state.depthM).toBe(34);
+    expect(state.depthM).toBe(66);
     expect(state.verticalVelocityMpm).toBe(0);
-    expect(frames.at(-1)?.scene.diverDepthM).toBe(34);
+    expect(frames.at(-1)?.scene.diverDepthM).toBe(66);
     controller.destroy();
   });
 
@@ -312,16 +310,16 @@ describe("the controller drives the buoyancy model frame by frame", () => {
     controller.destroy();
   });
 
-  it("starts a dive saved below the route at its floor, at rest and neutral", async () => {
-    const saved = freezeDiveState({ ...neutralAt(40), verticalVelocityMpm: 8 });
+  it("starts a dive saved below the seabed on it, at rest and neutral", async () => {
+    const saved = freezeDiveState({ ...neutralAt(70), verticalVelocityMpm: 8 });
     const { controller, frames } = await startController(saved);
-    expect(frames[0]?.scene.diverDepthM).toBe(34);
+    expect(frames[0]?.scene.diverDepthM).toBe(66);
     step(120);
     const state = controller.authoritativeState;
-    expect(state.depthM).toBe(34);
+    expect(state.depthM).toBe(66);
     expect(state.verticalVelocityMpm).toBe(0);
     // The deepest point stays the one the save recorded.
-    expect(state.maxDepthM).toBe(40);
+    expect(state.maxDepthM).toBe(70);
     controller.destroy();
   });
 
@@ -409,18 +407,20 @@ describe("the controller drives the buoyancy model frame by frame", () => {
   });
 });
 
-// The route through the wreck (#199 slice 7, owner decision A on #199): open
-// water to the surface outside the wreck, the deck as the ceiling inside it,
-// and the hull in between, which stops a diver who swims into it.
-// A swim along the route is a couple of thousand frames, which a loaded
-// machine runs past vitest's 5 s default.
+// Through legacy's wreck (#240): open water to the surface outside it, its
+// decks as the ceiling inside, and its structures, which stop a diver who
+// swims or sinks into them. A swim is a couple of thousand frames, which a
+// loaded machine runs past vitest's 5 s default.
 describe("the route through the wreck", { timeout: 30_000 }, () => {
   const FIN_FRAMES_PER_METRE = 1000 / FRAME_MS / 5;
+  /** How far a frame of physics moves the diver at most: a fin stroke, or legacy's 25 m/min for 60 ms. */
+  const STEP_M = 0.1;
 
   /**
-   * Into the hold the way the bow is built (#222): neutral at 18 m over the
-   * stem to route position 19, in the bow visor's opening, then vented down
-   * it onto the hold's floor. Starts from neutralAt(18).
+   * Into the vehicle deck the way the bow is built: neutral at 18 m off the
+   * bow to x 19, over the bow visor's opening between the stem (x 14 to 16)
+   * and the main deck (from x 22), then vented down it onto the vehicle
+   * deck's floor, the slab at 39 to 40 m. Starts from neutralAt(18).
    */
   function downTheVisor(controller: GameController, frames: GameFrame[]): void {
     controller.setControl("right", true);
@@ -428,20 +428,20 @@ describe("the route through the wreck", { timeout: 30_000 }, () => {
     controller.setControl("right", false);
     expect(frames.at(-1)?.scene.routePositionM).toBeCloseTo(19, 9);
     controller.setControl("descend", true);
-    for (let i = 0; i < 3000 && controller.authoritativeState.depthM < 26; i += 1) {
-      step(1);
-    }
+    for (let i = 0; i < 3000 && controller.authoritativeState.depthM < 26; i += 1) step(1);
     controller.setControl("descend", false);
-    for (let i = 0; i < 6000 && controller.authoritativeState.depthM < WRECK_HOLD_FLOOR_M; i += 1) {
-      step(1);
-    }
-    expect(controller.authoritativeState.depthM).toBe(WRECK_HOLD_FLOOR_M);
+    for (let i = 0; i < 6000 && controller.authoritativeState.depthM < 38; i += 1) step(1);
+    step(100);
+    const depthM = controller.authoritativeState.depthM;
+    expect(depthM).toBeLessThanOrEqual(39 - DIVER_HALF_HEIGHT_M);
+    expect(depthM).toBeGreaterThan(39 - DIVER_HALF_HEIGHT_M - STEP_M);
+    expect(controller.authoritativeState.verticalVelocityMpm).toBe(0);
     // The opening is open to the surface: not the overhead yet.
     expect(frames.at(-1)?.scene.zone).toBe("exterior");
     expect(controller.authoritativeState.thirds.startingGasL).toBe(0);
   }
 
-  it("enters the cargo hold under the deck, where the deck is the ceiling and the rule of thirds runs", async () => {
+  it("enters the vehicle deck under the main deck, where the overhead runs the rule of thirds", async () => {
     const { controller, frames } = await startController(neutralAt(18));
     downTheVisor(controller, frames);
     controller.setControl("right", true);
@@ -452,46 +452,31 @@ describe("the route through the wreck", { timeout: 30_000 }, () => {
     // legacy updateDiving, Issue #27: the plan is set on entering the overhead.
     expect(controller.authoritativeState.thirds.startingGasL).toBeGreaterThan(0);
 
-    // Up from the floor at a controlled rate, until the deck holds the diver.
+    // Up at a controlled rate, until the main deck (27 to 28 m) holds the
+    // diver's body: within a step of 28 m and its half height.
     ascendCarefully(controller, 3000);
     const state = controller.authoritativeState;
-    expect(state.depthM).toBeCloseTo(profileAt(WRECK_DECK_UNDERSIDE, 50), 9);
+    expect(state.depthM).toBeGreaterThanOrEqual(28 + DIVER_HALF_HEIGHT_M);
+    expect(state.depthM).toBeLessThan(28 + DIVER_HALF_HEIGHT_M + STEP_M);
     expect(state.verticalVelocityMpm).toBe(0);
     expect(state.completed).toBe(false);
     expect(state.failure.reason).toBeNull();
     controller.destroy();
   });
 
-  it("is in the overhead under the deck from its forward edge at 22 m, not from 27 m (#222)", async () => {
-    const { controller, frames } = await startController(neutralAt(18));
-    downTheVisor(controller, frames);
-    controller.setControl("right", true);
-    step(5 * FIN_FRAMES_PER_METRE);
-    controller.setControl("right", false);
-    expect(frames.at(-1)?.scene.routePositionM).toBeCloseTo(24, 9);
-    expect(frames.at(-1)?.scene.zone).toBe("cargo-hold");
-    expect(controller.authoritativeState.thirds.startingGasL).toBeGreaterThan(0);
-
-    // The deck holds the diver under it there too.
-    ascendCarefully(controller, 3000);
-    expect(controller.authoritativeState.depthM).toBeCloseTo(profileAt(WRECK_DECK_UNDERSIDE, 24), 9);
-    controller.destroy();
-  });
-
-  it("stops a diver level at 28 m at the bow's stem, outside the overhead (#222)", async () => {
-    const { controller, frames } = await startController(neutralAt(28));
+  it("stops a diver level at 30 m at the bow's stem, outside the overhead", async () => {
+    const { controller, frames } = await startController(neutralAt(30));
     controller.setControl("right", true);
     step(40 * FIN_FRAMES_PER_METRE);
     const position = frames.at(-1)?.scene.routePositionM ?? Number.NaN;
-    expect(position).toBeLessThan(WRECK_BOW_X_M);
-    expect(position).toBeGreaterThan(WRECK_BOW_X_M - 0.2);
+    expect(position).toBeLessThanOrEqual(14 - DIVER_HALF_WIDTH_M);
+    expect(position).toBeGreaterThan(14 - DIVER_HALF_WIDTH_M - STEP_M);
     expect(frames.at(-1)?.scene.zone).toBe("exterior");
     expect(controller.authoritativeState.thirds.startingGasL).toBe(0);
     controller.destroy();
   });
 
   it("ends the dive at the surface once the diver has swum out of the wreck through the visor's opening", async () => {
-    // In the hold and out again; the deck as the ceiling is the test above.
     const { controller, frames } = await startController(neutralAt(18));
     downTheVisor(controller, frames);
     controller.setControl("right", true);
@@ -500,23 +485,21 @@ describe("the route through the wreck", { timeout: 30_000 }, () => {
     expect(frames.at(-1)?.scene.zone).toBe("cargo-hold");
     expect(controller.authoritativeState.completed).toBe(false);
 
-    // Forward out of the hold into the opening, where the stem stops the
-    // diver: the ceiling is the surface again, and legacy's last check in
-    // updateDiving() ends the dive there. The diver rises at a controlled 6
-    // to 12 m/min: about 33 m in three to six minutes of dive time.
+    // Forward out from under the main deck into the opening, where the stem
+    // stops the diver: the ceiling is the surface again, and legacy's last
+    // check in updateDiving() ends the dive there.
     controller.setControl("left", true);
     step(40 * FIN_FRAMES_PER_METRE);
     controller.setControl("left", false);
     const outAt = frames.at(-1)?.scene.routePositionM ?? Number.NaN;
-    expect(outAt).toBeGreaterThan(WRECK_HOLD_BOW_X_M);
-    expect(outAt).toBeLessThan(WRECK_HOLD_BOW_X_M + 0.2);
+    expect(outAt).toBeGreaterThanOrEqual(16 + DIVER_HALF_WIDTH_M);
+    expect(outAt).toBeLessThan(16 + DIVER_HALF_WIDTH_M + STEP_M);
     expect(frames.at(-1)?.scene.zone).toBe("exterior");
     ascendCarefully(controller, 9000);
     const state = controller.authoritativeState;
     expect(state.failure.reason).toBeNull();
     expect(state.completed).toBe(true);
     expect(state.depthM).toBeLessThan(0.3);
-    expect(state.thirds.startingGasL).toBe(0);
     expect(frames.at(-1)?.scene.zone).toBe("exterior");
     // A dive that has ended moves no more.
     const endedAt = frames.at(-1)?.scene.routePositionM;
@@ -526,20 +509,20 @@ describe("the route through the wreck", { timeout: 30_000 }, () => {
     controller.destroy();
   });
 
-  it("stops a diver who swims into the deck's edge", async () => {
-    // Between the top of the deck and its underside where the hold begins,
-    // over the stem, whose top is level with the underside (#222).
-    const { controller, frames } = await startController(neutralAt(23.75));
+  it("stops a diver who swims into the main deck's forward edge", async () => {
+    // Level with the main deck, 27 to 28 m, over the stem, whose top is at
+    // 28 m: the diver passes over the stem and stops at the deck.
+    const { controller, frames } = await startController(neutralAt(27.5));
     controller.setControl("right", true);
     step(40 * FIN_FRAMES_PER_METRE);
     const position = frames.at(-1)?.scene.routePositionM ?? Number.NaN;
-    expect(position).toBeLessThan(CARGO_HOLD_FROM_M);
-    expect(position).toBeGreaterThan(CARGO_HOLD_FROM_M - 0.2);
+    expect(position).toBeLessThanOrEqual(22 - DIVER_HALF_WIDTH_M);
+    expect(position).toBeGreaterThan(22 - DIVER_HALF_WIDTH_M - STEP_M);
     expect(frames.at(-1)?.scene.zone).toBe("exterior");
     controller.destroy();
   });
 
-  it("swims over the hold above the deck in open water, and lands on the deck", async () => {
+  it("swims over the superstructure in open water, and lands on its roof", async () => {
     const { controller, frames } = await startController(neutralAt(10));
     controller.setControl("right", true);
     step(50 * FIN_FRAMES_PER_METRE);
@@ -548,9 +531,70 @@ describe("the route through the wreck", { timeout: 30_000 }, () => {
     expect(frames.at(-1)?.scene.zone).toBe("exterior");
     expect(controller.authoritativeState.thirds.startingGasL).toBe(0);
 
+    // The accommodation's roof, 22 to 23 m.
     controller.setControl("descend", true);
     step(1500);
-    expect(controller.authoritativeState.depthM).toBeCloseTo(profileAt(WRECK_DECK_TOP, 60), 9);
+    const depthM = controller.authoritativeState.depthM;
+    expect(depthM).toBeLessThanOrEqual(22 - DIVER_HALF_HEIGHT_M);
+    expect(depthM).toBeGreaterThan(22 - DIVER_HALF_HEIGHT_M - STEP_M);
+    expect(frames.at(-1)?.scene.zone).toBe("exterior");
     controller.destroy();
+  });
+});
+
+// The client's fins (#240, docs/decisions.md): its own 5 m/s of real time,
+// held to the site's x -40 to 200, with legacy's exertion while a fin key is
+// held. No recorded checkpoint fins or reaches either end
+// (tests/parity/site-collision.test.ts names them), so these pin the
+// departing values; legacy's FINKICK_PARAMS, read from its source, is the
+// independent reference.
+describe("the client's fins", { timeout: 30_000 }, () => {
+  const legacyFinkick = (name: string): number => {
+    const match = new RegExp(`${name}:\\s*(-?\\d+(?:\\.\\d+)?)`).exec(constantsSource);
+    if (!match) throw new Error(`could not read FINKICK_PARAMS.${name} from src/constants.js`);
+    return Number(match[1]);
+  };
+  const legacyTimeAcceleration = Number(/const TIME_ACCELERATION = (\d+);/.exec(constantsSource)?.[1]);
+
+  it("fin 5 m in a second of real time, where legacy's kick tops out at 0.6 m a dive second", async () => {
+    const { controller, frames } = await startController(neutralAt(5));
+    controller.setControl("right", true);
+    step(50);
+    controller.setControl("right", false);
+    const finnedM = (frames.at(-1)?.scene.routePositionM ?? Number.NaN) - 10;
+    expect(finnedM).toBeCloseTo(5, 9);
+    // Legacy's top speed, at its time acceleration, is 1.8 m a real second.
+    expect(legacyFinkick("maxSpeed")).toBe(0.6);
+    expect(legacyTimeAcceleration).toBe(3);
+    expect(finnedM).not.toBeCloseTo(legacyFinkick("maxSpeed") * legacyTimeAcceleration, 1);
+    controller.destroy();
+  });
+
+  it("holds the diver at the site's ends, x -40 and 200", async () => {
+    const { controller, frames } = await startController(neutralAt(5));
+    controller.setControl("left", true);
+    step(60 * 10);
+    expect(frames.at(-1)?.scene.routePositionM).toBe(WRECK_MIN_X_M);
+    controller.setControl("left", false);
+    controller.setControl("right", true);
+    step(250 * 10);
+    expect(frames.at(-1)?.scene.routePositionM).toBe(WRECK_MAX_X_M);
+    expect([WRECK_MIN_X_M, WRECK_MAX_X_M]).toEqual([-40, 200]);
+    controller.destroy();
+  });
+
+  it("breathes legacy's exertion, 1.4 times the gas, while a fin key is held", async () => {
+    const used = async (fin: boolean): Promise<number> => {
+      const start = neutralAt(30);
+      const { controller } = await startController(start);
+      controller.setControl("right", fin);
+      step(10);
+      const gasL = start.tanks[0]!.gasRemainingL - controller.authoritativeState.tanks[0]!.gasRemainingL;
+      controller.destroy();
+      return gasL;
+    };
+    const still = await used(false);
+    expect(still).toBeGreaterThan(0);
+    expect((await used(true)) / still).toBeCloseTo(legacyFinkick("exertionFactor"), 6);
   });
 });

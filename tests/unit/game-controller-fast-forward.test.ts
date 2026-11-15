@@ -129,14 +129,15 @@ describe("fast-forward at the controller", () => {
     // differs in the last bits between win32, where the fixture value was
     // taken, and linux CI (9.99046566939993).
     expect(neutralBcdSurfaceLitres(18)).toBeCloseTo(9.990465669399928, 12);
-    // onTheFloor: 4.5 bar puts the stop at 33 m, within legacy's 1.5 m of
-    // the route's 34 m floor.
-    const loaded = stateAtStop(34);
+    // onTheFloor: 5.0 bar puts the stop at 39 m, within legacy's 1.5 m of
+    // the diver lying on the vehicle deck's floor, its body on the slab at
+    // 39 m (#240).
+    const loaded = stateAtStop(38.7);
     const tissues = {
-      nitrogenBar: loaded.tissues.nitrogenBar.map(() => bars(4.5)),
+      nitrogenBar: loaded.tissues.nitrogenBar.map(() => bars(5)),
       heliumBar: loaded.tissues.heliumBar,
     };
-    expect(decoStopDepth(calculateCeiling(tissues, DEFAULT_PLANNER_SETTINGS))).toBe(33);
+    expect(decoStopDepth(calculateCeiling(tissues, DEFAULT_PLANNER_SETTINGS))).toBe(39);
   });
 
   it("is on offer from the authoritative state alone, with no forecast", () => {

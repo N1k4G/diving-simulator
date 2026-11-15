@@ -17,6 +17,8 @@ import { describe, expect, it } from "vitest";
 import constantsSource from "../../src/constants.js?raw";
 import sitesSource from "../../src/sites.js?raw";
 import physicsSource from "../../src/physics.js?raw";
+import gameLoopSource from "../../src/game-loop.js?raw";
+import baselineFixture from "../fixtures/traces/baseline-v1.json";
 
 import {
   DIVER_HALF_HEIGHT_M,
@@ -37,9 +39,9 @@ import {
   stepVertically,
   type CollisionSite,
 } from "../../src/sites/site-collision";
-import { MAX_DEPTH_M, integrateBuoyancy } from "../../src/core/buoyancy";
+import { MAX_DEPTH_M, integrateBuoyancy, neutralBcdSurfaceLitres } from "../../src/core/buoyancy";
 import { createCcrState, createGasMix, createInitialDiveState, freezeDiveState } from "../../src/core/dive-state";
-import { DiveModel } from "../../src/core/dive-model";
+import { DiveModel, FIN_EXERTION_FACTOR } from "../../src/core/dive-model";
 import { metres, seconds } from "../../src/core/units";
 import { SITE_GAMEPLAY } from "../../src/sites/site-resources";
 
@@ -67,6 +69,8 @@ interface LegacyApi {
   overheadAt(x: number, d: number): boolean;
   resolveDiverOverlap(): boolean;
   ambientPressure(d: number): number;
+  effectiveAMV(kicking: boolean): number;
+  readonly finkick: Readonly<Record<"maxSpeed" | "exertionFactor" | "exertionThreshold", number>>;
   updateBuoyancyPhysics(dtSec: number): void;
   updateHorizontalPhysics(dtSec: number, kickDir: number): void;
 }
@@ -79,6 +83,7 @@ ${sitesSource}
 ${["ambientPressure", "updateBuoyancyPhysics", "currentVelAt", "updateHorizontalPhysics"]
   .map((name) => legacyFunction(physicsSource, name))
   .join("\n")}
+${legacyFunction(gameLoopSource, "effectiveAMV")}
 return {
   constants: { MAX_DEPTH: MAX_DEPTH, DIVER_HALF_WIDTH_M: DIVER_HALF_WIDTH_M, DIVER_HALF_HEIGHT_M: DIVER_HALF_HEIGHT_M },
   siteIds: Object.keys(DIVE_SITES),
@@ -94,6 +99,8 @@ return {
   solidOverlapArea: solidOverlapArea, diverOverlapArea: diverOverlapArea, diverOverlapGrew: diverOverlapGrew,
   overheadAt: overheadAt, resolveDiverOverlap: resolveDiverOverlap,
   ambientPressure: ambientPressure,
+  effectiveAMV: effectiveAMV,
+  finkick: FINKICK_PARAMS,
   updateBuoyancyPhysics: updateBuoyancyPhysics, updateHorizontalPhysics: updateHorizontalPhysics
 };`,
 )() as LegacyApi;
@@ -457,5 +464,55 @@ describe("the ported site collision against legacy's (#240)", { timeout: 30_000 
     }
     expect(pushed).toBeGreaterThan(100);
     expect(mismatches.slice(0, 5), `${mismatches.length} mismatches`).toEqual([]);
+  });
+
+  it("breathes legacy's exertion while the diver fins, on open circuit and on bailout (#240 PR 2b, pre-review pass 1)", () => {
+    // src/game-loop.js 43-45, 646-659: effectiveAMV(kicking) = amvRate *
+    // FINKICK_PARAMS.exertionFactor while a fin key is held, for the open
+    // circuit and for the rebreather's bailout. The client's fins have no
+    // velocity of their own, so it has no exertion after the key is let go,
+    // where legacy's velocity stays over exertionThreshold for about 2.2
+    // dive seconds (docs/decisions.md, #240 PR 2).
+    expect(FIN_EXERTION_FACTOR).toBe(legacy.finkick.exertionFactor);
+    // No recorded checkpoint fins: every one of the 65 holds still along x,
+    // and the wreck's lie at x -20, 0 and 50, short of the site's ends at
+    // -40 and 200 (tests/fixtures/traces/baseline-v1.json).
+    const checkpoints = (
+      baselineFixture.scenarios as unknown as {
+        checkpoints: { state: { diveSite: string; diverX_m: number; horizontalVelocity_mps: number } }[];
+      }[]
+    ).flatMap((scenario) => scenario.checkpoints);
+    expect(checkpoints).toHaveLength(65);
+    expect(new Set(checkpoints.map((checkpoint) => checkpoint.state.horizontalVelocity_mps))).toEqual(new Set([0]));
+    expect(
+      new Set(checkpoints.filter((checkpoint) => checkpoint.state.diveSite === "wreck").map((checkpoint) => checkpoint.state.diverX_m || 0)),
+    ).toEqual(new Set([-20, 0, 50]));
+    const wreck = site("wreck");
+    const loop = createCcrState(createGasMix(0.21, 0));
+    for (const [what, base] of [
+      ["open circuit", createInitialDiveState(240)],
+      ["bailout", createInitialDiveState(240, { ccr: { ...loop, onBailout: true } })],
+    ] as const) {
+      for (const finning of [false, true]) {
+        const state = freezeDiveState({
+          ...base,
+          elapsedTimeS: seconds(600),
+          depthM: metres(30),
+          maxDepthM: metres(30),
+          bcdGasSurfaceLiters: neutralBcdSurfaceLitres(30),
+        });
+        const ours = new DiveModel(state).advanceWithBuoyancy(
+          { site: wreck, xM: 10, displacementM: finning ? 0.1 : 0, finning },
+          seconds(0.3),
+          { inflate: false, vent: false },
+        );
+        const usedL =
+          what === "open circuit"
+            ? state.tanks[0]!.gasRemainingL - ours.tanks[0]!.gasRemainingL
+            : (state.ccr!.diluentCylinderPressureBar - ours.ccr!.diluentCylinderPressureBar) * state.ccr!.diluentCylinderVolumeL;
+        const legacyL = legacy.effectiveAMV(finning) * legacy.ambientPressure(ours.depthM) * (0.3 / 60);
+        expect(usedL, `${what}, finning ${finning}`).toBeCloseTo(legacyL, 9);
+      }
+    }
   });
 });

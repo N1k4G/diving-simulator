@@ -122,6 +122,13 @@ export function isDiveOver(state: DiveState): boolean {
   return state.failure.reason !== null || state.completed;
 }
 
+/**
+ * How much more gas the diver breathes while finning: src/constants.js
+ * FINKICK_PARAMS.exertionFactor, legacy's effectiveAMV(kicking)
+ * (src/game-loop.js 43-45).
+ */
+export const FIN_EXERTION_FACTOR = 1.4;
+
 export interface DiveEnvironment {
   depthM: Metres;
   breathing?: BreathingSource;
@@ -403,6 +410,7 @@ export class DiveModel {
         depthM: metres(moved.depthM),
         gradientFactorHighPercent: this.#gradientFactorHighPercent,
         inOverhead: place ? overheadAt(place.site, xM, moved.depthM) : inOverhead,
+        ...(place?.finning ? { exertionMultiplier: FIN_EXERTION_FACTOR } : {}),
         ...(sharkFrame ? { shark: sharkFrame } : {}),
         ...(drill ? { drill } : {}),
       },
@@ -1385,7 +1393,7 @@ function updateLifeSupport(
   }
   if (state.ccr) {
     return state.ccr.onBailout
-      ? consumeCcrBailoutGas(state, environment.depthM, elapsedS)
+      ? consumeCcrBailoutGas(state, environment.depthM, elapsedS, environment.exertionMultiplier ?? 1)
       : updateCcrLoop(state, previousDepthM, elapsedS);
   }
   return consumeOpenCircuitGas(state, environment, elapsedS);
@@ -1445,12 +1453,15 @@ function consumeCcrBailoutGas(
   state: DiveState,
   depthM: Metres,
   elapsedS: Seconds,
+  exertionMultiplier: number,
 ): DiveState {
   const ccr = requireCcr(state);
+  // Legacy's effectiveAMV(kicking) on bailout too (src/game-loop.js 650).
   const consumedL =
     state.surfaceAirConsumptionLpm *
     ambientPressureBar(depthM) *
-    secondsToMinutes(elapsedS);
+    secondsToMinutes(elapsedS) *
+    exertionMultiplier;
   const availableL = ccr.diluentCylinderPressureBar * ccr.diluentCylinderVolumeL;
   const actualConsumedL = Math.min(consumedL, availableL);
 

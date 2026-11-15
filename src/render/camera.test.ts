@@ -20,13 +20,15 @@ describe("wreck camera", () => {
     });
   });
 
-  it("clamps the focus so the camera does not reveal outside the route", () => {
+  it("clamps the focus so the camera does not reveal outside the site (#240)", () => {
     const camera = createCameraTransform(
       { width: 580, height: 300 },
       { x: -100, y: 100 },
     );
 
-    expect(camera.focus).toEqual({ x: 29, y: 25 });
+    // 58 m across and 30 m down: half of each inside x -50, the site's -40
+    // and the camera's 10 m margin, and 68 m.
+    expect(camera.focus).toEqual({ x: -50 + 29, y: 68 - 15 });
   });
 
   it("shows the surface, with sky above it, to a diver floating there (#199)", () => {
@@ -35,6 +37,14 @@ describe("wreck camera", () => {
     const surface = worldToScreen({ x: 18, y: 0 }, camera);
     expect(surface.y).toBeGreaterThan(0);
     expect(surface.y).toBeLessThan(viewport.height / 2);
+  });
+
+  it("follows the diver down from the sky in a view taller than the site (#240)", () => {
+    // 390x844 shows 58 m across and about 125 m down, more than the site's 74.
+    const viewport = { width: 390, height: 844 };
+    const halfHeightM = 844 / (390 / 58) / 2;
+    expect(createCameraTransform(viewport, { x: 50, y: 10 }).focus.y).toBeCloseTo(-6 + halfHeightM, 12);
+    expect(createCameraTransform(viewport, { x: 50, y: 66 }).focus.y).toBe(66);
   });
 
   it("rejects invalid viewport dimensions", () => {
@@ -67,7 +77,12 @@ describe("the wreck camera's view around the diver", () => {
   it("leads the diver by 8 m where the scene's bounds allow", () => {
     expect(wreckViewAround(50, 1)).toEqual({ leftM: 21, rightM: 37 });
     expect(wreckViewAround(50, -1)).toEqual({ leftM: 37, rightM: 21 });
-    // Held at the bow's bound: the diver is 10 m from the left edge.
-    expect(wreckViewAround(10, 1)).toEqual({ leftM: 10, rightM: 48 });
+    // At the route's start too, now the site reaches past it (#240); held
+    // only at the camera's bound, x -50, 10 m past the site's -40.
+    expect(wreckViewAround(10, 1)).toEqual({ leftM: 21, rightM: 37 });
+    expect(wreckViewAround(-35, -1)).toEqual({ leftM: 15, rightM: 43 });
+    // At either end of the swim the diver is 10 m inside the stage (#240).
+    expect(wreckViewAround(-40, -1)).toEqual({ leftM: 10, rightM: 48 });
+    expect(wreckViewAround(200, 1)).toEqual({ leftM: 48, rightM: 10 });
   });
 });

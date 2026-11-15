@@ -92,7 +92,7 @@ test('a dive reloaded mid-dive resumes its position, facing, torch and depth, wi
 
   // What pagehide saved as the page went.
   const left = await readSave(page);
-  expect(left.version).toBe(21);
+  expect(left.version).toBe(22);
   expect(left.session.facing).toBe(-1);
   expect(left.session.torchOn).toBe(false);
   expect(left.session.routePositionM).toBeLessThan(49);

@@ -175,6 +175,12 @@ export interface DiverPlace {
   readonly xM: number;
   /** The frame's displacement along x, spread over its sub-steps by their length. */
   readonly displacementM: number;
+  /**
+   * Whether a fin key is held this frame: legacy's `kickDir !== 0`, which
+   * makes its breathing cost FINKICK_PARAMS.exertionFactor more
+   * (src/game-loop.js 43-45, 646).
+   */
+  readonly finning?: boolean;
 }
 
 function isDiverPlace(where: VerticalBounds | DiverPlace): where is DiverPlace {

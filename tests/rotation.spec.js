@@ -85,12 +85,12 @@ async function nextSave(page) {
  * jump is not hidden by a drift. 5 m is above the hull, so the diver can swim
  * the route's length. Returns the BCD's gas at the start.
  *
- * `pinned` is for the case that vents: the diver is put under the deck of the
- * wreck at 23.9 m, 0.1 m below its underside at x 50 (src/sites/wreck-route.ts
- * WRECK_DECK_UNDERSIDE, 24.5 m at x 22 to 23 m at x 82: 23.8 m at x 50), with
+ * `pinned` is for the case that vents: the diver is put in the wreck's
+ * superstructure at 23.9 m at x 50, under the accommodation's roof, whose
+ * underside at 23 m holds the diver's body at 23.3 m (#240), with
  * 18 L of gas in the BCD at that depth's 3.39 bar (61 surface litres; the save
  * codec takes any non-negative value). Positively buoyant, the diver rises to
- * the deck and stays there, the model clamping depth and ascent rate at the
+ * the roof and stays there, its structure stopping the depth and ascent rate at the
  * ceiling, so a vent has gas to take for the seven seconds or so that a
  * hold of any plausible length needs, whatever the machine's speed, and the
  * diver does not run away upward.
@@ -356,9 +356,9 @@ async function finger(page) {
 // route's end or a hull holds still whether or not the direction is let go,
 // and an empty BCD stops venting. `saturated` says so for a reading, and the
 // case asserts it is not, while held and after the release.
-// src/sites/wreck-route.ts ROUTE_MIN_POSITION_M and ROUTE_MAX_POSITION_M.
-const ROUTE_MIN_POSITION_M = 8;
-const ROUTE_MAX_POSITION_M = 106;
+// src/sites/wreck-site.ts WRECK_MIN_X_M and WRECK_MAX_X_M (#240).
+const ROUTE_MIN_POSITION_M = -40;
+const ROUTE_MAX_POSITION_M = 200;
 const offTheEnds = (position) => position > ROUTE_MIN_POSITION_M + 1 && position < ROUTE_MAX_POSITION_M - 1;
 // A vent takes src/core/buoyancy.ts ventRate 0.75 x ambient pressure litres
 // per dive second, and the dive runs three times real time (src/constants.js

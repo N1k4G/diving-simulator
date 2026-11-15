@@ -21,8 +21,6 @@ export type RetainedElement =
   | "distantHull"
   | "seabed"
   | "hull"
-  | "rooms"
-  | "engine"
   | "route"
   | "silt"
   | "diver"
@@ -41,7 +39,7 @@ export type RetainedElement =
  *   the shadow after the boat, behind the terrain (src/renderer.js drawScene).
  * - `distantHull` — parallax silhouette behind everything below the surface.
  * - `seabed` — ground the wreck rests on.
- * - `hull`, `rooms`, `engine` — the wreck itself, opaque, occludes the seabed.
+ * - `hull` — the wreck's structures (#240), opaque, occludes the seabed.
  * - `route`, `silt`, `diver` — everything between the camera and the wreck.
  *   Silt is suspended particulate, not ground cover; below `structure` the hull
  *   eats it.
@@ -58,8 +56,6 @@ export const RETAINED_LAYER_ASSIGNMENT: Readonly<Record<RetainedElement, LayerId
     distantHull: "backdrop",
     seabed: "terrain",
     hull: "structure",
-    rooms: "structure",
-    engine: "structure",
     route: "foreground",
     silt: "foreground",
     diver: "foreground",

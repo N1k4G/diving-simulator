@@ -7,62 +7,62 @@
   "scenes": {
     "wreck-exterior-start": {
       "statistics": {
-        "meanLuma": 42.428,
-        "sdLuma": 31.039,
+        "meanLuma": 39.529,
+        "sdLuma": 28.706,
         "meanRGB": [
-          17.758,
-          48.07,
-          59.192
+          14.919,
+          45.117,
+          56.642
         ],
-        "channelSpread": 41.434
+        "channelSpread": 41.724
       }
     },
     "wreck-descended": {
       "statistics": {
-        "meanLuma": 40.66,
-        "sdLuma": 20.798,
+        "meanLuma": 36.65,
+        "sdLuma": 15.734,
         "meanRGB": [
-          17.115,
-          46.178,
-          55.321
+          12.859,
+          42.11,
+          52.617
         ],
-        "channelSpread": 38.206
+        "channelSpread": 39.758
       }
     },
     "wreck-torch-off": {
       "statistics": {
-        "meanLuma": 38.533,
-        "sdLuma": 19.751,
+        "meanLuma": 34.443,
+        "sdLuma": 14.179,
         "meanRGB": [
-          15.462,
-          43.943,
-          52.875
+          11.068,
+          39.806,
+          50.145
         ],
-        "channelSpread": 37.413
+        "channelSpread": 39.077
       }
     },
     "wreck-narcosis": {
       "statistics": {
-        "meanLuma": 37.648,
-        "sdLuma": 19.938,
+        "meanLuma": 33.923,
+        "sdLuma": 15.305,
         "meanRGB": [
-          15.87,
-          42.749,
-          51.246
+          11.924,
+          38.969,
+          48.711
         ],
-        "channelSpread": 35.376
+        "channelSpread": 36.787
       }
     },
     "wreck-shark": {
       "statistics": {
-        "meanLuma": 40.614,
-        "sdLuma": 21.284,
+        "meanLuma": 36.689,
+        "sdLuma": 16.004,
         "meanRGB": [
-          17.426,
-          46.054,
-          55.008
+          13.1,
+          42.105,
+          52.493
         ],
-        "channelSpread": 37.582
+        "channelSpread": 39.393
       }
     }
   }

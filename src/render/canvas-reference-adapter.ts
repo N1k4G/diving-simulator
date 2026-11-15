@@ -1,5 +1,5 @@
 import type { PresentationState } from "../presentation/presentation-state";
-import { WRECK_HOLD_EDGE, WRECK_HULL_EDGE, type RoutePoint } from "../sites/wreck-route";
+import { WRECK_SITE } from "../sites/wreck-site";
 import {
   createCameraTransform,
   worldToScreen,
@@ -112,29 +112,17 @@ export class CanvasReferenceAdapter implements SceneRenderer {
     // The sky and the water's surface, behind the wreck (#222).
     this.#drawSurface(context, point, camera.scale, scene.elapsedRealS);
 
-    // The hull and the hold the route holds the diver to, open at the bow
-    // visor as the Pixi scene draws them (#222).
-    const outline = (points: readonly RoutePoint[]) => {
-      context.beginPath();
-      for (const [index, { x, d }] of points.entries()) {
-        const screen = point(x, d);
-        if (index === 0) {
-          context.moveTo(screen.x, screen.y);
-        } else {
-          context.lineTo(screen.x, screen.y);
-        }
-      }
-    };
-    outline(WRECK_HULL_EDGE);
+    // The wreck's structures, the ones the diver collides with, as the
+    // Pixi scene draws them (#240).
     context.fillStyle = "#30484a";
-    context.fill();
-    outline(WRECK_HOLD_EDGE);
-    context.fillStyle = "#091c22";
-    context.fill();
-    outline(WRECK_HULL_EDGE);
     context.strokeStyle = "#78918d";
-    context.lineWidth = Math.max(1, camera.scale * 0.3);
-    context.stroke();
+    context.lineWidth = Math.max(1, camera.scale * 0.1);
+    for (const w of WRECK_SITE.structures) {
+      const topLeft = point(w.x1, w.dTop);
+      const bottomRight = point(w.x2, w.dBottom);
+      context.fillRect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
+      context.strokeRect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
+    }
 
     // In front of the wreck and behind the diver and the torch, as the Pixi
     // scene layers it (#246).

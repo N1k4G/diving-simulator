@@ -78,7 +78,7 @@ async function resumeWith(page, mutate) {
       return parsed !== null && parsed.state.elapsedTimeS > 0 ? parsed : null;
     }, SAVE_KEY)
     .then((handle) => handle.jsonValue());
-  mutate(saved.state);
+  mutate(saved.state, saved.session);
   await page.goto('/dist/');
   await page.evaluate(
     ([key, value]) => window.localStorage.setItem(key, value),
@@ -286,20 +286,23 @@ test('a dive surfaced fast past its stop ends on the post-dive screen, with no s
   await expect(page.locator('.wreck-warning, .status-chip')).toHaveCount(0);
 });
 
+/** At 30 m in the bow visor's opening, x 19, light on gas (#240). */
+function inTheBowOpening(state, session) {
+  state.depthM = 30;
+  state.maxDepthM = Math.max(state.maxDepthM, 30);
+  state.verticalVelocityMpm = 0;
+  state.bcdGasSurfaceLiters = 5;
+  session.routePositionM = 19;
+}
+
 test('the rule of thirds is kept under the deck, from the plan made on entering, and not outside', async ({ page }) => {
   test.setTimeout(120_000);
-  // The hold is entered from above, through the bow visor's opening (#222):
-  // the diver starts at 21 m, over the stem's top at 24.5 m and below the
-  // raised visor's top at 19.4 m, light on gas so it sinks. Finning aft, it
-  // crosses the stem into the opening, where the visor and the deck's forward
-  // edge hold it until it has sunk below the deck, and then goes on under the
-  // deck into the cargo hold.
-  await resumeWith(page, (state) => {
-    state.depthM = 21;
-    state.maxDepthM = Math.max(state.maxDepthM, 21);
-    state.verticalVelocityMpm = 0;
-    state.bcdGasSurfaceLiters = 5;
-  });
+  // The wreck is entered from above, through the bow visor's opening
+  // (#240): the diver resumes there, at x 19 and 30 m, between the stem and
+  // the main deck's forward edge at x 22, light on gas so it sinks towards
+  // the vehicle deck's floor at 39 m. Finning aft, it goes under the main
+  // deck into the overhead.
+  await resumeWith(page, inTheBowOpening);
   await expect(hudRow(page, 'thirds')).toBeHidden();
 
   const zone = hudValue(page, 'zone');
@@ -319,15 +322,11 @@ test('the rule of thirds is kept under the deck, from the plan made on entering,
 
 test('a dive resumed in the cargo hold stays there, under the overhead with the plan it entered on', async ({ page }) => {
   test.setTimeout(120_000);
-  // Into the hold as above (#222), then a reload: the save holds the route
-  // position, so the resumed diver is still under the deck, and the rule of
-  // thirds runs on from the plan made on entering, not one made afresh.
-  await resumeWith(page, (state) => {
-    state.depthM = 21;
-    state.maxDepthM = Math.max(state.maxDepthM, 21);
-    state.verticalVelocityMpm = 0;
-    state.bcdGasSurfaceLiters = 5;
-  });
+  // Into the hold as above (#222, #240), then a reload: the save holds the
+  // route position, so the resumed diver is still under the deck, and the
+  // rule of thirds runs on from the plan made on entering, not one made
+  // afresh.
+  await resumeWith(page, inTheBowOpening);
   const zone = hudValue(page, 'zone');
   await page.keyboard.down('d');
   await expect(zone).toHaveText('Cargo hold', { timeout: 30_000 });
